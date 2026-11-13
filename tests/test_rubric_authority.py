@@ -15,6 +15,15 @@ from rubric_authority import check_authority  # noqa: E402
 ETHOS = b"---\nname: x\n---\n\n## Purpose & Outcomes\n\nTotals use two decimals.\n\n## Constraints\n\nNo writes.\n"
 INSTRUCTION = b"Compute the total.\nWrite it to total.txt.\n"
 FIXTURE = b'{"orders": [{"amount": 120.25}]}'
+# CRLF with a BOM, front matter, setext and formatted headings, a repeat, and a fenced comment.
+GUIDE = (
+    (
+        "\ufeff---\ntitle: Guide\n---\n\n# Totals\n\nSee [the rules](rules.md)\n=====\n\n"
+        "## Use `round` here\n\n## Totals\n\n```bash\n# Install deps\n```\n"
+    )
+    .replace("\n", "\r\n")
+    .encode()
+)
 
 
 def record(root, ident, role, path, content, digest=None):
@@ -41,10 +50,14 @@ def measure(root, references, *, checks=None, sources=None):
     ]
     checks = checks if checks is not None else [{"id": "c", "requirements": [row["id"] for row in requirements]}]
     plan = json.dumps({"requirements": requirements, "checks": checks}).encode()
+    (root / "docs").mkdir(exist_ok=True)
+    (root / "docs/decisions.md").write_bytes(b"## Totals\n")
     artifacts = sources or [
         record(root, "ethos", "ethos", "ETHOS.md", ETHOS),
         record(root, "instruction", "task", "tasks/t/instruction.md", INSTRUCTION),
         record(root, "fixture", "task", "tasks/t/orders.json", FIXTURE),
+        record(root, "guide", "task", "docs/guide.md", GUIDE),
+        record(root, "license", "task", "LICENSE", INSTRUCTION),
     ]
     artifacts = artifacts + [record(root, "plan", "construction", ".eval-author/.working/construction.json", plan)]
     return check_authority(root, artifacts, {"plan_artifact_id": "plan"})
@@ -66,6 +79,15 @@ def codes(result):
         "tasks/t/instruction.md#L1-L2",
         "tasks/t/orders.json#/orders/0/amount",
         "tasks/t/instruction.md",
+        "./ETHOS.md#Constraints",
+        "LICENSE#L2",
+        "docs/guide.md#Totals",
+        "docs/guide.md#totals-1",
+        "docs/guide.md#See the rules",
+        "docs/guide.md#see-the-rules",
+        "docs/guide.md#Use round here",
+        "docs/guide.md#use-round-here",
+        "docs/guide.md#L16",
     ],
 )
 def test_locators_naming_selected_content_resolve(tmp_path, reference):
@@ -74,7 +96,17 @@ def test_locators_naming_selected_content_resolve(tmp_path, reference):
 
 
 @pytest.mark.parametrize(
-    "reference", ["ETHOS.md#Scope", "tasks/t/instruction.md#L2-L3", "tasks/t/orders.json#/orders/1"]
+    "reference",
+    [
+        "ETHOS.md#Scope",
+        "ETHSO.md#Constraints",
+        "tasks/t/instruction.md#L2-L3",
+        "tasks/t/orders.json#/orders/1",
+        "docs/guide.md#Install deps",
+        "docs/guide.md#title: Guide",
+        "docs/guide.md#totals-2",
+        "docs/guide.md#L17",
+    ],
 )
 def test_missing_targets_are_broken_without_affecting_neighbors(tmp_path, reference):
     result = measure(tmp_path, [("specification", reference), ("specification", "ETHOS.md#Constraints")])
@@ -102,6 +134,14 @@ def test_changed_source_bytes_fail_the_reference(tmp_path):
     assert codes(result) == [("authority.reference_changed", "r0", "fail")]
 
 
+def test_symlinked_source_fails_the_reference(tmp_path):
+    sources = [record(tmp_path, "ethos", "ethos", "ETHOS.md", ETHOS)]
+    (tmp_path / "linked.md").symlink_to("ETHOS.md")
+    sources.append({**sources[0], "id": "linked", "path": "linked.md"})
+    result = measure(tmp_path, [("specification", "linked.md#Constraints")], sources=sources)
+    assert codes(result) == [("authority.reference_invalid", "r0", "fail")]
+
+
 def test_mapping_gaps_and_counts(tmp_path):
     references = [("specification", "ETHOS.md#Constraints"), ("specification", "Input rule")]
     result = measure(tmp_path, references, checks=[{"id": "c", "requirements": ["r0", "missing"]}])
@@ -115,9 +155,19 @@ def test_mapping_gaps_and_counts(tmp_path):
     assert counts["by_status"]["resolved"] == counts["by_status"]["prose"] == 1
 
 
-def test_malformed_plan_fails_and_wrong_role_is_rejected(tmp_path):
-    plan = record(tmp_path, "plan", "construction", "plan.json", b'{"requirements": [{"id": "r0"}]}')
+@pytest.mark.parametrize(
+    "checks",
+    [
+        [{"id": "c", "requirements": "r0"}],
+        [{"id": "c", "requirements": [["r0"]]}],
+        [{"id": "c", "requirements": [{"id": "r0"}]}],
+    ],
+)
+def test_malformed_plan_fails_and_wrong_role_is_rejected(tmp_path, checks):
+    requirements = [{"id": "r0", "authority": {"basis": "unresolved", "reference": "x"}}]
+    content = json.dumps({"requirements": requirements, "checks": checks}).encode()
+    plan = record(tmp_path, "plan", "construction", "plan.json", content)
     result = check_authority(tmp_path, [plan], {"plan_artifact_id": "plan"})
-    assert codes(result) == [("authority.plan_invalid", "plan", "fail")]
+    assert codes(result) == [("authority.plan_malformed", "plan", "fail")]
     with pytest.raises(ValueError):
         check_authority(tmp_path, [{**plan, "role": "task"}], {"plan_artifact_id": "plan"})

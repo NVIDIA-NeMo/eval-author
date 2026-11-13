@@ -100,12 +100,12 @@
     },
     {
       "id": "ethos-valid", "mutation": "ethos-valid", "cli_exit_code": 0,
-      "description": "Handcrafted ETHOS.md passes the installed ethos-write validator.",
+      "description": "The ethos-write router-help fixture ETHOS.md passes the installed ethos-write validator.",
       "measurement": "ethos", "status": "pass", "codes": [], "valid": true
     },
     {
       "id": "ethos-malformed", "mutation": "ethos-malformed", "cli_exit_code": 1,
-      "description": "Rename the handcrafted ETHOS.md Constraints section; the installed validator rejects the structure.",
+      "description": "Rename the router-help fixture ETHOS.md Constraints section; the installed validator rejects the structure.",
       "measurement": "ethos", "status": "fail", "codes": ["ethos.invalid"], "valid": false
     },
     {

@@ -176,7 +176,7 @@ ETHOS_DOCUMENT = (ROOT / "team-skills/ethos/ethos-write/evals/files/router-help/
 
 
 def ethos_selection(root, selection, mutation):
-    """Select a handcrafted ETHOS.md for the installed ethos-write validator."""
+    """Select the ethos-write router-help fixture ETHOS.md for the installed validator."""
     content = ETHOS_DOCUMENT
     if mutation == "ethos-malformed":
         content = content.replace(b"\n## Constraints\n", b"\n## Limits\n")

@@ -80,9 +80,11 @@ certifying completeness. The confirmed-missing variant removes the task
 file before the checker reads it. A caller's missing-access declaration alone
 remains unknown.
 
-The source configuration, freshness, Ethos, and authority-reference variants use handcrafted refund-task inputs,
-JSON configuration records, retained review notes, an `ETHOS.md`, and a
-construction plan. They use no native receipts:
+The source configuration and freshness variants use handcrafted refund-task inputs,
+JSON configuration records, and retained review notes. The Ethos and
+authority-reference variants reuse the `ethos-write` router-help fixture
+`ETHOS.md`, and the authority variants add a handcrafted construction plan. They
+use no native receipts:
 
 | Variant | Expected bounded observation |
 | --- | --- |
@@ -197,9 +199,11 @@ The result records the document and validator digests and the validator's
 verdict. A valid result checks structure only, not confirmed or adequate intent.
 
 To check a construction plan's grading-authority references, add an `authority`
-selection naming the plan. A reference written as `path`, `path#Heading`,
-`path#L3-L5`, or `path#/json/pointer` must name selected content. Prose
-references are reported as not checkable rather than broken.
+selection naming the plan and run from the repository root. A reference written
+as `path`, `path#Heading`, `path#L3-L5`, or `path#/json/pointer` must name
+selected content. A path that doesn't exist or a heading that isn't in the file
+fails. Prose references are reported as not checkable rather than broken.
+
 Keep selections and output private because they can contain local evidence locations.
 
 ## Provenance demo

@@ -35,8 +35,10 @@ Use the same inputs for every selected task:
   correctness source, run the [Ethos structure measurement](identity.md#selected-ethos-structure)
   and read Eval Author's saved confirmation with the read-only
   [`journey_state.py show`](../../eval-author/scripts/journey_state.py), which
-  rechecks it against the current bytes. Only an Ethos that passes and whose review
-  is `complete` is owner intent; otherwise it is a claim to compare.
+  rechecks it against the current bytes. Only an Ethos that passes, whose
+  `state.ethos.path` is the selected Ethos path, and whose `state.ethos.stage` is
+  `complete` is owner intent. Otherwise, including when `show` reports no saved
+  state, it is a claim to compare.
 
 Construction plans, requirement maps, generator labels, task READMEs, and trace
 candidates are claims to compare, never authority. A disagreement between them
