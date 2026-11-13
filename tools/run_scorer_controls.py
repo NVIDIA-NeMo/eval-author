@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Paired synthetic refund controls with selected-source identity checks."""
+"""Run paired synthetic refund controls and check the identity of selected sources."""
 
 import argparse
 import hashlib
@@ -155,7 +155,7 @@ def run_panel(output, selection):
         if hashlib.sha256(data).hexdigest() != record["digest"]:
             raise ValueError("selected input digest mismatch")
         selected_bytes[record["id"]] = data
-    # Retained reports are data, never a source of executable Python.
+    # Treat retained reports as data. Never execute Python from them.
     trusted_scorer = source_bytes(FIXTURES / "refund_scorer.py")
     if selected_bytes["scorer"] != trusted_scorer:
         raise ValueError("retained scorer differs from selected implementation")

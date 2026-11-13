@@ -345,7 +345,7 @@ def test_native_harbor_evidence_rejects_specific_tampering(tmp_path, mutation):
     if mutation in ("checksum", "lock"):
         path = trial / ("result.json" if mutation == "checksum" else "lock.json")
         data = json.loads(path.read_text())
-        # A real digest of different staged bytes, not a missing/placeholder hash.
+        # Use a real digest of different staged bytes, not a missing or placeholder hash.
         from harbor.models.task.task import Task
         from harbor.publisher.packager import Packager
 
@@ -448,7 +448,7 @@ def test_runner_stages_hash_bound_panel_and_delegates_leakage_controls(tmp_path,
 
     monkeypatch.setattr(native.common, "execute", execute)
     output = tmp_path / "native"
-    assert native.run(output) == 1  # Fake transport creates no jobs: never native evidence.
+    assert native.run(output) == 1  # Fake transport creates no jobs and provides no native evidence.
     labels = [call[1] for call in calls]
     assert "refund-panel" in labels and "normalizer-controls" in labels
     command = next(row[0] for row in calls if row[1] == "refund-panel")

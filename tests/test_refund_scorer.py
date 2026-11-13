@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Fixture-only refund controls; no native or model execution."""
+"""Test fixture-only refund controls without native or model execution."""
 
 import copy
 import importlib.util
@@ -254,7 +254,7 @@ class RefundScorerTests(unittest.TestCase):
                         self.assertEqual(result, expected)
                         self.assertTrue(all(type(value) is int for value in result["checks"].values()))
         self.assertEqual((contract, panel), original)
-        # Diagnostic comparator: a reject-everything grader cannot pass a positive control.
+        # In this diagnostic comparison, a reject-everything grader cannot pass a positive control.
         reference = panel["cases"][0]["expected"]["reviewed"]
         reject_all = {
             "health": "ok",

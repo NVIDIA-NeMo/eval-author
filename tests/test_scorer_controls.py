@@ -121,7 +121,8 @@ def test_replay_cli_rejects_malformed_selection(tmp_path, target, value):
         "reason": "input_or_execution_invalid",
     }
     assert result.stderr == ""
-    # Reject before looking for a retained report, not merely because it is absent.
+    # Reject the input before looking for a retained report.
+    # A missing report alone must not cause this rejection.
     with pytest.raises(ValueError):
         module.run_panel(output, selection)
 
@@ -184,7 +185,8 @@ def test_replay_cli_rejects_duplicate_json_keys(tmp_path, relative, ident, field
     target.write_text(target.read_text().replace("{", "{" + json.dumps(field) + ":" + json.dumps(value) + ",", 1))
     if ident is not None:
         reseal(module, output, selection, ident)
-        # A forged report is unnecessary: production replay must reject input first.
+        # Production replay must reject the input before reading a report.
+        # This test needs no forged report.
         with pytest.raises(ValueError, match="duplicate JSON key"):
             module.run_panel(output, selection)
     else:

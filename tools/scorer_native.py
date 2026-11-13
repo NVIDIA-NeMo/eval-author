@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Private native transport for the fixed, synthetic refund scorer panel."""
+"""Run the fixed, synthetic refund scorer panel through private native transport."""
 
 import json
 import os
@@ -447,7 +447,7 @@ def validate_snapshot(output):
             and re.fullmatch(r"sha256:[0-9a-f]{64}", runtime["image_id"]),
             "selected runtime changed",
         )
-    # Regenerate from trusted sources, never from the retained dependency graph.
+    # Regenerate from trusted sources. Do not use the retained dependency graph.
     with tempfile.TemporaryDirectory(prefix="refund-selected-") as temporary:
         trusted = Path(temporary).resolve()
         stage_panel(trusted / "panel", runtime=runtime)

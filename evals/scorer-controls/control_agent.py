@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Scripted synthetic event submission, with no model or payment endpoint."""
+"""Submit scripted synthetic events without a model or payment endpoint."""
 
 import json
 import shlex

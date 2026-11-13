@@ -1,10 +1,10 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Single synthetic refund task; scripted data is applied by the trusted parent.
+"""The trusted parent applies scripted data to a single synthetic refund task.
 
-This is not a sandbox for programs or a verifier of submitted final-state claims.
 Only the explicit event vocabulary can affect the private simulation state.
+This task does not sandbox programs or verify submitted final-state claims.
 """
 
 import copy
@@ -163,7 +163,7 @@ def load_contract(path):
 
 
 def contract_for_case(contract, case):
-    """Merge trusted, declared fixture overrides; this does not authenticate them."""
+    """Merge trusted, declared fixture overrides without authenticating them."""
 
     def merge(base, override):
         if type(override) is dict and type(base) is dict:

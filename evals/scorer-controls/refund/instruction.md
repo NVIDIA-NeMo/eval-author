@@ -4,4 +4,4 @@
 Submit the selected synthetic event artifacts in `/work/submissions.json`.
 The trusted root verifier applies these events to a private refund simulator.
 This control does not make an external payment or authenticate an approver.
-Task qualification is NOT_ASSESSED; this is a fixed fixture contract.
+This control uses a fixed fixture contract. Task qualification is NOT_ASSESSED.

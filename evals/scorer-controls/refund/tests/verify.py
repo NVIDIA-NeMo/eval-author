@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Root-owned simulator driver; expected fixture answers never enter this task."""
+"""This simulator driver is root-owned. Expected fixture answers never enter this task."""
 
 import hashlib
 import json
@@ -90,7 +90,7 @@ def collect(tests, submissions):
 def main():
     tests = Path("/tests")
     receipt = collect(tests, Path("/work/submissions.json"))
-    # Harbor's scalar is transport health only; semantic credit stays in each row.
+    # Harbor's scalar measures only transport health. Each row retains semantic credit.
     receipt["reward"] = int(receipt["health"] == "ok")
     output = Path("/logs/verifier")
     (output / "checks.json").write_text(json.dumps(receipt, allow_nan=False) + "\n")
@@ -123,8 +123,9 @@ def worker(manifest_path, submissions_path):
     }
 
 
-# The path-loaded copy is only a bootstrap. Execute and identify the same
-# immutable driver buffer before loading any scoring implementation.
+# The copy loaded from the path only bootstraps the driver.
+# Before loading any scoring implementation, execute and identify the same
+# immutable driver buffer.
 if "_DRIVER_BYTES" not in globals():
     namespace = {"__name__": __name__, "__file__": __file__, "_DRIVER_BYTES": read_bytes(__file__)}
     namespace["_DRIVER_DIGEST"] = "sha256:" + hashlib.sha256(namespace["_DRIVER_BYTES"]).hexdigest()
