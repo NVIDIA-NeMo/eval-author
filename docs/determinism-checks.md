@@ -206,28 +206,36 @@ or default outputs. Keep their output private.
 | Saved acceptance claim | `task_pipeline.py check-acceptance --report <acceptance.json> --integrity` | `acceptance_integrity` |
 | Repeats after tool errors | `trace_privacy.py audit-retries --task-dir <task-dir>` | `private/retry-audit.json` |
 
-**Receipt status claims.** Only a passed claim on a closure control is
-eligible. A claim is a contradiction when the receipt's return code is
-nonzero. It is also a contradiction when its bound native result fails a health
-or behavior assertion. The contradiction rate is contradictions divided by eligible claims.
+#### Receipt status claims
+
+Only a passed claim on a closure control is eligible. A claim is a contradiction
+when the receipt's return code is nonzero. It is also a contradiction when its
+bound native result fails a health or behavior assertion. The contradiction rate
+is contradictions divided by eligible claims.
+
 A correctly recorded failure or infrastructure error is not an eligible claim.
 Agent, diagnostic, and baseline receipts are excluded. Unknown receipts stay
 separate and block the rubric predicate.
 
-**Required controls.** Each required control has one state: `pass`, `fail`,
-`missing`, `mismatched`, `execution_error`, `unknown`, or `stale`. Only a
-current pass for every control sets `verified`. A missing control is an evidence
+#### Required controls
+
+Each required control has one state: `pass`, `fail`, `missing`, `mismatched`,
+`execution_error`, `unknown`, or `stale`. Only a current pass for every control
+sets `verified`. A missing control is an evidence
 gap. The check does not read the attempt ledger. The rubric does not read the task
 tree, so its freshness is `unknown`. The Audit checker hashes the selected task
 tree and reports `current` or `stale`.
 
-**Superseded manifests.** `prepare --previous` records the replaced
-manifest's digest as `supersedes`. A receipt bound to a superseded manifest is a
-review candidate, because receipts have no trustworthy time. Repair manifests
+#### Superseded manifests
+
+`prepare --previous` records the replaced manifest's digest as `supersedes`.
+A receipt bound to a superseded manifest is a review candidate, because receipts
+have no trustworthy time. Repair manifests
 prepared earlier have no link.
 
-**Saved acceptance claims.** A passed `task_validation` claim is a violation in
-these cases:
+#### Saved acceptance claims
+
+A passed `task_validation` claim is a violation in these cases:
 
 - A cited control receipt shows failed behavior or execution.
 - A registered closure failure is not cited.
@@ -237,13 +245,16 @@ Missing or unreadable evidence is `unknown`. A changed task makes the
 claim `stale`. Agent runs are excluded. The command exits 0 only when the claim
 is `consistent`. Without `--integrity`, `check-acceptance` is unchanged.
 
-**Repeats after tool errors.** The report schema is
-`nemo.eval_author.retry_audit.v1`. Each ordered, model-issued tool call with usable
-input and a single result whose error flag is explicitly true is one eligible
-opportunity. Its repeat is the next identical call by the same agent in a later
-turn. The repeat is a review candidate when its error flag is also explicitly
-true and no different call came between. A repeat with an explicitly false error
-flag (`repeat_succeeded`), or a different call between (`intervening_action`), is
+#### Repeats after tool errors
+
+The report schema is `nemo.eval_author.retry_audit.v1`. An eligible opportunity is
+an ordered, model-issued tool call with usable input. It must have a single result
+whose error flag is explicitly true. Its repeat is the next identical call by
+the same agent in a later turn. The repeat is a review candidate when its error
+flag is also explicitly true and no different call came between.
+
+A repeat with an explicitly false error flag (`repeat_succeeded`), or a different
+call between (`intervening_action`), is
 excluded. A false flag does not prove correctness or a successful side effect.
 Absent, invalid, conflicting, or unobservable repeat status is unknown unless
 an intervening action already excludes the opportunity.
@@ -253,8 +264,9 @@ excluded opportunities. `assessed_opportunities = eligible_opportunities - unkno
 which equals `review_candidates + no_repeat`. A call with no identical repeat in
 a later turn counts as `no_repeat`, not an exclusion. `candidate_rate` is
 `review_candidates / assessed_opportunities`, or `null` when assessed is zero.
-`trials.observable` is 1 only when assessed is positive; `trials.affected` is 1
+`trials.observable` is 1 only when assessed is positive. `trials.affected` is 1
 only when a review candidate exists. Unknown and excluded counts remain separate.
+
 Traces record no artifact or environment state, so `confirmed_violations` is always 0. Token
 counts are the values each span reports. The check adds no model window or estimate.
 The evidence audit report is unchanged.
@@ -301,7 +313,7 @@ reports need not match across directories. Existing output directories are rejec
 This demonstrates the checks and scoring rules. It does not demonstrate model
 performance or complete workflow qualification.
 
-Regenerate saved derived rubric reports to include the new fields. Retained
+Regenerate the saved, derived rubric reports to include the new fields. Retained
 receipts do not change. The report builder revalidates against the selected
 source bytes.
 

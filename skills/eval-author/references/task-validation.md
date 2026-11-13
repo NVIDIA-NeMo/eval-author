@@ -399,8 +399,8 @@ control receipts, attempt ledger, and repair lineage:
 - `unknown`: evidence is missing or unreadable.
 - `stale`: the task changed after the controls ran.
 
-`violations` counts violating claims (0 or 1), while `violation_findings`
-counts the supporting findings. Duplicate citations count once. An empty
+`violations` counts violating claims (0 or 1). `violation_findings` counts the
+supporting findings. Duplicate citations count once. An empty
 list of evidence is `unknown`, not a consistent claim.
 
 Report each finding with its receipt and case. Do not call an `unknown` or

@@ -227,8 +227,8 @@ Read each control's typed `integrity` fields separately: claim, basis, record
 consistency, execution health, declared behavior, status-claim agreement, and
 freshness.
 
-Only a supported closure-control receipt that claims `passed` is an eligible
-claim. It is a contradiction when one of these is true:
+Only a supported receipt for a closure control that claims `passed` is eligible.
+The claim is a contradiction when one of these is true:
 
 - Its return code is nonzero.
 - Its digest-bound native result from the same run fails a health assertion.
@@ -258,11 +258,11 @@ trustworthy time, so `confirmed` stays 0. Use `task_pipeline.py
 check-acceptance --integrity` to test whether a saved claim relies on a
 superseded result.
 
-`CREATE-07-C01` includes `selected_receipt_status_consistent` as a bounded
-`PASS`, `FAIL`, or `BLOCKED` predicate after source revalidation. Its canonical
+After source revalidation, `CREATE-07-C01` includes `selected_receipt_status_consistent`
+as a bounded predicate with outcome `PASS`, `FAIL`, or `BLOCKED`. Its canonical
 check remains `PARTIAL`, and this evidence alone leaves the criterion score null.
-`context_rot_score` stays null. Use existing selected-dependency freshness
-separately. Do not transfer a historical pass to a changed task.
+`context_rot_score` stays null. Use the existing freshness checks for selected
+dependencies separately. Do not transfer a historical pass to a changed task.
 These remain unassessed here:
 
 - General false-closure claims in prose.
