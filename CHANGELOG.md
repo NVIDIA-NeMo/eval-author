@@ -37,6 +37,12 @@ preview: workflows, skills, and saved artifacts may change between releases.
   longer shows the separate "Saved date / Markdown path" line. The Suite README
   link is no longer in the header; it remains in the audit report's Suite reports
   list.
+- **Generated reports are not audit evidence.** Content validation now refuses to
+  bind `.eval-author/README.md`, `report.html`, `report_markdown/*`, or the legacy
+  `audit-coverage-report.md` as a source, because publishing the audit rewrites
+  them and left the findings stale (`source_binding`). Cite the underlying tasks,
+  runs, receipts, or measurements and state findings in `report-content.json`.
+  A `report-content.json` that already binds one of these must drop that source.
 - **Audit recommendations table.** The audit report's Recommended next actions
   section is now a table with Severity, Finding / Advisory, Tool or capability,
   and Description columns, instead of a bulleted list. A selected proposal's

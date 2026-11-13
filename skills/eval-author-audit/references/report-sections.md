@@ -35,6 +35,7 @@ renderer writes and, where the section has any, the fields you author, with an e
 - Never write HTML.
 - Evidence links come from each record's `evidence` source IDs.
 - `audit.md` and `ETHOS.md` are linked only in Scope and Execution Evidence. Other source files, such as grading scripts and run records, are linked only in the evidence citation that ends a finding or advisory. Don't name any of them anywhere else.
+- Never bind a generated suite report as a source: `.eval-author/README.md`, `report.html`, `report_markdown/*`, or the legacy `audit-coverage-report.md`. Publishing the audit rewrites them, so their digests would go stale and validation would fail with `source_binding`. Content validation refuses them (`source_binding`, "cannot be source evidence"). Cite the underlying tasks, runs, receipts, or measurements, and state findings in `report-content.json`.
 - List evidence sources freely in `evidence`. The citation drops the finding's own tasks, `audit.md`, and `ETHOS.md`, and shows each file name once. With nothing left to cite, it states the finding's status without a source.
 - Refer to coverage items by their description, such as "Answer with exact quotations", not by a link to the audit specification.
 - Name a file or path in plain text only when the reader needs it to understand the issue, such as `/logs/agent/reward.txt`.

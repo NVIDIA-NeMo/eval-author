@@ -578,6 +578,48 @@ def test_legacy_conversion_is_explicit_and_keeps_original_bytes(audit_report):
     assert output.read_bytes().startswith(renderer.HEADER.encode())
 
 
+@pytest.mark.parametrize(
+    "path",
+    [
+        ".eval-author/README.md",
+        ".eval-author/report.html",
+        ".eval-author/report_markdown/tasks.md",
+        ".eval-author/report_markdown/audits.md",
+        ".eval-author/audit-coverage-report.md",
+        ".eval-author/REPORT.HTML",
+    ],
+)
+def test_generated_suite_reports_cannot_be_bound_as_source_evidence(audit_report, path):
+    """Publishing rewrites these files, so a bound digest would be stale the moment the audit is published."""
+    content, _, root = audit_report
+    target = root / path
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text("generated\n")
+    data = example_data(root)
+    data["sources"][3] = {**data["sources"][3], "path": path, "sha256": content.sha(target.read_bytes())}
+    save(root, data)
+    with pytest.raises(content.ContentError, match="cannot be source evidence"):
+        load(audit_report)
+
+
+def test_the_unbindable_paths_are_exactly_the_files_publication_writes(audit_report):
+    content, renderer, _ = audit_report
+    published = {
+        renderer.suite_report.SUITE_README,
+        renderer.suite_report.REPORT_HTML,
+        renderer.suite_report.LEGACY_AUDIT_MARKDOWN,
+    }
+    assert set(content.PUBLISHED_PATHS) == published
+    for name in (
+        renderer.suite_report.TASKS_MARKDOWN,
+        renderer.suite_report.RUNS_MARKDOWN,
+        renderer.suite_report.AUDIT_MARKDOWN,
+    ):
+        assert content.is_published_path(name)
+    assert not content.is_published_path(".eval-author/audit.md")
+    assert not content.is_published_path("tasks/source-answer/README.md")
+
+
 def test_changed_source_and_symlinks_are_rejected(audit_report):
     content, _, root = audit_report
     path = root / "report-sources/tasks/source-answer/verify.py"
@@ -719,7 +761,7 @@ def test_generated_output_cannot_overwrite_its_own_saved_source(audit_report):
     )
     data["summary"][0] = "A revised summary cannot overwrite its retained source."
     before = output.read_bytes()
-    with pytest.raises(content.ContentError, match="output_is_input"):
+    with pytest.raises(content.ContentError, match="cannot be source evidence"):
         renderer.refresh(load(audit_report, data))
     assert output.read_bytes() == before
 

@@ -29,6 +29,24 @@ class ContentError(ValueError):
         super().__init__("\n".join(f"{row['field']}: {row['rule']}. {row['fix']}" for row in errors))
 
 
+# Publishing the audit rewrites these files (the suite README section, report.html, the Markdown
+# reports) and retires the legacy report, so none of them can be bound as evidence: their digests
+# would change the moment the report is published. A test keeps this list equal to report.py's.
+PUBLISHED_PATHS = (
+    ".eval-author/README.md",
+    ".eval-author/report.html",
+    ".eval-author/audit-coverage-report.md",
+)
+PUBLISHED_DIRECTORY = ".eval-author/report_markdown"
+
+
+def is_published_path(path: str) -> bool:
+    folded = path.casefold()
+    return folded in {name.casefold() for name in PUBLISHED_PATHS} or (
+        folded == PUBLISHED_DIRECTORY.casefold() or folded.startswith(PUBLISHED_DIRECTORY.casefold() + "/")
+    )
+
+
 def issue(path: str, rule: str, fix: str) -> dict:
     return {"field": path, "rule": rule, "fix": fix}
 
@@ -231,6 +249,12 @@ def _sources(model: Content) -> list[dict]:
             model.sources[row["id"]] = row
             seen_paths.add(row["path"])
             source = local(model.repo, row["path"])
+            if is_published_path(row["path"]):
+                raise ValueError(
+                    "Generated suite reports cannot be source evidence: publishing the audit rewrites them. "
+                    "Remove this source and cite the underlying tasks, runs, receipts, or measurements; "
+                    "state findings in report-content.json"
+                )
             if row["kind"] == "task":
                 actual = core_module().task_evidence.task_digest(source)
             else:
