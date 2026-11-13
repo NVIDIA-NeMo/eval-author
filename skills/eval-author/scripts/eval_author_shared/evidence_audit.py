@@ -17,6 +17,16 @@ if TYPE_CHECKING:
 SCHEMA = "nemo.eval_author.trace_environment_evidence_audit.v2"
 
 
+def call_key(agent_span_id: str | None, span: Any) -> str | None:
+    """Identical-input scope: the owning AGENT span, explicit tool server, tool name and arguments."""
+    name = span.tool_name.strip() if isinstance(span.tool_name, str) else ""
+    if not name or not isinstance(span.input, dict):
+        return None  # the tool-access plan reports schema and name problems
+    call = span.tool_call
+    server = call.server if call is not None and call.server else None
+    return canonical_json([agent_span_id, server, name, span.input])
+
+
 def audit_evidence(trace: Trace, *, safe_trace_sha256: str) -> dict[str, Any]:
     """Locate findings by safe-trace span and turn ids, never by trace text."""
     from trace_ingest import Initiator, TurnRole
@@ -82,12 +92,9 @@ def audit_evidence(trace: Trace, *, safe_trace_sha256: str) -> dict[str, Any]:
             findings.append({"code": code, "span_id": span.id})
             continue
         counts["paired_calls"] += 1
-        name = span.tool_name.strip() if isinstance(span.tool_name, str) else ""
-        if not name or not isinstance(span.input, dict):
-            continue  # the tool-access plan reports schema and name problems
-        server = call.server if call is not None and call.server else None
-        key = canonical_json([agent_span_id, server, name, span.input])
-        groups.setdefault(key, []).append((span.id, result_signature(result_entry(results[0]))))
+        key = call_key(agent_span_id, span)
+        if key is not None:
+            groups.setdefault(key, []).append((span.id, result_signature(result_entry(results[0]))))
     for entries in groups.values():
         if len({signature for _, signature in entries}) > 1:
             counts["conflicting_input_groups"] += 1
