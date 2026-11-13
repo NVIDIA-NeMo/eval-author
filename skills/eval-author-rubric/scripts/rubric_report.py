@@ -27,7 +27,7 @@ from rubric_identity import identify, resolve_route
 from rubric_scoring import _checked_record, _observations, classify_inventory, route_is_bound
 
 CANONICAL = Path(__file__).resolve().parents[1] / "references/artifact-configuration-provenance.json"
-INVENTORIES = {"DISC-01-A": "task_artifacts", "DISC-01-C": "grading_dependencies"}
+INVENTORIES = {"DISCOVERY-01-A": "task_artifacts", "DISCOVERY-01-C": "grading_dependencies"}
 
 
 def _validated(measurements, selection, root):
@@ -139,28 +139,31 @@ def _inventory(check, item_id, measurements, selection, root, records, valid):
 
 
 PARTIAL_HELPERS = {
-    "DISC-02-A-C02": ("config", "Unknown JSON pointers only; no per-field source or provider-hidden classification."),
-    "DISC-02-B-C01": (
+    "DISCOVERY-02-A-C02": (
+        "config",
+        "Unknown JSON pointers only; no per-field source or provider-hidden classification.",
+    ),
+    "DISCOVERY-02-B-C01": (
         "config",
         "Caller-projected declared/observed diff only; no trusted native run/task binding or independently observed settings.",
     ),
-    "DISC-02-B-C02": (
+    "DISCOVERY-02-B-C02": (
         "config",
         "Unavailable projected values stay unknown; observable native coverage and its denominator are not established.",
     ),
-    "AUD-02-C01": (
+    "AUDIT-02-C01": (
         "config",
         "Declared/observed projection comparison only; not a version-bound cross-system comparison or fairness judgment.",
     ),
-    "ENV-02-A-C01": (
+    "ENVIRONMENT-02-A-C01": (
         "identity",
         "Selected local identities only; installed component availability and complete MCP inventory are not established.",
     ),
-    "ENV-02-A-C03": (
+    "ENVIRONMENT-02-A-C03": (
         "approvals",
         "Declared substitution bindings only; no installed runtime observation or scope-owner authentication.",
     ),
-    "ENV-03-C01": (
+    "ENVIRONMENT-03-C01": (
         "identity",
         "Selected file digests only; no material external-state inventory, live response capture or drift bounds.",
     ),
@@ -208,11 +211,11 @@ def _partial_helper(check, measurements, selection):
 
 
 CONFIG_CHECKS = {
-    "DISC-02-A-C01": "Selected field provenance only; required model, prompt, sampling, budget, harness and dependency coverage is not independently established.",
-    "DISC-02-A-C02": "Selected fields and omitted category placeholders only; required-field completeness and version-reference semantics are not established.",
-    "DISC-02-B-C01": "Selected-record run/task/configuration assertions only, not native attestation or complete runtime-setting coverage.",
-    "DISC-02-B-C02": "Observable coverage is limited to selected fields and omitted category placeholders, not an independently established native denominator.",
-    "AUD-02-C01": "Declared/observed source comparison only; distinct cross-system identities, complete comparison settings and fairness are not established.",
+    "DISCOVERY-02-A-C01": "Selected field provenance only; required model, prompt, sampling, budget, harness and dependency coverage is not independently established.",
+    "DISCOVERY-02-A-C02": "Selected fields and omitted category placeholders only; required-field completeness and version-reference semantics are not established.",
+    "DISCOVERY-02-B-C01": "Selected-record run/task/configuration assertions only, not native attestation or complete runtime-setting coverage.",
+    "DISCOVERY-02-B-C02": "Observable coverage is limited to selected fields and omitted category placeholders, not an independently established native denominator.",
+    "AUDIT-02-C01": "Declared/observed source comparison only; distinct cross-system identities, complete comparison settings and fairness are not established.",
 }
 
 
@@ -277,21 +280,21 @@ def _sourced_config(check, measurement, selection):
         boundary,
     )
     ident = check["id"]
-    if ident == "DISC-02-A-C01":
+    if ident == "DISCOVERY-02-A-C01":
         _predicate(
             check,
             "declared_fields_sourced",
             "PASS" if counts["declared_sourced"] == counts["fields"] else "PARTIAL",
             "Every reported declared selector resolves to nonempty digest-bound source content.",
         )
-    elif ident == "DISC-02-A-C02":
+    elif ident == "DISCOVERY-02-A-C02":
         _predicate(
             check,
             "unknown_states_classified",
             "PASS",
             "Omitted, inaccessible, provider-hidden and unobservable states retain fixed reasons and claim limits for reported fields.",
         )
-    elif ident == "DISC-02-B-C02":
+    elif ident == "DISCOVERY-02-B-C02":
         _predicate(
             check,
             "unavailable_observations_not_matched",
@@ -305,7 +308,7 @@ def _sourced_config(check, measurement, selection):
             "PASS" if not counts["unknown"] else "PARTIAL",
             "Type-preserving comparison over selected source fields; different is a measured difference, not a fairness failure.",
         )
-        if ident == "DISC-02-B-C01":
+        if ident == "DISCOVERY-02-B-C01":
             bindings = [field["observed"]["binding"] for field in fields.values()]
             mismatch = any(binding["reason"] and binding["reason"].endswith("_mismatch") for binding in bindings)
             outcome = (
@@ -582,7 +585,7 @@ def _verified_helpers(measurements, selection, root):
 def _helper_check(check, item_id, measurements, selection, root, records, valid, verified):
     if check["method"] != "deterministic":
         return
-    if check["id"] == "ENV-02-A-C03" and (
+    if check["id"] == "ENVIRONMENT-02-A-C03" and (
         "approval_sources" in selection or "evidence" in measurements.get("approvals", {})
     ):
         if "approvals" in verified:
@@ -608,7 +611,7 @@ def _helper_check(check, item_id, measurements, selection, root, records, valid,
         _partial_helper(check, measurements, selection)
     elif item_id in INVENTORIES and check["method"] == "deterministic":
         _inventory(check, item_id, measurements, selection, root, records, valid)
-    elif check["id"] == "DISC-01-B-C01":
+    elif check["id"] == "DISCOVERY-01-B-C01":
         route = measurements.get("route", {})
         selected = selection.get("route")
         if not route or not isinstance(selected, dict):

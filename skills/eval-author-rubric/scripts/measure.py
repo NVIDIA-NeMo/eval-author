@@ -83,7 +83,7 @@ def measure(root, selection):
             raise ValueError("invalid native selection")
         measurements["native"] = project_native(root, identity, **selected_native)
     return {
-        "schema": "rubric-measurements-v2",
+        "schema": "rubric-measurements-v3",
         "experimental": True,
         "scope": "explicit-local-selection",
         "preflight_success": False,
@@ -100,12 +100,12 @@ def main(argv=None):
     args = parser.parse_args(argv)
     try:
         report = measure(args.root.absolute(), loads(args.selection.read_text()))
-        output = json.dumps(report, sort_keys=True, indent=2, allow_nan=False)
+        output = json.dumps(report, indent=2, allow_nan=False)
     except (OSError, ValueError, TypeError, KeyError):
         print(
             json.dumps(
                 {
-                    "schema": "rubric-measurements-v2",
+                    "schema": "rubric-measurements-v3",
                     "status": "invalid",
                     "code": "selection.invalid",
                     "preflight_success": False,

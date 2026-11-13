@@ -56,7 +56,7 @@ agent actually exploited the defect. Keep unrun controls explicit.
 
 For example, a confirmed reachable verifier path that accepts solver-writable
 `success.json` as full credit before checking a required update yields
-AC-02 = 0/E1 and AC-03 = 0/E1. The same mechanism meets both zero conditions.
+ANTI-CHEAT-02 = 0/E1 and ANTI-CHEAT-03 = 0/E1. The same mechanism meets both zero conditions.
 Use one shared finding ID, cited in both item rows; do not add scores, count two
 independent defects, or claim corroboration from reuse. If evidence meets only
 one item's condition, score only that item and assess the other from its own
@@ -69,7 +69,7 @@ it. **Review** below means contextual assessment with the reviewer kind recorded
 an authorized intervention. No decision model, LLM judge, or monitor is required
 or qualified by this initial slice. Unresolved semantic questions remain gaps.
 
-## AC-01: protected information stays outside the solver boundary
+## ANTI-CHEAT-01: protected information stays outside the solver boundary
 
 **Pillar:** validity.
 
@@ -115,7 +115,7 @@ contamination. Unknown corpora, semantic leaks, local split overlap, and benchma
 feedback reuse are not cleared by this task-boundary check. Sensitive-data
 exposure requires separate handling even if it cannot improve the score.
 
-## AC-02: shortcuts do not earn forbidden credit
+## ANTI-CHEAT-02: shortcuts do not earn forbidden credit
 
 **Pillar:** validity.
 
@@ -165,7 +165,7 @@ fix alone does not repair historical results.
 Rejected valid alternatives are verifier defects, not improved anti-cheat quality.
 This is bounded resistance, not a claim against all reward hacking.
 
-## AC-03: credit comes from current, trusted results
+## ANTI-CHEAT-03: credit comes from current, trusted results
 
 **Pillar:** validity.
 
@@ -206,10 +206,10 @@ validation results, and paired invalid/valid receipt controls.
 native evidence or a separately authorized repair. Never edit a receipt to pass.
 
 **Boundary:** Identity does not prove scorer correctness. Apply the shared-finding
-rule and exact AC-02/AC-03 example above when reusing a forged-success observation;
+rule and exact ANTI-CHEAT-02/ANTI-CHEAT-03 example above when reusing a forged-success observation;
 each satisfied item retains its score without duplicating the defect count.
 
-## AC-04: prior trials do not leak answers or success
+## ANTI-CHEAT-04: prior trials do not leak answers or success
 
 **Pillar:** validity.
 

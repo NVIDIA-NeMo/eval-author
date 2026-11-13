@@ -16,6 +16,14 @@ RUNNER = ROOT / "tools/run_rubric_provenance_demo.py"
 EXPECTATIONS = ROOT / "evals/rubric-measurements/provenance.json"
 
 
+def test_provenance_encoding_preserves_criterion_order(monkeypatch):
+    monkeypatch.syspath_prepend(str(ROOT / "tools"))
+    from run_rubric_provenance_demo import encoded
+
+    ordered = {"DISCOVERY-01-A": {}, "AUDIT-02": {}, "CREATE-07": {}}
+    assert list(json.loads(encoded({"items": ordered}))["items"]) == list(ordered)
+
+
 def invoke(*args):
     return subprocess.run(
         [sys.executable, str(RUNNER), *map(str, args)],

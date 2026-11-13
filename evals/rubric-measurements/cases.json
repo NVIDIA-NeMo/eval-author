@@ -32,26 +32,26 @@
     {"id":"missing-decision","mutation":"missing-decision","measurement":"approvals","status":"fail","codes":["approvals.decision_missing"]}
   ],
   "check_outcomes": {
-    "DISC-01-A-C01": "PASS", "DISC-01-A-C02": "PASS", "DISC-01-A-C03": "NOT_RUN",
-    "DISC-01-B-C01": "PASS", "DISC-01-B-C02": "BLOCKED", "DISC-01-B-C03": "NOT_RUN", "DISC-01-B-C04": "NOT_RUN", "DISC-01-B-C05": "NOT_RUN",
-    "DISC-01-C-C01": "PASS", "DISC-01-C-C02": "PASS", "DISC-01-C-C03": "NOT_RUN", "DISC-01-C-C04": "NOT_RUN",
-    "DISC-02-A-C01": "BLOCKED", "DISC-02-A-C02": "PARTIAL", "DISC-02-A-C03": "NOT_RUN", "DISC-02-A-C04": "NOT_RUN",
-    "DISC-02-B-C01": "PARTIAL", "DISC-02-B-C02": "PARTIAL", "DISC-02-B-C03": "NOT_RUN",
-    "DISC-03-A-C01": "BLOCKED", "DISC-03-A-C02": "BLOCKED", "DISC-03-A-C03": "NOT_RUN",
-    "AUD-02-C01": "PARTIAL", "AUD-02-C02": "NOT_RUN", "AUD-02-C03": "NOT_RUN",
-    "ENV-01-C01": "NOT_RUN", "ENV-01-C02": "BLOCKED", "ENV-01-C03": "NOT_RUN",
-    "ENV-02-A-C01": "PARTIAL", "ENV-02-A-C02": "NOT_RUN", "ENV-02-A-C03": "PARTIAL",
-    "ENV-03-C01": "PARTIAL", "ENV-03-C02": "NOT_RUN", "ENV-03-C03": "NOT_RUN",
+    "DISCOVERY-01-A-C01": "PASS", "DISCOVERY-01-A-C02": "PASS", "DISCOVERY-01-A-C03": "NOT_RUN",
+    "DISCOVERY-01-B-C01": "PASS", "DISCOVERY-01-B-C02": "BLOCKED", "DISCOVERY-01-B-C03": "NOT_RUN", "DISCOVERY-01-B-C04": "NOT_RUN", "DISCOVERY-01-B-C05": "NOT_RUN",
+    "DISCOVERY-01-C-C01": "PASS", "DISCOVERY-01-C-C02": "PASS", "DISCOVERY-01-C-C03": "NOT_RUN", "DISCOVERY-01-C-C04": "NOT_RUN",
+    "DISCOVERY-02-A-C01": "BLOCKED", "DISCOVERY-02-A-C02": "PARTIAL", "DISCOVERY-02-A-C03": "NOT_RUN", "DISCOVERY-02-A-C04": "NOT_RUN",
+    "DISCOVERY-02-B-C01": "PARTIAL", "DISCOVERY-02-B-C02": "PARTIAL", "DISCOVERY-02-B-C03": "NOT_RUN",
+    "DISCOVERY-03-A-C01": "BLOCKED", "DISCOVERY-03-A-C02": "BLOCKED", "DISCOVERY-03-A-C03": "NOT_RUN",
+    "AUDIT-02-C01": "PARTIAL", "AUDIT-02-C02": "NOT_RUN", "AUDIT-02-C03": "NOT_RUN",
+    "ENVIRONMENT-01-C01": "NOT_RUN", "ENVIRONMENT-01-C02": "BLOCKED", "ENVIRONMENT-01-C03": "NOT_RUN",
+    "ENVIRONMENT-02-A-C01": "PARTIAL", "ENVIRONMENT-02-A-C02": "NOT_RUN", "ENVIRONMENT-02-A-C03": "PARTIAL",
+    "ENVIRONMENT-03-C01": "PARTIAL", "ENVIRONMENT-03-C02": "NOT_RUN", "ENVIRONMENT-03-C03": "NOT_RUN",
     "CREATE-07-C01": "PARTIAL", "CREATE-07-C02": "PARTIAL", "CREATE-07-C03": "BLOCKED", "CREATE-07-C04": "BLOCKED"
   },
   "check_overrides": {
-    "wrong-scorer": {"DISC-01-B-C01": "FAIL"},
-    "ambiguous-route": {"DISC-01-B-C01": "PARTIAL"},
-    "confirmed-missing": {"DISC-01-A-C02": "FAIL"},
-    "partial": {"DISC-01-B-C01": "PARTIAL", "DISC-01-C-C01": "PARTIAL", "DISC-01-C-C02": "PARTIAL"}
+    "wrong-scorer": {"DISCOVERY-01-B-C01": "FAIL"},
+    "ambiguous-route": {"DISCOVERY-01-B-C01": "PARTIAL"},
+    "confirmed-missing": {"DISCOVERY-01-A-C02": "FAIL"},
+    "partial": {"DISCOVERY-01-B-C01": "PARTIAL", "DISCOVERY-01-C-C01": "PARTIAL", "DISCOVERY-01-C-C02": "PARTIAL"}
   },
   "evidence_check_overrides": {
-    "sourced_config": {"DISC-02-A-C01": "PARTIAL"},
+    "sourced_config": {"DISCOVERY-02-A-C01": "PARTIAL"},
     "freshness": {"CREATE-07-C04": "PARTIAL"}
   },
   "evidence_cases": [
@@ -99,15 +99,15 @@
       "measurement": "freshness", "status": "unknown", "codes": ["freshness.unresolved"], "affected_status": "unresolved", "changed_dependencies": ["ethos"]
     }
   ],
-  "not_assessed": ["DISC-02-A", "DISC-02-B", "DISC-03-A", "AUD-02", "ENV-01", "ENV-02-A", "ENV-03", "CREATE-07"],
+  "not_assessed": ["DISCOVERY-02-A", "DISCOVERY-02-B", "DISCOVERY-03-A", "AUDIT-02", "ENVIRONMENT-01", "ENVIRONMENT-02-A", "ENVIRONMENT-03", "CREATE-07"],
   "assessments": [
     {
       "id": "valid", "mutation": null, "cli_exit_code": 0,
       "description": "Readable source-bound inventories, explicit strict route, and retained non-independent completeness review.",
       "items": {
-        "DISC-01-A": {"score": 2, "status": "ASSESSED", "evidence_strength": "E2"},
-        "DISC-01-B": {"score": 2, "status": "ASSESSED", "evidence_strength": "E2"},
-        "DISC-01-C": {"score": 2, "status": "ASSESSED", "evidence_strength": "E2"}
+        "DISCOVERY-01-A": {"score": 2, "status": "ASSESSED", "evidence_strength": "E2"},
+        "DISCOVERY-01-B": {"score": 2, "status": "ASSESSED", "evidence_strength": "E2"},
+        "DISCOVERY-01-C": {"score": 2, "status": "ASSESSED", "evidence_strength": "E2"}
       },
       "diagnostics": {"identity": [], "route": []}
     },
@@ -115,9 +115,9 @@
       "id": "wrong-scorer", "mutation": "wrong-scorer", "cli_exit_code": 1,
       "description": "Dispatch selects the weak claimed-success route instead of the intended scorer: a weak-route defect, not demonstrated exploitation.",
       "items": {
-        "DISC-01-A": {"score": 2, "status": "ASSESSED", "evidence_strength": "E2"},
-        "DISC-01-B": {"score": 0, "status": "ASSESSED", "evidence_strength": "E2"},
-        "DISC-01-C": {"score": 2, "status": "ASSESSED", "evidence_strength": "E2"}
+        "DISCOVERY-01-A": {"score": 2, "status": "ASSESSED", "evidence_strength": "E2"},
+        "DISCOVERY-01-B": {"score": 0, "status": "ASSESSED", "evidence_strength": "E2"},
+        "DISCOVERY-01-C": {"score": 2, "status": "ASSESSED", "evidence_strength": "E2"}
       },
       "diagnostics": {"identity": [], "route": ["route.scorer_mismatch"]}
     },
@@ -125,9 +125,9 @@
       "id": "ambiguous-route", "mutation": "ambiguous-route", "cli_exit_code": 1,
       "description": "The selector is absent; no scorer is guessed. Inventoried known grading branches remain readable.",
       "items": {
-        "DISC-01-A": {"score": 2, "status": "ASSESSED", "evidence_strength": "E2"},
-        "DISC-01-B": {"score": null, "status": "NOT_ASSESSED", "evidence_strength": "E0"},
-        "DISC-01-C": {"score": 2, "status": "ASSESSED", "evidence_strength": "E2"}
+        "DISCOVERY-01-A": {"score": 2, "status": "ASSESSED", "evidence_strength": "E2"},
+        "DISCOVERY-01-B": {"score": null, "status": "NOT_ASSESSED", "evidence_strength": "E0"},
+        "DISCOVERY-01-C": {"score": 2, "status": "ASSESSED", "evidence_strength": "E2"}
       },
       "diagnostics": {"identity": [], "route": ["route.dynamic_unresolved"]}
     },
@@ -135,9 +135,9 @@
       "id": "confirmed-missing", "mutation": "confirmed-missing", "cli_exit_code": 1,
       "description": "The selected task file is deleted after identity capture; an actual read confirms it is missing, unlike a missing-access declaration.",
       "items": {
-        "DISC-01-A": {"score": 0, "status": "ASSESSED", "evidence_strength": "E2"},
-        "DISC-01-B": {"score": 2, "status": "ASSESSED", "evidence_strength": "E2"},
-        "DISC-01-C": {"score": 2, "status": "ASSESSED", "evidence_strength": "E2"}
+        "DISCOVERY-01-A": {"score": 0, "status": "ASSESSED", "evidence_strength": "E2"},
+        "DISCOVERY-01-B": {"score": 2, "status": "ASSESSED", "evidence_strength": "E2"},
+        "DISCOVERY-01-C": {"score": 2, "status": "ASSESSED", "evidence_strength": "E2"}
       },
       "diagnostics": {"identity": ["identity.artifact_missing"], "route": []}
     },
@@ -145,9 +145,9 @@
       "id": "partial", "mutation": "partial", "cli_exit_code": 1,
       "description": "A readable task has an unresolved material input reference; the identified scorer has a declared but unresolved dependency. The retained review preserves both limits.",
       "items": {
-        "DISC-01-A": {"score": 1, "status": "ASSESSED", "evidence_strength": "E2"},
-        "DISC-01-B": {"score": 1, "status": "ASSESSED", "evidence_strength": "E2"},
-        "DISC-01-C": {"score": 1, "status": "ASSESSED", "evidence_strength": "E2"}
+        "DISCOVERY-01-A": {"score": 1, "status": "ASSESSED", "evidence_strength": "E2"},
+        "DISCOVERY-01-B": {"score": 1, "status": "ASSESSED", "evidence_strength": "E2"},
+        "DISCOVERY-01-C": {"score": 1, "status": "ASSESSED", "evidence_strength": "E2"}
       },
       "diagnostics": {"identity": [], "route": ["route.dependency_missing"]}
     }

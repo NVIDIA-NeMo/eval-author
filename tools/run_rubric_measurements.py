@@ -820,7 +820,7 @@ def run_panel():
     package = package_acceptance(cases["package_acceptance"])
     return {
         "package_acceptance": package,
-        "schema": "rubric-mutation-panel-v3",
+        "schema": "rubric-mutation-panel-v4",
         "measurement": "synthetic-local-mutations",
         "status": "passed"
         if rows
@@ -852,11 +852,12 @@ def summary(result):
     lines = [
         f"Rubric handcrafted assessment demo: {result['status']}",
         f"Raw measurement regressions: {sum(row['matches_expectations'] for row in result['cases'])}/{len(result['cases'])} matched",
-        "Variant | DISC-01-A | DISC-01-B | DISC-01-C | expected match",
+        "Variant | DISCOVERY-01-A | DISCOVERY-01-B | DISCOVERY-01-C | expected match",
     ]
     for case in result["assessments"]:
         values = [
-            json.dumps(case["observed"]["items"][key]["score"]) for key in ("DISC-01-A", "DISC-01-B", "DISC-01-C")
+            json.dumps(case["observed"]["items"][key]["score"])
+            for key in ("DISCOVERY-01-A", "DISCOVERY-01-B", "DISCOVERY-01-C")
         ]
         lines.append(" | ".join([case["id"], *values, str(case["matches_expectations"])]))
     lines.extend(
@@ -887,5 +888,5 @@ if __name__ == "__main__":
     parser.add_argument("--format", choices=("json", "text"), default="json")
     args = parser.parse_args()
     result = run_panel()
-    print(summary(result) if args.format == "text" else json.dumps(result, sort_keys=True, indent=2, allow_nan=False))
+    print(summary(result) if args.format == "text" else json.dumps(result, indent=2, allow_nan=False))
     raise SystemExit(0 if result["status"] == "passed" else 1)
