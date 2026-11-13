@@ -30,8 +30,8 @@ copy belongs to that flow's template module, not a second prose template.
 The renderer presents decisions; it never makes them. It does not inspect the
 repository, load or save journey state, probe prerequisites, validate files,
 delegate work, choose sources, run evaluations, or grant approval. Reading its
-output cannot establish readiness, Ethos confirmation, permission to continue,
-or authorization to spend. Persist actual user replies and observed findings
+output cannot establish readiness, Ethos confirmation, or permission to continue.
+Persist actual user replies and observed findings
 through the existing state helper before rendering stateful responses.
 
 ## Audit entry and resumption

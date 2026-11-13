@@ -162,18 +162,15 @@ jobs:
       - name: Type check
         run: uv run --locked ty check --python-version ${{ matrix.python-version }}
       - run: uv run --locked ruff format --check .
-      - name: Run tests in two parallel groups
+      - name: Acquire isolated patched APT for native retry tests
+        timeout-minutes: 3
+        run: bash tools/bootstrap_native_apt.sh "$RUNNER_TEMP/native-apt"
+
+      - name: Run tests across runner CPUs
         env:
           PYTHONDONTWRITEBYTECODE: "1"
-        run: |
-          uv run --locked pytest -q -rs --durations=10 tests/test_trace_environment.py --basetemp="$RUNNER_TEMP/pytest-trace" &
-          trace_pid=$!
-          uv run --locked pytest -q -rs --durations=10 --ignore=tests/test_trace_environment.py --basetemp="$RUNNER_TEMP/pytest-rest" &
-          rest_pid=$!
-          status=0
-          wait "$trace_pid" || status=1
-          wait "$rest_pid" || status=1
-          exit "$status"
+          EVAL_AUTHOR_NATIVE_APT_ROOT: ${{ runner.temp }}/native-apt
+        run: uv run --locked pytest -q -rs --durations=10 -n auto --dist worksteal --basetemp="$RUNNER_TEMP/pytest"
   verifier-cheats:
     if: >-
       github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule' ||

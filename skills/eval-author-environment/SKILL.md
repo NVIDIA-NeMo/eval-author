@@ -120,7 +120,7 @@ Carry these from the calling flow instead of asking again:
 - the provider (Harbor or NeMo Gym) and the existing suite layout;
 - requirements recorded at scope with
   [Execution dependencies](../eval-author/references/execution-dependencies.md);
-- installation, execution, and spend authorizations already given.
+- installation and execution authorizations already given.
 
 Build one environment kit per agent and reuse it for every task of that agent:
 
@@ -299,7 +299,7 @@ are written:
 - **Agent-provided discovery:** Harbor passes MCP server configuration to the
   agent but does not prove the agent connected. Confirm discovery and calls in
   one run of the actual agent, which requires the existing authorization for
-  agent execution and spend; until then, record discovery as unproven.
+  agent execution. Until then, record discovery as unproven.
 
 Record each proof run's command, job path, and result in `environment-plan.md`.
 These runs prove the environment, not a task: do not declare them as a task's
@@ -340,7 +340,8 @@ Planning and inventory need only repository access. Building and proving a
 Harbor environment needs the Harbor CLI and Docker with Compose; NeMo Gym needs its
 separate runtime. Vendor sandboxes need the user's authorization and
 credentials, referenced by variable name. Agent runs used to prove tool
-discovery require authorization for execution and spend.
+discovery require execution to be in the requested scope. Follow the shared
+[model-call policy](../eval-author/references/shared-prerequisites.md#model-calls-for-requested-work).
 
 ## Limitations
 

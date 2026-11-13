@@ -28,6 +28,7 @@ dev = [
   "ruff>=0.14",
   "ty>=0.0.80",
   "nemo-compass[mlflow]==0.2.1",
+  "pytest-xdist>=3.8,<4",
 ]
 
 [tool.uv]

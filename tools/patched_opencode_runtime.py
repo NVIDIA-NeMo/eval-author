@@ -12,11 +12,13 @@ import stat
 import subprocess
 import sys
 import time
+from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 from contextlib import contextmanager
-from contextvars import ContextVar
+from contextvars import ContextVar, copy_context
 from importlib import import_module
 from importlib.metadata import distribution
 from pathlib import Path
+from threading import Event, Lock, RLock
 from types import CodeType
 
 EVALUATOR_REVISION = "3fd2cf57e4a2af01f282e001f7515b6e76f18ec7"
@@ -147,6 +149,10 @@ LIVE_HANDOFF_SECONDS = 60
 PREPARATION_TIMEOUT_SECONDS = 900
 _PREPARATION_DEADLINE: ContextVar[float | None] = ContextVar("prepared_image_deadline", default=None)
 _PREPARATION_PHASE = ContextVar("prepared_image_phase", default="unknown")
+DEFAULT_PREPARATION_WORKERS = 2
+_PREPARATION_WORKERS = ContextVar("preparation_workers", default=DEFAULT_PREPARATION_WORKERS)
+_PREPARATION_STOP: ContextVar[Event | None] = ContextVar("preparation_stop", default=None)
+PREPARATION_WORKERS = (1, 2, 4, 8)
 PREPARATION_CATEGORIES = frozenset(
     {
         "docker_failed",
@@ -271,9 +277,25 @@ class PreparationTiming:
         self.image_ordinal = 0
         self.completed_images = 0
         self.image_started = None
+        self.coordinator = self
+        self.lock = RLock()
+
+    def worker(self, ordinal):
+        worker = object.__new__(PreparationTiming)
+        worker.coordinator = self
+        worker.image_ordinal = ordinal - 1
+        worker.image_started = None
+        worker.operation_started = self.started
+        return worker
 
     def emit(self, event, operation="none", category="none"):
+        with self.coordinator.lock:
+            self._emit(event, operation, category)
+
+    def _emit(self, event, operation, category):
         import tempfile
+
+        coordinator = self.coordinator
 
         if type(event) is not str or event not in PREPARATION_TIMING_EVENTS:
             raise PreparationError("validation_error", "unknown")
@@ -285,7 +307,7 @@ class PreparationTiming:
             self.image_ordinal += 1
             self.image_started = now
         elif event == "image_completed":
-            self.completed_images += 1
+            coordinator.completed_images += 1
         if event == "operation_started":
             self.operation_started = now
         deadline = _PREPARATION_DEADLINE.get()
@@ -299,31 +321,31 @@ class PreparationTiming:
             operation=safe.operation,
             category="none" if type(category) is str and category == "none" else safe.category,
             image_ordinal=self.image_ordinal,
-            completed_images=self.completed_images,
+            completed_images=coordinator.completed_images,
             operation_elapsed_seconds=seconds(now - self.operation_started) if operation != "none" else 0.0,
             image_elapsed_seconds=seconds(now - self.image_started) if self.image_started is not None else 0.0,
-            total_elapsed_seconds=seconds(now - self.started),
+            total_elapsed_seconds=seconds(now - coordinator.started),
             remaining_deadline_seconds=seconds(min(PREPARATION_TIMEOUT_SECONDS, deadline - now))
             if deadline is not None
             else 0.0,
         )
         if any(
             type(value) is not int or not 0 <= value <= PREPARATION_TIMING_MAX_IMAGES
-            for value in (self.image_ordinal, self.completed_images)
+            for value in (self.image_ordinal, coordinator.completed_images)
         ):
             raise PreparationError("validation_error", safe.phase)
-        retained = len(self.events) < PREPARATION_TIMING_MAX_EVENTS
+        retained = len(coordinator.events) < PREPARATION_TIMING_MAX_EVENTS
         if retained:
-            self.events.append(row)
+            coordinator.events.append(row)
         else:
-            self.truncated = True
+            coordinator.truncated = True
         payload = (
             json.dumps(
                 dict(
                     **PREPARATION_TIMING_FIXED,
-                    events_truncated=self.truncated,
+                    events_truncated=coordinator.truncated,
                     latest=row,
-                    events=self.events,
+                    events=coordinator.events,
                 ),
                 sort_keys=True,
             )
@@ -333,12 +355,12 @@ class PreparationTiming:
             raise PreparationError("validation_error", safe.phase)
         temporary = None
         try:
-            with tempfile.NamedTemporaryFile(mode="w", dir=self.path.parent, delete=False) as stream:
+            with tempfile.NamedTemporaryFile(mode="w", dir=coordinator.path.parent, delete=False) as stream:
                 temporary = Path(stream.name)
                 stream.write(payload)
                 stream.flush()
                 os.fsync(stream.fileno())
-            os.replace(temporary, self.path)
+            os.replace(temporary, coordinator.path)
         except OSError:
             raise PreparationError("filesystem_error", safe.phase) from None
         finally:
@@ -467,6 +489,9 @@ def _docker(args, *, timeout=30):
     operation = "inspect" if args[:2] == ["image", "inspect"] else args[0] if args else "other"
     operation = operation if operation in PREPARATION_OPERATIONS else "other"
     phase = _PREPARATION_PHASE.get()
+    stop = _PREPARATION_STOP.get()
+    if stop is not None and stop.is_set():
+        raise PreparationError("unknown_error", phase, operation)
     _timing_event("operation_started", operation)
     try:
         timeout = preparation_timeout(timeout)
@@ -559,7 +584,18 @@ def check_prepared_image(identity, record, platform, *, probe=False, binary=None
         check_package_versions(versions)
 
 
-def prepare_images(skill, output, binary_manifest, *, timing_checkpoint=None, private_diagnostics=None):
+def prepare_images(
+    skill,
+    output,
+    binary_manifest,
+    *,
+    workers=DEFAULT_PREPARATION_WORKERS,
+    timing_checkpoint=None,
+    private_diagnostics=None,
+):
+    if type(workers) is not int or workers not in PREPARATION_WORKERS:
+        raise PreparationError("validation_error", "budget")
+    workers_token = _PREPARATION_WORKERS.set(workers)
     phase_token = _PREPARATION_PHASE.set("budget")
     token = _PREPARATION_DEADLINE.set(None)
     timing_token = _PREPARATION_TIMING.set(None)
@@ -576,7 +612,12 @@ def prepare_images(skill, output, binary_manifest, *, timing_checkpoint=None, pr
         budget = min(PREPARATION_TIMEOUT_SECONDS, live_job_remaining(LIVE_EXECUTION_SECONDS + LIVE_HANDOFF_SECONDS))
         _PREPARATION_DEADLINE.set(started + budget)
         result = _prepare_images(skill, output, binary_manifest)
-        _timing_event("completed")
+        try:
+            _timing_event("completed")
+        except BaseException:
+            if isinstance(result, Path) and result == Path(output) / "prepared-images.json":
+                result.unlink(missing_ok=True)
+            raise
         return result
     except Exception as error:
         if isinstance(error, PreparationError):
@@ -592,13 +633,18 @@ def prepare_images(skill, output, binary_manifest, *, timing_checkpoint=None, pr
                 category = "contract_error" if _PREPARATION_PHASE.get() == "contract" else "unknown_error"
             safe = PreparationError(category, _PREPARATION_PHASE.get())
         details = preparation_failure(safe)
-        _timing_event("failed", details["operation"], details["category"])
+        _PREPARATION_PHASE.set(details["phase"])
+        try:
+            _timing_event("failed", details["operation"], details["category"])
+        except Exception:
+            pass
         raise safe from None
     finally:
         _PREPARATION_PRIVATE_DIAGNOSTICS.reset(private_token)
         _PREPARATION_TIMING.reset(timing_token)
         _PREPARATION_DEADLINE.reset(token)
         _PREPARATION_PHASE.reset(phase_token)
+        _PREPARATION_WORKERS.reset(workers_token)
 
 
 def _preparation_phase(phase):
@@ -628,74 +674,231 @@ def _prepare_images(skill, output, binary_manifest):
         images={},
         packages=PACKAGE_VERSIONS,
     )
-    dependency_image = None
+    plan = {}
     for arm, paths in tasks.items():
         data["tasks"][arm] = []
         for task in paths:
             _preparation_phase("task_source")
-            context = task / "environment"
             identity = prepared_task_identity(task, platform, bound["sha256"])
             data["tasks"][arm].append(identity)
-            if identity in data["images"]:
-                continue
-            _timing_event("image_started")
-            source_tag = "ea-live-source:" + identity
-            tag = "ea-live-prepared:" + identity
-            pinned_source = output / (identity + ".Dockerfile")
-            original = (context / "Dockerfile").read_text()
-            pinned = pinned_dockerfile(original, platform)
-            uses_default = pinned != pinned_dockerfile(original, platform, dependency_image="sha256:" + "0" * 64)
-            if uses_default and dependency_image is None:
-                _preparation_phase("dependencies")
-                dependencies = output / "dependencies"
-                dependencies.mkdir(mode=0o700)
-                recipe = (
-                    "FROM "
-                    + BASE_IMAGES[platform]
-                    + "\nRUN "
-                    + json.dumps(["/bin/sh", "-ec", dependency_install_command(default_sources=True)])
-                    + "\n"
-                )
-                (dependencies / "Dockerfile").write_text(recipe)
-                dependency_tag = "ea-live-deps:" + hashlib.sha256((platform + recipe).encode()).hexdigest()
-                _docker(["build", "--platform", platform, "-t", dependency_tag, str(dependencies)], timeout=600)
-                dependency_image = inspect_build_parent(dependency_tag, platform)["Id"]
-            _preparation_phase("task_source")
-            pinned_source.write_text(pinned_dockerfile(original, platform, dependency_image=dependency_image))
-            _docker(
-                ["build", "--platform", platform, "-f", str(pinned_source), "-t", source_tag, str(context)], timeout=600
-            )
-            source = inspect_build_parent(source_tag, platform)
-            user = source["Config"].get("User") or "root"
-            if not re.fullmatch(r"[A-Za-z0-9_.:-]+", user):
-                raise ValueError("unsupported prepared-image user")
-            layer = output / identity
-            _preparation_phase("task_layer")
-            layer.mkdir(mode=0o700)
-            recipe = f"FROM {source['Id']}\n"
-            if not uses_default:
-                recipe += "USER root\nRUN " + json.dumps(["/bin/sh", "-ec", dependency_install_command()])
-                recipe += "\n"
-            recipe += f"LABEL {IMAGE_LABEL}={identity}\n"
-            if not uses_default:
-                recipe += f"USER {user}\n"
-            (layer / "Dockerfile").write_text(recipe)
-            _docker(["build", "--platform", platform, "-t", tag, str(layer)], timeout=600)
-            image = inspect_image(tag)
-            record = dict(tag=tag, image_id=image["Id"], source_image_id=source["Id"])
-            _preparation_phase("offline_probe")
-            check_prepared_image(identity, record, platform, probe=True, binary=bound)
-            data["images"][identity] = record
-            _timing_event("image_completed")
+            if identity not in plan:
+                original = regular_file(task / "environment/Dockerfile").read_text()
+                pinned = pinned_dockerfile(original, platform)
+                uses_default = pinned != pinned_dockerfile(original, platform, dependency_image="sha256:" + "0" * 64)
+                plan[identity] = (task, original, uses_default)
+    if not plan or len(plan) > PREPARATION_TIMING_MAX_IMAGES:
+        raise ValueError("invalid preparation image count")
+    dependency_image = None
+    if any(row[2] for row in plan.values()):
+        _preparation_phase("dependencies")
+        dependencies = output / "dependencies"
+        dependencies.mkdir(mode=0o700)
+        recipe = (
+            "FROM "
+            + BASE_IMAGES[platform]
+            + "\nRUN "
+            + json.dumps(["/bin/sh", "-ec", dependency_install_command(default_sources=True)])
+            + "\n"
+        )
+        (dependencies / "Dockerfile").write_text(recipe)
+        dependency_tag = "ea-live-deps:" + hashlib.sha256((platform + recipe).encode()).hexdigest()
+        _docker(["build", "--platform", platform, "-t", dependency_tag, str(dependencies)], timeout=600)
+        dependency_image = inspect_build_parent(dependency_tag, platform)["Id"]
+    records = _prepare_chains(plan, output, platform, bound, dependency_image)
+    data["images"] = {identity: records[identity] for identity in plan}
     _preparation_phase("publication")
     if data["source_identity"] != preparation_identity(skill, platform, bound["sha256"]):
         raise ValueError("preparation source changed during build")
+    for arm, paths in tasks.items():
+        if data["tasks"][arm] != [prepared_task_identity(task, platform, bound["sha256"]) for task in paths]:
+            raise ValueError("prepared tasks changed before publication")
+    if load_manifest(binary_manifest) != bound:
+        raise ValueError("prepared binary changed before publication")
     preparation_timeout(1)
     path = output / "prepared-images.json"
-    with path.open("x") as stream:
-        json.dump(data, stream, sort_keys=True)
-    path.chmod(0o600)
+    import tempfile
+
+    temporary = None
+    try:
+        with tempfile.NamedTemporaryFile(mode="w", prefix=".manifest-", dir=output, delete=False) as stream:
+            temporary = Path(stream.name)
+            json.dump(data, stream, sort_keys=True)
+            stream.flush()
+            os.fsync(stream.fileno())
+        preparation_timeout(1)
+        os.link(temporary, path)
+    finally:
+        if temporary is not None:
+            temporary.unlink(missing_ok=True)
     return path
+
+
+def _preparation_cache_prefix(source):
+    # Scheduling hint only: never merge task identities or rewrite the recipe.
+    # Accept native indented continuations, but decline ambiguous boundaries and
+    # context-dependent ONBUILD/RUN mounts rather than guessing cache identity.
+    offset = 0
+    instruction_offset = 0
+    pending = ""
+    for line in source.splitlines(keepends=True):
+        stripped = line.strip()
+        if "<<" in line or re.match(r"#\s*(syntax|escape|check)\s*=", stripped, re.I):
+            return None
+        if pending and (not stripped or stripped.startswith("#") or not line[0].isspace()):
+            return None
+        if stripped and not stripped.startswith("#"):
+            continued = stripped.endswith("\\")
+            if continued and (stripped.endswith("\\\\") or line.rstrip("\r\n") != line.rstrip()):
+                return None
+            if not pending:
+                instruction_offset = offset
+            pending += stripped[:-1] + " " if continued else stripped
+            if not continued:
+                match = re.fullmatch(r"([A-Za-z]+)\s+(.+)", pending.strip())
+                if not match:
+                    return None
+                instruction, value = match[1].upper(), match[2]
+                if instruction in {"COPY", "ADD"}:
+                    return source[:instruction_offset]
+                if instruction not in {"FROM", "RUN", "ENV", "WORKDIR", "USER", "LABEL", "SHELL"}:
+                    return None
+                if instruction == "RUN" and value.lstrip().startswith("--"):
+                    return None
+                pending = ""
+        offset += len(line)
+    return None
+
+
+def _prepare_chains(plan, output, platform, bound, dependency_image):
+    stop = Event()
+    admission = Lock()
+    failures = []
+    records = {}
+    timing = _PREPARATION_TIMING.get()
+    groups = {}
+    for ordinal, (identity, row) in enumerate(plan.items(), 1):
+        pinned = pinned_dockerfile(row[1], platform, dependency_image=dependency_image)
+        # Only the shared inspected default parent is known before source builds;
+        # custom bases can inherit context-consuming ONBUILD instructions.
+        prefix = _preparation_cache_prefix(pinned) if row[2] and dependency_image is not None else None
+        key = ("prefix", prefix) if prefix is not None else ("identity", identity)
+        groups.setdefault(key, []).append((ordinal, identity, row))
+    pending = iter(groups.values())
+
+    def chain(ordinal, identity, row):
+        _PREPARATION_STOP.set(stop)
+        if timing is not None:
+            _PREPARATION_TIMING.set(timing.worker(ordinal))
+        try:
+            return _prepare_chain(identity, row, output, platform, bound, dependency_image)
+        except BaseException as error:
+            phase = _PREPARATION_PHASE.get()
+            if isinstance(error, PreparationError):
+                safe = error
+            elif isinstance(error, TimeoutError):
+                safe = PreparationTimeoutError("deadline_exceeded", phase)
+            else:
+                category = (
+                    "filesystem_error"
+                    if isinstance(error, OSError)
+                    else "validation_error"
+                    if isinstance(error, ValueError)
+                    else "unknown_error"
+                )
+                safe = PreparationError(category, phase)
+            with admission:
+                if not failures:
+                    failures.append(safe)
+                stop.set()
+            raise safe from None
+
+    def group_chains(rows):
+        results = {}
+        for ordinal, identity, row in rows:
+            with admission:
+                if stop.is_set():
+                    break
+            results[identity] = chain(ordinal, identity, row)
+        return results
+
+    def admit(executor, active):
+        with admission:
+            if stop.is_set():
+                return False
+            try:
+                rows = next(pending)
+            except StopIteration:
+                return False
+            preparation_timeout(1)
+            context = copy_context()
+            active[executor.submit(context.run, group_chains, rows)] = None
+            return True
+
+    with ThreadPoolExecutor(max_workers=_PREPARATION_WORKERS.get()) as executor:
+        active = {}
+        try:
+            for _ in range(_PREPARATION_WORKERS.get()):
+                if not admit(executor, active):
+                    break
+            while active:
+                completed, _ = wait(active, return_when=FIRST_COMPLETED)
+                for future in completed:
+                    active.pop(future)
+                    try:
+                        records.update(future.result())
+                    except BaseException:
+                        stop.set()
+                if stop.is_set():
+                    break
+                while len(active) < _PREPARATION_WORKERS.get() and admit(executor, active):
+                    pass
+        finally:
+            # Settle admitted clients before the outer exact-owned daemon closure.
+            stop.set()
+    if failures:
+        raise failures[0]
+    if len(records) != len(plan):
+        raise PreparationError("unknown_error", "task_source")
+    return records
+
+
+def _prepare_chain(identity, row, output, platform, bound, dependency_image):
+    task, original, uses_default = row
+    context = task / "environment"
+    _preparation_phase("task_source")
+    preparation_timeout(1)
+    if identity != prepared_task_identity(task, platform, bound["sha256"]):
+        raise ValueError("prepared task changed before build")
+    _timing_event("image_started")
+    source_tag = "ea-live-source:" + identity
+    tag = "ea-live-prepared:" + identity
+    pinned_source = output / (identity + ".Dockerfile")
+    pinned_source.write_text(pinned_dockerfile(original, platform, dependency_image=dependency_image))
+    _docker(["build", "--platform", platform, "-f", str(pinned_source), "-t", source_tag, str(context)], timeout=600)
+    source = inspect_build_parent(source_tag, platform)
+    user = source["Config"].get("User") or "root"
+    if not re.fullmatch(r"[A-Za-z0-9_.:-]+", user):
+        raise ValueError("unsupported prepared-image user")
+    layer = output / identity
+    _preparation_phase("task_layer")
+    layer.mkdir(mode=0o700)
+    recipe = f"FROM {source['Id']}\n"
+    if not uses_default:
+        recipe += "USER root\nRUN " + json.dumps(["/bin/sh", "-ec", dependency_install_command()]) + "\n"
+    recipe += f"LABEL {IMAGE_LABEL}={identity}\n"
+    if not uses_default:
+        recipe += f"USER {user}\n"
+    (layer / "Dockerfile").write_text(recipe)
+    _docker(["build", "--platform", platform, "-t", tag, str(layer)], timeout=600)
+    image = inspect_image(tag)
+    record = dict(tag=tag, image_id=image["Id"], source_image_id=source["Id"])
+    _preparation_phase("offline_probe")
+    check_prepared_image(identity, record, platform, probe=True, binary=bound)
+    if identity != prepared_task_identity(task, platform, bound["sha256"]):
+        raise ValueError("prepared task changed during build")
+    preparation_timeout(1)
+    _timing_event("image_completed")
+    return record
 
 
 def load_preparation(path, binary_manifest):

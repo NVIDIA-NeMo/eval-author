@@ -637,7 +637,7 @@ def test_default_proposal_stays_small_and_explains_the_next_review(creation, tas
     output = renderer.render(payload(creation, "proposal"))
     assert copy.PROPOSAL_PROCESS.format(tasks=task_count, examples=task_count) in output
     assert output.endswith(copy.PROPOSAL_QUESTION + "\n")
-    assert "Time/cost limits" not in output
+    assert "User-specified limits" not in output
 
 
 @pytest.mark.parametrize("stage", ["proposal", "saved_design", "prepare_first", "build_progress"])
@@ -1237,7 +1237,7 @@ def test_suite_review_is_a_linked_deterministic_checkpoint_before_execution_choi
     assert output.index("HTML report’s Tasks view") < output.index(copy.SUITE_REVIEW_TABLE)
     assert output.endswith(copy.SUITE_QUESTION + "\n")
     assert "### Blockers" not in output and "No live-run credential" not in output
-    assert "Agent/model" not in output and "Time/cost limits" not in output
+    assert "Agent/model" not in output and "User-specified limits" not in output
     assert "settings" not in output and "SKILL.md" not in output
     assert "Review your evaluations in" not in output
     assert json.dumps(state, sort_keys=True) == before
@@ -1634,7 +1634,7 @@ def test_late_settings_and_explicit_execution_authorization(creation):
     assert [row.split("**")[1].rstrip(":") for row in output.splitlines() if row.startswith("- **")] == [
         "Attempts",
         "Validation",
-        "Time/cost limits",
+        "User-specified limits",
         "Open questions",
     ]
     assert "Agent/model" not in output and "Tasks and examples" not in output
@@ -2417,11 +2417,11 @@ def pending_setup(creation):
         "mode": "model",
         "requirements": [
             "Use the actual configured judge for known correct and incorrect responses",
-            "Authorize at most 6 judge calls, 60 seconds each, $1 maximum, no retries",
+            "Use a compatible runtime for the configured judge",
         ],
         "open_questions": [
             "Which existing judge configuration should these checks use?",
-            "Is its credential available, and do you authorize these bounded verifier checks?",
+            "Is its credential available in the execution environment?",
         ],
         "source": "Inspected the approved design's model-based verifier requirements",
     }

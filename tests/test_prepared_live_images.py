@@ -156,7 +156,7 @@ def test_prepare_builds_exact_native_contexts_then_verifies_offline_before_publi
     assert timing["latest"]["event"] == "completed"
     assert timing["latest"]["completed_images"] == 2
     completed = [row for row in timing["events"] if row["event"] == "image_completed"]
-    assert [row["image_ordinal"] for row in completed] == [1, 2]
+    assert sorted(row["image_ordinal"] for row in completed) == [1, 2]
     assert [row["completed_images"] for row in completed] == [1, 2]
     assert all(row["image_elapsed_seconds"] >= 0 for row in completed)
     assert {row["phase"] for row in timing["events"]} >= {

@@ -21,7 +21,7 @@ uv sync --locked
 make hooks
 uv run --locked ruff check .
 uv run --locked ruff format --check .
-uv run --locked pytest -q -rs
+uv run --locked pytest -q -rs -n auto
 make check-copyright-headers
 make check-licenses
 git diff --check
