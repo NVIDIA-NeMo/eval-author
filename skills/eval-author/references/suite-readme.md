@@ -50,11 +50,13 @@ or supported reporting metadata to update generated content, then refresh.
 It also maintains a generated introduction in `.eval-author/README.md`. It appends
 the section when absent and updates only the content between
 `<!-- BEGIN EVAL AUTHOR REPORT -->` and `<!-- END EVAL AUTHOR REPORT -->`. The
-section introduces the suite, summarizes task statuses, runs, and the latest
-audit, explains what people can learn and do with each tab of `report.html`,
-gives the Harbor viewer commands for the actual task and job roots, and always
-links `report.html`, `tasks.md`, `runs.md`, and `audits.md`, telling agents to
-read the Markdown reports. Existing setup, suite commands, case descriptions, and
+section is a static introduction: it describes the suite, explains what people
+can learn and do with each tab of `report.html`, notes that the Harbor task and
+job viewers each serve one folder at a time (start a viewer per folder and change
+its address in **Settings**), links `report.html`, `tasks.md`, `runs.md`, and
+`audits.md`, telling agents to read the Markdown reports, notes that report
+content is generated and hand edits are overwritten, and describes the folder
+layout. It holds no task, run, or audit data. Existing setup, suite commands, case descriptions, and
 other authored content outside those markers remain byte-for-byte intact. Never
 replace a suite README with the report. Malformed or duplicate markers stop the
 refresh without publishing any output; repair the markers while preserving the
@@ -109,7 +111,8 @@ For native NeMo Gym scaffolds, the report finds the nearest task README above th
 environment definition. Document dataset paths, selected rows, and each case's
 input, expected result, and grading there; a workload row does not imply a
 single dataset example or native validation. NeMo Gym run evidence remains linked
-from the suite README; the Runs table reads native Harbor jobs only.
+from the authored run guidance in the suite README, outside its generated section;
+the Runs table reads native Harbor jobs only.
 Harbor actions use the HTML's default viewer URLs; Markdown cannot read browser
 settings or probe a viewer. Use the linked HTML report for configured addresses
 and connection help.

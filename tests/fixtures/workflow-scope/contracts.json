@@ -149,6 +149,11 @@
         ],
         "write_paths": [
           ".eval-author/report_markdown/audits.md",
+          ".eval-author/README.md",
+          ".eval-author/report.html",
+          ".eval-author/report_markdown/tasks.md",
+          ".eval-author/report_markdown/runs.md",
+          ".eval-author/audit-coverage-report.md",
           ".eval-author/.working/"
         ],
         "handoff": "review_proposals"
@@ -268,6 +273,11 @@
         ],
         "write_paths": [
           ".eval-author/report_markdown/audits.md",
+          ".eval-author/README.md",
+          ".eval-author/report.html",
+          ".eval-author/report_markdown/tasks.md",
+          ".eval-author/report_markdown/runs.md",
+          ".eval-author/audit-coverage-report.md",
           ".eval-author/.working/"
         ],
         "handoff": "review_proposals"
@@ -491,7 +501,12 @@
         "write_paths": [
           ".eval-author/.working/",
           ".eval-author/audit.md",
-          ".eval-author/report_markdown/audits.md"
+          ".eval-author/report_markdown/audits.md",
+          ".eval-author/README.md",
+          ".eval-author/report.html",
+          ".eval-author/report_markdown/tasks.md",
+          ".eval-author/report_markdown/runs.md",
+          ".eval-author/audit-coverage-report.md"
         ],
         "handoff": "review_audit_checks"
       }

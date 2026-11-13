@@ -307,10 +307,10 @@ def start_remaining(modules, repo, value):
 def refresh_remaining_artifacts(modules, repo, value):
     value["remaining_build"]["artifacts"] = {
         "digest": facts(modules, repo)["remaining_build_digest"],
-        "source": "Refreshed and inspected the suite report and Markdown mirror",
+        "source": "Refreshed and inspected the suite report and Markdown task report",
         "evidence": [
             evidence(repo, ".eval-author/report.html", "Current task report"),
-            evidence(repo, ".eval-author/README.md", "Current Markdown mirror"),
+            evidence(repo, ".eval-author/report_markdown/tasks.md", "Current Markdown task report"),
         ],
     }
     value["remaining_build"]["active_step"] = None
@@ -480,11 +480,11 @@ def test_suite_approval_is_revision_bound_but_survives_validation_and_report_ref
     assert progress["next_stage"] == "remaining_progress"
 
 
-def test_suite_review_approval_needs_the_current_report_and_markdown_mirror(modules, tmp_path):
+def test_suite_review_approval_needs_the_current_report_and_markdown_task_report(modules, tmp_path):
     value = ready(modules, tmp_path)
     value["suite_approval"] = None
     save(modules, tmp_path, value)
-    (tmp_path / ".eval-author/README.md").write_text("Changed after the review request")
+    (tmp_path / ".eval-author/report_markdown/tasks.md").write_text("Changed after the review request")
     value["suite_approval"] = {"digest": facts(modules, tmp_path)["suite_digest"], "source": "New actual task approval"}
     with pytest.raises(ValueError, match="Present the current full suite"):
         save(modules, tmp_path, value)
@@ -655,7 +655,7 @@ def test_remaining_build_plan_changes_and_first_task_changes_reopen_the_right_st
     assert progress["next_stage"] == "prepare_first"
 
 
-@pytest.mark.parametrize("missing", [".eval-author/report.html", ".eval-author/README.md"])
+@pytest.mark.parametrize("missing", [".eval-author/report.html", ".eval-author/report_markdown/tasks.md"])
 def test_remaining_artifact_receipt_requires_both_current_review_files(modules, tmp_path, missing):
     value = ready(modules, tmp_path)
     start_remaining(modules, tmp_path, value)
@@ -666,7 +666,34 @@ def test_remaining_artifact_receipt_requires_both_current_review_files(modules, 
     value["remaining_build"]["artifacts"]["evidence"] = [
         ref for ref in value["remaining_build"]["artifacts"]["evidence"] if ref["path"] != missing
     ]
-    with pytest.raises(ValueError, match="actual suite report and its Markdown mirror"):
+    with pytest.raises(ValueError, match="actual suite report and its Markdown task report"):
+        save(modules, tmp_path, value)
+
+
+def test_legacy_readme_artifact_receipt_loads_but_needs_a_new_refresh(modules, tmp_path):
+    value = ready(modules, tmp_path)
+    start_remaining(modules, tmp_path, value)
+    refresh_remaining_artifacts(modules, tmp_path, value)
+    path = modules[0].state_path(tmp_path)
+    state = json.loads(path.read_text())
+    receipt = state["scopes"]["create"]["first_eval"]["remaining_build"]["artifacts"]
+    receipt["evidence"][1] = evidence(tmp_path, ".eval-author/README.md", "Former Markdown mirror")
+    path.write_text(json.dumps(state))
+    assert not facts(modules, tmp_path)["remaining_build"]["artifacts_current"]
+
+
+def test_new_artifact_receipts_must_retain_the_markdown_task_report(modules, tmp_path):
+    value = ready(modules, tmp_path)
+    start_remaining(modules, tmp_path, value)
+    value["remaining_build"]["artifacts"] = {
+        "digest": facts(modules, tmp_path)["remaining_build_digest"],
+        "source": "Refreshed and inspected the suite report and former Markdown mirror",
+        "evidence": [
+            evidence(tmp_path, ".eval-author/report.html", "Current task report"),
+            evidence(tmp_path, ".eval-author/README.md", "Former Markdown mirror"),
+        ],
+    }
+    with pytest.raises(ValueError, match="actual suite report and its Markdown task report"):
         save(modules, tmp_path, value)
 
 

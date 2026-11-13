@@ -66,7 +66,7 @@ After you approve the first task, Eval Author builds and validates the remainder
 Its checklist shows task counts and progress through environment checks, verifier
 validation, and the README/report refresh.
 You then review the whole authored suite, with more detail in the HTML report
-or suite README. Approve the tasks or request changes. Every task's required
+or the Markdown task report (`.eval-author/report_markdown/tasks.md`). Approve the tasks or request changes. Every task's required
 verifier checks, including model-based checks when used, must pass before this
 review.
 After you approve the suite, Eval Author presents the concrete settings,

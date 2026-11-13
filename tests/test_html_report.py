@@ -2003,6 +2003,40 @@ def test_audit_links_keep_encoded_paths_and_external_urls_intact(tmp_path):
     assert report.audit_link("#finding-%231", base, {}) == ("#audit-finding-#1", False)
 
 
+def test_audit_links_map_a_dotted_task_folder_to_its_own_row(tmp_path):
+    from urllib.parse import quote
+
+    path = task(tmp_path, name="v1.2-refund", readme="# Refund v1.2\n")
+    body = (
+        "# Audit coverage report: assistant\n\n"
+        "[folder](../tasks/v1.2-refund) [readme](../tasks/v1.2-refund/README.md) "
+        "[instruction](../tasks/v1.2-refund/instruction.md) [config](../tasks/v1.2-refund/task.toml) "
+        "[suite](../tasks/README.md)\n"
+    )
+    (tmp_path / ".eval-author/report_markdown").mkdir(parents=True, exist_ok=True)
+    (tmp_path / ".eval-author/report_markdown/audits.md").write_text(generated_audit(body))
+    html = report.refresh(tmp_path)["audit"]["html"]
+    row = quote("harbor:" + path, safe="")
+    for label in ("folder", "readme", "instruction", "config"):
+        assert f'href="#task:{row}">{label}</a>' in html
+    assert f'href="#task:{row}">suite</a>' not in html
+
+
+def test_missing_markdown_renderer_is_a_report_error(monkeypatch):
+    import builtins
+
+    real_import = builtins.__import__
+
+    def without_markdown_it(name, *args, **kwargs):
+        if name == "markdown_it":
+            raise ImportError("No module named 'markdown_it'")
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", without_markdown_it)
+    with pytest.raises(report.ReportError, match="markdown-it-py"):
+        report.render_audit_html("# Audit\n", report.AUDIT_MARKDOWN, [], [], Path("."))
+
+
 def test_audit_tab_links_tasks_runs_and_sections_to_report_views(tmp_path):
     path = task(tmp_path, readme="# Refund\n")
     run_path = job(tmp_path, total=1)

@@ -78,6 +78,7 @@ def bound_links(state: dict, facts: dict) -> None:
         "report": ".eval-author/report.html",
         "readme": ".eval-author/README.md",
         "tasks_markdown": ".eval-author/report_markdown/tasks.md",
+        "runs_markdown": ".eval-author/report_markdown/runs.md",
         "rerun": ".eval-author/README.md",
         "tasks_view": ".eval-author/report.html",
     }
@@ -699,9 +700,14 @@ def results(record: dict, progress: dict, facts: dict, journey: str) -> str:
             raise ValueError("Save the pending audit invitation before presenting the completed evaluation handoff")
         parts.append("\n".join(f"- [x] {label}" for label in (*shared.CHECKLIST_LABELS, shared.JOURNEYS[journey])))
         parts.append(
-            (copy.GYM_RESULTS_REVIEW if record["provider"] == "gym" else copy.RESULTS_REVIEW).format(
+            copy.GYM_RESULTS_REVIEW.format(
                 report=named_link(facts, "report", label=copy.RESULTS_REPORT_LABEL),
                 readme=named_link(facts, "readme", label=copy.FIRST_REVIEW_README_LABEL),
+            )
+            if record["provider"] == "gym"
+            else copy.RESULTS_REVIEW.format(
+                report=named_link(facts, "report", label=copy.RESULTS_REPORT_LABEL),
+                markdown=named_link(facts, "runs_markdown", label=copy.RESULTS_MARKDOWN_LABEL),
             )
         )
         if progress["audit_decision"] == "pending":

@@ -70,7 +70,7 @@ function fromURL(){
   const hash=location.hash;let key='';try{key=decodeURIComponent(hash.slice(hash.indexOf(':')+1));}catch(_){}
   if(hash.startsWith('#task:')){activate(byId('tab-cases'),false,false);if(byId('search').value){byId('search').value='';drawCases();}reveal([...document.querySelectorAll('#case-tables tr[data-task]')].find(row=>row.dataset.task===key));return;}
   if(hash.startsWith('#run:')){activate(byId('tab-runs'),false,false);const row=[...document.querySelectorAll('#runs tr[data-path]')].find(item=>item.dataset.path===key);if(row&&row.closest('details'))row.closest('details').open=true;reveal(row);return;}
-  if(hash.startsWith('#audit-')){activate(byId('tab-audit'),false,false);reveal(document.getElementById(hash.slice(1)));return;}
+  if(hash.startsWith('#audit-')){activate(byId('tab-audit'),false,false);let id=hash.slice(1);try{id=decodeURIComponent(id);}catch(_){}reveal(document.getElementById(id));return;}
   activate(tabs.find(t=>'#'+t.getAttribute('aria-controls')===hash)||tabs[0],false,false);
 }
 addEventListener('hashchange',fromURL);
@@ -169,7 +169,7 @@ function readmeAction(task){
 }
 function drawCases(){
   const container=byId('case-tables');container.replaceChildren();
-  const statuses={proposed:['Proposed','Designed in the saved plan; not authored yet.'],draft:['Draft','Authored; waiting for your acceptance, or changed since it was accepted.'],accepted:['Accepted','You approved this exact task revision.'],unknown:['Unknown','No valid acceptance record is available.']};
+  const statuses=data.readiness_labels;
   const counts={proposed:0,draft:0,accepted:0,unknown:0};for(const task of data.tasks)counts[task.readiness in counts?task.readiness:'unknown']++;
   const summary=element('div',undefined,'status-summary');summary.setAttribute('aria-label','Task status summary');
   for(const [key,[label,meaning]] of Object.entries(statuses)){const item=element('span');item.title=meaning;item.append(element('strong',label,'badge badge-'+key),element('span',String(counts[key])));summary.append(item);}
@@ -192,8 +192,8 @@ function drawCases(){
     if(task.status==='unverified')name.append(element('span','Inventory unverified','status'));
     if(task.path)name.append(element('p',displayTaskPath(task.path),'small muted task-path'));name.title=task.issues.join('\n');
     const readiness=element('td',undefined,'task-readiness');
-    const state=({draft:'draft',accepted:'accepted',proposed:'proposed'})[task.readiness]||'unknown';
-    const badge=element('strong',({draft:'Draft',accepted:'Accepted',unknown:'Unknown',proposed:'Proposed'})[state],'badge badge-'+state);
+    const state=task.readiness in statuses?task.readiness:'unknown';
+    const badge=element('strong',statuses[state][0],'badge badge-'+state);
     const note=element('p',task.readiness_reason||'No task acceptance has been recorded.','readiness-note');
     note.id='readiness-note-'+row.dataset.task.replace(/[^A-Za-z0-9_-]/g,'-');note.setAttribute('role','tooltip');
     badge.tabIndex=0;badge.setAttribute('aria-describedby',note.id);
@@ -265,7 +265,7 @@ function safeNodes(nodes){
     if(node.nodeType!==1)continue;
     if(!auditTags.has(node.tagName)){result.push(...safeNodes(node.childNodes));continue;}
     const copy=document.createElement(node.tagName.toLowerCase());
-    if(/^H[1-6]$/.test(node.tagName)&&/^audit-[\w-]*$/.test(node.id))copy.id=node.id;
+    if(/^H[1-6]$/.test(node.tagName)&&/^audit-[\p{L}\p{N}_-]*$/u.test(node.id))copy.id=node.id;
     if(node.tagName==='OL'&&/^\d+$/.test(node.getAttribute('start')||''))copy.setAttribute('start',node.getAttribute('start'));
     if((node.tagName==='TH'||node.tagName==='TD')&&/^text-align:(left|right|center)$/.test(node.getAttribute('style')||''))copy.setAttribute('style',node.getAttribute('style'));
     if(node.tagName==='A'){

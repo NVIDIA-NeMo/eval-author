@@ -29,22 +29,14 @@ class ContentError(ValueError):
         super().__init__("\n".join(f"{row['field']}: {row['rule']}. {row['fix']}" for row in errors))
 
 
-# Publishing the audit rewrites these files (the suite README section, report.html, the Markdown
-# reports) and retires the legacy report, so none of them can be bound as evidence: their digests
-# would change the moment the report is published. A test keeps this list equal to report.py's.
-PUBLISHED_PATHS = (
-    ".eval-author/README.md",
-    ".eval-author/report.html",
-    ".eval-author/audit-coverage-report.md",
-)
-PUBLISHED_DIRECTORY = ".eval-author/report_markdown"
-
-
 def is_published_path(path: str) -> bool:
+    """Publishing the audit rewrites the suite README section, report.html, and the Markdown reports, and
+    retires the legacy report, so none can be bound as evidence: their digests change once it publishes."""
+    suite = suite_report_module()
     folded = path.casefold()
-    return folded in {name.casefold() for name in PUBLISHED_PATHS} or (
-        folded == PUBLISHED_DIRECTORY.casefold() or folded.startswith(PUBLISHED_DIRECTORY.casefold() + "/")
-    )
+    directory = suite.MARKDOWN_DIR.casefold()
+    published = {name.casefold() for name in (suite.SUITE_README, suite.REPORT_HTML, suite.LEGACY_AUDIT_MARKDOWN)}
+    return folded in published or folded == directory or folded.startswith(directory + "/")
 
 
 def issue(path: str, rule: str, fix: str) -> dict:
@@ -64,12 +56,22 @@ def load_module(name: str, path: Path):
     return module
 
 
-def core_module():
+def core_scripts() -> Path:
     scripts = Path(__file__).resolve().parents[3] / "eval-author/scripts"
     if not scripts.is_dir():
         raise ValueError("Install the sibling eval-author skill to read task evidence")
+    return scripts
+
+
+def core_module():
+    scripts = core_scripts()
     sys.path.insert(0, str(scripts))
     return load_module("audit_verifier_evidence", scripts / "audit_verifier_evidence.py")
+
+
+def suite_report_module():
+    """The core skill's suite report, which owns the report locations; audit_spec has its own report module."""
+    return load_module("eval_author_suite_report", core_scripts() / "report.py")
 
 
 def local(repo: Path, name: str) -> Path:

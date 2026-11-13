@@ -267,7 +267,7 @@ receipt under `receipts.<step>` only after that checkpoint succeeds, with
 results. Preparation retains the actual environment files and starting data;
 environment checking retains successful smoke/reset evidence; grading retains
 the authored reference and grader files; artifacts retains the finalized task
-README, HTML report, and Markdown reports. Use scoped file digests, so adding a
+README, HTML report, and Markdown task report. Use scoped file digests, so adding a
 grader does not invalidate environment preparation. Failed or merely started
 checks never receive a completion receipt. Preserve their logs and keep the
 step in progress or explain its blocker.
@@ -326,7 +326,7 @@ After authoring all tasks, proving their environments, and satisfying the
 refresh both report artifacts and save `artifacts` as
 `{digest, source, evidence}`. Its `digest` is the current derived
 `remaining_build_digest`; its evidence names the actual `.eval-author/report.html`
-and `.eval-author/README.md` with their byte digests. This binds the refresh to
+and `.eval-author/report_markdown/tasks.md` with their byte digests. This binds the refresh to
 current task revisions and successful grading controls. Earlier draft refreshes
 do not establish review readiness. Missing or stale artifacts stay pending;
 later refreshes during execution do not restart completed authoring.
@@ -641,6 +641,8 @@ with an absolute `target` and optional `fragment`:
   "links": {
     "report": {"target": "/absolute/repository/.eval-author/report.html"},
     "readme": {"target": "/absolute/repository/.eval-author/README.md"},
+    "tasks_markdown": {"target": "/absolute/repository/.eval-author/report_markdown/tasks.md"},
+    "runs_markdown": {"target": "/absolute/repository/.eval-author/report_markdown/runs.md"},
     "tasks_view": {
       "target": "/absolute/repository/.eval-author/report.html",
       "fragment": "<verified Tasks navigation ID>"
@@ -686,14 +688,16 @@ Follow [suite review guidance](../suite-readme.md); do not duplicate artifact li
 
 Completed creation results use the flow template's linked run-review guidance
 after the substantive results and completed checklist, immediately before any
-pending audit invitation. Link the verified HTML report and suite README
-once each in that guidance; do not append the generic report footer. Keep this
+pending audit invitation. Link the verified HTML report once, and for Harbor the
+Markdown runs report (`report_markdown/runs.md`) once, or for native NeMo Gym the
+suite README once; do not append the generic report footer. Keep this
 guidance when an accepted or declined invitation is no longer shown.
 
 Explain how to inspect the saved run's tasks, attempts, grades, and available
 evidence using the provider's supported navigation. For Harbor, direct the user
 to the report's Runs tab and the selected saved run. Native NeMo Gym run evidence
-is linked from the README; do not imply that its attempts appear in the report's
+is linked from the authored run guidance in the suite README, outside its
+generated section; do not imply that its attempts appear in the report's
 Harbor-only Runs table. Preserve verified evidence links and limitations, and
 follow [review walkthrough requirements](../suite-readme.md#show-the-user-how-to-review)
 without duplicating the report or README links.

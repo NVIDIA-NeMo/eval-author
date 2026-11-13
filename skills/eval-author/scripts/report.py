@@ -229,6 +229,10 @@ REPORT_SCHEMA = obj(
         "inventory": obj({"complete": {"type": "boolean"}, "excluded": array(PATH)}),
     }
 )
+# The HTML renders status badges from these, so both outputs share READINESS_LABELS.
+REPORT_SCHEMA["properties"]["readiness_labels"] = obj(
+    {key: {"type": "array", "items": TEXT, "minItems": 2, "maxItems": 2} for key in READINESS_LABELS}
+)
 REPORT_SCHEMA["properties"]["plan_counts"] = obj({key: {"type": "integer", "minimum": 0} for key in PLAN_COUNT_FIELDS})
 # Optional so earlier version-1 snapshots, which had no audit tab, still load.
 REPORT_SCHEMA["properties"]["audit"] = {
@@ -423,10 +427,19 @@ def readme_sections(text: str) -> dict[str, str | None]:
     return result
 
 
-def opening_readme_paragraph(source: str) -> str | None:
-    from markdown_it import MarkdownIt
+def markdown_renderer():
+    """CommonMark with tables and strikethrough; raw HTML is text, never markup."""
+    try:
+        from markdown_it import MarkdownIt
+    except ImportError as exc:
+        raise ReportError(
+            "Rendering Markdown requires markdown-it-py; use the Eval Author Python environment."
+        ) from exc
+    return MarkdownIt("commonmark", {"html": False}).enable(["table", "strikethrough"])
 
-    tokens = MarkdownIt("commonmark", {"html": False}).enable(["table", "strikethrough"]).parse(source)
+
+def opening_readme_paragraph(source: str) -> str | None:
+    tokens = markdown_renderer().parse(source)
     if tokens and tokens[0].type == "paragraph_open":
         return tokens[1].content.replace("\n", " ") or None
     return None
@@ -452,11 +465,7 @@ def task_sort(task: dict) -> tuple[bool, str, str, str]:
 
 def render_readme(source: str) -> str:
     """Render Markdown offline; embedded HTML is text, never executable markup."""
-    try:
-        from markdown_it import MarkdownIt
-    except ImportError as exc:
-        raise ReportError("README previews require markdown-it-py; use the Eval Author Python environment.") from exc
-    renderer = MarkdownIt("commonmark", {"html": False}).enable(["table", "strikethrough"])
+    renderer = markdown_renderer()
     # Keep link text visible without allowing navigation out of the offline preview.
     renderer.add_render_rule("link_open", lambda *_: '<a aria-disabled="true">')
     return renderer.render(source)
@@ -496,7 +505,6 @@ def readme_title(rendered: str) -> str | None:
 
 def readme_grading_sections(source: str) -> dict[str, list[list[str]]]:
     """Read grading prose, excluding code blocks and tables."""
-    from markdown_it import MarkdownIt
 
     def plain(token: Any) -> str:
         return "".join(
@@ -507,7 +515,7 @@ def readme_grading_sections(source: str) -> dict[str, list[list[str]]]:
 
     sections: dict[str, list[list[str]]] = {}
     current: list[str] | None = None
-    tokens = MarkdownIt("commonmark", {"html": False}).enable(["table", "strikethrough"]).parse(source)
+    tokens = markdown_renderer().parse(source)
     for index, token in enumerate(tokens):
         if token.type == "heading_open" and token.tag in {"h1", "h2"}:
             current = None
@@ -1327,7 +1335,7 @@ def render_audit_placeholder(data: dict) -> str:
     return "\n".join(lines).rstrip() + "\n"
 
 
-def render_readme_section(repo: Path, data: dict) -> str:
+def render_readme_section() -> str:
     """Introduce the suite and the report for people; point agents at the Markdown reports."""
     layout = [
         (
@@ -1439,10 +1447,21 @@ def audit_link(href: str, base: str, targets: dict[str, str]) -> tuple[str, bool
     return target, False
 
 
-def render_audit_html(source: str, path: str, tasks: list[dict], runs: list[dict]) -> str:
-    """Render the generated audit Markdown for the Audit tab, linking tasks and runs to their report rows."""
-    from markdown_it import MarkdownIt
+def task_directory(repo: Path, task: dict) -> str:
+    """The folder that holds a task's files: Harbor tasks are folders; a Gym workload may be a file."""
+    if task["provider"] == "harbor":
+        return task["path"]
+    try:
+        if local(repo, task["path"]).is_dir():
+            return task["path"]
+    except (ReportError, OSError):
+        pass
+    return PurePosixPath(task["path"]).parent.as_posix()
 
+
+def render_audit_html(source: str, path: str, tasks: list[dict], runs: list[dict], repo: Path) -> str:
+    """Render the generated audit Markdown for the Audit tab, linking tasks and runs to their report rows."""
+    renderer = markdown_renderer()
     targets: dict[str, str] = {}
     for run in runs:
         targets[PurePosixPath(run["path"]).as_posix()] = "#run:" + quote(run["path"], safe="")
@@ -1451,13 +1470,12 @@ def render_audit_html(source: str, path: str, tasks: list[dict], runs: list[dict
         if not task["path"]:
             continue
         anchor = "#task:" + quote(task["id"], safe="")
-        directory = task["path"] if not PurePosixPath(task["path"]).suffix else PurePosixPath(task["path"]).parent
+        directory = task_directory(repo, task)
         for name in ("", "README.md", "instruction.md", "task.toml"):
             targets[posixpath.join(str(directory), name).rstrip("/")] = anchor
         targets[task["path"]] = anchor
         if task["readme_path"]:
             targets[task["readme_path"]] = anchor
-    renderer = MarkdownIt("commonmark", {"html": False}).enable(["table", "strikethrough"])
     tokens = renderer.parse(source)
     used: dict[str, int] = {}
     for index, token in enumerate(tokens):
@@ -1515,7 +1533,7 @@ def collect_audit(repo: Path, tasks: list[dict], runs: list[dict]) -> tuple[dict
             "edited": edited,
             "legacy_location": legacy,
             "revision": hashlib.sha256(raw).hexdigest(),
-            "html": render_audit_html(body, path, tasks, runs),
+            "html": render_audit_html(body, path, tasks, runs, repo),
         }, []
     return None, []
 
@@ -1700,6 +1718,7 @@ def refresh(
             }
             if plan_counts is not None:
                 data["plan_counts"] = plan_counts
+            data["readiness_labels"] = {key: list(value) for key, value in READINESS_LABELS.items()}
             data["audit"], audit_warnings = collect_audit(repo, tasks, runs)
             warnings.extend(audit_warnings)
             validate(data, REPORT_SCHEMA)
@@ -1709,7 +1728,7 @@ def refresh(
             if template.count(MARKER) != 1:
                 raise ReportError("The report template must have one data insertion marker.")
             content = template.replace(MARKER, payload).encode("utf-8")
-            markdown_content = update_markdown(old_markdown, render_readme_section(repo, data))
+            markdown_content = update_markdown(old_markdown, render_readme_section())
             reports = [
                 (TASKS_MARKDOWN, render_tasks_markdown(data).encode()),
                 (RUNS_MARKDOWN, render_runs_markdown(data).encode()),

@@ -6,7 +6,6 @@ from __future__ import annotations
 import argparse
 import difflib
 import hashlib
-import importlib.util
 import json
 import os
 import posixpath
@@ -21,22 +20,8 @@ import history  # noqa: E402
 import report_content as content  # noqa: E402
 import report_layout as layout  # noqa: E402
 
-
-def _suite_report():
-    """Load the core skill's suite report by path; audit_spec has its own unrelated report module."""
-    name = "eval_author_suite_report"
-    if name not in sys.modules:
-        path = Path(__file__).resolve().parents[3] / "eval-author/scripts/report.py"
-        spec = importlib.util.spec_from_file_location(name, path)
-        assert spec is not None and spec.loader is not None
-        module = importlib.util.module_from_spec(spec)
-        sys.modules[name] = module
-        spec.loader.exec_module(module)
-    return sys.modules[name]
-
-
 # The core skill's suite report owns the report locations and publishes the audit in report.html.
-suite_report = _suite_report()
+suite_report = content.suite_report_module()
 
 VERSION = 1
 OUTPUT = suite_report.AUDIT_MARKDOWN

@@ -234,7 +234,7 @@ def remaining_started(creation, *, active="tasks", artifacts=False):
             "source": "Observed suite artifact refresh",
             "evidence": [
                 {"path": ".eval-author/report.html", "digest": SHA},
-                {"path": ".eval-author/README.md", "digest": SHA},
+                {"path": ".eval-author/report_markdown/tasks.md", "digest": SHA},
             ],
         }
 
@@ -335,6 +335,7 @@ def links(creation):
         "report": {"target": root + "/.eval-author/report.html"},
         "readme": {"target": root + "/.eval-author/README.md"},
         "tasks_markdown": {"target": root + "/.eval-author/report_markdown/tasks.md"},
+        "runs_markdown": {"target": root + "/.eval-author/report_markdown/runs.md"},
         "tasks_view": {"target": root + "/.eval-author/report.html", "fragment": "cases"},
         "task_readme": {"target": root + "/.eval-author/tasks/refund/README.md"},
         "rerun": {"target": root + "/.eval-author/README.md", "fragment": "rerun-evaluations"},
@@ -1301,7 +1302,7 @@ def test_suite_review_requires_actual_tasks_environments_and_refreshed_artifacts
         renderer.render(payload(creation, "review_suite", links=links(creation)))
     remaining_started(creation, active=None, artifacts=True)
     request = payload(creation, "review_suite", links=links(creation))
-    request["facts"]["observations"]["files"][".eval-author/README.md"] = None
+    request["facts"]["observations"]["files"][".eval-author/report_markdown/tasks.md"] = None
     with pytest.raises(ValueError, match="Suite review requires"):
         renderer.render(request)
     record["tasks"]["reject"]["environment"]["status"] = "blocked"
@@ -2114,10 +2115,13 @@ def test_results_preserve_exact_attempt_rerun_and_final_audit_invitation(creatio
     assert "/refund-1/result.json>)" in output and "README.md#rerun-evaluations>)" in output
     assert "unknown" in output
     assert (copy.AUDIT_QUESTION in output) == (decision == "pending")
-    assert output.count("[HTML report]") == output.count("[suite README]") == 1
+    second, target = (
+        ("[suite README]", "README.md") if provider == "gym" else ("[Markdown runs report]", "report_markdown/runs.md")
+    )
+    assert output.count("[HTML report]") == output.count(second) == 1
     assert "Review your evaluations in" not in output
     assert f"[HTML report](<{state['repository']}/.eval-author/report.html>)" in output
-    assert f"[suite README](<{state['repository']}/.eval-author/README.md>)" in output
+    assert f"{second}(<{state['repository']}/.eval-author/{target}>)" in output
     review = "Review your native Gym runs" if provider == "gym" else "Review your runs"
     assert ("its **Runs** view currently supports Harbor runs only" in output) == (provider == "gym")
     if provider == "harbor":

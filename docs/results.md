@@ -33,8 +33,10 @@ four tabs:
 - **Settings** sets the Harbor viewer addresses.
 
 `.eval-author/README.md` introduces the suite: its contents, what each tab
-helps you decide, the Harbor viewer commands for its task and job folders, and
-links to every report. The same content is in Markdown under
+helps you decide, and links to every report. The Harbor task and job viewers each
+serve one folder at a time, so if your tasks or jobs span several folders, start a
+viewer on one folder and change its address in **Settings** before moving to the
+next. The same content is in Markdown under
 `.eval-author/report_markdown/` for agents and reviews: `tasks.md`, `runs.md`,
 and `audits.md`. Point a coding agent at these files when it needs to work with
 the suite's tasks, runs, or audit findings.
@@ -181,9 +183,10 @@ audit's coverage criteria.
 
 The report opens with a Summary (including an ADVISORY when verifier cheating is
 confirmed and the Evaluation coverage table), then Key findings. Recommended
-next actions is a single table, highest priority first, with columns for severity, the
-finding or advisory, the tool or capability it involves, and a description that
-gives the action and the proposed task.
+next actions is a single table, highest priority first, with **Priority**,
+**Finding / Advisory**, **Affected coverage** (the tool, capability, or failure
+case involved), and **Description** columns; the description gives the action and
+the proposed task.
 The Coverage report maps each audit item to its tasks and run evidence, followed by the task
 catalog, verifier cheat screening, scope and execution evidence, and
 definitions.

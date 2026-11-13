@@ -215,8 +215,9 @@ ATTEMPT_EVIDENCE = "Attempt evidence: {links}"
 LIMITATIONS = "Limitations: {limitations}"
 RERUN = "You can rerun the full suite or just this task using the **{instructions}**."
 RESULTS_REPORT_LABEL = "HTML report"
+RESULTS_MARKDOWN_LABEL = "Markdown runs report"
 RESULTS_REVIEW = (
-    "Review your runs in the {report} (**Runs**) or the {readme}. "
+    "Review your runs in the {report} (**Runs**) or the {markdown}. "
     "Follow the linked evidence to inspect each attempt’s recorded responses or actions and grade."
 )
 GYM_RESULTS_REVIEW = (
@@ -274,6 +275,7 @@ LINK_LABELS = {
     "report": "the report",
     "readme": "the suite README",
     "tasks_markdown": "the Markdown task report",
+    "runs_markdown": "the Markdown runs report",
     "tasks_view": "Tasks view",
     "task_readme": "task README",
     "rerun": "saved run instructions",
