@@ -30,6 +30,8 @@ Use the repository environment (`uv sync --locked`), which pins Harbor 0.24.0,
 and Git on `PATH`. Initial downloads need network access to the registry and
 Git repositories. Task execution additionally needs the configured environment
 backend; the example below uses Docker and makes no model calls.
+The CLI defaults `GIT_TERMINAL_PROMPT` to `0`; configure Git credentials before
+running downloads that need authentication.
 
 Download a registry snapshot without downloading or running its tasks:
 
@@ -42,6 +44,8 @@ uv run --locked python labs/metric-benchmark/download_harbor_tasks.py registry \
 and written as normalized JSON. Registry responses larger than 32 MiB are rejected
 before parsing or publication. An existing file is accepted only when its
 contents match the newly fetched snapshot; use a new output to record changes.
+Within one invocation, each registry URL is fetched once and each Git ref is
+resolved once, so task lists share the same source versions.
 
 Download a task collection, including a collection containing one Git task:
 
@@ -92,12 +96,16 @@ Each prepared bundle contains:
 
 - The generated local task manifest(s), with content pins, and downloaded task
   directories under `prepared-tasks/` relative to the cases directory.
-- Registry snapshots for dataset sources, including the requested release entry.
+- One normalized registry snapshot per registry URL, stored with the first task
+  list using it, including the requested release entry.
 - `preparation.json`: schema version, Harbor version, authored-input file hashes,
   dataset selectors and registry hashes, resolved task Git commits, and the file
   hashes of the complete prepared bundle excluding the receipt itself.
 - For the benchmark command, copies of the agent and analysis inputs and the
   signed experiment configuration, ready for the existing stage tools.
+
+The receipt's `registry_sha256` hashes the raw registry response bytes. The
+normalized snapshot has its own content hash in the receipt's `files` manifest.
 
 Archive the prepared bundle and its receipt with execution results. The receipt
 is a record of preparation, not a publisher signature. Task content hashes enter

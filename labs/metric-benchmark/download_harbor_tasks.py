@@ -4,7 +4,7 @@
 """Download Harbor registry metadata or tasks into validated local bundles."""
 
 import argparse
-import subprocess
+import os
 from pathlib import Path
 
 from harbor.constants import DEFAULT_REGISTRY_URL
@@ -25,15 +25,13 @@ def main() -> None:
         command.add_argument("--cached-only", action="store_true", help="verify an existing bundle without downloads")
 
     def run(args: argparse.Namespace) -> None:
-        try:
-            if args.operation == "registry":
-                download_registry(args.url, args.output)
-            else:
-                download_harbor_tasks(
-                    args.source, args.output, benchmark=args.operation == "benchmark", cached_only=args.cached_only
-                )
-        except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as error:
-            raise ValueError(f"Git source resolution failed: {error}") from error
+        os.environ.setdefault("GIT_TERMINAL_PROMPT", "0")
+        if args.operation == "registry":
+            download_registry(args.url, args.output)
+        else:
+            download_harbor_tasks(
+                args.source, args.output, benchmark=args.operation == "benchmark", cached_only=args.cached_only
+            )
 
     cli(parser, run)
 

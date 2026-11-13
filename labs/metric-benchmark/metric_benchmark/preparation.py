@@ -8,9 +8,10 @@ import re
 import shutil
 import subprocess
 import tempfile
+from dataclasses import dataclass, field
 from importlib.metadata import version
 from pathlib import Path
-from typing import Annotated, Self
+from typing import Annotated, Literal, Self
 from urllib.parse import urlsplit
 from urllib.request import urlopen
 
@@ -20,7 +21,7 @@ from harbor.models.registry import DatasetSpec
 from harbor.models.task.id import GitTaskId
 from harbor.models.task.task import Task as HarborTask
 from harbor.tasks.client import TaskClient, TaskIdType
-from pydantic import Field, StringConstraints, TypeAdapter, model_validator
+from pydantic import Field, JsonValue, StringConstraints, TypeAdapter, model_validator
 
 from metric_benchmark.config import (
     AgentManifest,
@@ -47,7 +48,10 @@ def _url(value: str, *, git: bool = False) -> str:
     parsed = urlsplit(value)
     schemes = ("https", "http", "file") if git else ("https", "http")
     if parsed.scheme not in schemes or parsed.username or parsed.password:
-        raise ValueError("use an HTTP(S) URL without embedded credentials (or file:// for Git fixtures)")
+        message = "use an HTTP(S) URL without embedded credentials"
+        if git:
+            message += " (or file:// for Git fixtures)"
+        raise ValueError(message)
     return value
 
 
@@ -101,6 +105,40 @@ class SourceTasks(Model):
         return self
 
 
+class DownloadRequest(Model):
+    kind: Literal["benchmark", "tasks"]
+    source: Text
+    files: dict[Text, Digest]
+
+
+class DownloadedSource(Model):
+    task_id: Text
+    source: GitSource
+
+
+class TaskOrigin(Model):
+    sources: list[DownloadedSource]
+    tasks_sha256: Digest
+    dataset: DatasetSource | None = None
+    registry_entry: dict[str, JsonValue] | None = None
+    registry_sha256: Digest | None = None
+
+
+class PreparationReceipt(Model):
+    artifact_type: Literal["prepared_inputs"]
+    schema_version: Literal[1]
+    harbor: Text
+    request: DownloadRequest
+    origins: dict[Text, TaskOrigin]
+    files: dict[Text, Digest]
+
+
+@dataclass
+class _DownloadSources:
+    registries: dict[str, tuple[list[DatasetSpec], str]] = field(default_factory=dict)
+    commits: dict[tuple[str, str], str] = field(default_factory=dict)
+
+
 def _task_document(data: object) -> DatasetManifest | SourceTasks:
     if isinstance(data, dict) and "dataset" in data:
         return DatasetManifest.model_validate(data)
@@ -115,6 +153,11 @@ def _registry_rows(path: Path) -> list[DatasetSpec]:
 
 def download_registry(url: str, output: Path) -> list[DatasetSpec]:
     """Download and validate a registry snapshot without downloading its tasks."""
+    rows, _ = _download_registry(url, output)
+    return rows
+
+
+def _download_registry(url: str, output: Path) -> tuple[list[DatasetSpec], str]:
     _url(url)
     output.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(dir=output.parent) as temporary:
@@ -126,7 +169,14 @@ def download_registry(url: str, output: Path) -> list[DatasetSpec]:
         snapshot.write_bytes(content)
         rows = _registry_rows(snapshot)
         write_json(output, [row.model_dump(mode="json") for row in rows])
-    return rows
+    return rows, digest_bytes(content)
+
+
+def _error_detail(error: Exception) -> str:
+    stderr = getattr(error, "stderr", None)
+    if isinstance(stderr, bytes):
+        stderr = stderr.decode("utf-8", errors="replace")
+    return f"{error}: {stderr.strip()}" if stderr and stderr.strip() else str(error)
 
 
 def _resolve_git(url: str, ref: str | None) -> str:
@@ -136,9 +186,12 @@ def _resolve_git(url: str, ref: str | None) -> str:
     ref = ref or "HEAD"
     if ref.startswith("-"):
         raise ValueError("invalid Git revision")
-    result = subprocess.run(
-        ["git", "ls-remote", url, ref, ref + "^{}"], capture_output=True, text=True, check=True, timeout=60
-    )
+    try:
+        result = subprocess.run(
+            ["git", "ls-remote", url, ref, ref + "^{}"], capture_output=True, text=True, check=True, timeout=60
+        )
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as error:
+        raise ValueError(f"Git source resolution failed: {_error_detail(error)}") from error
     refs = {name: sha for sha, name in (line.split() for line in result.stdout.splitlines())}
     commits = {refs.get(name + "^{}", sha) for name, sha in refs.items() if not name.endswith("^{}")}
     if len(commits) != 1:
@@ -149,41 +202,45 @@ def _resolve_git(url: str, ref: str | None) -> str:
     return commit
 
 
-def _dataset_tasks(source: DatasetSource, snapshot: Path) -> tuple[SourceTasks, dict]:
-    rows = download_registry(source.registry.url, snapshot)
+def _dataset_tasks(source: DatasetSource, snapshot: Path, downloads: _DownloadSources) -> tuple[SourceTasks, dict]:
+    url = source.registry.url
+    if url not in downloads.registries:
+        downloads.registries[url] = _download_registry(url, snapshot)
+    rows, registry_sha256 = downloads.registries[url]
     matches = [row for row in rows if row.name == source.name and row.version == source.version]
     if len(matches) != 1:
         raise ValueError(f"dataset not found: {source.name}@{source.version}")
     spec = matches[0]
     tasks = []
-    commits = {}
     for task in spec.tasks:
         if not task.git_url:
             raise ValueError("remote registry tasks must have Git sources")
-        key = task.git_url, task.git_commit_id
-        if key not in commits:
-            commits[key] = _resolve_git(*key)
+        key = task.git_url, task.git_commit_id or "HEAD"
+        if key not in downloads.commits:
+            downloads.commits[key] = _resolve_git(*key)
         tasks.append(
             RemoteTask(
                 task_id=task.name,
                 revision=1,
-                source=GitSource(git_url=task.git_url, git_commit_id=commits[key], path=task.path.as_posix()),
+                source=GitSource(git_url=task.git_url, git_commit_id=downloads.commits[key], path=task.path.as_posix()),
             )
         )
     return SourceTasks(tasks=tasks), {
         "dataset": source.model_dump(),
         "registry_entry": spec.model_dump(mode="json"),
-        "registry_sha256": input_digest(snapshot),
+        "registry_sha256": registry_sha256,
     }
 
 
-def _prepare_tasks(data: object, source_root: Path, root: Path, ordinal: int) -> tuple[dict, dict]:
+def _prepare_tasks(
+    data: object, source_root: Path, root: Path, ordinal: int, downloads: _DownloadSources
+) -> tuple[dict, dict]:
     directory = root / TASKS_DIR / f"set-{ordinal:04d}"
     directory.mkdir(parents=True)
     origin = {}
     document = _task_document(data)
     if isinstance(document, DatasetManifest):
-        tasks, origin = _dataset_tasks(document.dataset, directory / "registry.json")
+        tasks, origin = _dataset_tasks(document.dataset, directory / "registry.json", downloads)
     else:
         tasks = document
     remote = [task for task in tasks.tasks if isinstance(task, RemoteTask)]
@@ -195,7 +252,7 @@ def _prepare_tasks(data: object, source_root: Path, root: Path, ordinal: int) ->
         try:
             result = asyncio.run(TaskClient().download_tasks(ids, output_dir=directory / "data"))
         except Exception as error:
-            raise ValueError(f"Harbor task download failed: {error}") from error
+            raise ValueError(f"Harbor task download failed: {_error_detail(error)}") from error
         if len(result.results) != len(remote):
             raise ValueError("Harbor returned an incomplete task inventory")
         for task, item in zip(remote, result.results, strict=True):
@@ -222,7 +279,9 @@ def _prepare_tasks(data: object, source_root: Path, root: Path, ordinal: int) ->
             task.source().resolve(root, allow_unsigned=True)
             if input_digest(path) != source_digest:
                 raise ValueError(f"copied task contents differ from source: {task.path}")
-        HarborTask(path)  # Construction validates the native task configuration and required inputs.
+        HarborTask(path)  # Construction validates the native task configuration and input files.
+        if not HarborTask.is_valid_dir(path):
+            raise ValueError(f"invalid Harbor task directory: {relative}")
         prepared.append(
             TaskSource(
                 task_id=task.task_id,
@@ -295,16 +354,18 @@ def download_harbor_tasks(source: Path, output: Path, *, benchmark: bool = False
     if output.is_symlink() or output.resolve().is_relative_to(source_root):
         raise ValueError("output must be outside the source bundle")
     original = _source_files(source, benchmark)
-    request = {"kind": "benchmark" if benchmark else "tasks", "source": source.name, "files": original}
+    request = DownloadRequest(kind="benchmark" if benchmark else "tasks", source=source.name, files=original)
     if output.exists():
-        receipt = read_json(resolve_evidence(output, RECEIPT))
-        if not isinstance(receipt, dict) or receipt.get("request") != request:
+        if not output.is_dir() or not (output / RECEIPT).is_file():
+            raise ValueError("output exists and is not a prepared bundle; choose a new directory")
+        receipt = PreparationReceipt.model_validate(read_json(resolve_evidence(output, RECEIPT)))
+        if receipt.request != request:
             raise ValueError("prepared request changed; use a new output directory")
         actual = file_manifest(output)
         actual.pop(RECEIPT)
-        if actual != receipt.get("files"):
+        if actual != receipt.files:
             raise ValueError("prepared contents changed")
-        return receipt
+        return receipt.model_dump(mode="json", exclude_none=True)
     if cached_only:
         raise ValueError("cached-only preparation requires an existing prepared bundle")
     authored = _verify_authored_benchmark(source) if benchmark else None
@@ -316,6 +377,7 @@ def download_harbor_tasks(source: Path, output: Path, *, benchmark: bool = False
     with tempfile.TemporaryDirectory(prefix=".prepare-", dir=output.parent) as temporary:
         stage = Path(temporary) / "bundle"
         origins = {}
+        downloads = _DownloadSources()
         if authored is not None:
             cases_path, entries = authored
             shutil.copytree(source_root, stage, symlinks=True)
@@ -328,29 +390,30 @@ def download_harbor_tasks(source: Path, output: Path, *, benchmark: bool = False
                 if target in seen:
                     continue
                 seen.add(target)
-                manifest, origin = _prepare_tasks(read_yaml(target), cases_path.parent, root, len(seen) - 1)
+                manifest, origin = _prepare_tasks(read_yaml(target), cases_path.parent, root, len(seen) - 1, downloads)
                 _write_yaml(target, manifest)
-                origins[target.relative_to(stage).as_posix()] = origin
+                origins[target.relative_to(stage).as_posix()] = TaskOrigin.model_validate(origin)
             sign_benchmark(stage / source.name, resign=True)
             check_benchmark(stage / source.name)
         else:
             stage.mkdir()
-            manifest, origin = _prepare_tasks(read_yaml(source), source_root, stage, 0)
+            manifest, origin = _prepare_tasks(read_yaml(source), source_root, stage, 0, downloads)
             _write_yaml(stage / "tasks.yml", manifest)
-            origins["tasks.yml"] = origin
+            origins["tasks.yml"] = TaskOrigin.model_validate(origin)
         current = _source_files(source, benchmark)
         if current != original:
             raise ValueError("source bundle changed during preparation")
-        receipt = {
-            "artifact_type": "prepared_inputs",
-            "schema_version": 1,
-            "harbor": harbor_version,
-            "request": request,
-            "origins": origins,
-            "files": file_manifest(stage),
-        }
-        write_json(stage / RECEIPT, receipt)
+        receipt = PreparationReceipt(
+            artifact_type="prepared_inputs",
+            schema_version=1,
+            harbor=harbor_version,
+            request=request,
+            origins=origins,
+            files=file_manifest(stage),
+        )
+        payload = receipt.model_dump(mode="json", exclude_none=True)
+        write_json(stage / RECEIPT, payload)
         if output.exists():
             raise ValueError("output appeared during preparation")
         stage.rename(output)
-    return receipt
+    return payload

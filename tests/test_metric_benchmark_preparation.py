@@ -3,6 +3,8 @@
 
 import functools
 import json
+import os
+import runpy
 import shutil
 import subprocess
 import sys
@@ -13,8 +15,9 @@ from pathlib import Path
 
 import pytest
 import yaml
+from metric_benchmark import preparation
 from metric_benchmark.config import TaskManifest, load_benchmark, read_yaml
-from metric_benchmark.io import file_manifest, input_digest, read_json
+from metric_benchmark.io import digest_bytes, file_manifest, input_digest, read_json
 from metric_benchmark.pipeline import run_experiment
 from metric_benchmark.preparation import GitSource, download_harbor_tasks, download_registry
 from metric_benchmark.signing import check_benchmark
@@ -173,8 +176,16 @@ def test_complete_benchmark_preparation_execution_and_offline_analysis(tmp_path,
     )
 
 
-@pytest.mark.parametrize("change", ["missing-task", "duplicate-id", "unknown-version", "local-registry-source"])
-def test_failed_dataset_preparation_does_not_publish(tmp_path, registry, change):
+@pytest.mark.parametrize(
+    "change,message",
+    [
+        ("missing-task", "Harbor task download failed.*does-not-exist"),
+        ("duplicate-id", "duplicate task IDs"),
+        ("unknown-version", "dataset not found"),
+        ("local-registry-source", "must have Git sources"),
+    ],
+)
+def test_failed_dataset_preparation_does_not_publish(tmp_path, registry, change, message):
     _, _, url, served, rows = registry
     data = dataset(url)
     if change == "missing-task":
@@ -188,14 +199,22 @@ def test_failed_dataset_preparation_does_not_publish(tmp_path, registry, change)
     (served / "registry.json").write_text(json.dumps(rows))
     source = write_yaml(tmp_path / "source/tasks.yml", data)
     output = tmp_path / "prepared"
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match=message):
         download_harbor_tasks(source, output)
     assert not output.exists()
     assert not list(tmp_path.glob(".prepare-*"))
 
 
-@pytest.mark.parametrize("change", ["wrong-content-pin", "floating-commit", "traversal", "extra-field"])
-def test_invalid_direct_sources_rejected(tmp_path, registry, change):
+@pytest.mark.parametrize(
+    "change,message",
+    [
+        ("wrong-content-pin", "input digest differs"),
+        ("floating-commit", "String should match pattern"),
+        ("traversal", "without traversal"),
+        ("extra-field", "Extra inputs are not permitted"),
+    ],
+)
+def test_invalid_direct_sources_rejected(tmp_path, registry, change, message):
     repo, commit, _, _, _ = registry
     task = {
         "task_id": "task",
@@ -211,7 +230,7 @@ def test_invalid_direct_sources_rejected(tmp_path, registry, change):
     else:
         task["source"]["unexpected"] = "ignored?"
     source = write_yaml(tmp_path / "source/tasks.yml", {"tasks": [task]})
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match=message):
         download_harbor_tasks(source, tmp_path / "prepared")
     assert not (tmp_path / "prepared").exists()
 
@@ -402,3 +421,184 @@ def test_nested_cases_reserve_only_generated_locations(tmp_path):
     assert (output / "cases/prepared-tasks/set-0000").is_dir()
     assert download_harbor_tasks(source, output, benchmark=True, cached_only=True) == receipt
     assert file_manifest(source.parent) == before
+
+
+@pytest.mark.parametrize("benchmark", [False, True])
+def test_missing_task_environment_is_not_published(tmp_path, benchmark):
+    source, _ = experiment(tmp_path)
+    remove_pins(source.parent)
+    shutil.rmtree(source.parent / "tasks/workspace/inspect-files/environment")
+    if not benchmark:
+        source = write_yaml(
+            source.parent / "local.yml",
+            {"tasks": [{"task_id": "local", "revision": 1, "path": "tasks/workspace/inspect-files"}]},
+        )
+    before = file_manifest(source.parent)
+    with pytest.raises(ValueError, match="invalid Harbor task directory"):
+        download_harbor_tasks(source, tmp_path / "prepared", benchmark=benchmark)
+    assert file_manifest(source.parent) == before
+    assert not (tmp_path / "prepared").exists()
+    assert not list(tmp_path.glob(".prepare-*"))
+
+
+@pytest.mark.parametrize("kind", ["directory", "file"])
+def test_unrelated_output_has_actionable_error(tmp_path, monkeypatch, kind):
+    source = write_yaml(tmp_path / "source/tasks.yml", dataset("https://example.org/registry.json"))
+    output = tmp_path / "prepared"
+    if kind == "directory":
+        output.mkdir()
+    else:
+        output.write_text("unrelated")
+    monkeypatch.setattr(preparation, "urlopen", forbidden)
+    with pytest.raises(ValueError, match="output exists and is not a prepared bundle; choose a new directory"):
+        download_harbor_tasks(source, output)
+    if kind == "directory":
+        assert list(output.iterdir()) == []
+    else:
+        assert output.read_text() == "unrelated"
+
+
+@pytest.mark.parametrize(
+    "field,value,message",
+    [("schema_version", 2, "schema_version"), ("origins", {}, "tasks_sha256"), ("files", "not-a-digest", "sha256")],
+)
+def test_cached_receipt_schema_is_validated(tmp_path, monkeypatch, field, value, message):
+    source, _ = experiment(tmp_path)
+    output = tmp_path / "prepared"
+    receipt = download_harbor_tasks(source, output, benchmark=True)
+    if field == "origins":
+        receipt[field][next(iter(receipt[field]))] = value
+    elif field == "files":
+        receipt[field][next(iter(receipt[field]))] = value
+    else:
+        receipt[field] = value
+    (output / "preparation.json").write_text(json.dumps(receipt))
+    monkeypatch.setattr(preparation, "urlopen", forbidden)
+    with pytest.raises(ValueError, match=message):
+        download_harbor_tasks(source, output, benchmark=True, cached_only=True)
+
+
+@pytest.mark.parametrize("operation", ["resolve", "download"])
+@pytest.mark.parametrize("stderr", ["remote: Repository not found.\n", b"remote: Repository not found.\n"])
+def test_git_failures_preserve_stderr(tmp_path, registry, monkeypatch, operation, stderr):
+    _, _, url, _, _ = registry
+    source = write_yaml(tmp_path / "source/tasks.yml", dataset(url))
+
+    def fail_git(*args, **kwargs):
+        raise subprocess.CalledProcessError(128, ["git", "ls-remote"], stderr=stderr)
+
+    async def fail_download(*args, **kwargs):
+        fail_git()
+
+    if operation == "resolve":
+        monkeypatch.setattr(preparation.subprocess, "run", fail_git)
+        prefix = "Git source resolution failed"
+    else:
+        monkeypatch.setattr(preparation.TaskClient, "download_tasks", fail_download)
+        prefix = "Harbor task download failed"
+    with pytest.raises(ValueError, match=f"{prefix}.*Repository not found"):
+        download_harbor_tasks(source, tmp_path / "prepared")
+    assert not (tmp_path / "prepared").exists()
+    assert not list(tmp_path.glob(".prepare-*"))
+
+
+def test_git_resolution_timeout_is_a_value_error(monkeypatch):
+    def timeout(*args, **kwargs):
+        raise subprocess.TimeoutExpired(["git", "ls-remote"], 60, stderr=b"connection stalled")
+
+    monkeypatch.setattr(preparation.subprocess, "run", timeout)
+    with pytest.raises(ValueError, match="Git source resolution failed.*connection stalled"):
+        preparation._resolve_git("https://example.org/repo.git", "HEAD")
+
+
+@pytest.mark.parametrize("configured", [None, "1"])
+def test_cli_sets_git_prompt_default(tmp_path, monkeypatch, configured):
+    if configured is None:
+        monkeypatch.setenv("GIT_TERMINAL_PROMPT", "1")
+        monkeypatch.delenv("GIT_TERMINAL_PROMPT", raising=False)
+    else:
+        monkeypatch.setenv("GIT_TERMINAL_PROMPT", configured)
+    observed = []
+
+    def download(*args, **kwargs):
+        observed.append(os.environ["GIT_TERMINAL_PROMPT"])
+
+    monkeypatch.setattr(preparation, "download_harbor_tasks", download)
+    monkeypatch.setattr(
+        sys, "argv", ["download_harbor_tasks.py", "tasks", "--source", "tasks.yml", "--output", str(tmp_path)]
+    )
+    runpy.run_path(str(LAB / "download_harbor_tasks.py"), run_name="__main__")
+    assert observed == [configured or "0"]
+
+
+def test_registry_url_error_does_not_offer_file_urls(tmp_path):
+    with pytest.raises(ValueError, match="HTTP\\(S\\)") as error:
+        download_registry((tmp_path / "registry.json").as_uri(), tmp_path / "snapshot.json")
+    assert "file://" not in str(error.value)
+    with pytest.raises(ValueError, match="file:// for Git fixtures"):
+        GitSource(git_url="ssh://example.org/repo", git_commit_id="a" * 40, path="task")
+
+
+def test_benchmark_shares_registry_and_ref_resolution_per_invocation(tmp_path, registry, monkeypatch):
+    repo, commit, url, served, rows = registry
+    rows[0]["extra_registry_metadata"] = "must contribute to the raw hash"
+    rows.append({**rows[0], "version": "2.0", "tasks": [{**task, "git_commit_id": None} for task in rows[0]["tasks"]]})
+    raw_registry = json.dumps(rows, indent=4).encode() + b"\n"
+    (served / "registry.json").write_bytes(raw_registry)
+    source, _ = experiment(tmp_path, two_cases=True)
+    cases_path = source.parent / "cases.yml"
+    cases = read_yaml(cases_path)
+    assert isinstance(cases, list)
+    cases[1]["tasks"] = {**cases[1]["tasks"], "path": "second-dataset.yml"}
+    write_yaml(cases_path, cases)
+    for index, case in enumerate(cases, start=1):
+        selector = dataset(url)
+        selector["dataset"]["version"] = f"{index}.0"
+        write_yaml(source.parent / case["tasks"]["path"], selector)
+    remove_pins(source.parent)
+    fetches = []
+    resolutions = []
+    urlopen = preparation.urlopen
+    resolve_git = preparation._resolve_git
+    download_tasks = preparation.TaskClient.download_tasks
+
+    def fetch(*args, **kwargs):
+        fetches.append(args[0])
+        return urlopen(*args, **kwargs)
+
+    def resolve(*args):
+        resolutions.append(args)
+        return resolve_git(*args)
+
+    moved_commit = []
+
+    async def download(self, *args, **kwargs):
+        result = await download_tasks(self, *args, **kwargs)
+        if not moved_commit:
+            git(repo, "commit", "--allow-empty", "-qm", "upstream moved during download")
+            moved_commit.append(git(repo, "rev-parse", "HEAD"))
+            rows[0]["description"] = "registry changed during download"
+            (served / "registry.json").write_text(json.dumps(rows))
+        return result
+
+    monkeypatch.setattr(preparation, "urlopen", fetch)
+    monkeypatch.setattr(preparation, "_resolve_git", resolve)
+    monkeypatch.setattr(preparation.TaskClient, "download_tasks", download)
+    for index, expected_commit in enumerate([commit, None]):
+        output = tmp_path / f"prepared-{index}"
+        expected_raw = raw_registry if index == 0 else (served / "registry.json").read_bytes()
+        receipt = download_harbor_tasks(source, output, benchmark=True)
+        assert len(receipt["origins"]) == 2
+        assert fetches == [url] * (index + 1)
+        assert resolutions == [(repo.as_uri(), "HEAD")] * (index + 1)
+        for origin in receipt["origins"].values():
+            assert origin["registry_sha256"] == digest_bytes(expected_raw)
+            assert "extra_registry_metadata" not in origin["registry_entry"]
+            assert {item["source"]["git_commit_id"] for item in origin["sources"]} == {
+                expected_commit or moved_commit[0]
+            }
+        snapshots = list(output.rglob("registry.json"))
+        assert len(snapshots) == 1
+        assert input_digest(snapshots[0]) != digest_bytes(expected_raw)
+        assert receipt["files"][snapshots[0].relative_to(output).as_posix()] == input_digest(snapshots[0])
+        check_benchmark(output / source.name)
