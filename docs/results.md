@@ -181,8 +181,9 @@ audit's coverage criteria.
 
 The report opens with a Summary (including an ADVISORY when verifier cheating is
 confirmed and the Evaluation coverage table), then Key findings. Recommended
-next actions is a single list, highest priority first, that names each finding or
-advisory, the capabilities and tools it involves, and the proposed task.
+next actions is a single table, highest priority first, with columns for severity, the
+finding or advisory, the tool or capability it involves, and a description that
+gives the action and the proposed task.
 The Coverage report maps each audit item to its tasks and run evidence, followed by the task
 catalog, verifier cheat screening, scope and execution evidence, and
 definitions.

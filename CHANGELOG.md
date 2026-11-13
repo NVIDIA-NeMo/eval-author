@@ -31,6 +31,18 @@ preview: workflows, skills, and saved artifacts may change between releases.
 
 ### Changed
 
+- **Report page headers.** The header's "Markdown for agents" row is gone. Each
+  tab now shows its own "Agent markdown" link (`tasks.md`, `runs.md`, or
+  `audits.md`) floated right of a one-line page description, and the Audit tab no
+  longer shows the separate "Saved date / Markdown path" line. The Suite README
+  link is no longer in the header; it remains in the audit report's Suite reports
+  list.
+- **Audit recommendations table.** The audit report's Recommended next actions
+  section is now a table with Severity, Finding / Advisory, Tool or capability,
+  and Description columns, instead of a bulleted list. A selected proposal's
+  Verification, Breadth, Next step, and Verifier links continue in its
+  Description cell. Existing `audits.md` files update on the next audit; no
+  content or schema change is needed.
 - **Suite report layout.** `report.html` gains an **Audit** tab that renders the
   latest audit coverage report, with task links that open the Tasks row and run
   links that open the Runs tab. Task and run tables move from `.eval-author/README.md`

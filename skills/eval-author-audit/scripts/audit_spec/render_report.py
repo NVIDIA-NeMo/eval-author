@@ -491,15 +491,15 @@ def finding_paragraph(model: content.Content, row: dict) -> str:
     return finding_explanation(model, row) + " " + citation
 
 
-def detail_lines(model: content.Content, row: dict) -> list[str]:
-    """Nested bullets for a proposal the user selected: its details, and the Verifier section links that exist."""
+def detail_parts(model: content.Content, row: dict) -> list[str]:
+    """Table-cell sentences for a proposal the user selected: its details, and the Verifier section links that exist."""
     details = row.get("details")
     if not details:
         return []
-    lines = [
-        "  - **Verification:** " + prose(model, details["verification"]),
-        "  - **Breadth:** " + prose(model, details["breadth"]),
-        "  - **Next step:** " + layout.NEXT_STEPS[details["next_step"]],
+    parts = [
+        "**Verification:** " + prose(model, details["verification"]),
+        "**Breadth:** " + prose(model, details["breadth"]),
+        "**Next step:** " + layout.NEXT_STEPS[details["next_step"]],
     ]
     finding = next(item for item in model.data["findings"] if item["id"] == row["finding_id"])
     links = []
@@ -510,8 +510,8 @@ def detail_lines(model: content.Content, row: dict) -> list[str]:
             target = path_target(posixpath.join(model.sources[task["source"]]["path"], "README.md")) + "#verifier"
             links.append(md_link(task_identifier(model, task_id) + " Verifier section", target))
     if links:
-        lines.append("  - **Verifier controls:** " + ", ".join(links))
-    return lines
+        parts.append("**Verifier controls:** " + ", ".join(links))
+    return [part if part.endswith((".", "!", "?")) else part + "." for part in parts]
 
 
 def action_text(model: content.Content, row: dict) -> str:
@@ -692,18 +692,20 @@ def build(model: content.Content) -> tuple[str, dict[int, str]]:
             [layout.COPY["recommended_with_ethos" if data["inputs"]["ethos"] else "recommended"], ""], "recommendations"
         )
     ranked = sorted(data["recommendations"], key=lambda row: (layout.PRIORITY_RANK[row["priority"]], row["order"]))
-    for row in ranked:
-        details = detail_lines(model, row)
+    if ranked:
         add(
-            [
-                f"- **{layout.PRIORITIES[row['priority']]}** · "
-                + jump(row["finding_id"], finding_heading(model, row["finding_id"]))
-                + " · "
-                + involved_items(model, row),
-                "  - " + action_text(model, row),
-                *details,
-                "",
-            ],
+            table(
+                "recommendations",
+                [
+                    [
+                        layout.PRIORITIES[row["priority"]],
+                        jump(row["finding_id"], finding_heading(model, row["finding_id"])),
+                        involved_items(model, row),
+                        " ".join([action_text(model, row), *detail_parts(model, row)]),
+                    ]
+                    for row in ranked
+                ],
+            ),
             "recommendations",
         )
     section(4, "tasks")

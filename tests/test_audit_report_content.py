@@ -439,7 +439,7 @@ def test_a_proposal_without_item_mappings_is_still_listed_and_says_so(audit_repo
     proposal = renderer.prose(model, data["recommendations"][0]["proposed_task"])
     assert recommendations.count(proposal) == 1
     item = next(line for line in recommendations.splitlines() if "Advisory 1" in line)
-    assert item.endswith("no mapped capability or tool")
+    assert item.split(" | ")[2] == "no mapped capability or tool"
     advisory = report.split("### ADVISORY\n\n", 1)[1].split("## Key findings", 1)[0]
     assert "Proposed task: " + proposal in advisory
     assert_markdown_links(report, renderer)
@@ -994,7 +994,19 @@ def next_actions(text):
     return text.split("## Recommended next actions\n\n", 1)[1].split("## Task catalog\n\n", 1)[0]
 
 
-def test_next_actions_are_one_flat_list_ordered_by_priority(audit_report):
+def next_action_rows(block):
+    """The recommendation table's body rows, each split into its four cells."""
+    rows = [line for line in block.splitlines() if line.startswith("| ")]
+    assert [cell.strip() for cell in rows[0].strip("|").split(" | ")] == [
+        "Severity",
+        "Finding / Advisory",
+        "Tool or capability",
+        "Description",
+    ]
+    return [[cell.strip() for cell in line.strip("|").split(" | ")] for line in rows[2:]]
+
+
+def test_next_actions_are_one_table_ordered_by_priority(audit_report):
     _, renderer, root = audit_report
     data = example_data(root)
     priorities = dict(zip(("R1", "R2", "R3", "R4"), ("low", "medium", "low", "high")))
@@ -1003,11 +1015,11 @@ def test_next_actions_are_one_flat_list_ordered_by_priority(audit_report):
     save(root, data)
     block = next_actions(renderer.render(load(audit_report))[0].decode())
     assert "### " not in block
-    items = [line for line in block.splitlines() if line.startswith("- **")]
-    assert [line.split("**")[1] for line in items] == ["High", "Medium", "Low", "Low"]
-    assert not re.search(r"^\d+\. ", block, re.M)
+    rows = next_action_rows(block)
+    assert [row[0] for row in rows] == ["High", "Medium", "Low", "Low"]
+    assert not re.search(r"^(\d+\. |- )", block, re.M)
     # The author's order only breaks ties within a priority.
-    assert "Advisory 1" in items[2] and "Finding 2" in items[3]
+    assert "Advisory 1" in rows[2][1] and "Finding 2" in rows[3][1]
 
 
 def test_a_next_action_lists_every_item_it_involves(audit_report):
@@ -1016,23 +1028,21 @@ def test_a_next_action_lists_every_item_it_involves(audit_report):
     data["recommendations"][0]["items"] = ["cited_answers", "read_file"]
     save(root, data)
     block = next_actions(renderer.render(load(audit_report))[0].decode())
-    item = next(line for line in block.splitlines() if "Advisory 1" in line)
-    assert item.endswith("cited\\_answers (capability), read\\_file (tool)")
+    row = next(row for row in next_action_rows(block) if "Advisory 1" in row[1])
+    assert row[2] == "cited\\_answers (capability), read\\_file (tool)"
 
 
-def test_details_render_under_their_next_action_and_only_for_selected_proposals(audit_report):
+def test_details_render_in_their_next_action_row_and_only_for_selected_proposals(audit_report):
     _, renderer, root = audit_report
     data = example_data(root)
     selected = next(row for row in data["recommendations"] if row["action"] == "revise_task")
     selected["details"] = DETAILS
     save(root, data)
-    lines = next_actions(renderer.render(load(audit_report))[0].decode()).splitlines()
-    position = next(i for i, line in enumerate(lines) if line.startswith("  - Revise a task"))
-    assert lines[position + 1].startswith("  - **Verification:** Accept a reply that cites the read source.")
-    assert lines[position + 3] == "  - **Next step:** Needs manual task design"
-    assert (
-        sum(line.startswith("  - **Verification:**") for line in lines) == 2
-    )  # the example's selected proposal and this one
+    rows = next_action_rows(next_actions(renderer.render(load(audit_report))[0].decode()))
+    row = next(row for row in rows if row[3].startswith("Revise a task"))
+    assert "**Verification:** Accept a reply that cites the read source." in row[3]
+    assert row[3].endswith("**Next step:** Needs manual task design.")
+    assert sum("**Verification:**" in row[3] for row in rows) == 2  # the example's selected proposal and this one
 
 
 def test_the_verifier_link_appears_only_when_the_task_readme_has_a_verifier_section(audit_report):
@@ -1053,7 +1063,7 @@ def test_the_verifier_link_appears_only_when_the_task_readme_has_a_verifier_sect
     save(root, data)
     text = renderer.render(load(audit_report))[0].decode()
     line = next(line for line in text.splitlines() if "**Verifier controls:**" in line)
-    assert "source-answer/README.md#verifier" in line and "Verifier section" in line
+    assert line.startswith("| ") and "source-answer/README.md#verifier" in line and "Verifier section" in line
 
 
 def history_module(audit_report):
