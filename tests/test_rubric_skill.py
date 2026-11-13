@@ -60,22 +60,58 @@ def test_rubric_routes_only_the_explicitly_selected_assessment_area() -> None:
     assert "references/identity.md" in text
 
 
+def test_rubric_identifiers_match_workflows_and_preserve_source_order() -> None:
+    items = json.loads((SKILL / "references/artifact-configuration-provenance.json").read_text())["items"]
+    assert [item["id"] for item in items] == [
+        "DISCOVERY-01-A",
+        "DISCOVERY-01-B",
+        "DISCOVERY-01-C",
+        "DISCOVERY-02-A",
+        "DISCOVERY-02-B",
+        "DISCOVERY-03-A",
+        "AUDIT-02",
+        "ENVIRONMENT-01",
+        "ENVIRONMENT-02-A",
+        "ENVIRONMENT-03",
+        "CREATE-07",
+    ]
+    prefixes = {
+        "discover": "DISCOVERY",
+        "audit": "AUDIT",
+        "environment": "ENVIRONMENT",
+        "first_eval_create": "CREATE",
+    }
+    for item in items:
+        assert item["id"].startswith(prefixes[item["skill_id"]] + "-")
+        assert [check["id"] for check in item["checks"]] == [
+            f"{item['id']}-C{number:02d}" for number in range(1, len(item["checks"]) + 1)
+        ]
+        assert list(item["scoring"]) == ["0", "1", "2", "3"]
+    anti_cheat = (SKILL / "references/anti-cheat.md").read_text()
+    assert re.findall(r"^## (ANTI-CHEAT-\d{2}):", anti_cheat, re.MULTILINE) == [
+        "ANTI-CHEAT-01",
+        "ANTI-CHEAT-02",
+        "ANTI-CHEAT-03",
+        "ANTI-CHEAT-04",
+    ]
+
+
 def test_rubric_canonical_source_preserves_criterion_checks_and_anchors() -> None:
     source = SKILL / "references/artifact-configuration-provenance.json"
     assert source.is_file()
     data = json.loads(source.read_text())
     items = data["items"]
     assert {item["id"] for item in items} == {
-        "DISC-01-A",
-        "DISC-01-B",
-        "DISC-01-C",
-        "DISC-02-A",
-        "DISC-02-B",
-        "DISC-03-A",
-        "AUD-02",
-        "ENV-01",
-        "ENV-02-A",
-        "ENV-03",
+        "DISCOVERY-01-A",
+        "DISCOVERY-01-B",
+        "DISCOVERY-01-C",
+        "DISCOVERY-02-A",
+        "DISCOVERY-02-B",
+        "DISCOVERY-03-A",
+        "AUDIT-02",
+        "ENVIRONMENT-01",
+        "ENVIRONMENT-02-A",
+        "ENVIRONMENT-03",
         "CREATE-07",
     }
     assert len(items) == 11
@@ -103,7 +139,7 @@ def test_rubric_reference_uses_canonical_definitions_and_item_specific_evidence(
     for rule in (
         "E0 alone supports no numeric score",
         "Do not import anti-cheat's evidence-floor table",
-        "CREATE-07 and AUD-02 can meet their level-3 anchors at E2",
+        "CREATE-07 and AUDIT-02 can meet their level-3 anchors at E2",
         "Every selected criterion must have a result row",
         "Every source check must be accounted for",
         "NOT_ASSESSED",
@@ -136,11 +172,11 @@ def test_rubric_requires_explicit_end_user_opt_in() -> None:
     assert "Normal task-validation controls remain required" in router
 
 
-@pytest.mark.parametrize("item_id", ["AC-01", "AC-02", "AC-03", "AC-04"])
+@pytest.mark.parametrize("item_id", ["ANTI-CHEAT-01", "ANTI-CHEAT-02", "ANTI-CHEAT-03", "ANTI-CHEAT-04"])
 def test_each_anti_cheat_item_has_an_actionable_contract(item_id: str) -> None:
     text = (SKILL / "references/anti-cheat.md").read_text()
-    sections = dict(re.findall(r"## (AC-\d+): ([\s\S]*?)(?=\n## |\Z)", text))
-    assert set(sections) == {"AC-01", "AC-02", "AC-03", "AC-04"}
+    sections = dict(re.findall(r"## (ANTI-CHEAT-\d+): ([\s\S]*?)(?=\n## |\Z)", text))
+    assert set(sections) == {"ANTI-CHEAT-01", "ANTI-CHEAT-02", "ANTI-CHEAT-03", "ANTI-CHEAT-04"}
     section = sections[item_id]
     for field in (
         "Pillar",
@@ -201,7 +237,7 @@ def test_scoring_contract_handles_static_defects_and_evidence_floors() -> None:
         "| 3 | E3 |",
     ):
         assert row in text
-    assert "AC-02 = 0/E1 and AC-03 = 0/E1" in text
+    assert "ANTI-CHEAT-02 = 0/E1 and ANTI-CHEAT-03 = 0/E1" in text
     assert "one shared finding ID" in text
     assert "static confirmation of a reachable path" in text
     assert "execution-based score remains NOT_ASSESSED" not in text
@@ -211,12 +247,12 @@ def test_scoring_contract_handles_static_defects_and_evidence_floors() -> None:
 def test_forged_credit_and_carryover_cases_have_exact_scores() -> None:
     cases = {case["id"]: case for case in json.loads((SKILL / "evals/evals.json").read_text())["evals"]}
     forged = cases["rubric-forged-credit"]
-    assert "AC-02 = 0/E1 and AC-03 = 0/E1" in forged["expected_output"]
+    assert "ANTI-CHEAT-02 = 0/E1 and ANTI-CHEAT-03 = 0/E1" in forged["expected_output"]
     assert any("one shared finding" in assertion for assertion in forged["assertions"])
     carryover = cases["rubric-three-pillars"]
-    assert "AC-02 = 0/E2" in carryover["expected_output"]
-    assert "AC-02 = 2/E2" not in carryover["expected_output"]
-    assert "AC-04 = 0/E2" in carryover["expected_output"]
+    assert "ANTI-CHEAT-02 = 0/E2" in carryover["expected_output"]
+    assert "ANTI-CHEAT-02 = 2/E2" not in carryover["expected_output"]
+    assert "ANTI-CHEAT-04 = 0/E2" in carryover["expected_output"]
     assert "longitudinal" in carryover["prompt"]
 
 

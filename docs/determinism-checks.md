@@ -29,9 +29,9 @@ that presentation guarantee does not establish deterministic workflow execution.
 
 ## Rubric identity measurements
 
-The experimental rubric demo assesses source-bound task access (`DISC-01-A`),
-explicit grading-path identification (`DISC-01-B`), and grading-dependency access
-with a retained completeness review (`DISC-01-C`). Raw identity, route,
+The experimental rubric demo assesses source-bound task access (`DISCOVERY-01-A`),
+explicit grading-path identification (`DISCOVERY-01-B`), and grading-dependency access
+with a retained completeness review (`DISCOVERY-01-C`). Raw identity, route,
 configuration, relationship, and approval measurements remain separate from
 canonical criterion scores. See the
 [rubric measurement contract](../skills/eval-author-rubric/references/identity.md)
@@ -44,7 +44,7 @@ uv run --locked python tools/run_rubric_measurements.py --format text
 uv run --locked python tools/run_rubric_measurements.py
 ```
 
-The default output is `rubric-mutation-panel-v3` JSON. It contains 14 raw-measurement
+The default output is `rubric-mutation-panel-v4` JSON. It contains 14 raw-measurement
 regressions, five canonical score variants, and eight source configuration and
 freshness variants in `evidence_cases`. Both
 assessment panels invoke the actual measurement CLI without mocking helper outputs.
@@ -60,7 +60,7 @@ case IDs and omits success claims when any case mismatches. Correctly detecting 
 planted defect does not cause a nonzero exit.
 It also checks that CLI assessment leaves the selected input bytes unchanged.
 
-| Variant | DISC-01-A | DISC-01-B | DISC-01-C |
+| Variant | DISCOVERY-01-A | DISCOVERY-01-B | DISCOVERY-01-C |
 | --- | --- | --- | --- |
 | Valid declared inventory | 2 | 2 | 2 |
 | Wrong scorer | 2 | 0 | 2 |
@@ -181,7 +181,11 @@ python skills/eval-author-rubric/scripts/measure.py \
   --root /path/to/package --selection /path/to/private-selection.json
 ```
 
-It emits `rubric-measurements-v2` JSON without modifying workflow state. Exit 1
+It emits `rubric-measurements-v3` JSON without modifying workflow state. Criterion
+IDs use `DISCOVERY`, `AUDIT`, `ENVIRONMENT`, and `CREATE`; anti-cheat references use
+`ANTI-CHEAT`. Numeric suffixes and score anchors are unchanged. The renamed IDs
+use rubric `4.1-draft`; v3 replaces v2 output and keeps rows in canonical order.
+Exit 1
 means failed/unknown raw predicates or comparisons still requiring review. Exit 2
 means invalid input. Exit 0 does not mean every canonical item is assessed or that
 native preflight passed. Configuration acceptability remains unassessed.

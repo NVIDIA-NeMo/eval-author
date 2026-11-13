@@ -283,7 +283,7 @@ def test_cli_rejects_malformed_native_id_lists(panel, key, value):
     result = run_rubric_cli(panel, {"artifacts": panel.identity["records"], "native": selection})
     assert result.returncode == 2
     assert json.loads(result.stdout) == {
-        "schema": "rubric-measurements-v2",
+        "schema": "rubric-measurements-v3",
         "status": "invalid",
         "code": "selection.invalid",
         "preflight_success": False,
@@ -298,7 +298,7 @@ def test_cli_rejects_nonobject_native_selection(panel, value):
     assert result.stderr == ""
     assert result.returncode == 2
     assert json.loads(result.stdout) == {
-        "schema": "rubric-measurements-v2",
+        "schema": "rubric-measurements-v3",
         "status": "invalid",
         "code": "selection.invalid",
         "preflight_success": False,
@@ -316,7 +316,7 @@ def test_cli_requires_exact_native_selector_keys(panel, key):
     assert result.returncode == 2
     assert result.stderr == ""
     assert json.loads(result.stdout) == {
-        "schema": "rubric-measurements-v2",
+        "schema": "rubric-measurements-v3",
         "status": "invalid",
         "code": "selection.invalid",
         "preflight_success": False,

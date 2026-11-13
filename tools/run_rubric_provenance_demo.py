@@ -21,16 +21,16 @@ CANONICAL = ROOT / "skills/eval-author-rubric/references/artifact-configuration-
 
 
 def encoded(value):
-    return json.dumps(value, indent=2, sort_keys=True, allow_nan=False) + "\n"
+    return json.dumps(value, indent=2, allow_nan=False) + "\n"
 
 
 def sha(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def write_json(path, value):
+def write_json(path, value, *, sort_keys=True):
     with path.open("x", encoding="utf-8") as stream:
-        stream.write(encoded(value))
+        stream.write(json.dumps(value, indent=2, sort_keys=sort_keys, allow_nan=False) + "\n")
 
 
 def prepare_reconstruction(root, prefix):
@@ -391,7 +391,7 @@ def run_case(root, case, defaults, definitions):
     }
     expected = merge(defaults, case["overrides"])
     observed = observed_summary(report, process.returncode)
-    write_json(root / "report.json", report)
+    write_json(root / "report.json", report, sort_keys=False)
     return {
         "id": case["id"],
         "expected": expected,
@@ -470,7 +470,7 @@ def main(argv=None):
                 raise ValueError("unsafe run directory")
             root.mkdir(mode=0o700)
             result = run_panel(root)
-            write_json(root / "panel.json", result)
+            write_json(root / "panel.json", result, sort_keys=False)
     except (OSError, ValueError, subprocess.TimeoutExpired):
         parser.error(
             "run directory must be new, with existing nonsymlink parents; demo inputs and CLI must be readable"
