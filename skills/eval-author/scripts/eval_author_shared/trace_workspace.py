@@ -42,6 +42,7 @@ from .fixture_compiler import (
     derive_tool_call_inventory as derive_tool_call_inventory,
 )
 from .mock_registration import probe_registration  # noqa: E402
+from .retry_audit import audit_retries  # noqa: E402
 
 # Retained workspace API; the shared evidence module owns these operations.
 from .task_evidence import (
@@ -664,24 +665,30 @@ def _review_privacy(args: argparse.Namespace) -> dict[str, Any]:
     }
 
 
+def _retain_report(task_dir: Path, name: str, report: dict[str, Any], label: str) -> Path:
+    """Write a derived private report once. Accept an unchanged rerun and reject a changed one."""
+    report_bytes = (json.dumps(report, indent=2, sort_keys=True) + "\n").encode()
+    if len(report_bytes) > MAX_CANONICAL_BYTES:
+        raise ContractError(f"{label} exceeds the bounded artifact size; no partial report was retained")
+    private = task_dir / "private"
+    if private.is_symlink() or not private.is_dir():
+        raise ContractError(f"{label} requires a regular private directory")
+    output = private / name
+    if output.is_symlink():
+        raise ContractError(f"{label} must be a regular file")
+    if output.exists():
+        if not output.is_file() or _load_object(output, label=label) != report:
+            raise ContractError(f"retained {label} differs; preserve it and use a fresh workspace")
+    else:
+        _write_bytes_once(output, report_bytes)
+    return output
+
+
 def _audit_evidence(args: argparse.Namespace) -> dict[str, Any]:
     task_dir = _ensure_task_dir(args.task_dir)
     _, safe, digest = _tool_call_source(task_dir)
     report = audit_evidence(safe, safe_trace_sha256=digest)
-    report_bytes = (json.dumps(report, indent=2, sort_keys=True) + "\n").encode()
-    if len(report_bytes) > MAX_CANONICAL_BYTES:
-        raise ContractError("evidence audit exceeds the bounded artifact size; no partial report was retained")
-    private = task_dir / "private"
-    if private.is_symlink() or not private.is_dir():
-        raise ContractError("evidence audit requires a regular private directory")
-    output = private / "evidence-audit.json"
-    if output.is_symlink():
-        raise ContractError("evidence audit must be a regular file")
-    if output.exists():
-        if not output.is_file() or _load_object(output, label="evidence audit") != report:
-            raise ContractError("retained evidence audit differs; preserve it and use a fresh workspace")
-    else:
-        _write_bytes_once(output, report_bytes)
+    output = _retain_report(task_dir, "evidence-audit.json", report, "evidence audit")
     return {
         "task_dir": str(task_dir),
         "report": str(output),
@@ -689,6 +696,21 @@ def _audit_evidence(args: argparse.Namespace) -> dict[str, Any]:
         "execution_verified": False,
         "counts": report["counts"],
         "finding_counts": report["finding_counts"],
+    }
+
+
+def _audit_retries(args: argparse.Namespace) -> dict[str, Any]:
+    task_dir = _ensure_task_dir(args.task_dir)
+    _, safe, digest = _tool_call_source(task_dir)
+    report = audit_retries(safe, safe_trace_sha256=digest)
+    output = _retain_report(task_dir, "retry-audit.json", report, "retry audit")
+    return {
+        "task_dir": str(task_dir),
+        "report": str(output),
+        "scope": report["scope"],
+        "detector_version": report["detector_version"],
+        "execution_verified": False,
+        "counts": report["counts"],
     }
 
 
@@ -2167,6 +2189,12 @@ def _parser() -> argparse.ArgumentParser:
     audit = subparsers.add_parser("audit-evidence", help="report observation coverage without inferring correctness")
     audit.add_argument("--task-dir", required=True, type=Path)
     audit.set_defaults(run=_audit_evidence)
+
+    retries = subparsers.add_parser(
+        "audit-retries", help="report unchanged repeats after explicit tool errors as review candidates"
+    )
+    retries.add_argument("--task-dir", required=True, type=Path)
+    retries.set_defaults(run=_audit_retries)
 
     review = subparsers.add_parser("review-privacy", help="record contextual review of every safe trace string")
     review.add_argument("--task-dir", required=True, type=Path)

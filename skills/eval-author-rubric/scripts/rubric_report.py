@@ -25,6 +25,7 @@ from pathlib import Path
 from eval_author_shared.task_evidence import loads
 from rubric_identity import identify, resolve_route
 from rubric_scoring import _checked_record, _observations, classify_inventory, route_is_bound
+from verification_scoring import score_integrity_groups
 
 CANONICAL = Path(__file__).resolve().parents[1] / "references/artifact-configuration-provenance.json"
 INVENTORIES = {"DISC-01-A": "task_artifacts", "DISC-01-C": "grading_dependencies"}
@@ -222,18 +223,22 @@ def _predicate(check, ident, outcome, scope):
     )
 
 
-def _counts(check, values, denominator, unit, missingness, uncertainty):
-    check["measurements"] = [
+def _counts(check, values, denominator, unit, missingness, uncertainty, denominators=None, *, append=False):
+    rows = [
         {
             "name": name,
             "value": value,
-            "denominator": denominator,
+            "denominator": (denominators or {}).get(name, denominator),
             "unit": unit,
             "missingness": missingness,
             "uncertainty": uncertainty,
         }
         for name, value in values.items()
     ]
+    if append:
+        check.setdefault("measurements", []).extend(rows)
+    else:
+        check["measurements"] = rows
 
 
 def _artifact_refs(selection, ids):
@@ -453,6 +458,61 @@ def _native(check, measurements, selection):
         "Selected retained receipt/manifest/result/ATIF identities and qualified task/run/trace/tool links only; "
         "control classification is not reference integrity, current task freshness or executed qualification.",
     )
+    summary = measurement["receipt_integrity"]
+    claim_outcome = (
+        "FAIL"
+        if summary["contradictions"]
+        else "BLOCKED"
+        if summary["unknown"] or not summary["eligible_claims"]
+        else "PASS"
+    )
+    _predicate(
+        native_check,
+        "selected_receipt_status_consistent",
+        claim_outcome,
+        "A passed closure-control receipt must not contradict its own return code or its bound native health and "
+        "behavior assertions. This detects record inconsistency, not agent false closure or context rot.",
+    )
+    keys = (
+        "eligible_claims",
+        "contradictions",
+        "unknown",
+        "excluded",
+        "not_applicable",
+        "execution_errors",
+        "mismatched",
+    )
+    _counts(
+        native_check,
+        {key: summary[key] for key in keys},
+        summary["selected_receipts"],
+        "selected receipt claims",
+        "Unknown and excluded receipts are not eligible claims. Unselected attempts are outside scope.",
+        "The rate covers eligible passed claims only. It does not measure prevalence across trials or establish a cause.",
+        {"contradictions": summary["eligible_claims"]},
+    )
+    verification = measurement["required_verification"]
+    _counts(
+        native_check,
+        {"required_" + state: count for state, count in verification["states"].items()},
+        verification["required_cases"],
+        "selected required controls",
+        "A missing control is an evidence gap. The check does not read the attempt ledger. Native freshness is unknown here.",
+        "States describe selected closure receipts, not current task qualification or agent behavior.",
+        append=True,
+    )
+    lineage = measurement["superseded_references"]
+    _counts(
+        native_check,
+        {"superseded_references": lineage["references"], "superseded_enacted": lineage["enacted"]},
+        len(measurement["controls"]),
+        "selected receipts",
+        "Only selected repair manifests supply supersession links.",
+        "Receipts have no trustworthy order. Each reference is a review candidate, not a confirmed violation.",
+        append=True,
+    )
+    check.setdefault("measurements", []).extend(native_check["measurements"])
+    check["group_scores"] = score_integrity_groups(measurement)
     # Append after freshness so its scoped predicates, counts and evidence survive.
     for key in ("evidence", "evidence_refs", "diagnostic_refs", "predicate_results"):
         check.setdefault(key, []).extend(native_check[key])

@@ -1,6 +1,7 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
+import hashlib
 import json
 import subprocess
 import sys
@@ -13,9 +14,19 @@ pytest_plugins = ["test_preparation_concurrency"]
 
 
 @pytest.mark.parametrize("controlled", [8], indirect=True)
-@pytest.mark.parametrize("workers", [None, 1, 2, 4, 8])
+@pytest.mark.parametrize(
+    ("workers", "overlap_image_write"),
+    [
+        pytest.param(None, False, id="None"),
+        pytest.param(1, False, id="1"),
+        pytest.param(2, False, id="2"),
+        pytest.param(4, False, id="4"),
+        pytest.param(8, False, id="8"),
+        pytest.param(8, True, id="partial-image-write"),
+    ],
+)
 def test_cache_groups_settle_in_order_overlap_and_publish_all_paired_images(
-    runtime, controlled, tmp_path, monkeypatch, workers
+    runtime, controlled, tmp_path, monkeypatch, workers, overlap_image_write
 ):
     skill, output, state, _, tasks = controlled
     paths = [*tasks["with"], *tasks["without"][1:]]
@@ -28,6 +39,31 @@ def test_cache_groups_settle_in_order_overlap_and_publish_all_paired_images(
         )
     binary = runtime.load_manifest(None)
     ids = [runtime.prepared_task_identity(p, "linux/amd64", binary["sha256"]) for p in paths]
+    if overlap_image_write:
+        # Pause a real sibling build after opening its image JSON, before it is
+        # complete. The other group's probe must not read this unrelated file.
+        fake_docker = tmp_path / "docker"
+        source = fake_docker.read_text()
+        write_image = (
+            "    (state / ('image-' + identity + ('-source' if source else ''))).write_text(json.dumps(image))\n"
+        )
+        assert source.count(write_image) == 1
+        fake_docker.write_text(
+            source.replace(
+                write_image,
+                f"    if not source and identity == {ids[1]!r}:\n"
+                "        with (state / ('image-' + identity)).open('w') as stream:\n"
+                "            stream.write('{'); stream.flush()\n"
+                "            (state / 'image-write-paused').touch()\n"
+                "            until = time.monotonic() + 5\n"
+                "            while not (state / 'allow-image-write').exists():\n"
+                "                if time.monotonic() >= until: sys.exit(23)\n"
+                "                time.sleep(.01)\n"
+                "            stream.write(json.dumps(image)[1:])\n"
+                "        (state / 'image-write-completed').touch()\n"
+                "    else:\n" + "    " + write_image,
+            )
+        )
     script = tmp_path / "cache-guard.py"
     script.write_text(
         "import pathlib, sys, time\n"
@@ -44,6 +80,11 @@ def test_cache_groups_settle_in_order_overlap_and_publish_all_paired_images(
         "        time.sleep(.01)\n"
         "finally: guard.rmdir()\n"
     )
+    # Match the fake Docker's tag-derived IDs without opening sibling build
+    # records: an existing image file may still be in the middle of a write.
+    identity_by_image_id = {
+        "sha256:" + hashlib.sha256(("ea-live-prepared:" + identity).encode()).hexdigest(): identity for identity in ids
+    }
     original = runtime._docker
 
     def docker(args, **kwargs):
@@ -52,12 +93,20 @@ def test_cache_groups_settle_in_order_overlap_and_publish_all_paired_images(
             group = ids.index(identity) // 4
             subprocess.run([sys.executable, str(script), str(state), str(group), identity], check=True, timeout=7)
             (state / ("release-" + identity)).touch(exist_ok=True)
+        if overlap_image_write and args[0] == "build" and "ea-live-prepared:" + ids[1] in args:
+            wait_path(state / ("probe-" + ids[4]))
         result = original(args, **kwargs)
         if args[0] == "run":
-            for identity in ids:
-                image = state / ("image-" + identity)
-                if image.exists() and json.loads(image.read_text())["Id"] in args:
-                    (state / ("probe-" + identity)).touch(exist_ok=False)
+            identity = identity_by_image_id[args[args.index("-ec") - 1]]
+            blocked_probe = overlap_image_write and identity == ids[5]
+            try:
+                if blocked_probe:
+                    wait_path(state / "image-write-paused")
+                    assert (state / ("image-" + ids[1])).read_text() == "{"
+                (state / ("probe-" + identity)).touch(exist_ok=False)
+            finally:
+                if blocked_probe:
+                    (state / "allow-image-write").touch()
         return result
 
     monkeypatch.setattr(runtime, "_docker", docker)
@@ -88,6 +137,9 @@ def test_cache_groups_settle_in_order_overlap_and_publish_all_paired_images(
     finally:
         controller.join(8)
     assert not errors and not controller.is_alive()
+    if overlap_image_write:
+        assert (state / "image-write-completed").exists()
+        assert json.loads((state / ("image-" + ids[1])).read_text())["Id"] in identity_by_image_id
     data = json.loads(manifest.read_text())
     assert data["tasks"] == {"with": ids[:4], "without": ids[4:]}
     assert set(data["images"]) == set(ids)

@@ -307,8 +307,10 @@ def test_repair_updates_manifest_in_place_and_requires_fresh_proof(tmp_path, pre
     for index in range(3):
         (task / "instruction.md").write_text(f"Clarified requirement {index}")
         reason = f"instruction_ambiguity: clarify visible requirement {index}"
+        replaced = evidence.digest(manifest)
         evidence.prepare(task, contract, manifest, manifest, reason)
         current = evidence.manifest_at(manifest)
+        assert current["supersedes"] == {"manifest_sha256": replaced}
         assert current["repair_count"] == index + 1
         assert current["repair_reason"] == reason
         assert "repairs" not in current
@@ -324,7 +326,10 @@ def test_repair_updates_manifest_in_place_and_requires_fresh_proof(tmp_path, pre
 def test_repair_resumes_without_old_manifest_copies(tmp_path, prepared):
     task, contract, previous = prepared
     manifest = tmp_path / "current.json"
+    replaced = evidence.digest(previous)
     evidence.prepare(task, contract, manifest, previous, "Fix the expected result")
+    assert "supersedes" not in evidence.read(previous)
+    assert evidence.read(manifest)["supersedes"] == {"manifest_sha256": replaced}
     previous.unlink()
     assert evidence.manifest_at(manifest)["repair_count"] == 1
 
@@ -602,6 +607,9 @@ def test_documented_harbor_trial_flow_is_accepted(tmp_path, monkeypatch):
     saved = write(tmp_path / "acceptance.json", verdict)
     code, rechecked = pipeline._check_acceptance(saved)
     assert code == 0 and rechecked == verdict
+    code, measured = pipeline._acceptance_integrity(saved)
+    assert code == 0 and measured["acceptance_integrity"]["status"] == "consistent"
+    assert measured["acceptance_integrity"]["required_verification"]["current_pass"] == 3
     proposal.write_text("Changed requirement.")
     with pytest.raises(pipeline.PipelineError, match="proposal content changed"):
         pipeline._check_acceptance(saved)
