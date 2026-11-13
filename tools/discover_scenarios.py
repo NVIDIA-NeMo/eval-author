@@ -8,9 +8,9 @@ How to run it
 -------------
 From anywhere, with any Python 3.11+ interpreter (the script itself needs only the standard library):
 
-    python3 tools/discover_scenarios.py         # run all 20 steps, pausing after each
-    python3 tools/discover_scenarios.py 14      # resume at step 14; the work dir must hold steps 1-13's state
-    python3 tools/discover_scenarios.py --list  # list the steps
+    python3 tools/discover_scenarios.py         # run all 20 steps in a fresh private work directory
+    W='/path/printed/by/first/run' python3 tools/discover_scenarios.py 14  # resume with steps 1-13's state
+    python3 tools/discover_scenarios.py --list  # list the steps without creating a work directory
 
 Each step says what it is about to do, does its own setup (copying files from fixtures/, installing
 a runtime, and so on), runs discovery, shows the report and its ✓/✗ expectations, then waits:
@@ -26,35 +26,49 @@ Before you start
 
 Everything is written under the work dir, an absolute path, so the script runs from any directory.
 Only discover.py and render_report.py are found relative to this file, in this repository's
-skills/eval-author-discover/scripts. Delete the work dir to clean up; step 1 also wipes it, except
-for replacing the venvs.
+skills/eval-author-discover/scripts. The work directory is printed before any steps run and is
+retained on exit. Set W to that path when resuming; there is no implicit previous-run directory.
+Delete the work dir to clean up. Step 1 replaces only fixtures, the two repos, reports, and venvs.
+
+An explicit W may name a new directory (its parent must exist), an empty directory, or a workspace
+initialized by this script. Existing roots must be real directories owned by the current user with
+mode 0700, not symlinks. Ancestors must be owned by the current user or root and not writable by
+others unless sticky; symlink ancestors are rejected except macOS's root-owned /tmp and /var aliases.
+Nonempty directories without the workspace marker are rejected, including
+old unmarked runs: choose a fresh path rather than reusing them. Do not share or modify the workspace
+while the script runs. Resuming requires an initialized W and does not reset it.
 
 Reports are saved to <work dir>/reports/step-NN.json and .md, and the running grid to reports/grid.md.
 
 Environment:
-    W         Work dir. Default: /tmp/eval-author-discover-steps
+    W         Work dir. Default: a fresh mode-0700 directory under Python's temporary directory (TMPDIR).
     GYM_REPO  NeMo Gym checkout the NeMo Gym workloads are copied from. Default: ~/Documents/repos/gym
 """
 
 import json
 import os
 import shutil
+import stat
 import subprocess
 import sys
+import tempfile
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 
-WORK_DIR = Path(os.environ.get("W", "/tmp/eval-author-discover-steps"))
-REPORTS_DIR = WORK_DIR / "reports"
+WORK_DIR: Path
+REPORTS_DIR: Path
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 SCRIPTS_DIR = PROJECT_ROOT / "skills" / "eval-author-discover" / "scripts"
-FIXTURES = WORK_DIR / "fixtures"
-HARBOR_REPO = WORK_DIR / "harbor-repo"
-GYM_REPO_DIR = WORK_DIR / "gym-repo"
+FIXTURES: Path
+HARBOR_REPO: Path
+GYM_REPO_DIR: Path
 GYM_CHECKOUT = Path(os.environ.get("GYM_REPO", Path.home() / "Documents" / "repos" / "gym"))
-VENV_HARBOR = WORK_DIR / "venv-harbor"
-VENV_GYM = WORK_DIR / "venv-gym"
+VENV_HARBOR: Path
+VENV_GYM: Path
+WORK_DIR_ID: tuple[int, int]
+WORK_MARKER = ".eval-author-discover-workspace"
+WORK_MARKER_TEXT = "eval-author-discover-workspace-v1\n"
 
 # nemo-gym 0.5+ needs Python 3.13.14 or later; on older Pythons uv silently picks 0.4.0, which lacks
 # the `gym env validate/test <name>` commands discovery runs.
@@ -71,6 +85,83 @@ EXAMPLE = "example_single_tool_call"
 
 # --------------------------------------------------------------------------------------------
 # Helpers
+
+
+def checked_ancestry(path: Path) -> Path:
+    if ".." in path.parts:
+        sys.exit("Work directory ancestor traversal is not supported; use an absolute path without '..'.")
+    for parent in reversed(path.parents):
+        info = parent.lstat()
+        if stat.S_ISLNK(info.st_mode):
+            # macOS exposes its system temporary roots through root-owned aliases.
+            if sys.platform == "darwin" and str(parent) in {"/tmp", "/var"} and info.st_uid == 0:
+                return checked_ancestry(parent.resolve() / path.relative_to(parent))
+            sys.exit(f"Work directory ancestor must not be a symlink: {str(parent)!r}")
+        if (
+            not stat.S_ISDIR(info.st_mode)
+            or info.st_uid not in {0, os.getuid()}
+            or (info.st_mode & 0o022 and not info.st_mode & stat.S_ISVTX)
+        ):
+            sys.exit(f"Work directory ancestor is not safely owned or writable: {str(parent)!r}")
+    return path
+
+
+def prepare_work_dir(*, resume: bool = False) -> None:
+    global WORK_DIR, REPORTS_DIR, FIXTURES, HARBOR_REPO, GYM_REPO_DIR, VENV_HARBOR, VENV_GYM
+    global WORK_DIR_ID
+    if resume and not os.environ.get("W"):
+        sys.exit("Resuming requires W set to the work directory printed by the original run.")
+    if "W" in os.environ:
+        if not os.environ["W"]:
+            sys.exit("W must name a dedicated work directory, not an empty path.")
+        WORK_DIR = checked_ancestry(Path(os.environ["W"]).absolute())
+        if resume:
+            if not WORK_DIR.exists():
+                sys.exit("Resuming requires an initialized work directory.")
+        else:
+            try:
+                WORK_DIR.mkdir(mode=0o700)
+            except FileExistsError:
+                pass
+    else:
+        parent = checked_ancestry(Path(tempfile.gettempdir()).absolute() / "unused-workspace").parent
+        WORK_DIR = Path(tempfile.mkdtemp(prefix="eval-author-discover-", dir=parent))
+    info = WORK_DIR.lstat()
+    if not stat.S_ISDIR(info.st_mode) or info.st_uid != os.getuid() or stat.S_IMODE(info.st_mode) != 0o700:
+        sys.exit("Work directory must be a real, current-user-owned directory with mode 0700.")
+    WORK_DIR = WORK_DIR.resolve()
+    WORK_DIR_ID = (info.st_dev, info.st_ino)
+    marker = WORK_DIR / WORK_MARKER
+    if not resume and not any(WORK_DIR.iterdir()):
+        with marker.open("x") as stream:
+            stream.write(WORK_MARKER_TEXT)
+    validate_work_dir()
+    REPORTS_DIR = WORK_DIR / "reports"
+    FIXTURES = WORK_DIR / "fixtures"
+    HARBOR_REPO = WORK_DIR / "harbor-repo"
+    GYM_REPO_DIR = WORK_DIR / "gym-repo"
+    VENV_HARBOR = WORK_DIR / "venv-harbor"
+    VENV_GYM = WORK_DIR / "venv-gym"
+    print(f"Work directory: {WORK_DIR}")
+
+
+def validate_work_dir() -> None:
+    checked_ancestry(WORK_DIR)
+    info = WORK_DIR.lstat()
+    if (
+        not stat.S_ISDIR(info.st_mode)
+        or info.st_uid != os.getuid()
+        or stat.S_IMODE(info.st_mode) != 0o700
+        or (info.st_dev, info.st_ino) != WORK_DIR_ID
+    ):
+        sys.exit("Work directory is unsafe or has been replaced.")
+    marker = WORK_DIR / WORK_MARKER
+    if not marker.is_file() or marker.is_symlink() or marker.read_text() != WORK_MARKER_TEXT:
+        sys.exit("Work directory is not an initialized discovery workspace; choose a new or empty directory.")
+    for name in ("fixtures", "harbor-repo", "gym-repo", "reports", "venv-harbor", "venv-gym"):
+        path = WORK_DIR / name
+        if path.is_symlink() or (path.exists() and not path.is_dir()):
+            sys.exit(f"Work directory contains an unsafe entry: {name}")
 
 
 def python(venv: Path) -> Path:
@@ -350,6 +441,7 @@ def build_gym_fixtures() -> None:
 
 def step_01() -> Result:
     """Probe: nothing installed."""
+    validate_work_dir()
     print("  starting from a clean slate")
     for path in (FIXTURES, HARBOR_REPO, GYM_REPO_DIR, REPORTS_DIR):
         if path.exists():
@@ -632,10 +724,12 @@ def main() -> None:
             print(f"{number:2}. {step.__doc__}")
         return
     start = int(sys.argv[1]) if len(sys.argv) > 1 else 1
+    prepare_work_dir(resume=start > 1)
     rows: list[tuple[int, str, Outcome]] = []
     for number, step in enumerate(STEPS[start - 1 :], start=start):
         print(f"\n{'=' * 100}\nStep {number} of {len(STEPS)}: {step.__doc__}\n{'=' * 100}")
         CURRENT = Outcome()
+        validate_work_dir()
         result = step()
         show(result)
         rows.append((number, step.__doc__ or "", CURRENT))

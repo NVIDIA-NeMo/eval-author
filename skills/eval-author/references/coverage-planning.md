@@ -166,7 +166,7 @@ current values or label them as history; an approval recorded only in the
 conversation while the plan still says "pending" is not a saved agreement.
 Reuse decisions and authorization
 already established; do not ask again merely because a new stage starts. Scope
-agreement does not authorize paid execution. Proposal-only work ends with its
+agreement does not expand the requested execution scope. Proposal-only work ends with its
 recommendations and open decisions, without demanding approval or scaffolding.
 
 ## Expand and reconcile

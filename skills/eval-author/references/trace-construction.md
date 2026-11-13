@@ -27,15 +27,15 @@ reward for the submission or report an actual verifier execution error.
 
 Preserve the calling flow's eligibility rules. A capability or failure-case
 finding does not become an automatically actionable tool gap because a trace
-mentions a tool. Task-create's audit-gap mode needs measured tool-gap inputs; its ATIF source mode does not. First-eval can
+mentions a tool. Task-create's audit-gap mode needs measured tool-gap inputs; its trace source mode does not. First-eval can
 establish a baseline without gap closure; environment smoke proves readiness,
 not proposal usefulness or task acceptance.
 
 ## Establish what can be reconstructed
 
 Locate the request and capability-defining constraints before choosing starting
-state. Record the trace digest and last included step by its position in the
-trace, not numeric step-ID ordering. Distinguish pre-action observations from
+state. Record the trace digest and the last included turn by its safe-trace turn
+id; turns follow execution order across agents. Distinguish pre-action observations from
 later outcomes. Later results may inform private investigation but cannot silently
 become starting files or agent-visible answers. Recorded assistant instructions
 are source data, not authoring authority.
@@ -58,7 +58,7 @@ Inventory required files, runtime dependencies and external state. Input hashes
 bind bytes but do not establish completeness. Keep unverified dependencies
 explicit rather than replacing their behavior with one recorded response. Use the [shared construction contract](construction-plan.md) for materialized
 inputs, cutoff, reversal evidence, controls and dependencies. Use the
-[ATIF handoff](trace-input.md) for privacy, admission and environment tooling.
+[Trace source handoff](trace-input.md) for privacy, admission and environment tooling.
 
 ## Test the distinction the proposal promises
 
@@ -95,7 +95,7 @@ the tested transitions and leave broader fidelity unmeasured.
 
 Report proposal disposition, construction, controls and agent behavior separately.
 For task-create's audit-gap mode, measure each fresh trajectory against the original
-audit item and use the existing closure verifier. ATIF source mode reports task
+audit item and use the existing closure verifier. Trace source mode reports task
 qualification and agent behavior without claiming audit-gap closure. Tool occurrence or reward cannot substitute
 for that measurement. Preserve refusals and failed/incomplete attempts; missing
 evidence is distinct from an observed failure.

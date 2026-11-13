@@ -1,0 +1,4 @@
+skillevaluator[security] @ git+https://github.com/NVIDIA/SkillEvaluator.git@3fd2cf57e4a2af01f282e001f7515b6e76f18ec7
+# Build backend requirements from that revision; installed before the source build.
+setuptools>=77
+wheel

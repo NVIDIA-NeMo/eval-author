@@ -501,7 +501,7 @@
         "prompts": [
           "Audit the evaluations from our previous work."
         ],
-        "context": "Separate audit request in a new chat after completed authoring in the same repository for the same agent. Shared prerequisites and Ethos were confirmed, and audit tooling is current, but completed-run trace availability is unknown. After the early audit welcome, block setup in the same turn. Authoring data exemptions do not satisfy audit readiness. Preserve prior completion and Ethos confirmation; do not inspect Ethos or traces or manufacture runs.",
+        "context": "Separate audit request in a new chat after completed authoring in the same repository for the same agent. Shared prerequisites and Ethos were confirmed, and audit tooling is current, but completed-run trace availability is unknown. A retained-run lookup already found no usable candidates and nothing relevant has changed. After the early audit welcome, reuse that lookup and block setup in the same turn. Authoring data exemptions do not satisfy audit readiness. Preserve prior completion and Ethos confirmation without inspecting Ethos or traces or manufacturing runs.",
         "flow": "eval-author-audit",
         "allowed_actions": [
           "read_skill",
@@ -524,7 +524,7 @@
         "prompts": [
           "Audit our existing evaluations."
         ],
-        "context": "Direct acceptance of the audit handoff after completed bootstrap in the active conversation, for the same repository and agent. Audit prerequisites and content-bound Ethos confirmation are valid. User confirmed traces exist and selected the suite, but saved run paths are only candidates. Skip the repeated welcome, reconcile Ethos, and ask only for the trace source/location; do not enumerate or inspect candidates.",
+        "context": "Direct acceptance of the audit handoff after completed bootstrap in the active conversation, for the same repository and agent. Audit prerequisites and content-bound Ethos confirmation are valid. User confirmed traces exist and selected the suite, but saved run paths are only candidates. The retained-run lookup already checked their metadata and trace-file presence and nothing relevant has changed. Skip the repeated welcome, reconcile Ethos, and offer the relevant candidates for trace source/location selection without opening trace contents or enumerating other sources.",
         "flow": "eval-author-audit",
         "allowed_actions": [
           "read_skill",
@@ -566,6 +566,119 @@
           ".eval-author/.working/"
         ],
         "handoff": "review_ethos"
+      }
+    ],
+    "audit-retained-runs-found": [
+      {
+        "prompts": [
+          "Audit the selected suite using completed agent runs."
+        ],
+        "context": "Authorized measured-audit retained-run lookup for the known src-agent and selected SRC-01 task. Trace availability is unknown. Check retained jobs, record verified availability, and prepare candidates for the later audit source-selection step without selecting or reading traces. Other onboarding steps are outside this capture.",
+        "flow": "eval-author-audit",
+        "allowed_actions": [
+          "read_saved_state",
+          "read_repository",
+          "write_artifact",
+          "render_conversation"
+        ],
+        "required_actions": [
+          "read_saved_state",
+          "read_repository",
+          "write_artifact"
+        ],
+        "write_paths": [
+          ".eval-author/.working/"
+        ],
+        "handoff": "select_audit_trace_source",
+        "expected_json": {
+          ".eval-author/.working/journey-state.json": {
+            "/prerequisites/data/status": "verified",
+            "/next_handoff": "eval-author-audit",
+            "/blockers": [],
+            "/prerequisites/data/source": "Retained-run metadata and trace presence: .eval-author/jobs/SRC-01-retained/10/agent/trajectory.json. Checked 87 of 87 jobs at offset 0"
+          }
+        },
+        "platforms": [
+          "darwin",
+          "linux"
+        ]
+      }
+    ],
+    "audit-retained-runs-controls-only": [
+      {
+        "prompts": [
+          "Audit the selected suite using completed agent runs."
+        ],
+        "context": "Measured audit with unknown availability. Retained jobs contain only oracle and nop control runs. Check metadata, leave availability unknown, and ask for agent-run availability without reading trajectories.",
+        "flow": "eval-author-audit",
+        "allowed_actions": [
+          "read_saved_state",
+          "read_repository",
+          "write_artifact",
+          "render_conversation"
+        ],
+        "required_actions": [
+          "read_saved_state",
+          "read_repository",
+          "write_artifact"
+        ],
+        "write_paths": [
+          ".eval-author/.working/"
+        ],
+        "handoff": "audit_prerequisite_blocker",
+        "expected_json": {
+          ".eval-author/.working/journey-state.json": {
+            "/prerequisites/data/status": "unknown",
+            "/next_handoff": "eval-author",
+            "/blockers": [
+              {
+                "id": "data",
+                "phase": "setup",
+                "message": "Retained jobs have no qualifying agent runs"
+              }
+            ]
+          }
+        },
+        "platforms": [
+          "darwin",
+          "linux"
+        ]
+      }
+    ],
+    "audit-retained-runs-batched": [
+      {
+        "prompts": [
+          "Audit the selected suite using completed agent runs. For this check, scan one job per batch and follow the continuation before asking me for runs."
+        ],
+        "context": "Authorized measured-audit lookup with unknown availability. Use --max-jobs 1 for this fixture. In this single user turn, the first batch contains only a control and returns next_offset. Continue automatically to the next batch, find the completed src-agent run, save verified availability, and offer candidates without selecting or reading traces. Do not request another user prompt between batches.",
+        "flow": "eval-author-audit",
+        "allowed_actions": [
+          "read_saved_state",
+          "read_repository",
+          "write_artifact",
+          "render_conversation"
+        ],
+        "required_actions": [
+          "read_saved_state",
+          "read_repository",
+          "write_artifact"
+        ],
+        "write_paths": [
+          ".eval-author/.working/"
+        ],
+        "handoff": "select_audit_trace_source",
+        "expected_json": {
+          ".eval-author/.working/journey-state.json": {
+            "/prerequisites/data/status": "verified",
+            "/next_handoff": "eval-author-audit",
+            "/blockers": [],
+            "/prerequisites/data/source": "Retained-run metadata and trace presence: .eval-author/jobs/old/agent/agent/trajectory.json. Checked 1 of 2 jobs at offset 1"
+          }
+        },
+        "platforms": [
+          "darwin",
+          "linux"
+        ]
       }
     ]
   }

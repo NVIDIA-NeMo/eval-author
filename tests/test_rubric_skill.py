@@ -10,6 +10,23 @@ import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
 SKILL = ROOT / "skills/eval-author-rubric"
+PLANNING_TICKET = re.compile(r"(?<![a-z0-9])" + "w" + r"(?:0[1-9]|1[01])(?![a-z0-9])", re.IGNORECASE)
+
+
+def test_authored_sources_use_descriptive_names_not_planning_tickets() -> None:
+    extensions = {".py", ".md", ".json", ".jsonl", ".yaml", ".yml", ".toml", ".txt", ".html", ".sh"}
+    paths = [*ROOT.glob("*.md")]
+    for directory in ("skills", "tools", "evals", "docs", "tests"):
+        paths.extend(path for path in (ROOT / directory).rglob("*") if path.is_file() and path.suffix in extensions)
+    violations = []
+    for path in sorted(paths):
+        relative = path.relative_to(ROOT).as_posix()
+        if PLANNING_TICKET.search(relative):
+            violations.append(relative)
+        for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+            if PLANNING_TICKET.search(line):
+                violations.append(f"{relative}:{number}")
+    assert not violations, "Planning-ticket identifiers remain:\n" + "\n".join(violations)
 
 
 def test_rubric_scope_and_initial_slice() -> None:
@@ -19,11 +36,83 @@ def test_rubric_scope_and_initial_slice() -> None:
     assert metadata["user-invocable"] is True
     assert "validity, coverage, and diversity" in text
     assert "anti-cheat within validity" in text
-    assert "not implemented by this initial slice" in text
-    assert "not a new scanner or acceptance gate" in text
     assert "Do not write an Audit" in text
     assert "A review request alone does not authorize executing repository code" in text
     assert "Default to the response only" in text
+
+
+def test_rubric_routes_only_the_explicitly_selected_assessment_area() -> None:
+    text = " ".join((SKILL / "SKILL.md").read_text().split())
+    for rule in (
+        "If the named-rubric request leaves the area ambiguous, clarify the scope once before inspecting artifacts",
+        "Apply every selected criterion",
+        "Account for every selected task and every selected criterion, including unknowns",
+        "Do not apply unselected areas",
+        "Use only controls needed by selected criteria",
+    ):
+        assert rule in text
+    purpose = text.split("## Purpose", 1)[1].split("## Instructions", 1)[0]
+    assert re.search(r"Anti-cheat-only opt-in does not select artifact, configuration, and provenance", purpose)
+    assert re.search(r"Artifact, configuration, and provenance opt-in does not select anti-cheat", purpose)
+    assert not PLANNING_TICKET.search(purpose)
+    assert "references/anti-cheat.md" in text
+    assert "references/artifact-configuration-provenance.md" in text
+    assert "references/identity.md" in text
+
+
+def test_rubric_canonical_source_preserves_criterion_checks_and_anchors() -> None:
+    source = SKILL / "references/artifact-configuration-provenance.json"
+    assert source.is_file()
+    data = json.loads(source.read_text())
+    items = data["items"]
+    assert {item["id"] for item in items} == {
+        "DISC-01-A",
+        "DISC-01-B",
+        "DISC-01-C",
+        "DISC-02-A",
+        "DISC-02-B",
+        "DISC-03-A",
+        "AUD-02",
+        "ENV-01",
+        "ENV-02-A",
+        "ENV-03",
+        "CREATE-07",
+    }
+    assert len(items) == 11
+    checks = [check for item in items for check in item["checks"]]
+    assert len(checks) == len({check["id"] for check in checks}) == 38
+    assert sum(len(item["scoring"]) for item in items) == 44
+    assert all(set(item["scoring"]) == {"0", "1", "2", "3"} for item in items)
+
+
+def test_rubric_reference_uses_canonical_definitions_and_item_specific_evidence() -> None:
+    reference = SKILL / "references/artifact-configuration-provenance.md"
+    assert reference.is_file()
+    text = reference.read_text()
+    normalized = " ".join(text.split())
+    items = json.loads((SKILL / "references/artifact-configuration-provenance.json").read_text())["items"]
+    sections = dict(re.findall(r"## ([A-Z]+-\d+(?:-[A-Z])?) — ([\s\S]*?)(?=\n## |\Z)", text))
+    assert set(sections) == {item["id"] for item in items}
+    for item in items:
+        assert sections[item["id"]].startswith(item["title"] + "\n")
+        assert "**Methods and evidence:**" in sections[item["id"]]
+        assert "**Assessment limit:**" in sections[item["id"]]
+        assert f"artifact-configuration-provenance.json#/items/{items.index(item)}" in sections[item["id"]]
+        for anchor in item["scoring"].values():
+            assert anchor not in text, "Keep full score anchors in canonical JSON only"
+    for rule in (
+        "E0 alone supports no numeric score",
+        "Do not import anti-cheat's evidence-floor table",
+        "CREATE-07 and AUD-02 can meet their level-3 anchors at E2",
+        "Every selected criterion must have a result row",
+        "Every source check must be accounted for",
+        "NOT_ASSESSED",
+        "NOT_APPLICABLE",
+        "No aggregate score",
+        "helper tests are not evidence about the selected task",
+    ):
+        assert rule in normalized
+    assert not re.search(r"\bID-0[1-5]\b", text)
 
 
 def test_rubric_requires_explicit_end_user_opt_in() -> None:

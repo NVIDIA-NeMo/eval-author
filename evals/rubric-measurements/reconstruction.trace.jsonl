@@ -1,0 +1,1 @@
+{"schema_version":"3","id":"synthetic-trace","aggregate":{},"root_spans":[{"id":"trajectory","kind":"AGENT","turns":[{"id":"trajectory/turn/1","index":1,"role":"user","content":"{\n  \"balance\": 17,\n  \"currency\": \"synthetic\"\n}\n"},{"id":"trajectory/turn/2","index":2,"role":"agent","content":"A different synthetic ledger state\n"}]}]}

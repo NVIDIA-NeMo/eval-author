@@ -1,0 +1,707 @@
+{
+  "rubric_version": "4.0-draft",
+  "policies": {
+    "score": "Score each item independently: 0 demonstrated material defect; 1 evidenced partial satisfaction; 2 item acceptance conditions met; 3 stated robustness beyond 2. No overall or parent aggregate. An unrun, blocked or insufficiently evidenced item is NOT_ASSESSED, not 0. NOT_APPLICABLE requires a scope-specific reason.",
+    "measurements": "Record raw measures and their units, denominators, missingness and uncertainty alongside the ordinal score. Set any risk/error/coverage targets before qualification; no universal numeric threshold is supplied.",
+    "methods": "Checks are grouped by the mechanism that produces their evidence. A script calling a model is not a deterministic semantic check. Alternative methods are conditional, not a requirement to execute every stage. A trained decision model or LLM judge needs scope-matched qualification before its output supports a material score.",
+    "independence": "Human review denotes authority, independent verification or adjudication\u2014not a requirement to manually inspect every case. Preserve reviewer disagreements; dependent pipeline stages are not independent corroboration.",
+    "qualification": "Assess all applicable items used for the stated claim; unknowns cannot support full qualification. A qualified alternative may replace an unavailable method, with rationale retained. Optional monitors do not block unrelated claims. Agent failure and detected sensitive/unsafe behavior do not themselves make the evaluation invalid.",
+    "work_items": "Each implementation task names a deliverable, not an existing implemented runner. Completion means the listed checks produce evidence satisfying the acceptance anchor. Implementation tests do not count as live evaluation proof.",
+    "reuse": "Each item has one definition. Other skills reference it and bind results to their subject/revision. Reuse qualified evidence only while assumptions and identities remain applicable; do not count reuse as independent replication.",
+    "ethos": "ETHOS records intended behavior, not a summary of current code or existing eval coverage. First-Eval / Create owns CREATE-09 through CREATE-15; Audit reuses them, and Environment consumes the applicable scope/tool/failure contracts. File-only Discover does not require an ETHOS review. Reuse valid confirmation and qualification until material identity, intent, content or evidence changes. Explicit unknowns remain visible; do not invent intent, targets or permission."
+  },
+  "result_template": {
+    "rubric_version": "4.0-draft",
+    "skill_id": null,
+    "item_id": null,
+    "subject_id": null,
+    "subject_revision": null,
+    "assessment_state": "NOT_ASSESSED",
+    "execution_state": "NOT_RUN",
+    "score": null,
+    "target_score": null,
+    "evidence_strength": null,
+    "applicability_reason": null,
+    "measurements": [],
+    "check_results": [],
+    "method_qualification_refs": [],
+    "evidence_refs": [],
+    "findings": [],
+    "approval_refs": [],
+    "remaining_gaps": [],
+    "next_action": null
+  },
+  "items": [
+    {
+      "id": "DISC-01-A",
+      "skill_id": "discover",
+      "title": "Task artifact access",
+      "question": "Can the authorized reviewer read the task instructions and required input artifacts?",
+      "requirement": "Discover inventories an existing task or suite.",
+      "scope": "Task definition at an identified revision.",
+      "measurement": "Required task artifacts are listed as accessible, missing, denied or unresolved; count each status against the declared inventory.",
+      "methods": [
+        "deterministic",
+        "human_review"
+      ],
+      "checks": [
+        {
+          "method": "deterministic",
+          "action": "Read manifests and explicit references to inventory task instructions, input fixtures and task metadata.",
+          "expected_evidence": "Inventory with artifact role and reference origin.",
+          "when": "Always within the stated applicability",
+          "id": "DISC-01-A-C01"
+        },
+        {
+          "method": "deterministic",
+          "action": "Resolve each location using reviewer permissions; record readability and revision or digest without exposing secrets.",
+          "expected_evidence": "Per-artifact access results and identities.",
+          "when": "Always within the stated applicability",
+          "id": "DISC-01-A-C02"
+        },
+        {
+          "method": "human_review",
+          "action": "Independently verify the task-artifact inventory against the selected source.",
+          "expected_evidence": "Independent inventory differences and resolution.",
+          "when": "For level 3.",
+          "id": "DISC-01-A-C03"
+        }
+      ],
+      "scoring": {
+        "0": "A confirmed missing or denied required task artifact prevents material inspection.",
+        "1": "Some required task artifacts are readable, but known inventory or identity gaps remain.",
+        "2": "Every declared required task artifact is accessible and identified; no material task-input reference remains unresolved.",
+        "3": "An independent review verifies the same inventory and access results without undocumented information."
+      },
+      "evidence": [
+        "Task-artifact inventory",
+        "Reference and access results",
+        "Revision/digest or explicit identity limitation"
+      ],
+      "on_gap": "Request the exact missing artifact or permission; limit claims to inspected material.",
+      "boundary": "Does not establish scorer correctness, execution readiness or solver permissions. An incomplete search cannot prove no artifacts exist.",
+      "code_references": [
+        "skills/eval-author/scripts/eval_author_shared/workspace_contract.py",
+        "skills/eval-author/references/authoring-context.md"
+      ],
+      "source_ids": [
+        1
+      ],
+      "implementation_task": "Build a manifest/reference inventory checker that emits per-artifact access and identity records."
+    },
+    {
+      "id": "DISC-01-B",
+      "skill_id": "discover",
+      "title": "Grading-path identification",
+      "question": "Can the reviewer determine which scorer and scoring configuration apply to this task?",
+      "requirement": "A discovered evaluation assigns a score or verdict.",
+      "scope": "Task-to-scorer selection at the selected configuration.",
+      "measurement": "Each task maps to a scorer entry point and scoring configuration; unresolved or ambiguous selections are listed, not guessed.",
+      "methods": [
+        "deterministic",
+        "human_review",
+        "llm_as_judge"
+      ],
+      "checks": [
+        {
+          "method": "deterministic",
+          "action": "Resolve scorer registrations, entry points and configured dispatch rules; retain task-to-scorer links.",
+          "expected_evidence": "Selection map with supporting configuration references.",
+          "when": "Always within the stated applicability",
+          "id": "DISC-01-B-C01"
+        },
+        {
+          "method": "deterministic",
+          "action": "Use existing run metadata to compare the selected scorer with the declared route.",
+          "expected_evidence": "Declared/observed selection diff.",
+          "when": "Matching run metadata is already available; do not launch a run for inventory alone.",
+          "id": "DISC-01-B-C02"
+        },
+        {
+          "method": "human_review",
+          "action": "Inspect code when configuration cannot resolve selection; document dynamic rules or the unresolved boundary.",
+          "expected_evidence": "Code-backed selection explanation.",
+          "when": "Selection remains ambiguous.",
+          "id": "DISC-01-B-C03"
+        },
+        {
+          "method": "llm_as_judge",
+          "action": "Propose an interpretation of an ambiguous dispatch rule using exact code/configuration evidence.",
+          "expected_evidence": "Evidence-linked interpretation and uncertainty.",
+          "when": "Optional assistance only; it cannot establish behavior of inaccessible code.",
+          "id": "DISC-01-B-C04"
+        },
+        {
+          "method": "human_review",
+          "action": "Independently resolve the same grading path from the recorded packet.",
+          "expected_evidence": "Independent path-selection result.",
+          "when": "For level 3.",
+          "id": "DISC-01-B-C05"
+        }
+      ],
+      "scoring": {
+        "0": "Evidence confirms the inventory names the wrong scorer or omits a material active grading branch.",
+        "1": "A scorer is identified, but a known dispatch or configuration ambiguity remains.",
+        "2": "The selected scorer, configuration and applicable selection rules are identified with no unresolved material branch.",
+        "3": "An independent reviewer resolves the same selection without undocumented information."
+      },
+      "evidence": [
+        "Task-to-scorer map",
+        "Entry-point/configuration identities",
+        "Dynamic selection rules and unresolved cases"
+      ],
+      "on_gap": "Obtain the dispatch configuration or code; label opaque remote selection unresolved.",
+      "boundary": "Identify the grading route, not whether it grades correctly. Dynamic selection does not automatically require a model or execution.",
+      "code_references": [
+        "skills/eval-author/scripts/eval_author_shared/workspace_contract.py",
+        "skills/eval-author/references/authoring-context.md"
+      ],
+      "source_ids": [
+        1
+      ],
+      "implementation_task": "Build a scorer-selection resolver and an unresolved-dispatch report."
+    },
+    {
+      "id": "DISC-01-C",
+      "skill_id": "discover",
+      "title": "Grading dependency access",
+      "question": "Can the reviewer access the artifacts needed to inspect the selected grading path?",
+      "requirement": "A grading path has been identified or its known branches are being inventoried.",
+      "scope": "Scorer dependencies for the selected task/configuration.",
+      "measurement": "Inventory tests, expected results, datasets, judge prompts and rubrics by reference; report accessible/missing/denied/unresolved counts.",
+      "methods": [
+        "deterministic",
+        "human_review"
+      ],
+      "checks": [
+        {
+          "method": "deterministic",
+          "action": "Follow declared scorer references to tests, reference answers, datasets, judge prompts, rubrics and configuration.",
+          "expected_evidence": "Dependency graph with reference origins.",
+          "when": "Always within the stated applicability",
+          "id": "DISC-01-C-C01"
+        },
+        {
+          "method": "deterministic",
+          "action": "Check reviewer access and record versions/digests for each material dependency; mark external or unresolved artifacts.",
+          "expected_evidence": "Per-dependency access and identity records.",
+          "when": "Always within the stated applicability",
+          "id": "DISC-01-C-C02"
+        },
+        {
+          "method": "human_review",
+          "action": "Inspect unclear imports, generated references or external-service contracts for undeclared dependencies.",
+          "expected_evidence": "Additional dependency evidence or explicit inspection limit.",
+          "when": "Declared references do not settle completeness.",
+          "id": "DISC-01-C-C03"
+        },
+        {
+          "method": "human_review",
+          "action": "Independently verify dependency coverage and access against the selected scorer.",
+          "expected_evidence": "Independent inventory check.",
+          "when": "For level 3.",
+          "id": "DISC-01-C-C04"
+        }
+      ],
+      "scoring": {
+        "0": "A confirmed missing or inaccessible material grading dependency prevents inspection.",
+        "1": "Known grading dependencies are partly accessible, but material coverage or identity gaps remain.",
+        "2": "All identified material dependencies are accessible and version-bound; review leaves no unresolved material dependency.",
+        "3": "Independent review verifies dependency coverage and access without undocumented information."
+      },
+      "evidence": [
+        "Grading dependency inventory",
+        "Reference graph",
+        "Access/version results and completeness-review findings"
+      ],
+      "on_gap": "Request missing review material; do not infer inaccessible grading behavior.",
+      "boundary": "Reviewer access does not authorize exposing artifacts to the solver. Test solver information boundaries separately under Audit/Environment/Create; do not claim leakage resistance here.",
+      "code_references": [
+        "skills/eval-author/scripts/eval_author_shared/workspace_contract.py",
+        "skills/eval-author/references/authoring-context.md"
+      ],
+      "source_ids": [
+        1
+      ],
+      "implementation_task": "Build a dependency walker with access/version checks and a queue for unresolved references."
+    },
+    {
+      "id": "DISC-02-A",
+      "skill_id": "discover",
+      "title": "Declared configuration identity",
+      "question": "Is the evaluated agent and its declared configuration identifiable?",
+      "requirement": "Discovery describes an agent/application or interprets its evaluation setup.",
+      "scope": "Agent/application and evaluation configuration revision.",
+      "measurement": "Required configuration fields have values and sources, or explicit provider-unavailable status; no guessed identities.",
+      "methods": [
+        "deterministic",
+        "human_review"
+      ],
+      "checks": [
+        {
+          "method": "deterministic",
+          "action": "Record agent/application/model identity, prompts, sampling, budgets, harness, permissions and dependency identities from authorized configuration.",
+          "expected_evidence": "Sourced configuration manifest.",
+          "when": "Always within the stated applicability",
+          "id": "DISC-02-A-C01"
+        },
+        {
+          "method": "deterministic",
+          "action": "Mark omitted, inaccessible and provider-hidden fields separately; validate required fields and version references.",
+          "expected_evidence": "Field-completeness report with unknown reasons.",
+          "when": "Always within the stated applicability",
+          "id": "DISC-02-A-C02"
+        },
+        {
+          "method": "human_review",
+          "action": "Assess which unknown settings limit the stated interpretation or comparison.",
+          "expected_evidence": "Claim-specific limitation record.",
+          "when": "Unknown settings may be material.",
+          "id": "DISC-02-A-C03"
+        },
+        {
+          "method": "human_review",
+          "action": "Independently reconstruct the declared manifest from its sources.",
+          "expected_evidence": "Independent manifest comparison.",
+          "when": "For level 3; reconstruct configuration records, not the agent or grader.",
+          "id": "DISC-02-A-C04"
+        }
+      ],
+      "scoring": {
+        "0": "A confirmed material identity omission or misstatement makes the claimed setup uninterpretable.",
+        "1": "The configuration is partly identified, with known material source or version gaps.",
+        "2": "All obtainable relevant settings are sourced; provider-hidden settings and their claim limits are explicit.",
+        "3": "Independent source review reproduces the manifest and its limitations."
+      },
+      "evidence": [
+        "Configuration manifest",
+        "Per-field sources",
+        "Unknown-setting and claim-limit record"
+      ],
+      "on_gap": "Resolve missing identities or narrow the supported claim.",
+      "boundary": "This records declared settings; observed run agreement is assessed separately. No credentials or unavailable provider internals are inferred.",
+      "code_references": [
+        "skills/eval-author/references/authoring-context.md",
+        "skills/eval-author/scripts/eval_author_shared/gym_evidence.py"
+      ],
+      "source_ids": [
+        1,
+        2
+      ],
+      "implementation_task": "Build a configuration manifest extractor with explicit unknown-state validation."
+    },
+    {
+      "id": "DISC-02-B",
+      "skill_id": "discover",
+      "title": "Observed configuration agreement",
+      "question": "Did the run use the configuration being reported?",
+      "requirement": "A result or readiness claim relies on an existing or authorized run.",
+      "scope": "Run bound to task and configuration revision.",
+      "measurement": "Compare obtainable observed settings against declared settings; report matched, mismatched and unobservable fields.",
+      "methods": [
+        "deterministic",
+        "probe"
+      ],
+      "checks": [
+        {
+          "method": "deterministic",
+          "action": "Bind run metadata to task/configuration identities and compare model, prompt, limits, harness, tools and dependency settings.",
+          "expected_evidence": "Per-field declared/observed diff and run binding.",
+          "when": "Always within the stated applicability",
+          "id": "DISC-02-B-C01"
+        },
+        {
+          "method": "deterministic",
+          "action": "Keep unavailable observed settings as unknown rather than treating them as matching.",
+          "expected_evidence": "Coverage of observable settings.",
+          "when": "Always within the stated applicability",
+          "id": "DISC-02-B-C02"
+        },
+        {
+          "method": "probe",
+          "action": "Repeat with the recorded configuration and verify expected configuration/control observations.",
+          "expected_evidence": "Independent repeat metadata and control receipts.",
+          "when": "For level 3, only with execution authorization.",
+          "id": "DISC-02-B-C03"
+        }
+      ],
+      "scoring": {
+        "0": "A material declared/observed mismatch invalidates the reported setup or comparison.",
+        "1": "Observed configuration is partly checked, with known material mismatches or observability gaps unresolved.",
+        "2": "All obtainable material settings agree or justified differences bound the claim; unknown internals remain explicit.",
+        "3": "An authorized independent repeat reproduces configuration and expected control observations."
+      },
+      "evidence": [
+        "Run/configuration binding",
+        "Field-level comparison",
+        "Repeat evidence if claimed"
+      ],
+      "on_gap": "Correct configuration attribution or narrow claims; do not silently transfer scores between configurations.",
+      "boundary": "No run means NOT_ASSESSED, not an instruction to execute. Matching settings alone does not prove correct grading.",
+      "code_references": [
+        "skills/eval-author/references/authoring-context.md",
+        "skills/eval-author/scripts/eval_author_shared/gym_evidence.py"
+      ],
+      "source_ids": [
+        1,
+        2
+      ],
+      "implementation_task": "Build a declared-versus-observed configuration comparator keyed by run/task revision."
+    },
+    {
+      "id": "DISC-03-A",
+      "skill_id": "discover",
+      "title": "Runtime route compatibility",
+      "question": "Does the task manifest match the selected runtime route?",
+      "requirement": "Runtime readiness, not file-only inventory, is requested.",
+      "scope": "Selected Gym, Harbor or agreed alternative and task manifest.",
+      "measurement": "Provider-owned manifest validation and adapter compatibility results, including errors and skipped checks.",
+      "methods": [
+        "deterministic",
+        "probe"
+      ],
+      "checks": [
+        {
+          "method": "deterministic",
+          "action": "Identify the agreed provider, runtime/adapter version and task manifest; run authorized provider validation.",
+          "expected_evidence": "Versioned validation result and errors.",
+          "when": "Always within the stated applicability",
+          "id": "DISC-03-A-C01"
+        },
+        {
+          "method": "deterministic",
+          "action": "Distinguish missing runtime, unsupported manifest and validation failure from agent behavior.",
+          "expected_evidence": "Typed compatibility status.",
+          "when": "Always within the stated applicability",
+          "id": "DISC-03-A-C02"
+        },
+        {
+          "method": "probe",
+          "action": "Validate known-invalid manifests and a clean supported configuration.",
+          "expected_evidence": "Expected acceptance/rejection controls.",
+          "when": "For level 3, within authorized runtime checks.",
+          "id": "DISC-03-A-C03"
+        }
+      ],
+      "scoring": {
+        "0": "Provider validation confirms a material incompatibility with the declared route.",
+        "1": "The route is identified but known manifest or adapter gaps remain.",
+        "2": "The selected provider validates the manifest and required adapter compatibility.",
+        "3": "Independent clean setup and invalid-manifest controls confirm correct compatibility detection."
+      },
+      "evidence": [
+        "Provider/adapter identities",
+        "Manifest validation output",
+        "Compatibility-control results"
+      ],
+      "on_gap": "Resolve the manifest/adapter mismatch before claiming compatible readiness.",
+      "boundary": "Compatibility is not an end-to-end smoke pass. File-only Discover leaves this unassessed.",
+      "code_references": [
+        "skills/eval-author-discover/scripts/discover.py"
+      ],
+      "source_ids": [],
+      "implementation_task": "Wrap provider validation into a typed compatibility receipt without running the target agent."
+    },
+    {
+      "id": "AUD-02",
+      "skill_id": "audit",
+      "title": "Comparison setup fairness",
+      "question": "Are material setup differences justified for the comparison being claimed?",
+      "requirement": "When comparing systems, disclose prompts, tools, budgets, scaffolds, scorer settings and model-specific accommodations.",
+      "scope": "task; When comparing systems, disclose prompts, tools, budgets, scaffolds, scorer settings and model-specific accommodations.",
+      "measurement": "Count and classify material configuration differences; adjudicate each justification and measure paired outcome/decision sensitivity to disputed differences.",
+      "methods": [
+        "deterministic",
+        "human_review",
+        "probe"
+      ],
+      "checks": [
+        {
+          "method": "deterministic",
+          "action": "Diff prompts, tool permissions, budgets, scaffolds and scoring configuration across systems.",
+          "expected_evidence": "Versioned configuration diff",
+          "when": "During assessment of the declared revision",
+          "id": "AUD-02-C01"
+        },
+        {
+          "method": "human_review",
+          "action": "Decide whether each material difference or model-specific accommodation is justified by the intended comparison.",
+          "expected_evidence": "Difference-by-difference rationale and unresolved disputes",
+          "when": "During assessment of the declared revision",
+          "id": "AUD-02-C02"
+        },
+        {
+          "method": "probe",
+          "action": "Run matched configuration comparisons for differences whose effect remains disputed.",
+          "expected_evidence": "Paired results at fixed task/system identities",
+          "when": "When a material fairness dispute requires authorized testing",
+          "id": "AUD-02-C03"
+        }
+      ],
+      "scoring": {
+        "0": "Demonstrated material unjustified model-specific advantage",
+        "1": "Known differences lack adequate justification or testing",
+        "2": "Differences disclosed and justified for intended comparison",
+        "3": "Matched sensitivity tests support conclusions across plausible setups"
+      },
+      "evidence": [
+        "Configuration diff",
+        "Justification register",
+        "Matched comparisons"
+      ],
+      "on_gap": "Correct unjustified advantages or limit the comparative claim",
+      "boundary": "Assess setup fairness, not biased trace content. Identical configurations are not universally required. Missing or unrun evidence is NOT_ASSESSED, not 0; justified exclusions are NOT_APPLICABLE. Referenced code is supporting material, not verified runnable integration. Execute interventions only with approval; qualify any material judge/classifier and routing dependency before using its verdict.",
+      "code_references": [
+        "skills/eval-author/references/authoring-context.md",
+        "skills/eval-author-environment/references/task-fidelity.md"
+      ],
+      "source_ids": [
+        1,
+        2
+      ],
+      "implementation_task": "Build a comparative setup review packet with matched sensitivity experiments for disputed accommodations."
+    },
+    {
+      "id": "ENV-01",
+      "skill_id": "environment",
+      "title": "Verify solver tool access",
+      "question": "Can the solver exercise every required tool contract under its actual permissions?",
+      "requirement": "When task completion depends on tools or permissioned actions.",
+      "scope": "task",
+      "measurement": "Required actions with usable solver-visible tool contracts / all required actions; passing schema/call/reset/error probes / applicable probes.",
+      "methods": [
+        "human_review",
+        "deterministic",
+        "probe"
+      ],
+      "checks": [
+        {
+          "method": "human_review",
+          "action": "Map required task actions to solver-visible tools and required permission boundaries.",
+          "expected_evidence": "Action-to-tool/permission coverage map.",
+          "when": "Whenever applicable",
+          "id": "ENV-01-C01"
+        },
+        {
+          "method": "deterministic",
+          "action": "Compare exposed schemas and permission/configuration snapshots with the required tool contract.",
+          "expected_evidence": "Schema and permission differences.",
+          "when": "Whenever applicable",
+          "id": "ENV-01-C02"
+        },
+        {
+          "method": "probe",
+          "action": "Exercise supported calls, reset and expected errors under solver permissions within the authorized side-effect boundary.",
+          "expected_evidence": "Actual solver-identity preflight and error/reset receipts.",
+          "when": "Only authorized bounded probes",
+          "id": "ENV-01-C03"
+        }
+      ],
+      "scoring": {
+        "0": "A required action is demonstrably inaccessible or wrong under solver permissions.",
+        "1": "Some required tool contracts work with demonstrated partial coverage.",
+        "2": "Every required tool and permission contract passes applicable probes.",
+        "3": "Clean-runtime reset, error and boundary probes independently corroborate access."
+      },
+      "evidence": [
+        "Action-to-tool/permission coverage map.",
+        "Schema and permission differences.",
+        "Actual solver-identity preflight and error/reset receipts."
+      ],
+      "on_gap": "Provision required tools or obtain an explicit scope change. Unknown or not run: NOT_ASSESSED, not a defect; justified inapplicability: NOT_APPLICABLE.",
+      "boundary": "Do not grant extra permissions or silently omit required capabilities; readiness must be independent of task reward.",
+      "code_references": [
+        "skills/eval-author/scripts/eval_author_shared/fixture_compiler.py",
+        "skills/eval-author-environment/references/task-fidelity.md"
+      ],
+      "source_ids": [
+        1
+      ],
+      "implementation_task": "Deliver an action/tool coverage map and solver-permission preflight packet."
+    },
+    {
+      "id": "ENV-02-A",
+      "skill_id": "environment",
+      "title": "Inventory dependencies and substitution approval",
+      "question": "Is every required component available in an explicitly authorized form?",
+      "requirement": "When a task depends on software, tools, MCP endpoints or replacements.",
+      "scope": "task",
+      "measurement": "Available real or scope-owner-approved components / all required components; revision-matched approvals / substitutions.",
+      "methods": [
+        "deterministic",
+        "human_review"
+      ],
+      "checks": [
+        {
+          "method": "deterministic",
+          "action": "Inventory each required component and MCP endpoint as real, approved mock/replay, missing or unknown, with observed identity.",
+          "expected_evidence": "Dependency status and revision inventory.",
+          "when": "Whenever applicable",
+          "id": "ENV-02-A-C01"
+        },
+        {
+          "method": "human_review",
+          "action": "Obtain scope-owner approval for each substitution, naming allowed differences and revision.",
+          "expected_evidence": "Scoped owner approval; absence is not implied consent.",
+          "when": "Whenever applicable",
+          "id": "ENV-02-A-C02"
+        },
+        {
+          "method": "deterministic",
+          "action": "Match installed substitution identities and declared differences to approval records.",
+          "expected_evidence": "Approval-to-component match report.",
+          "when": "Whenever applicable",
+          "id": "ENV-02-A-C03"
+        }
+      ],
+      "scoring": {
+        "0": "A required component is confirmed missing or an active substitution is unapproved.",
+        "1": "Inventory and authorizations are evidenced but only partially reconciled.",
+        "2": "Every required component is available as real or explicitly approved replacement.",
+        "3": "Independent provisioning/approval reconciliation corroborates the inventory."
+      },
+      "evidence": [
+        "Dependency status and revision inventory.",
+        "Scoped owner approval; absence is not implied consent.",
+        "Approval-to-component match report."
+      ],
+      "on_gap": "Provision real dependencies or obtain approval before substitution. Unknown or not run: NOT_ASSESSED, not a defect; justified inapplicability: NOT_APPLICABLE.",
+      "boundary": "Approval is not fidelity evidence; ENV-02-B independently assesses behavior. Unknown availability is NOT_ASSESSED.",
+      "code_references": [
+        "skills/eval-author/scripts/eval_author_shared/fixture_compiler.py",
+        "skills/eval-author/scripts/eval_author_shared/admission.py",
+        "skills/eval-author-environment/references/task-fidelity.md",
+        "skills/eval-author/references/trace-input.md"
+      ],
+      "source_ids": [],
+      "implementation_task": "Deliver a dependency bill of materials and revision-bound substitution approvals."
+    },
+    {
+      "id": "ENV-03",
+      "skill_id": "environment",
+      "title": "Control external state",
+      "question": "Are pinned and intentionally live dependencies bounded well enough to interpret outcomes?",
+      "requirement": "When time, web/API responses, mutable data, packages, images or remote services influence the task.",
+      "scope": "task",
+      "measurement": "Captured/pinned or explicitly bounded live dependencies / material external dependencies; interpreted outcomes under declared drift controls.",
+      "methods": [
+        "deterministic",
+        "human_review",
+        "probe"
+      ],
+      "checks": [
+        {
+          "method": "deterministic",
+          "action": "Inventory material dependencies; record pins/snapshots or live time, source and response identities.",
+          "expected_evidence": "Dependency manifest and retained snapshot/response references.",
+          "when": "Whenever applicable",
+          "id": "ENV-03-C01"
+        },
+        {
+          "method": "human_review",
+          "action": "Define acceptable live-state drift and the outcome relation expected under relevant changes.",
+          "expected_evidence": "Live-state bounds and scoring-interpretation contract.",
+          "when": "Whenever applicable",
+          "id": "ENV-03-C02"
+        },
+        {
+          "method": "probe",
+          "action": "Replay or deliberately perturb relevant state and compare behavior/state and grading against the declared relation.",
+          "expected_evidence": "Revision-bound replay/drift outcomes and unresolved attribution.",
+          "when": "Authorized drift/replay tests only",
+          "id": "ENV-03-C03"
+        }
+      ],
+      "scoring": {
+        "0": "Observed drift materially invalidates expected outcomes or comparisons.",
+        "1": "Some state is captured with evidenced remaining capture/pinning gaps.",
+        "2": "All material dependencies are controlled or live limits and observations support the bounded claim.",
+        "3": "Independent replay and deliberate drift tests corroborate interpretation."
+      },
+      "evidence": [
+        "Dependency manifest and retained snapshot/response references.",
+        "Live-state bounds and scoring-interpretation contract.",
+        "Revision-bound replay/drift outcomes and unresolved attribution."
+      ],
+      "on_gap": "Freeze material state, repair grading for permitted variation, or narrow reproducibility claims. Unknown or not run: NOT_ASSESSED, not a defect; justified inapplicability: NOT_APPLICABLE.",
+      "boundary": "Permitted state variation need not preserve reward when correct task outcomes change; distinguish grader and behavior effects.",
+      "code_references": [
+        "skills/eval-author/scripts/eval_author_shared/gym_evidence.py",
+        "skills/eval-author/scripts/eval_author_shared/workspace_contract.py",
+        "skills/eval-author/scripts/eval_author_shared/task_evidence.py"
+      ],
+      "source_ids": [
+        1
+      ],
+      "implementation_task": "Deliver an external-state manifest with live drift bounds and replay-control results."
+    },
+    {
+      "id": "CREATE-07",
+      "skill_id": "first_eval_create",
+      "title": "Evidence revision consistency",
+      "question": "Are results bound to compatible identities and invalidated when material dependencies change?",
+      "requirement": "For every task result or reused qualification packet, bind all material instruction, data, scoring and runtime identities.",
+      "scope": "task; For every task result or reused qualification packet, bind all material instruction, data, scoring and runtime identities.",
+      "measurement": "Results with complete compatible identity links / results reviewed; stale affected results after each material change; preserved regrading lineage. Change-injection tests measure invalidation coverage.",
+      "methods": [
+        "deterministic"
+      ],
+      "checks": [
+        {
+          "method": "deterministic",
+          "action": "Bind instructions, fixtures, scorer, ground truth, judge prompt/configuration and material runtime/dependency identities to each result.",
+          "expected_evidence": "Result-to-revision manifest",
+          "when": "During assessment of the declared revision",
+          "id": "CREATE-07-C01"
+        },
+        {
+          "method": "deterministic",
+          "action": "Compare current and evidence identities; invalidate affected scores on material changes and retain original results plus regrading history.",
+          "expected_evidence": "Stale-evidence and regrading report",
+          "when": "During assessment of the declared revision",
+          "id": "CREATE-07-C02"
+        },
+        {
+          "method": "deterministic",
+          "action": "Test declared identity-change fixtures to confirm affected evidence invalidates while unchanged evidence lineage remains intact.",
+          "expected_evidence": "Change-injection invalidation tests",
+          "when": "When verifying robustness of evidence reuse",
+          "id": "CREATE-07-C03"
+        },
+        {
+          "method": "deterministic",
+          "action": "Bind ETHOS revision and obligation references to task and qualification evidence; use declared change-impact mappings to invalidate affected assumptions after ETHOS changes. Test changed-content and unchanged-reuse fixtures.",
+          "expected_evidence": "ETHOS change-impact and stale-evidence report; fixture outcomes.",
+          "when": "When task meaning or qualification depends on ETHOS; unresolved semantic change impact requires authorized review, not an inferred unchanged status.",
+          "id": "CREATE-07-C04"
+        }
+      ],
+      "scoring": {
+        "0": "Incompatible revisions silently combined",
+        "1": "Version metadata incomplete or stale reviews remain",
+        "2": "All material changes tracked and evidence bound",
+        "3": "Change-injection tests invalidate stale results and preserve lineage"
+      },
+      "evidence": [
+        "Version manifest",
+        "Result/revision links",
+        "Stale evidence report",
+        "Regrading lineage",
+        "Invalidation tests",
+        "ETHOS change-impact and stale-evidence report; fixture outcomes."
+      ],
+      "on_gap": "Rerun affected checks before transferring prior scores to a changed evaluation",
+      "boundary": "Reuse only matching configuration, semantics, channels, permissions and population support; matching hashes do not establish holdout independence. Rerun only affected checks, but do not transfer stale scores. Missing or unrun evidence is NOT_ASSESSED, not 0; justified exclusions are NOT_APPLICABLE. Referenced code is supporting material, not verified runnable integration. Execute interventions only with approval; qualify any material judge/classifier and routing dependency before using its verdict.",
+      "code_references": [
+        "skills/eval-author/scripts/eval_author_shared/task_evidence.py",
+        "skills/eval-author/scripts/eval_author_shared/gym_evidence.py",
+        "skills/eval-author/scripts/eval_author_shared/construction.py"
+      ],
+      "source_ids": [
+        1,
+        2
+      ],
+      "implementation_task": "Build a result identity manifest and scoped evidence-invalidation report with change fixtures."
+    }
+  ]
+}

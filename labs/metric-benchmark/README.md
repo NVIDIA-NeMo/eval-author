@@ -24,7 +24,8 @@ Python tool and library API:
 
 1. **Run mutants x eval tasks:** run the baseline and every mutant against the
    benchmark tasks and save the results. The [local execution script](docs/run-evals.md) uses a
-   basic Harbor loop; support for **NeMo Helix** will follow.
+   basic Harbor loop; support for **NeMo Helix** will follow. See the
+   [proposed Helix workflow](docs/helix-architecture.md) for its design and configuration examples.
 2. **[Compute mutant scores](docs/compute-mutant-scores.md):** measure degradation across the mutants for each
    predefined task subset.
 3. **[Compute coverage](docs/compute-coverage.md):** evaluate our metric on those same subsets.
@@ -41,3 +42,6 @@ For preparing bundles, use the [benchmark format specification](docs/benchmark-f
 For execution outputs, use the [results format specification](docs/results-format.md).
 
 See [benchmark tools](docs/tools.md) for the command guides and configuration-loading API.
+
+For the reusable case-example layout, see the
+[case example format](../case-examples/docs/benchmark-format.md).

@@ -16,7 +16,7 @@ triggers:
 not-for:
   - eval-author (use for the standard, the boundaries, and to pick a sub-flow)
   - eval-author-trace-environment (experimental; use only for an explicit request or existing workspace)
-  - eval-author-task-create (use to propose dataset improvements and create audit-gap or ATIF-source tasks)
+  - eval-author-task-create (use to propose dataset improvements and create audit-gap or trace-source tasks)
   - eval-author-first-eval (use to plan and build a starter suite)
   - eval-author-discover (use to check whether an existing suite runs)
 compatibility: >-
@@ -74,7 +74,7 @@ task's own NOP, Oracle, or verifier controls never prove the environment.
 
 ## Trace-backed tools and integrity
 
-For an admitted trace source, follow the [ATIF environment handoff](../eval-author/references/trace-input.md).
+For an admitted trace source, follow the [trace source handoff](../eval-author/references/trace-input.md).
 Preserve source-state provenance and reviewed real/mock/none decisions in the shared
 construction contract. The environment kit and its smoke handoff still precede
 task tests. Recorded replay covers only its declared interactions.
@@ -120,7 +120,7 @@ Carry these from the calling flow instead of asking again:
 - the provider (Harbor or NeMo Gym) and the existing suite layout;
 - requirements recorded at scope with
   [Execution dependencies](../eval-author/references/execution-dependencies.md);
-- installation, execution, and spend authorizations already given.
+- installation and execution authorizations already given.
 
 Build one environment kit per agent and reuse it for every task of that agent:
 
@@ -299,7 +299,7 @@ are written:
 - **Agent-provided discovery:** Harbor passes MCP server configuration to the
   agent but does not prove the agent connected. Confirm discovery and calls in
   one run of the actual agent, which requires the existing authorization for
-  agent execution and spend; until then, record discovery as unproven.
+  agent execution. Until then, record discovery as unproven.
 
 Record each proof run's command, job path, and result in `environment-plan.md`.
 These runs prove the environment, not a task: do not declare them as a task's
@@ -340,7 +340,8 @@ Planning and inventory need only repository access. Building and proving a
 Harbor environment needs the Harbor CLI and Docker with Compose; NeMo Gym needs its
 separate runtime. Vendor sandboxes need the user's authorization and
 credentials, referenced by variable name. Agent runs used to prove tool
-discovery require authorization for execution and spend.
+discovery require execution to be in the requested scope. Follow the shared
+[model-call policy](../eval-author/references/shared-prerequisites.md#model-calls-for-requested-work).
 
 ## Limitations
 

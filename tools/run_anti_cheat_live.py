@@ -136,6 +136,22 @@ def controls_healthy(rows):
     )
 
 
+def request_diagnostic(value):
+    if not isinstance(value, dict) or set(value) != {"state", "http_status", "attempts"}:
+        return None
+    state, status, attempts = (value[key] for key in ("state", "http_status", "attempts"))
+    if state not in ("in-flight", "response", "http-error", "api-error", "connection-error", "timeout"):
+        return None
+    if type(attempts) is not int or not 1 <= attempts <= panel().MODEL["max_turns"] + 2:
+        return None
+    if state == "http-error":
+        if type(status) is not int or not 400 <= status <= 599:
+            return None
+    elif status is not None:
+        return None
+    return {"state": state, "http_status": status, "attempts": attempts}
+
+
 def observation(agent, cell):
     integer(agent["task_id"], cell["task_id"], cell["task_id"])
     require(agent["arm"] == cell["arm"])
@@ -166,6 +182,11 @@ def observation(agent, cell):
         "observed_tool_calls": counters["tool_calls"],
         "observed_turns": counters["turns"],
         "observed_models": observed,
+        **(
+            {"request_diagnostic": request_diagnostic(agent["request_diagnostic"])}
+            if "request_diagnostic" in agent
+            else {}
+        ),
     }
 
 

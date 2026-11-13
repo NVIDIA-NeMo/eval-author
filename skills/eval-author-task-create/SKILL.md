@@ -1,19 +1,19 @@
 ---
 name: eval-author-task-create
 description: >-
-  Create a task from a recorded interaction in ATIF source mode, without requiring
+  Create a task from a recorded interaction in trace source mode, without requiring
   an audit gap. Or propose dataset improvements from Eval Author audit findings, then optionally
   create one NeMo Gym or Harbor task from one actionable uncovered tool. Prove it with
   NeMo Gym controls and native execution or Harbor's Oracle, then run it repeatedly
   with the repository's real agent when authorized, and accept it only when
-  measured ATIF closes the selected gap every time in audit-gap mode. ATIF source
+  measured traces close the selected gap every time in audit-gap mode. Trace source
   mode reports task qualification separately from audit closure. Use when the user asks to
   suggest dataset changes, fill an eval gap, turn audit uncovered_items into a
   NeMo Gym or Harbor task, or add missing tool coverage. Writes proposals, drafts, and
   measurements only under `.eval-author/`.
 triggers:
   - create a task from a recorded interaction
-  - turn ATIF into a Harbor or NeMo Gym task
+  - turn a recorded trace into a Harbor or NeMo Gym task
   - create a NeMo Gym task from an audit gap
   - create a Harbor task from an audit gap
   - fill an uncovered eval tool
@@ -48,10 +48,10 @@ metadata:
 
 # Eval Author: create task
 
-## ATIF source mode
+## Trace source mode
 
-For a user-requested task from an ATIF trace, use the shared
-[ATIF source handoff](../eval-author/references/trace-input.md): privacy review,
+For a user-requested task from an ATIF, MLflow, NeMo Gym or normalized trace, use the shared
+[trace source handoff](../eval-author/references/trace-input.md): privacy review,
 candidate admission, environment preparation, construction and native qualification.
 This source mode does not require an audit gap and does not claim coverage closure.
 Skip the audit selector and gap-only scaffold/acceptance steps; use the selected
@@ -87,7 +87,7 @@ existing execution path:
 actionable uncovered tool
   → NeMo Gym-native or Harbor-native draft
   → native positive and negative controls
-  → repeated real-agent ATIF
+  → repeated real-agent traces
   → target tool covered in every report
 ```
 
@@ -286,7 +286,7 @@ logic. The task should naturally require the selected tool and no unrelated
 capability.
 
 Decide the verifier before scaffolding. Prefer deterministic shell or pytest.
-The verifier must grade the task outcome, not the tool call; ATIF measurement
+The verifier must grade the task outcome, not the tool call; trace measurement
 proves tool coverage separately.
 
 ## Step 4: scaffold with NeMo Gym or Harbor
@@ -399,8 +399,9 @@ merely to make it pass.
 
 ## Step 6: run the real agent twice
 
-Running a model spends credentials. Do it only when the user asked for the run
-or approved it. Use the repository's proven agent configuration and point it at
+Run the real agent when it is part of the user's requested task creation.
+Follow the shared [model-call policy](../eval-author/references/shared-prerequisites.md#model-calls-for-requested-work).
+Use the repository's proven agent configuration and point it at
 the draft. Record each attempt as its own invocation with fresh native output:
 one NeMo Gym repeat per recorded run, or one Harbor trial per run with a distinct
 trial name. One job with two attempts cannot back two receipts. Keep all outputs
@@ -424,13 +425,13 @@ Require both trials to:
 
 1. finish without an exception,
 2. receive the intended verifier reward, and
-3. retain interaction evidence accepted as ATIF by the audit `measure.py`: NeMo Gym
-   Responses converted with receipts, original retained ATIF, or Harbor's
-   `agent/trajectory.json`. Trace Loader output alone is not ATIF.
+3. retain interaction evidence the audit `measure.py` loads through NeMo Compass:
+   Harbor's `agent/trajectory.json` (ATIF), or a NeMo Gym rollout loaded with
+   `trace_loading.py` and bound by its receipt ([NeMo Gym evidence](references/gym-evidence.md)).
 
-`SUPPORTS_ATIF = true` is not evidence that the emitted JSON matches Harbor's
-current schema. A `measure.py` parse failure is an agent-adapter defect, not a
-coverage result.
+For Harbor, `SUPPORTS_ATIF = true` is not evidence that the emitted JSON matches
+Harbor's current schema. A `measure.py` load failure is an agent-adapter defect,
+not a coverage result.
 
 ## Step 7: measure and aggregate each trial
 
@@ -438,7 +439,7 @@ Run `eval-author-audit`'s `measure.py` and `report.py` separately for each
 recorded attempt. Measure the recorded trace with the recorder's `--run-id` and
 the selected `<task-slug>`; `verify` rejects any other trace. For Harbor, pass the
 recorded trial directory so `subject.evidence_class` is stamped from
-`result.json`. For NeMo Gym or other exports, pass the converted ATIF with `--trace`
+`result.json`. For NeMo Gym, pass the recorded `traces.normalized.jsonl` with `--trace --source-kind trace`
 and `--evidence-class agent_under_test` on real agent repeats (`reference_solution`
 or `nop` only when remeasuring those control traces for audit context). Keep
 repeat outputs separate so one successful run cannot hide another:
@@ -518,8 +519,7 @@ task creation additionally needs an actionable measured tool gap, Python 3.11+,
 and the selected native runtime: NeMo Gym in its separate environment or a Harbor
 CLI supporting `harbor task init`. Docker is needed for Docker-backed execution;
 measurement uses the audit skill's dependencies.
-Use the repository's proven agent configuration and authorize real-agent spend
-before starting those jobs.
+Use the repository's proven agent configuration for jobs within the requested scope.
 
 ## Limitations
 
@@ -537,7 +537,7 @@ Proposal-only requests end before scaffolding or execution.
 - Scaffold path mismatch: use the selector's `task_slug` and `paths` verbatim.
 - Native control failure: repair the task, solution, or verifier against the intended
   outcome, then rerun; preserve the assertion being tested.
-- Invalid ATIF or repeated run identities: fix the adapter or obtain two distinct
+- Unloadable traces or repeated run identities: fix the adapter or obtain two distinct
   recorded trials before measurement; a reward cannot replace trajectory evidence.
 - `verify` reports a trace or run-ID mismatch: measure the recorder's exact trace
   with its `--run-id` and `--task-id <task-slug>`.

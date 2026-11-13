@@ -16,6 +16,7 @@ import os
 import re
 import subprocess
 import sys
+import urllib.error
 import urllib.request
 import uuid
 from datetime import datetime, timezone
@@ -151,8 +152,11 @@ class Model:
             def redirect_request(self, req, fp, code, msg, headers, newurl):
                 return None
 
-        with urllib.request.build_opener(NoRedirect).open(request, timeout=120) as response:
-            data = json.loads(response.read(2_000_000))
+        try:
+            with urllib.request.build_opener(NoRedirect).open(request, timeout=120) as response:
+                data = json.loads(response.read(2_000_000))
+        except urllib.error.HTTPError as error:
+            raise ExecutionError("model_request", "http_error", http_status=error.code) from None
         choice = data["choices"][0]
         if choice["finish_reason"] != "stop" or not isinstance(choice["message"]["content"], str):
             raise ValueError("incomplete model response")
@@ -160,7 +164,25 @@ class Model:
         return json.loads(text) if structured else text
 
 
+class ExecutionError(ValueError):
+    """Fixed diagnostic fields only; never retain command output or exception text."""
+
+    def __init__(self, stage, category, *, exit_code=None, http_status=None):
+        self.diagnostic = {
+            "stage": stage
+            if type(stage) is str and stage in {"ratchet_selftest", "ratchet_stage", "model_request"}
+            else "unknown",
+            "category": category
+            if type(category) is str and category in {"subprocess_failed", "http_error"}
+            else "unknown",
+            "http_status": http_status if type(http_status) is int and 100 <= http_status <= 599 else None,
+            "exit_code": exit_code if type(exit_code) is int and -255 <= exit_code <= 255 else None,
+        }
+        super().__init__("semantic execution failed")
+
+
 def command(runtime, name, args, work, output=None, allowed=(0,)):
+    stage = "ratchet_selftest" if name == "selftest.py" else "ratchet_stage"
     proc = subprocess.run(
         [sys.executable, str(runtime / "scripts" / name), *map(str, args)],
         capture_output=True,
@@ -169,7 +191,7 @@ def command(runtime, name, args, work, output=None, allowed=(0,)):
         env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"},
     )
     if proc.returncode not in allowed:
-        raise ValueError("Ratchet stage failed")
+        raise ExecutionError(stage, "subprocess_failed", exit_code=proc.returncode)
     if output:
         output.write_bytes(proc.stdout)
     return proc.returncode
@@ -605,6 +627,10 @@ def run(suite_path, runtime, output, mode, model=None):
                     row["reason"] = "awaiting_baseline_review"
         except ClusteringError:
             row.update(status="incomplete", reason="clustering_invalid_output", metrics=None)
+        except ExecutionError as error:
+            row.update(
+                status="incomplete", reason="execution_or_input_error", metrics=None, diagnostic=error.diagnostic
+            )
         except (ValueError, KeyError, TypeError, OSError, subprocess.SubprocessError):
             # Provider bodies, paths, output claims and exceptions are never public diagnostics.
             row.update(status="incomplete", reason="execution_or_input_error", metrics=None)

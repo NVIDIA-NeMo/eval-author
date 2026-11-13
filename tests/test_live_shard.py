@@ -87,16 +87,15 @@ def test_runtime_installs_each_job_with_managed_python_and_keyless_env(shard, mo
     import json
 
     from collect_skill_evaluations import EVALUATOR_REVISION
+    from install_evaluator import EVALUATOR_REVISION as INSTALLED_REVISION
     from patched_opencode_runtime import EVALUATOR_REVISION as GUARDED_REVISION
 
     module, root, events, phase = shard
-    assert module.EVALUATOR_REVISION == GUARDED_REVISION == EVALUATOR_REVISION
+    assert INSTALLED_REVISION == GUARDED_REVISION == EVALUATOR_REVISION
     config_path = root / "control/phase.json"
     config = json.loads(config_path.read_text())
     config["check"] = check
     config_path.write_text(json.dumps(config))
-    revision = "a" * 40
-    monkeypatch.setattr(module, "EVALUATOR_REVISION", revision)
     monkeypatch.setenv("INFERENCE_HUB_API_KEY", "never-setup")
     monkeypatch.setenv("OPENAI_API_KEY", "never-forward")
     assert phase("runtime") == 0
@@ -105,12 +104,12 @@ def test_runtime_installs_each_job_with_managed_python_and_keyless_env(shard, mo
     assert [e[1] for e in executions] == [
         ["uv", "venv", "--managed-python", "--python", "3.12", str(root / "workspace/live-runtime")],
         [
-            "uv",
-            "pip",
-            "install",
+            python,
+            str(ROOT / "tools/install_evaluator.py"),
             "--python",
             python,
-            f"skillevaluator[{extras}] @ git+https://github.com/NVIDIA/SkillEvaluator.git@{revision}",
+            "--extra",
+            extras,
         ],
     ]
     for execution in executions:
@@ -121,6 +120,29 @@ def test_runtime_installs_each_job_with_managed_python_and_keyless_env(shard, mo
         assert 0 < execution[5] <= 300
         assert not execution[4].is_relative_to(root / "workspace")
     assert events[-1][0] == "handoff"
+
+
+@pytest.mark.parametrize("workers", [None, 1, 2, 4, 8])
+def test_prepare_default_or_explicit_worker_selection_reaches_keyless_child(shard, tmp_path, workers):
+    import json
+
+    module, root, events, phase = shard
+    config_path = root / "control/phase.json"
+    config = json.loads(config_path.read_text())
+    config["phase"] = "relocate"
+    config_path.write_text(json.dumps(config))
+    assert phase("prepare", *([] if workers is None else ["--workers", str(workers)])) == 0
+    execution = next(e[1] for e in events if e[0] == "execute")
+    assert execution[1][-2:] == ["--workers", str(2 if workers is None else workers)]
+    assert not any("KEY" in name for name in execution[3])
+    assert events[-1][0] == "handoff"
+
+
+@pytest.mark.parametrize("value", ["0", "3", "9", "two"])
+def test_prepare_workers_rejected_at_host_parser(tmp_path, value):
+    module = runner()
+    with pytest.raises(SystemExit):
+        module.parse_args(["prepare", "--root", str(tmp_path), "--workers", value])
 
 
 def test_failed_phase_closes_and_cannot_advance(shard, monkeypatch):
@@ -271,6 +293,8 @@ def test_relocation_gates_installed_python_before_full_preparation(shard):
         str(root / "workspace/prepared-live-images"),
         "--private-diagnostics",
         str(root / "workspace/preparation-docker-failure.private.json"),
+        "--workers",
+        "2",
     ]
     assert 0 < events[0][1][5] <= 900
     assert events[-1][0] == "handoff"
@@ -286,7 +310,7 @@ def test_tier2_runs_isolated_without_opencode_and_closes_before_return(shard, mo
     config.update(tier="2", check=check, skill="all" if check == "similarity" else "eval-author-audit")
     config_path.write_text(json.dumps(config))
     phase("runtime")
-    assert "skillevaluator[tier2]" in events[1][1][1][-1]
+    assert events[1][1][1][-2:] == ["--extra", "tier2"]
     events.clear()
     monkeypatch.setenv("INFERENCE_HUB_API_KEY", "collector-only")
     monkeypatch.setenv("OPENAI_API_KEY", "unrelated")

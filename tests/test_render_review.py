@@ -4,6 +4,7 @@
 """Behavioral checks for the offline reader using only synthetic evidence."""
 
 import json
+import os
 import shutil
 import stat
 import subprocess
@@ -85,9 +86,9 @@ def gym_record(prompt="SYNTHETIC_REQUEST", answer="SYNTHETIC_GRADING_ANSWER"):
     }
 
 
-def atif_record(version="1.7"):
+def atif_record():
     return {
-        "schema_version": f"ATIF-v{version}",
+        "schema_version": "ATIF-v1.7",
         "session_id": "synthetic-session",
         "agent": {"name": "synthetic-agent", "version": "1.0"},
         "steps": [
@@ -96,6 +97,7 @@ def atif_record(version="1.7"):
                 "step_id": 2,
                 "source": "agent",
                 "message": "SYNTHETIC_RECORDED_MESSAGE",
+                "model_name": "synthetic-model",
                 "tool_calls": [
                     {
                         "tool_call_id": "synthetic-call-1",
@@ -104,18 +106,17 @@ def atif_record(version="1.7"):
                     }
                 ],
                 "observation": {
-                    "results": [{"source_call_id": "synthetic-call-1", "content": "SYNTHETIC_TOOL_OBSERVATION"}]
+                    "results": [
+                        {
+                            "source_call_id": "synthetic-call-1",
+                            "content": "<script>SYNTHETIC_TOOL_OBSERVATION</script>",
+                            "extra": {"is_error": True},
+                        }
+                    ]
                 },
-                "metrics": {"prompt_tokens": 7, "completion_tokens": 3},
             },
             {"step_id": 3, "source": "agent", "message": "SYNTHETIC_FINAL_OUTPUT"},
         ],
-        "final_metrics": {"total_prompt_tokens": 7, "total_completion_tokens": 3},
-        "extra": {
-            "uncertainties": ["SYNTHETIC_CONVERSION_UNCERTAINTY"],
-            "losses": ["SYNTHETIC_CONVERSION_LOSS"],
-            "custom_evidence": "SYNTHETIC_UNKNOWN_METADATA",
-        },
     }
 
 
@@ -125,10 +126,11 @@ def write_json(path, data):
 
 
 def invoke(source, output, *, format="gym-jsonl", rows="1", role="case", script=SCRIPT):
+    # Gym JSONL must run without site packages; trace formats need the pinned trace_ingest install.
+    isolation = ["-I", "-S"] if format == "gym-jsonl" else ["-I"]
     command = [
         sys.executable,
-        "-I",
-        "-S",
+        *isolation,
         str(script),
         "--input",
         str(source),
@@ -141,7 +143,8 @@ def invoke(source, output, *, format="gym-jsonl", rows="1", role="case", script=
     ]
     if rows is not None:
         command.extend(["--rows", rows])
-    return subprocess.run(command, capture_output=True, text=True, timeout=30)
+    env = {**os.environ, "MLFLOW_DISABLE_AGENT_HINT": "1"}
+    return subprocess.run(command, capture_output=True, text=True, timeout=60, env=env)
 
 
 def read_report(completed, output, *, records=1):
@@ -269,46 +272,105 @@ def test_caller_selected_evidence_role_is_visible(tmp_path, role, label):
     assert summary["status"] == ("attention" if role in {"agent", "control"} else "ok")
 
 
-@pytest.mark.parametrize("version", [f"1.{minor}" for minor in range(8)])
-def test_atif_supported_versions_render_calls_observations_metrics_and_conversion_caveats(tmp_path, version):
-    source = write_json(tmp_path / "source.atif.json", atif_record(version))
-    output = tmp_path / "review"
-    _summary, report = read_report(invoke(source, output, format="atif", rows=None, role="source"), output)
-    for value in (
-        f"ATIF-v{version}",
-        "SYNTHETIC_ATIF_PROMPT",
-        "SYNTHETIC_RECORDED_MESSAGE",
-        "read_fixture",
-        "synthetic-call-1",
-        "SYNTHETIC_TOOL_ARGUMENT",
-        "SYNTHETIC_TOOL_OBSERVATION",
-        "SYNTHETIC_FINAL_OUTPUT",
-        "total_prompt_tokens",
-        "SYNTHETIC_CONVERSION_UNCERTAINTY",
-        "SYNTHETIC_CONVERSION_LOSS",
-        "SYNTHETIC_UNKNOWN_METADATA",
-    ):
-        assert value in report.visible
-
-
-@pytest.mark.parametrize("version", ["1.7", "99.0"])
-def test_unsupported_atif_version_and_nontext_content_are_explicit_and_never_fetched(tmp_path, version):
-    record = atif_record(version)
-    record["steps"][0]["message"] = [
-        {"type": "image", "source": {"path": "https://invalid.example/synthetic-image.png", "media_type": "image/png"}}
-    ]
-    source = write_json(tmp_path / "source.atif.json", record)
+def test_atif_trace_renders_turns_in_conversation_order_with_tool_results_and_error_flags(tmp_path):
+    source = write_json(tmp_path / "source.atif.json", atif_record())
     output = tmp_path / "review"
     summary, report = read_report(invoke(source, output, format="atif", rows=None, role="source"), output)
+    spans = report.section("spans")
+    # Each turn is followed by the spans it names, so the tool call sits between the agent
+    # message that made it and the final answer.
+    order = [
+        "SYNTHETIC_ATIF_PROMPT",
+        "SYNTHETIC_RECORDED_MESSAGE",
+        "TOOL · read_fixture",
+        "SYNTHETIC_TOOL_ARGUMENT",
+        "Tool result 1 · is_error: True",
+        "<script>SYNTHETIC_TOOL_OBSERVATION</script>",
+        "SYNTHETIC_FINAL_OUTPUT",
+    ]
+    positions = [spans.index(value) for value in order]
+    assert positions == sorted(positions)
+    # The tool span's output is its result; it renders once, not again as output or call metadata.
+    assert spans.count("SYNTHETIC_TOOL_OBSERVATION") == 1
+    assert "synthetic-model" in spans
+    assert "ATIF tool result reported is_error" in spans
+    assert summary["status"] == "attention"
+    assert not any(tag in {"script", "img"} for tag, _attrs in report.elements)
 
-    assert summary["status"] == "attention" and summary["issues"] >= 1
-    assert "unsupported" in report.visible.lower()
-    assert f"ATIF-v{version}" in report.visible
-    assert "https://invalid.example/synthetic-image.png" in report.visible
-    assert not any(tag in {"img", "video", "audio", "iframe", "object", "embed"} for tag, _attrs in report.elements)
+
+def test_mlflow_export_renders_instruction_and_tool_name(tmp_path):
+    source = SCRIPT.parents[3] / "skills/eval-author-trace-environment/evals/files/traces/mlflow.json"
+    output = tmp_path / "review"
+    _summary, report = read_report(invoke(source, output, format="mlflow", rows=None, role="source"), output)
+    spans = report.section("spans")
+    assert "Where is Paris?" in spans
+    assert "TOOL · lookup" in spans
+    # MLflow records no error flag, so the review shows it as unrecorded rather than false.
+    assert "Tool result 1 · is_error: None" in spans
 
 
-@pytest.mark.parametrize("format", ["gym-jsonl", "atif"])
+def canonical_trace(tmp_path, record):
+    sys.path.insert(0, str(SCRIPT.parent))
+    try:
+        import trace_loading
+    finally:
+        sys.path.remove(str(SCRIPT.parent))
+    [trace] = trace_loading.load_traces(write_json(tmp_path / "loss.atif.json", record), "atif")
+    return write_json(tmp_path / "source.trace.json", trace.model_dump(mode="json"))
+
+
+def test_retained_trace_losses_are_rendered_with_location_and_missing_evidence_attention(tmp_path):
+    record = atif_record()
+    del record["steps"][1]["observation"]["results"][0]["extra"]
+    record["steps"][1]["observation"]["results"][0]["subagent_trajectory_ref"] = [
+        {"trajectory_id": "SYNTHETIC_MISSING_SUBAGENT"}
+    ]
+    output = tmp_path / "review"
+    summary, report = read_report(
+        invoke(canonical_trace(tmp_path, record), output, format="trace", rows=None, role="source"), output
+    )
+    losses = report.section("losses")
+    assert "unresolved_subagent_ref" in losses
+    assert "SYNTHETIC_MISSING_SUBAGENT" in losses
+    assert "span_id" in losses and "turn_id" in losses
+    assert "Missing evidence" in losses
+    assert summary["status"] == "attention"
+    assert summary["issues"] == 1
+
+
+def test_aggregated_llm_calls_are_a_counting_note_not_missing_evidence(tmp_path):
+    record = atif_record()
+    del record["steps"][1]["observation"]["results"][0]["extra"]
+    record["steps"][1]["llm_call_count"] = 3
+    output = tmp_path / "review"
+    summary, report = read_report(
+        invoke(canonical_trace(tmp_path, record), output, format="trace", rows=None, role="source"), output
+    )
+    losses = report.section("losses")
+    assert "llm_calls_aggregated" in losses
+    assert "Counting note" in losses
+    assert "Missing evidence" not in losses
+    assert (summary["status"], summary["issues"]) == ("ok", 0)
+
+
+def test_copied_context_turns_and_their_tool_blocks_are_marked(tmp_path):
+    reports = {}
+    for copied in (False, True):
+        record = atif_record()
+        record["steps"][1]["is_copied_context"] = copied
+        source = write_json(tmp_path / f"{copied}.atif.json", record)
+        output = tmp_path / f"review-{copied}"
+        _summary, report = read_report(invoke(source, output, format="atif", rows=None, role="source"), output)
+        reports[copied] = report.section("spans")
+    assert reports[False] != reports[True]
+    assert "Copied context" not in reports[False]
+    spans = reports[True]
+    assert spans.count("Copied context") == 2
+    assert spans.index("Copied context") < spans.index("SYNTHETIC_RECORDED_MESSAGE")
+    assert spans.index("TOOL · read_fixture") < spans.rindex("Copied context") < spans.index("SYNTHETIC_TOOL_ARGUMENT")
+
+
+@pytest.mark.parametrize("format", ["gym-jsonl", "atif", "mlflow"])
 def test_missing_explicit_input_produces_honest_review_artifact(tmp_path, format):
     output = tmp_path / "review"
     completed = invoke(tmp_path / "missing.json", output, format=format, rows="1" if format == "gym-jsonl" else None)
@@ -331,12 +393,8 @@ def test_missing_explicit_input_produces_honest_review_artifact(tmp_path, format
             },
         ),
         ("atif", {"schema_version": []}),
-        ("atif", {"schema_version": {"unexpected": "SYNTHETIC_BAD_VERSION"}}),
         ("atif", {"schema_version": "ATIF-v1.7", "steps": [7]}),
-        (
-            "atif",
-            {"schema_version": "ATIF-v1.7", "steps": [{"message": [{"type": {}, "text": "SYNTHETIC_BAD_TYPE"}]}]},
-        ),
+        ("mlflow", {"traces": "SYNTHETIC_BAD_TRACES"}),
     ],
 )
 def test_malformed_json_shapes_are_visible_instead_of_crashing(tmp_path, format, record):

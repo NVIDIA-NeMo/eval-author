@@ -115,7 +115,7 @@ Check installed help before using options. Preserve the distinction between
 explicit-file execution against running services (`--no-serve --input`) and
 managed execution using prepared splits.
 
-Run only with the established execution and spend authorization. Retain fresh
+Run within the established execution scope. Retain fresh
 outputs, rewards, errors, resolved settings, and exact commands for every selected
 task under `.eval-author/runs/`. Keep exact native run and attempt identities
 and readable selected-row evidence in the suite README, outside finalized task

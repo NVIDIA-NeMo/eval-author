@@ -7,6 +7,17 @@ Eval Author saves reports and evaluation artifacts in the repository you are
 working on. Start with the report for your requested workflow, and read its
 limitations before deciding what to change.
 
+## Experimental rubric artifacts
+
+Rubric selections use `rubric_scope` for source-backed inventories. Package demo
+observations use `retained_credit`, `retained_credit_controls`, and `coverage` to
+identify their consumers. The provenance panel uses `rubric-provenance-demo-v1`
+with `rubric-provenance-expectations-v1` expectations; the version remains 1.
+Update integrations to these current names and rebuild older demo outputs rather
+than relying on former field or schema names; no compatibility aliases are kept.
+See the [rubric measurements](determinism-checks.md#rubric-identity-measurements)
+and [provenance demo](determinism-checks.md#provenance-demo) for commands.
+
 ## Case and run catalog
 
 The case and run catalog can be found in `.eval-author/report.html` and the
@@ -100,7 +111,8 @@ outcomes. See [Build your first evaluations](first-evals.md).
 Start with the html report or the README.md for artifact paths and commands. Harbor
 tasks and recorded jobs use its native local viewer. Report links target the
 Harbor 0.24.0 viewer; refresh the report after upgrading to regenerate trial links.
-For NeMo Gym JSONL and standalone ATIF, Eval Author includes an offline reader that creates a private `report.html`
+For NeMo Gym JSONL and ATIF, MLflow, or NeMo Gym traces, Eval Author includes an
+offline reader that creates a private `report.html`
 you can open directly in a browser; see [Local review](../skills/eval-author/references/local-review.md)
 for commands and supported formats.
 
@@ -171,8 +183,8 @@ The Audit coverage report explains what those results mean. Journey state saves
 a measurement summary and references its evidence; failed inputs and missing
 methods keep measurement partial.
 
-Saved audit evidence links original traces and selected suite runs to prepared
-traces, conversion limits, and measurements. Journey state references the saved
+Saved audit evidence links original traces and selected suite runs to loaded
+traces, their `loading.json` receipts, and measurements. Journey state references the saved
 selection manifest. New manifests use
 `.eval-author/.working/audit/selection-manifest.json`, outside the source
 locations. Resumed audits keep their saved manifest path. Changing the original
@@ -222,6 +234,41 @@ for how changed inputs reopen review and measurement.
 For the combined findings review and optional next-action handoff, see
 [Audit coverage](existing-evals.md#audit-coverage).
 
+### Identity-aware coverage results
+
+When measurement uses the paired
+[`--identity-root` and `--identity-selection` flags](existing-evals.md#measure-coverage-with-an-explicit-identity-selection),
+the CLI summary and each per-method `coverage.json` include `identity_preflight`:
+
+- `identity` retains selected artifact records, access states, digests, nullable
+  revisions, and stable diagnostics.
+- `route` retains the declared scorer and dependency checks. `executed_scorer`
+  stays null: resolving a declaration is not evidence that this scorer ran.
+- `route_request` retains the selection used to resolve that route. Aggregation
+  and retained-report verification recompute the route from the selected files
+  and reject an envelope that disagrees with the result.
+- `subject` keeps the measured `task_id` and `run_id`, including IDs from
+  native trial metadata when you supply no override.
+- `measurement_allowed` means the selected identity and source-bound declared
+  route passed the gate. The measured trace must also match its selected path
+  and digest before the CLI writes coverage.
+- `preflight_success` remains false even for a successful coverage measurement.
+  This envelope does not certify workflow readiness, task quality, or rubric
+  criteria.
+
+The aggregate Coverage measurements (JSON) preserves the envelope in each
+`input_reports` entry alongside that input's subject and coverage accounting.
+Aggregation rejects unresolved or inconsistent envelopes rather than upgrading
+them into passing evidence. It validates retained measurement data without
+attesting to a fresh native execution. Ordinary reports without the opt-in
+fields remain supported.
+
+Identity-aware reports without `route_request` must be measured again before
+aggregation. A route envelope alone cannot establish its source binding.
+
+Identity failures leave coverage unmeasured, not 0%. They do not erase earlier
+output files. Do not present an older result as the failed attempt's measurement.
+
 ## Trace workflows
 
 Intake inspection writes a report under `.eval-author/traces/` with observed
@@ -236,9 +283,9 @@ A generated candidate can still have an unproven environment or unresolved
 software requirements. Read those limits before attempting execution or
 [sharing a task](traces.md#sharing-generated-tasks).
 
-Converting a trace to ATIF, the Agent Trajectory Interchange Format, produces a
-structured record for downstream tools. Conversion alone does not measure
-coverage or validate a runnable evaluation task.
+Loading a trace into a NeMo Compass `Trace` produces a structured record for
+downstream tools. Loading alone does not measure coverage or validate a
+runnable evaluation task.
 
 ## Saved output
 
@@ -269,7 +316,6 @@ Workflows may stop before producing every artifact when prerequisites are missin
 | Coverage audit | The four artifacts listed under [Coverage audits](#coverage-audits), plus supporting evidence in `.eval-author/audit-measurements/` |
 | Intake trace inspection | `.eval-author/traces/` |
 | Trace-derived environments (**experimental**) | A private, gitignored workspace per task under `.eval-author/.working/trace-environments/`, with a root `README.md` for generated-case review and reruns; generated batches also have a collection-root guide. No-candidate outcomes do not create a suite guide. |
-| MLflow conversion | One `.atif.json` file per trace in the private output directory you select. |
 
 [Choose another workflow](../README.md#choose-your-journey) or review
 [runtime requirements](getting-started.md#requirements).

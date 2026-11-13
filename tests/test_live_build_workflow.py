@@ -18,6 +18,26 @@ def workflow():
     return yaml.safe_load((ROOT / ".github/workflows/skill-evaluation-live.yml").read_text())
 
 
+@pytest.mark.parametrize("entrypoint", [("pytest",), ("python", "-m", "pytest")], ids=["console", "module"])
+def test_preparation_benchmark_collection_without_pythonpath(entrypoint):
+    env = os.environ.copy()
+    env.pop("PYTHONPATH", None)
+    env["PYTHONDONTWRITEBYTECODE"] = "1"
+    result = subprocess.run(
+        ["uv", "run", "--locked", *entrypoint, "--collect-only", "-q", "tests/test_preparation_benchmark_workflow.py"],
+        cwd=ROOT,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    node_ids = [
+        line for line in result.stdout.splitlines() if line.startswith("tests/test_preparation_benchmark_workflow.py::")
+    ]
+    assert len(node_ids) == len(set(node_ids)) == 38, result.stdout
+
+
 def test_build_once_and_download_before_each_credential_bearing_shard():
     jobs = workflow()["jobs"]
     assert "build-opencode" in jobs, "upstream per-platform build missing"
@@ -50,7 +70,111 @@ def test_download_finishes_before_any_idle_boundary_lease(job_name):
     clock = next(s for s in steps if "EA_LIVE_JOB_DEADLINE=" in s.get("run", ""))
     assert steps.index(clock) < steps.index(download) < steps.index(create)
     assert download["timeout-minutes"] == 2
-    assert download["with"]["name"] == "patched-opencode-linux-amd64-${{ github.run_id }}-${{ github.run_attempt }}"
+    assert download["with"]["name"] == "${{ steps.binary-transport.outputs.name }}"
+
+
+@pytest.mark.parametrize("job_name", ["preparation-timing", "evaluate"])
+@pytest.mark.parametrize("producer_attempt,consumer_attempt", [(1, 1), (2, 2), (1, 2)])
+def test_exact_producer_output_survives_selective_rerun(tmp_path, job_name, producer_attempt, consumer_attempt):
+    jobs = workflow()["jobs"]
+    producer = jobs["build-opencode"]
+    emit = next(s for s in producer["steps"] if s.get("id") == "binary-transport")
+    assert emit.get("if", "success()") == "success()"
+    upload = next(
+        s for s in producer["steps"] if s.get("name") == "Retain verified binary and strict transport manifest"
+    )
+    assert producer["steps"].index(upload) < producer["steps"].index(emit)
+    context = {
+        "github.run_id": "43261221307",
+        "github.run_attempt": str(producer_attempt),
+        "github.sha": "a" * 40,
+        "matrix.platform": "linux/amd64",
+    }
+    output = tmp_path / "producer-output"
+    result = subprocess.run(
+        ["/bin/bash", "-e", "-o", "pipefail", "-c", emit["run"]],
+        cwd=ROOT,
+        env={
+            "PATH": os.defpath,
+            "GITHUB_OUTPUT": str(output),
+            **{key: render_expression(value, context) for key, value in emit["env"].items()},
+        },
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, result.stderr
+    values = dict(line.split("=", 1) for line in output.read_text().splitlines())
+    context.update({f"steps.binary-transport.outputs.{key}": value for key, value in values.items()})
+    context.update(
+        {
+            f"needs.build-opencode.outputs.{key}": render_expression(value, context)
+            for key, value in producer["outputs"].items()
+        }
+    )
+    name = f"patched-opencode-linux-amd64-43261221307-{producer_attempt}"
+    assert render_expression(upload["with"]["name"], context) == name
+    context["github.run_attempt"] = str(consumer_attempt)
+    consumer = next(s for s in jobs[job_name]["steps"] if s.get("id") == "binary-transport")
+    result, bound = run_transport_validation(tmp_path, consumer, context)
+    assert result.returncode == 0, result.stderr
+    context.update({f"steps.binary-transport.outputs.{key}": value for key, value in bound.items()})
+    download = next(s for s in jobs[job_name]["steps"] if s.get("uses", "").startswith("actions/download-artifact@"))
+    assert render_expression(download["with"]["name"], context) == name
+    assert jobs[job_name]["steps"].index(consumer) < jobs[job_name]["steps"].index(download)
+    if job_name == "evaluate":
+        assert consumer["if"] == download["if"]
+
+
+def render_expression(text, context):
+    return re.sub(r"\$\{\{\s*(.*?)\s*\}\}", lambda match: str(context[match[1]]), text)
+
+
+def run_transport_validation(tmp_path, step, context):
+    output = tmp_path / "consumer-output"
+    result = subprocess.run(
+        ["/bin/bash", "-e", "-o", "pipefail", "-c", step["run"]],
+        cwd=ROOT,
+        env={
+            "PATH": os.defpath,
+            "GITHUB_OUTPUT": str(output),
+            **{key: render_expression(value, context) for key, value in step["env"].items()},
+        },
+        capture_output=True,
+        text=True,
+    )
+    values = dict(line.split("=", 1) for line in output.read_text().splitlines()) if output.exists() else {}
+    return result, values
+
+
+@pytest.mark.parametrize("job_name", ["preparation-timing", "evaluate"])
+@pytest.mark.parametrize(
+    "name,revision",
+    [
+        ("", "a" * 40),
+        ("patched-opencode-linux-amd64-999-1", "a" * 40),
+        ("patched-opencode-linux-arm64-43261221307-1", "a" * 40),
+        ("patched-opencode-linux-amd64-43261221307-3", "a" * 40),
+        ("patched-opencode-linux-amd64-43261221307-0", "a" * 40),
+        ("patched-opencode-linux-amd64-43261221307-01", "a" * 40),
+        ("patched-opencode-linux-amd64-43261221307-1", "b" * 40),
+        ("patched-opencode-linux-amd64-43261221307-1", ""),
+        ("$(touch INJECTED)", "a" * 40),
+    ],
+)
+def test_missing_or_foreign_producer_output_fails_closed(tmp_path, job_name, name, revision):
+    step = next(s for s in workflow()["jobs"][job_name]["steps"] if s.get("id") == "binary-transport")
+    context = {
+        "github.run_id": "43261221307",
+        "github.run_attempt": "2",
+        "github.sha": "a" * 40,
+        "needs.build-opencode.outputs.artifact-name": name,
+        "needs.build-opencode.outputs.source-revision": revision,
+    }
+    result, bound = run_transport_validation(tmp_path, step, context)
+    assert result.returncode != 0
+    assert bound == {}
+    assert result.stdout == ""
+    assert result.stderr == "invalid producer artifact binding\n"
 
 
 def test_keyless_pr_timing_uses_real_audit_production_preparation():
@@ -92,6 +216,7 @@ def test_diagnostic_checkpoint_is_opt_in_and_always_retained_without_private_out
     assert set(uploads[0]["with"]["path"].splitlines()) == {
         "${{ runner.temp }}/preparation-timing-summary.json",
         "${{ runner.temp }}/preparation-operation-timing.json",
+        "${{ runner.temp }}/tooling-build-diagnostics.json",
     }
     assert prepare["timeout-minutes"] == 15
     assert timing["timeout-minutes"] == 33
@@ -130,6 +255,27 @@ def test_outer_budget_covers_declared_steps_without_raising_native_caps():
         assert re.search(rf"^{name} = {value}$", runtime, re.M)
 
 
+def test_preparation_budget_retains_upload_headroom_with_shared_setup_deadline():
+    sys.path.insert(0, str(ROOT / "tools"))
+    import live_shard
+
+    job = workflow()["jobs"]["preparation-timing"]
+    steps = job["steps"]
+    clock = next(s for s in steps if "EA_LIVE_JOB_DEADLINE=" in s.get("run", ""))
+    prepare = next(s for s in steps if "live_shard.py prepare" in s.get("run", ""))
+    projection = next(s for s in steps if "tooling_build_diagnostics.py" in s.get("run", ""))
+    assert steps.index(clock) == 1 and "started + LIVE_JOB_SECONDS" in clock["run"]
+    setup = steps[steps.index(clock) : steps.index(prepare) + 1]
+    assert projection in setup
+    effective_setup = min(sum(s["timeout-minutes"] for s in setup) * 60, live_shard.SETUP_SECONDS)
+    assert effective_setup == live_shard.LIVE_JOB_SECONDS - live_shard.RUN_PHASE_SECONDS == 1620
+    outside = [steps[0], *steps[steps.index(prepare) + 1 :]]
+    assert [s["timeout-minutes"] for s in outside] == [2, 1, 2]
+    assert outside[-1]["uses"].startswith("actions/upload-artifact@")
+    assert effective_setup + sum(s["timeout-minutes"] for s in outside) * 60 == 32 * 60
+    assert 32 * 60 < job["timeout-minutes"] * 60 == 33 * 60
+
+
 def test_production_and_pr_share_contained_phase_runner_and_close_before_publish():
     jobs = workflow()["jobs"]
     for job_name in ("evaluate", "preparation-timing"):
@@ -138,7 +284,7 @@ def test_production_and_pr_share_contained_phase_runner_and_close_before_publish
             phase: next(s for s in steps if f"tools/live_shard.py {phase} " in s.get("run", ""))
             for phase in ("create", "runtime", "relocate", "prepare", "close")
         }
-        assert [phases[p]["timeout-minutes"] for p in ("create", "runtime", "relocate", "prepare")] == [4, 5, 1, 15]
+        assert [phases[p]["timeout-minutes"] for p in ("create", "runtime", "relocate", "prepare")] == [7, 5, 1, 15]
         assert [steps.index(phases[p]) for p in ("create", "runtime", "relocate", "prepare", "close")] == sorted(
             steps.index(s) for s in phases.values()
         )
@@ -292,7 +438,6 @@ def test_actual_timing_summary_script_projects_only_typed_aggregates(tmp_path, o
     assert summary["binary_sha256"] == hashlib.sha256(binary.read_bytes()).hexdigest()
     assert summary["model_execution_enabled"] is False
     assert "PRIVATE" not in json.dumps(summary) + result.stdout + result.stderr
-    assert sum(s["timeout-minutes"] for s in job["steps"]) == job["timeout-minutes"]
 
 
 def summary_shell_fixture(tmp_path):
@@ -358,6 +503,42 @@ def test_evaluate_shell_never_stages_after_close_failure(tmp_path):
     assert result.stdout == "live shard phase failed; private evidence retained\n"
     assert result.stderr == ""
     assert not (tmp_path / "skill-publish").exists()
+
+
+@pytest.mark.parametrize("job_name", ["preparation-timing", "evaluate"])
+def test_build_diagnostics_projection_is_always_independent_of_fatal_close(tmp_path, job_name):
+    steps = workflow()["jobs"][job_name]["steps"]
+    projections = [s for s in steps if "tooling_build_diagnostics.py" in s.get("run", "")]
+    assert len(projections) == 1, "missing always-run safe build projection"
+    projection = projections[0]
+    close = next(s for s in steps if "live_shard.py close " in s.get("run", ""))
+    assert steps.index(projection) < steps.index(close)
+    assert "always()" in projection["if"] and "always()" in close["if"]
+    assert "secrets." not in json.dumps(projection)
+    assert '"$RUNNER_TEMP/live-shard/control/image/build-diagnostics.json"' in projection["run"]
+    upload = next(s for s in steps if "tooling-build-diagnostics.json" in s.get("with", {}).get("path", ""))
+    assert "always()" in upload["if"]
+    public_path = (
+        "skill-publish/tooling-build-diagnostics.json" if job_name == "evaluate" else "tooling-build-diagnostics.json"
+    )
+    assert "${{ runner.temp }}/" + public_path in upload["with"]["path"].splitlines()
+    # Execute the YAML body, substituting only sudo/python; source stays absent.
+    shim = tmp_path / "sudo"
+    shim.write_text(f'#!/bin/sh\nshift\nexec "{sys.executable}" "$@"\n')
+    shim.chmod(0o700)
+    result = subprocess.run(
+        ["/bin/bash", "-e", "-o", "pipefail", "-c", projection["run"]],
+        cwd=ROOT,
+        env={
+            "PATH": str(tmp_path) + os.pathsep + os.defpath,
+            "RUNNER_TEMP": str(tmp_path),
+            "PYTHONDONTWRITEBYTECODE": "1",
+        },
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0
+    assert json.loads((tmp_path / public_path).read_text())["failure_category"] == "checkpoint_unavailable"
 
 
 @pytest.mark.parametrize(

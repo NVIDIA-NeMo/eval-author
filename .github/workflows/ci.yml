@@ -46,7 +46,8 @@ jobs:
         run: |
           echo "$UV_TOOL_BIN_DIR" >> "$GITHUB_PATH"
           export PATH="$UV_TOOL_BIN_DIR:$PATH"
-          uv tool install --python 3.12 'skillevaluator[security] @ git+https://github.com/NVIDIA/SkillEvaluator.git@3fd2cf57e4a2af01f282e001f7515b6e76f18ec7' # v0.7.0
+          uv venv --python 3.12 "$RUNNER_TEMP/static-evaluator"
+          python tools/install_evaluator.py --python "$RUNNER_TEMP/static-evaluator/bin/python" --extra security
           uv tool install --python 3.12 semgrep==1.177.0
           curl --fail --location --silent --show-error https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz --output "$RUNNER_TEMP/gitleaks_8.30.1_linux_x64.tar.gz"
           curl --fail --location --silent --show-error https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_checksums.txt --output "$RUNNER_TEMP/gitleaks-checksums.txt"
@@ -55,7 +56,7 @@ jobs:
           tar -xzf gitleaks_8.30.1_linux_x64.tar.gz -C "$UV_TOOL_BIN_DIR" gitleaks
       - name: Scan Eval Author and ethos skills
         if: ${{ !cancelled() }}
-        run: python tools/collect_skill_evaluations.py --output "$RUNNER_TEMP/skill-evaluations"
+        run: python tools/collect_skill_evaluations.py --evaluator "$RUNNER_TEMP/static-evaluator/bin/skillevaluator" --output "$RUNNER_TEMP/skill-evaluations"
       - name: Stage full native reports for private retention
         if: ${{ always() && github.event.repository.private == true }}
         run: python tools/stage_skill_reports.py --source "$RUNNER_TEMP/skill-evaluations" --output "$RUNNER_TEMP/skill-evaluations-reports"
@@ -144,6 +145,10 @@ jobs:
           chmod +x "$RUNNER_TEMP/osv-scanner"
           echo "$RUNNER_TEMP" >> "$GITHUB_PATH"
 
+      - name: Check evaluator lock drift
+        if: matrix.python-version == '3.12'
+        run: make check-evaluator-locks
+
       - name: Check runtime policy
         run: uv run --locked python tools/check_runtime_policy.py
 
@@ -157,7 +162,15 @@ jobs:
       - name: Type check
         run: uv run --locked ty check --python-version ${{ matrix.python-version }}
       - run: uv run --locked ruff format --check .
-      - run: uv run --locked pytest -q -rs
+      - name: Acquire isolated patched APT for native retry tests
+        timeout-minutes: 3
+        run: bash tools/bootstrap_native_apt.sh "$RUNNER_TEMP/native-apt"
+
+      - name: Run tests across runner CPUs
+        env:
+          PYTHONDONTWRITEBYTECODE: "1"
+          EVAL_AUTHOR_NATIVE_APT_ROOT: ${{ runner.temp }}/native-apt
+        run: uv run --locked pytest -q -rs --durations=10 -n auto --dist worksteal --basetemp="$RUNNER_TEMP/pytest"
   verifier-cheats:
     if: >-
       github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule' ||
@@ -208,8 +221,6 @@ jobs:
             artifact: gym
           - route: trace
             artifact: gym-trace
-          - route: ng-trajectory
-            artifact: gym-ng-trajectory
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:

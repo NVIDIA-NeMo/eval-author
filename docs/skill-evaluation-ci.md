@@ -318,8 +318,20 @@ phase/image boundaries. It records only fixed event, phase, operation and failur
 categories; completed unique trial-image count; a one-based trial-image ordinal
 (zero before any image); and monotonic operation, image and total elapsed seconds
 with remaining preparation budget. Image completion means its offline probe
-passed. Shared dependency work is included in the first image's elapsed time.
-These are host-operation boundary timings, including checkpoint overhead, not
+passed. Shared dependency work is measured before trial-image clocks start.
+`tools/prepare_live_images.py --workers {1,2,4,8}` and
+`tools/live_shard.py prepare --workers {1,2,4,8}` explicitly select bounded
+concurrent task-image chains. Ordinary required preparation defaults to two
+workers; `--workers 1` explicitly restores serial preparation. The 1/2/4/8
+benchmark overrides remain available; the default is not a measured speedup claim.
+The immutable shared default dependency parent is
+built once; each unique task identity retains source-build, layer-build and
+offline-probe order. All workers share the same absolute preparation deadline.
+On failure, new chains stop admission and admitted clients settle before outer
+owned teardown; no incomplete manifest is published. Concurrent checkpoints
+retain schema version 1, stable plan ordinals and global completion counts;
+operation/image durations are worker-local, so completion ordinals may be out
+of order. These are host-operation boundary timings, including checkpoint overhead, not
 Dockerfile instruction or package timings; build instruction progress is not
 observed. No command arguments, image IDs, paths, environment values or task/log
 content are emitted. Console progress and retained history stop at 2048 events;
@@ -378,6 +390,56 @@ Download reports from the workflow run's **Artifacts** section:
   build status, timing, and provenance, including a fixed failure category.
 - `preparation-timing-<run-id>-<attempt>` contains the hosted AMD64 Audit setup
   duration and step outcomes, without native logs or task inputs.
+
+Both preparation timing and evaluation shard artifacts include the exact
+`tooling-build-diagnostics.json` file. A separate always-run projection prints
+the same allowlisted diagnostic fields to the CI log immediately after create,
+before inference credentials are passed. It is independent of final cleanup:
+cleanup failure remains fatal and still prevents staging evaluation results.
+The tooling build has a 360-second cap. Image inspection uses the remaining time.
+APT may retry a transient package-download failure once within that budget.
+The build itself is not retried. Permanent errors and failed hash checks remain fatal.
+
+The diagnostic records host phase, elapsed/build/inspection seconds, process
+exit code when available, and fixed failure categories. `observed_stage` is
+only the last recognized marker in a bounded 256 KiB tail scan: apt index, apt bootstrap,
+apt acquisition, plan validation, staging, download, promotion, apt install,
+Compose download, Compose verification, version checks, or `complete`.
+The last marker does not identify a stalled package or prove the build met its budget.
+
+Schema version 2 adds `stage_timing_status` (`observed`, `unavailable`, or
+`invalid`), `timing_origin_stage`, `stage_start_offsets_seconds`,
+`completed_stage_seconds`, and `open_stage`. Fixed recipe markers sample Linux
+`/proc/uptime`; only offsets and durations (0–86400 seconds, centisecond precision)
+are published, never absolute uptime or raw log text. Maps contain only the fixed
+stage names above, plus `apt_cleanup`, emitted immediately after successful
+`apt-get --no-download install` and before helper/recipe cleanup. Durations require
+both starts of adjacent recipe stages; a missing boundary is not bridged.
+`open_stage` has no observed closing boundary, not a measured interrupted-stage
+duration; `complete` clears it to `unknown`. Process failure/timeout is reported
+separately. Even a successful process does not invent a missing closing marker.
+
+The first retained marker is **not the build clock origin**. Its offset is zero;
+image pulls, earlier COPY work, evicted markers, and time after the final marker
+remain unmeasured. Do not subtract these offsets from host `build_seconds` to
+claim an interrupted install duration. A truncated tail can still provide local
+stage durations, not total budget attribution. Duplicate, backwards, malformed,
+out-of-range or mixed timed/untimed marker sequences discard timing as `invalid`.
+Old schema-1 checkpoints and untimed logs remain readable with timing unavailable.
+`apt_cleanup` also includes the intervening layer export before Compose starts.
+Markers are observations of untrusted Docker output, **not attested causes**;
+cached, absent, truncated, or unrecognized markers can leave the stage unknown.
+No network-error wording is used to infer a root cause. A process killed before
+its final checkpoint can retain `running`, which does not prove it is still alive.
+
+Raw `build.log`, inspection payloads, paths, URLs, arbitrary exception strings,
+and Docker lines remain private and are never uploaded. The public projection
+accepts only an exact typed schema from a regular, single-link file no larger
+than 4 KiB, rejecting symlinks (including ancestors), malformed JSON, duplicate
+keys, and unknown fields. Missing or invalid checkpoints produce fixed
+unavailable diagnostics, not guessed failures. A projection write failure prints
+only `projection_failed`; it does not skip otherwise eligible runtime, preparation,
+or evaluation steps and cannot suppress the separate always-run cleanup.
 
 Aggregation accepts only matching revisions, policies, and the current run
 attempt. Use **Re-run all jobs** for a complete retry; rerunning only failed jobs

@@ -19,11 +19,12 @@ from pathlib import Path
 from live_agent_diagnostics import read_regular
 from live_shard_boundary import attach_boundary, close_boundary, create_boundary, execute_in_boundary, handoff_boundary
 from patched_opencode_runtime import (
-    EVALUATOR_REVISION,
+    DEFAULT_PREPARATION_WORKERS,
     LIVE_EXECUTION_SECONDS,
     LIVE_HANDOFF_SECONDS,
     PREPARATION_TIMEOUT_SECONDS,
     PREPARATION_TIMING_MAX_BYTES,
+    PREPARATION_WORKERS,
     validate_preparation_timing,
 )
 
@@ -62,7 +63,13 @@ def parse_args(argv=None):
     parser.add_argument("--platform", choices=("linux/amd64", "linux/arm64"), default="linux/amd64")
     parser.add_argument("--download", type=Path)
     parser.add_argument("--timing-checkpoint", type=Path)
-    return parser.parse_args(argv)
+    parser.add_argument("--workers", type=int, choices=PREPARATION_WORKERS, default=None)
+    args = parser.parse_args(argv)
+    if args.workers is not None and args.phase != "prepare":
+        parser.error("--workers is only supported for prepare")
+    if args.phase == "prepare" and args.workers is None:
+        args.workers = DEFAULT_PREPARATION_WORKERS
+    return args
 
 
 def publish_timing(root, output):
@@ -193,12 +200,12 @@ def _run_phase(args):
             extras = "tier3" if config["check"] == "live" else "tier2"
             execute(
                 [
-                    "uv",
-                    "pip",
-                    "install",
+                    python,
+                    str(repo / "tools/install_evaluator.py"),
                     "--python",
                     python,
-                    f"skillevaluator[{extras}] @ git+https://github.com/NVIDIA/SkillEvaluator.git@{EVALUATOR_REVISION}",
+                    "--extra",
+                    extras,
                 ],
                 "install",
             )
@@ -251,6 +258,7 @@ def _run_phase(args):
             ]
             if args.timing_checkpoint:
                 argv.extend(["--timing-checkpoint", str(workspace / "preparation-operation-timing.json")])
+            argv.extend(["--workers", str(args.workers)])
             execute(argv, "prepare")
         elif args.phase == "run":
             if not math.isfinite(config["deadline"]) or config["deadline"] - time.monotonic() <= RUN_PHASE_SECONDS:

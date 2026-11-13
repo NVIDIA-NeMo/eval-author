@@ -14,6 +14,15 @@ on:
         description: Run live evaluation on main
         type: boolean
         default: false
+      prep_benchmark:
+        description: Benchmark credential-free full Audit preparation (requires run_live=false)
+        type: boolean
+        default: false
+      prep_workers:
+        description: Preparation workers for prep_benchmark only; dispatch runs sequentially
+        type: choice
+        options: ['1', '2', '4', '8']
+        default: '1'
       tier:
         description: Tiers to evaluate
         type: choice
@@ -70,6 +79,7 @@ jobs:
   authorize:
     needs: plan
     if: >-
+      !inputs.prep_benchmark &&
       vars.SKILL_EVALUATION_LIVE_ENABLED == 'true' &&
       github.ref == 'refs/heads/main' &&
       (github.event_name == 'push' ||
@@ -95,6 +105,9 @@ jobs:
 
   build-opencode:
     needs: plan
+    outputs:
+      artifact-name: ${{ steps.binary-transport.outputs.artifact-name }}
+      source-revision: ${{ steps.binary-transport.outputs.source-revision }}
     if: >-
       github.event_name == 'pull_request' ||
       (github.event_name == 'workflow_dispatch' && !inputs.run_live) ||
@@ -121,12 +134,23 @@ jobs:
         timeout-minutes: 2
         if: success()
         with:
-          name: patched-opencode-${{ matrix.platform == 'linux/amd64' && 'linux-amd64' || 'linux-arm64' }}-${{ github.run_id }}-${{ github.run_attempt }}
+          name: &producer-artifact-name patched-opencode-linux-amd64-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
             ${{ runner.temp }}/opencode-artifact/opencode
             ${{ runner.temp }}/opencode-artifact/binary-manifest.json
           retention-days: 7
           if-no-files-found: error
+      # Unrerun jobs retain outputs: https://docs.github.com/en/actions/how-tos/manage-workflow-runs/re-run-workflows-and-jobs
+      - name: Bind the successfully uploaded producer artifact
+        id: binary-transport
+        timeout-minutes: 1
+        env:
+          ARTIFACT_NAME: *producer-artifact-name
+          SOURCE_REVISION: ${{ github.sha }}
+          BUILD_PLATFORM: ${{ matrix.platform }}
+        run: |
+          test "$BUILD_PLATFORM" = linux/amd64
+          printf 'artifact-name=%s\nsource-revision=%s\n' "$ARTIFACT_NAME" "$SOURCE_REVISION" >> "$GITHUB_OUTPUT"
       - name: Retain allowlisted build status and provenance, never logs
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         timeout-minutes: 1
@@ -165,18 +189,47 @@ jobs:
               stream.write(f"EA_PREPARATION_STARTED={started}\nEA_LIVE_JOB_DEADLINE={started + LIVE_JOB_SECONDS}\n")
           PY
       # Download before creating a boundary: its 120s idle lease is not a download budget.
+      - name: Validate the exact retained producer artifact binding
+        id: binary-transport
+        timeout-minutes: 1
+        env: &binary-transport-env
+          PRODUCER_ARTIFACT: ${{ needs.build-opencode.outputs.artifact-name }}
+          PRODUCER_REVISION: ${{ needs.build-opencode.outputs.source-revision }}
+          CURRENT_RUN: ${{ github.run_id }}
+          CURRENT_ATTEMPT: ${{ github.run_attempt }}
+          CURRENT_REVISION: ${{ github.sha }}
+        run: &binary-transport-validation |
+          reject() { echo 'invalid producer artifact binding' >&2; exit 1; }
+          [[ "$CURRENT_RUN" =~ ^[1-9][0-9]*$ ]] || reject
+          [[ "$CURRENT_ATTEMPT" =~ ^[1-9][0-9]{0,8}$ ]] || reject
+          [[ "$CURRENT_REVISION" =~ ^[a-f0-9]{40}$ ]] || reject
+          test "$PRODUCER_REVISION" = "$CURRENT_REVISION" || reject
+          prefix="patched-opencode-linux-amd64-$CURRENT_RUN-"
+          test "${PRODUCER_ARTIFACT#"$prefix"}" != "$PRODUCER_ARTIFACT" || reject
+          attempt="${PRODUCER_ARTIFACT#"$prefix"}"
+          [[ "$attempt" =~ ^[1-9][0-9]{0,8}$ ]] || reject
+          (( attempt <= CURRENT_ATTEMPT )) || reject
+          printf 'name=%s\n' "$PRODUCER_ARTIFACT" >> "$GITHUB_OUTPUT"
       - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
         id: download
         timeout-minutes: 2
         with: &binary-download
-          name: patched-opencode-linux-amd64-${{ github.run_id }}-${{ github.run_attempt }}
+          name: ${{ steps.binary-transport.outputs.name }}
           path: ${{ runner.temp }}/downloaded-opencode
       - name: Create disposable shard boundary and pinned execution image
         id: boundary
-        timeout-minutes: 4
+        timeout-minutes: 7
         run: &create-boundary >-
           sudo --preserve-env=EA_LIVE_JOB_DEADLINE,GITHUB_ACTIONS,RUNNER_ENVIRONMENT,SHARD_TIER,SHARD_CHECK,SHARD_SKILL
           python3 tools/live_shard.py create --root "$RUNNER_TEMP/live-shard"
+      - name: Publish only allowlisted tooling build diagnostics
+        continue-on-error: true
+        timeout-minutes: 1
+        if: always()
+        run: >-
+          sudo python3 tools/tooling_build_diagnostics.py
+          --source "$RUNNER_TEMP/live-shard/control/image/build-diagnostics.json"
+          --output "$RUNNER_TEMP/tooling-build-diagnostics.json"
       - name: Install isolated evaluator runtime
         id: runtime
         timeout-minutes: 5
@@ -190,8 +243,20 @@ jobs:
       - name: Prepare full skills/eval-author-audit dataset without models
         id: prepare
         timeout-minutes: 15
+        env:
+          PREP_BENCHMARK: ${{ github.event_name == 'workflow_dispatch' && inputs.prep_benchmark && !inputs.run_live }}
+          PREP_WORKERS: ${{ inputs.prep_workers || '1' }}
         run: |
-          sudo python3 tools/live_shard.py prepare --root "$RUNNER_TEMP/live-shard" --timing-checkpoint "$RUNNER_TEMP/preparation-operation-timing.json"
+          if test "$PREP_BENCHMARK" = true; then
+            case "$PREP_WORKERS" in
+              1|2|4|8) ;;
+              *) echo 'invalid preparation worker selection' >&2; exit 1 ;;
+            esac
+            printf 'Credential-free full Audit preparation benchmark; workers: %s.\n' "$PREP_WORKERS" >> "$GITHUB_STEP_SUMMARY"
+            sudo python3 tools/live_shard.py prepare --root "$RUNNER_TEMP/live-shard" --timing-checkpoint "$RUNNER_TEMP/preparation-operation-timing.json" --workers "$PREP_WORKERS"
+          else
+            sudo python3 tools/live_shard.py prepare --root "$RUNNER_TEMP/live-shard" --timing-checkpoint "$RUNNER_TEMP/preparation-operation-timing.json"
+          fi
       - name: Summarize hosted preparation timing without raw payloads
         timeout-minutes: 1
         if: always()
@@ -266,6 +331,7 @@ jobs:
           path: |
             ${{ runner.temp }}/preparation-timing-summary.json
             ${{ runner.temp }}/preparation-operation-timing.json
+            ${{ runner.temp }}/tooling-build-diagnostics.json
           retention-days: 30
           if-no-files-found: error
 
@@ -308,14 +374,28 @@ jobs:
           # Checkout has its own 2m cap; 3m remain for staging/upload after T0+75m.
           python -c 'import os,sys,time; started=time.monotonic(); sys.path.insert(0, "tools"); from live_shard import LIVE_JOB_SECONDS; open(os.environ["GITHUB_ENV"], "a").write(f"EA_LIVE_JOB_DEADLINE={started + LIVE_JOB_SECONDS}\n")'
           python tools/live_ci.py initialize --models-resolved --tier "$SHARD_TIER" --skill "$SHARD_SKILL" --check "$SHARD_CHECK" --output "$RUNNER_TEMP/skill-publish"
+      - name: Validate the exact retained producer artifact binding
+        id: binary-transport
+        timeout-minutes: 1
+        if: matrix.check == 'live' && matrix.id != 'none'
+        env: *binary-transport-env
+        run: *binary-transport-validation
       - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
         timeout-minutes: 2
         if: matrix.check == 'live' && matrix.id != 'none'
         with: *binary-download
       - name: Create disposable shard boundary and pinned execution image
-        timeout-minutes: 4
+        timeout-minutes: 7
         if: matrix.id != 'none'
         run: *create-boundary
+      - name: Publish only allowlisted tooling build diagnostics
+        continue-on-error: true
+        timeout-minutes: 1
+        if: always() && matrix.id != 'none'
+        run: >-
+          sudo python3 tools/tooling_build_diagnostics.py
+          --source "$RUNNER_TEMP/live-shard/control/image/build-diagnostics.json"
+          --output "$RUNNER_TEMP/skill-publish/tooling-build-diagnostics.json"
       - name: Install isolated evaluator runtime
         timeout-minutes: 5
         if: matrix.id != 'none'
@@ -348,14 +428,16 @@ jobs:
         if: always() && matrix.id != 'none'
         with:
           name: skill-shard-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.id }}
-          path: ${{ runner.temp }}/skill-publish/live-skillevaluator-summary.*
+          path: |
+            ${{ runner.temp }}/skill-publish/live-skillevaluator-summary.*
+            ${{ runner.temp }}/skill-publish/tooling-build-diagnostics.json
           retention-days: 30
           if-no-files-found: error
 
   aggregate:
     needs: [plan, authorize, evaluate]
     if: >-
-      always() && vars.SKILL_EVALUATION_LIVE_ENABLED == 'true' &&
+      always() && !inputs.prep_benchmark && vars.SKILL_EVALUATION_LIVE_ENABLED == 'true' &&
       github.ref == 'refs/heads/main' &&
       (github.event_name == 'push' ||
        (github.event_name == 'workflow_dispatch' && inputs.run_live))

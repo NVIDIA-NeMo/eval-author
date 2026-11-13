@@ -96,9 +96,10 @@ source paths. This makes the denominator explicit and reruns idempotent:
 
 ```json
 {
-  "schema": "nemo.eval_author.trace_environment_batch.v1",
+  "schema": "nemo.eval_author.trace_environment_batch.v2",
   "members": [
-    {"task_id": "stable-id", "atif": "private-source.atif.json", "source_kind": "atif"}
+    {"task_id": "stable-id", "source": "private-source.atif.json", "source_kind": "atif"},
+    {"task_id": "gym-id", "source": "private-rollouts.jsonl", "source_kind": "gym", "row": 3}
   ]
 }
 ```
@@ -125,7 +126,7 @@ Report the task ID, `candidate` or `no_candidate`, state basis, ground-truth
 availability and artifact count, required software and licensing constraints,
 environment status, technical status, check evidence mode, repair count,
 review status, verifier isolation, privacy review status, NOP and Oracle
-rewards when run, construction qualification (historical proof is `unmeasured`),
+rewards when run, construction qualification,
 and paths to `summary.md` and the generated task. A
 `valid: true` check proves the recorded files are internally consistent;
 Harbor is the authority for whether the task actually runs.

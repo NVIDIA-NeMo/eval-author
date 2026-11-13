@@ -21,7 +21,7 @@
   "properties": {
     "schema": {
       "description": "Version marker for tool-call measurement details.",
-      "const": "nemo.eval_author.audit_tool_calls_details.v1"
+      "const": "nemo.eval_author.audit_tool_calls_details.v2"
     },
     "audit": {
       "description": "Audit spec metadata for the denominator used by this measurement.",
@@ -61,7 +61,7 @@
       "$ref": "#/$defs/nameList"
     },
     "observed_tool_calls": {
-      "description": "All tool calls found in the ATIF trace.",
+      "description": "All named TOOL spans found in the trace, depth-first.",
       "type": "array",
       "items": {
         "$ref": "#/$defs/toolCall"
@@ -159,6 +159,7 @@
       "required": [
         "trace",
         "trace_format",
+        "source_kind",
         "task_id",
         "run_id"
       ],
@@ -168,8 +169,17 @@
           "$ref": "#/$defs/pathString"
         },
         "trace_format": {
-          "description": "Trace serialization format understood by the measurement method.",
-          "const": "atif"
+          "description": "Normalized trace model the measurement method read.",
+          "const": "nemo-compass-trace"
+        },
+        "source_kind": {
+          "description": "Source format the trace was loaded from by the shared NeMo Compass loader.",
+          "enum": [
+            "atif",
+            "mlflow",
+            "gym",
+            "trace"
+          ]
         },
         "task_id": {
           "description": "Stable task, scenario, or case identifier for grouping measurements.",
@@ -198,25 +208,20 @@
       "additionalProperties": false,
       "required": [
         "tool",
-        "trajectory_path"
+        "span_id"
       ],
       "properties": {
         "tool": {
           "$ref": "#/$defs/nonEmptyString"
         },
-        "trajectory_path": {
+        "span_id": {
+          "description": "Id of the TOOL span in the loaded NeMo Compass trace.",
           "$ref": "#/$defs/nonEmptyString"
-        },
-        "step_id": {
-          "type": [
-            "integer",
-            "string"
-          ]
         },
         "tool_call_id": {
           "$ref": "#/$defs/nonEmptyString"
         },
-        "trajectory_id": {
+        "trace_id": {
           "$ref": "#/$defs/nonEmptyString"
         }
       }

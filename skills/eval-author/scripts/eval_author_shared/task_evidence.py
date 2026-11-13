@@ -350,7 +350,7 @@ def run(
     if purpose not in ("baseline", "closure"):
         raise EvidenceError("purpose must be baseline or closure")
     if purpose == "closure" and case["kind"] == "agent" and trace is None:
-        raise EvidenceError("agent evidence requires a fresh ATIF trace")
+        raise EvidenceError("agent evidence requires a fresh trace")
     paths = [output, result] + ([trace] if trace is not None else [])
     if len({p.resolve() for p in paths}) != len(paths):
         raise EvidenceError("receipt, native result, and trace must have distinct paths")
@@ -933,16 +933,8 @@ def _run_input_path(task_dir: Path, job_dir: Path) -> Path:
     return task_dir / "private" / "run-inputs" / f"{hashlib.sha256(relative.encode()).hexdigest()}.json"
 
 
-def _construction_context(task_dir: Path) -> dict[str, Any] | None:
-    summary = _workspace._load_summary(task_dir)
-    path = task_dir / construction.PATH
-    if summary["schema"] == _workspace.SCHEMA:
-        marker = task_dir / "private/active-construction.json"
-        if path.exists() or path.is_symlink() or marker.exists() or marker.is_symlink():
-            raise _workspace.ContractError(
-                "historical workspace cannot adopt construction evidence in place; initialize a new workspace"
-            )
-        return None
+def _construction_context(task_dir: Path) -> dict[str, Any]:
+    _workspace._load_summary(task_dir)
     try:
         return construction.validate(task_dir)
     except (ValueError, OSError, KeyError, TypeError, RecursionError) as error:
@@ -1020,13 +1012,11 @@ def _record_run_inputs(args: argparse.Namespace) -> dict[str, Any]:
     reproducibility = _workspace._validate_reproducibility(task_dir)
     context = _construction_context(task_dir)
     control_id = getattr(args, "control_id", None)
-    if context is not None and args.arm in construction.CUSTOM_ARMS:
+    if args.arm in construction.CUSTOM_ARMS:
         if control_id not in context["controls"] or context["controls"][control_id]["arm"] != args.arm:
             raise _workspace.ContractError("custom proof arm requires a matching declared --control-id")
-    elif context is not None and control_id is not None:
+    elif control_id is not None:
         raise _workspace.ContractError("built-in arms must not identify custom controls")
-    elif control_id is not None or args.arm in ("alternative", "bypass"):
-        raise _workspace.ContractError("control IDs, alternative and bypass arms require a construction contract")
     control = None
     if args.arm in construction.CUSTOM_ARMS:
         if not args.negative_agent or args.negative_source is None or not args.negative_rationale:
@@ -1044,15 +1034,12 @@ def _record_run_inputs(args: argparse.Namespace) -> dict[str, Any]:
         "job_dir": job_dir.relative_to(task_dir).as_posix(),
         "task_tree_sha256": reproducibility["task_tree_sha256"],
         "task_checksum": _harbor_task_checksum(task_dir),
-        # Keep the v1 receipt field name for both control arms.
+        # `negative_control` records the control of every custom arm.
         "negative_control": control,
+        "construction_sha256": context["sha256"],
+        "control_id": control_id,
+        "construction_path": context["canonical_path"],
     }
-    if context is not None:
-        receipt.update(
-            schema=_workspace.QUALIFIED_RUN_INPUT_SCHEMA, construction_sha256=context["sha256"], control_id=control_id
-        )
-        if "canonical_path" in context:
-            receipt.update(schema=_workspace.CANONICAL_RUN_INPUT_SCHEMA, construction_path=context["canonical_path"])
     _workspace._mkdir_private(output.parent)
     _workspace._write_bytes_once(output, (json.dumps(receipt, indent=2, sort_keys=True) + "\n").encode())
     return {
@@ -1071,38 +1058,41 @@ def _validate_run_inputs(
         path, label="pre-run inputs (record-run-inputs is required before every Harbor job)"
     )
     context = _construction_context(task_dir)
-    keys = {"schema", "arm", "job_dir", "task_tree_sha256", "task_checksum", "negative_control"}
-    if context is not None:
-        keys |= {"construction_sha256", "control_id"}
-    schema = _workspace.QUALIFIED_RUN_INPUT_SCHEMA if context is not None else _workspace.RUN_INPUT_SCHEMA
-    if context is not None and "canonical_path" in context:
-        keys.add("construction_path")
-        schema = _workspace.CANONICAL_RUN_INPUT_SCHEMA
-        require_binding(
-            receipt.get("construction_path"),
-            context["canonical_path"],
-            "pre-run construction path changed",
-            _workspace.ContractError,
-        )
-    if set(receipt) != keys or receipt.get("schema") != schema:
+    keys = {
+        "schema",
+        "arm",
+        "job_dir",
+        "task_tree_sha256",
+        "task_checksum",
+        "negative_control",
+        "construction_sha256",
+        "control_id",
+        "construction_path",
+    }
+    if set(receipt) != keys or receipt.get("schema") != _workspace.RUN_INPUT_SCHEMA:
         raise _workspace.ContractError("run inputs do not match the versioned contract")
-    if context is not None:
-        require_binding(
-            receipt["construction_sha256"],
-            context["sha256"],
-            "pre-run construction contract changed; fresh jobs required",
-            _workspace.ContractError,
-        )
-        control_id = receipt["control_id"]
-        if arm in construction.CUSTOM_ARMS:
-            if (
-                not isinstance(control_id, str)
-                or control_id not in context["controls"]
-                or context["controls"][control_id]["arm"] != arm
-            ):
-                raise _workspace.ContractError("pre-run control differs from construction contract")
-        elif control_id is not None:
-            raise _workspace.ContractError("built-in arms must not identify custom controls")
+    require_binding(
+        receipt["construction_path"],
+        context["canonical_path"],
+        "pre-run construction path changed",
+        _workspace.ContractError,
+    )
+    require_binding(
+        receipt["construction_sha256"],
+        context["sha256"],
+        "pre-run construction contract changed; fresh jobs required",
+        _workspace.ContractError,
+    )
+    control_id = receipt["control_id"]
+    if arm in construction.CUSTOM_ARMS:
+        if (
+            not isinstance(control_id, str)
+            or control_id not in context["controls"]
+            or context["controls"][control_id]["arm"] != arm
+        ):
+            raise _workspace.ContractError("pre-run control differs from construction contract")
+    elif control_id is not None:
+        raise _workspace.ContractError("built-in arms must not identify custom controls")
     if receipt["arm"] != arm or receipt["job_dir"] != job_dir.relative_to(task_dir).as_posix():
         raise _workspace.ContractError("run inputs identify a different Harbor job or proof arm")
     if receipt["task_tree_sha256"] != task_digest or receipt["task_checksum"] != checksum:
@@ -1166,7 +1156,6 @@ def _validation_from_jobs(
     negative_job_dirs: list[str | Path],
     harbor_version: str,
     *,
-    allow_aggregate_only: bool = False,
     copy_job_dirs: list[str | Path] | None = None,
     alternative_job_dirs: list[str | Path] | None = None,
     bypass_job_dirs: list[str | Path] | None = None,
@@ -1182,15 +1171,10 @@ def _validation_from_jobs(
         "oracle": oracle_job_dirs,
         "negative": negative_job_dirs,
         "copy": copy_job_dirs or [],
+        "alternative": alternative_job_dirs or [],
+        "bypass": bypass_job_dirs or [],
     }
     minimum_runs = dict(_workspace._MIN_VALIDATION_RUNS)
-    if context is not None:
-        inputs.update(alternative=alternative_job_dirs or [], bypass=bypass_job_dirs or [])
-        minimum_runs.update(alternative=1, bypass=0)
-        if allow_aggregate_only:
-            raise _workspace.ContractError("construction qualification requires per-check evidence")
-    elif alternative_job_dirs or bypass_job_dirs:
-        raise _workspace.ContractError("additional proof arms require a construction contract")
     for arm, minimum in minimum_runs.items():
         if len(inputs[arm]) < minimum:
             raise _workspace.ContractError(f"validation requires at least {minimum} independent {arm} Harbor jobs")
@@ -1210,55 +1194,36 @@ def _validation_from_jobs(
             run = {**_arm_from_result(task_dir, job_dir, result_path, result), **run_inputs}
             if checks is not None:
                 run["checks"] = checks
-            if context is not None:
-                receipt = _workspace._load_object(_run_input_path(task_dir, job_dir), label="run inputs")
-                try:
-                    run["construction_execution"] = construction.execution(
-                        task_dir, result_path, context, receipt["control_id"]
-                    )
-                except (ValueError, OSError, KeyError, TypeError, RecursionError) as error:
-                    raise _workspace.ContractError(
-                        "missing, malformed or stale construction execution evidence"
-                    ) from error
+            receipt = _workspace._load_object(_run_input_path(task_dir, job_dir), label="run inputs")
+            try:
+                run["construction_execution"] = construction.execution(
+                    task_dir, result_path, context, receipt["control_id"]
+                )
+            except (ValueError, OSError, KeyError, TypeError, RecursionError) as error:
+                raise _workspace.ContractError("missing, malformed or stale construction execution evidence") from error
             runs[arm].append(run)
-    if copy_job_dirs and any(rows is None for rows in check_rows):
-        raise _workspace.ContractError(
-            "copy probes require per-check rows in every proof job; aggregate-only evidence is insufficient"
-        )
     if any(rows is None for rows in check_rows):
-        if any(rows is not None for rows in check_rows):
-            raise _workspace.ContractError(
-                "either every proof job or none must retain /logs/verifier/results check rows"
-            )
-        if not allow_aggregate_only:
-            raise _workspace.ContractError(
-                "missing_check_evidence: proof jobs retain no per-check rows; author the per-check grammar "
-                "(references/check-grammar.md) and rerun, or record historical proof with --allow-aggregate-only"
-            )
-        check_evidence = "aggregate_only"
-    else:
-        check_evidence = "per_check"
-        expected_ids = [{row["check_id"] for row in rows} for rows in check_rows if rows is not None]
-        if any(ids != expected_ids[0] for ids in expected_ids):
-            raise _workspace.ContractError("all proof jobs must report the same per-check ID set")
-        for run in runs["nop"]:
-            passed_checks = [row["check_id"] for row in run["checks"] if row["status"] == "PASS"]
-            if passed_checks:
-                raise _workspace.ContractError(
-                    f"untouched environment passes scored checks: {', '.join(passed_checks)}"
-                )
-        for run in runs["oracle"]:
-            failed_checks = [row["check_id"] for row in run["checks"] if row["status"] != "PASS"]
-            if failed_checks and run["reward"] == 1:
-                raise _workspace.ContractError(
-                    f"oracle reward 1 conflicts with failing checks: {', '.join(failed_checks)}"
-                )
-        for arm in ("negative", "copy", "alternative", "bypass"):
-            for run in runs.get(arm, []):
-                if run["reward"] in (0, 1) and (run["reward"] == 1) != all(
-                    row["status"] == "PASS" for row in run["checks"]
-                ):
-                    raise _workspace.ContractError(f"{arm} control reward conflicts with per-check results")
+        raise _workspace.ContractError(
+            "missing_check_evidence: every proof job must retain /logs/verifier/results per-check rows; "
+            "author the per-check grammar (references/check-grammar.md) and rerun"
+        )
+    expected_ids = [{row["check_id"] for row in rows} for rows in check_rows if rows is not None]
+    if any(ids != expected_ids[0] for ids in expected_ids):
+        raise _workspace.ContractError("all proof jobs must report the same per-check ID set")
+    for run in runs["nop"]:
+        passed_checks = [row["check_id"] for row in run["checks"] if row["status"] == "PASS"]
+        if passed_checks:
+            raise _workspace.ContractError(f"untouched environment passes scored checks: {', '.join(passed_checks)}")
+    for run in runs["oracle"]:
+        failed_checks = [row["check_id"] for row in run["checks"] if row["status"] != "PASS"]
+        if failed_checks and run["reward"] == 1:
+            raise _workspace.ContractError(f"oracle reward 1 conflicts with failing checks: {', '.join(failed_checks)}")
+    for arm in ("negative", "copy", "alternative", "bypass"):
+        for run in runs[arm]:
+            if run["reward"] in (0, 1) and (run["reward"] == 1) != all(
+                row["status"] == "PASS" for row in run["checks"]
+            ):
+                raise _workspace.ContractError(f"{arm} control reward conflicts with per-check results")
     job_dirs = [run["job_dir"] for arm_runs in runs.values() for run in arm_runs]
     job_ids = [run["job_id"] for arm_runs in runs.values() for run in arm_runs]
     require_distinct(job_dirs, "validation Harbor job directories must be distinct", _workspace.ContractError)
@@ -1283,15 +1248,13 @@ def _validation_from_jobs(
         for arm, arm_runs in runs.items()
         for run in arm_runs
     )
-    qualification = None
-    if context is not None:
-        try:
-            qualification = construction.qualify(context, runs)
-        except (construction.ConstructionError, KeyError, TypeError) as error:
-            raise _workspace.ContractError(f"construction qualification failed: {error}") from error
-        passed = passed and qualification["status"] == "passed"
-    report = {
-        "schema": _workspace.QUALIFIED_VALIDATION_SCHEMA if context is not None else _workspace.VALIDATION_SCHEMA,
+    try:
+        qualification = construction.qualify(context, runs)
+    except (construction.ConstructionError, KeyError, TypeError) as error:
+        raise _workspace.ContractError(f"construction qualification failed: {error}") from error
+    passed = passed and qualification["status"] == "passed"
+    return {
+        "schema": _workspace.VALIDATION_SCHEMA,
         "harbor_version": harbor_version,
         "task_checksum": retained_checksum,
         "task_tree_sha256": reproducibility["task_tree_sha256"],
@@ -1299,13 +1262,11 @@ def _validation_from_jobs(
         "distinct_jobs": True,
         "container_freshness": "unverified",
         "minimum_runs": minimum_runs,
-        "check_evidence": check_evidence,
+        "check_evidence": "per_check",
         "passed": passed,
         "runs": runs,
+        "qualification": qualification,
     }
-    if qualification is not None:
-        report["qualification"] = qualification
-    return report
 
 
 def _copy_probe_summary(validation: dict[str, Any]) -> dict[str, Any]:
@@ -1334,7 +1295,6 @@ def _record_validation(args: argparse.Namespace) -> dict[str, Any]:
         args.oracle_job_dir,
         args.negative_job_dir,
         args.harbor_version,
-        allow_aggregate_only=args.allow_aggregate_only,
         copy_job_dirs=args.copy_job_dir,
         alternative_job_dirs=args.alternative_job_dir,
         bypass_job_dirs=args.bypass_job_dir,
@@ -1343,7 +1303,7 @@ def _record_validation(args: argparse.Namespace) -> dict[str, Any]:
     return {
         "task_dir": str(task_dir),
         "passed": validation["passed"],
-        "qualification": validation.get("qualification", {"status": "unmeasured"}),
+        "qualification": validation["qualification"],
         "nop_rewards": [run["reward"] for run in validation["runs"]["nop"]],
         "oracle_rewards": [run["reward"] for run in validation["runs"]["oracle"]],
         "negative_rewards": [run["reward"] for run in validation["runs"]["negative"]],
@@ -1366,16 +1326,10 @@ def _validate_validation(task_dir: Path) -> dict[str, Any]:
         "check_evidence",
         "passed",
         "runs",
+        "qualification",
     }
-    qualified = recorded.get("schema") == _workspace.QUALIFIED_VALIDATION_SCHEMA
-    minimum_runs = dict(_workspace._MIN_VALIDATION_RUNS)
-    if qualified:
-        expected_keys.add("qualification")
-        minimum_runs.update(alternative=1, bypass=0)
-    if set(recorded) != expected_keys or recorded.get("schema") not in (
-        _workspace.VALIDATION_SCHEMA,
-        _workspace.QUALIFIED_VALIDATION_SCHEMA,
-    ):
+    minimum_runs = _workspace._MIN_VALIDATION_RUNS
+    if set(recorded) != expected_keys or recorded.get("schema") != _workspace.VALIDATION_SCHEMA:
         raise _workspace.ContractError("validation fields do not match the versioned contract")
     if not isinstance(recorded.get("harbor_version"), str) or not recorded["harbor_version"].strip():
         raise _workspace.ContractError("validation.harbor_version must be nonempty text")
@@ -1383,7 +1337,7 @@ def _validate_validation(task_dir: Path) -> dict[str, Any]:
         recorded.get("minimum_runs") != minimum_runs
         or recorded.get("distinct_jobs") is not True
         or recorded.get("container_freshness") != "unverified"
-        or recorded.get("check_evidence") not in ("per_check", "aggregate_only")
+        or recorded.get("check_evidence") != "per_check"
     ):
         raise _workspace.ContractError(
             "validation repeat and job-evidence policy does not match the versioned contract"
@@ -1405,24 +1359,21 @@ def _validate_validation(task_dir: Path) -> dict[str, Any]:
             "agent",
             "run_inputs_path",
             "run_inputs_sha256",
+            "checks",
+            "construction_execution",
         }
-        if qualified:
-            required_run_keys.add("construction_execution")
         for value in values:
-            if not isinstance(value, dict) or not required_run_keys.issubset(set(value)):
+            if not isinstance(value, dict) or set(value) != required_run_keys:
                 raise _workspace.ContractError(f"validation.runs.{arm} fields do not match the versioned contract")
-            if not set(value).issubset(required_run_keys | {"checks"}):
-                raise _workspace.ContractError(f"validation.runs.{arm} carries fields outside the versioned contract")
     derived = _validation_from_jobs(
         task_dir,
         [run["job_dir"] for run in runs["nop"]],
         [run["job_dir"] for run in runs["oracle"]],
         [run["job_dir"] for run in runs["negative"]],
         recorded["harbor_version"],
-        allow_aggregate_only=recorded["check_evidence"] == "aggregate_only",
         copy_job_dirs=[run["job_dir"] for run in runs["copy"]],
-        alternative_job_dirs=[run["job_dir"] for run in runs.get("alternative", [])],
-        bypass_job_dirs=[run["job_dir"] for run in runs.get("bypass", [])],
+        alternative_job_dirs=[run["job_dir"] for run in runs["alternative"]],
+        bypass_job_dirs=[run["job_dir"] for run in runs["bypass"]],
     )
     if recorded != derived:
         raise _workspace.ContractError("validation.json differs from the retained Harbor result evidence")
