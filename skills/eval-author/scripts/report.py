@@ -1168,7 +1168,8 @@ def artifact_link(label: str, path: str, base: str = MARKDOWN_DIR) -> str:
 def readiness_counts(tasks: list[dict]) -> dict[str, int]:
     counts = dict.fromkeys(READINESS_LABELS, 0)
     for task in tasks:
-        counts[task.get("readiness") if task.get("readiness") in counts else "unknown"] += 1
+        readiness = task.get("readiness")
+        counts[readiness if readiness in counts else "unknown"] += 1
     return counts
 
 
