@@ -68,6 +68,42 @@ def test_fixture_command_is_repeatable_and_replays_retained_bytes(tmp_path):
     assert json.loads(tampered.stdout)["status"] == "invalid"
 
 
+@pytest.mark.parametrize("mode", ["--output", "--verify-existing"])
+def test_fixture_rubric_mismatch_fails_with_passing_controls(tmp_path, monkeypatch, capsys, mode):
+    module = runner()
+    output = tmp_path / "retained"
+    real_measure = module.measure_identity
+
+    def mismatched_measure(root, selected):
+        report = real_measure(root, selected)
+        if selected.get("scorer_controls", {}).get("arm") == "reviewed":
+            report["items"]["AC-02"]["score"] = 0
+        return report
+
+    monkeypatch.setattr(module, "measure_identity", mismatched_measure)
+    if mode == "--verify-existing":
+        assert module.main(["--output", str(output), "--rubric"]) == 1
+        capsys.readouterr()
+    before = {path: path.read_bytes() for path in output.rglob("*") if path.is_file()}
+    result = module.main([mode, str(output), "--rubric"])
+    captured = capsys.readouterr()
+    report = json.loads(captured.out)
+    assert report["rubric_comparison"] == {
+        "criterion": "AC-02",
+        "expected": {"baseline": 0, "reviewed": 1},
+        "observed": {"baseline": 0, "reviewed": 0},
+        "matched": False,
+    }
+    assert report["matched_count"] == report["control_count"] == 21
+    assert all(row["matched"] for row in report["cases"])
+    assert report["status"] == "failed"
+    assert result == 1
+    assert captured.err == ""
+    assert json.loads((output / "rubric-reviewed.json").read_text())["items"]["AC-02"]["score"] == 0
+    if mode == "--verify-existing":
+        assert {path: path.read_bytes() for path in output.rglob("*") if path.is_file()} == before
+
+
 @pytest.mark.parametrize(
     ("target", "value"),
     [

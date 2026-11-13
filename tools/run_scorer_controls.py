@@ -302,6 +302,8 @@ def main(argv=None):
                 raise ValueError("retained report disagrees with replay")
         if args.rubric:
             report["rubric_comparison"] = rubric_demo(output, selection, verify=bool(args.verify_existing))
+            if not report["rubric_comparison"]["matched"]:
+                report["status"] = "failed"
         print(encoded(report), end="")
         return 0 if report["status"] == "passed" else 1
     except (OSError, ValueError, KeyError, TypeError, subprocess.SubprocessError):

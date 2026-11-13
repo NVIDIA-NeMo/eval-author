@@ -445,7 +445,7 @@ def test_unselected_staged_input_cannot_be_added(tmp_path):
         native.validate_snapshot(tmp_path)
 
 
-def test_runner_uses_existing_execute_private_env_and_keeps_setup_failure(tmp_path, monkeypatch):
+def test_runner_uses_existing_execute_private_env_and_keeps_setup_failure(tmp_path, monkeypatch, docker_discovery):
     native = load("tools/scorer_native.py")
     assert hasattr(native, "run"), "refund runner is missing"
     monkeypatch.setenv("OPENAI_API_KEY", "private-key-sentinel")
@@ -474,7 +474,7 @@ def test_runner_uses_existing_execute_private_env_and_keeps_setup_failure(tmp_pa
         native.run(output)
 
 
-def test_runner_stages_hash_bound_panel_and_delegates_leakage_controls(tmp_path, monkeypatch):
+def test_runner_stages_hash_bound_panel_and_delegates_leakage_controls(tmp_path, monkeypatch, docker_discovery):
     native = load("tools/scorer_native.py")
     calls = []
 
@@ -494,6 +494,8 @@ def test_runner_stages_hash_bound_panel_and_delegates_leakage_controls(tmp_path,
     output = tmp_path / "native"
     assert native.run(output) == 1  # Fake transport creates no jobs and provides no native evidence.
     labels = [call[1] for call in calls]
+    assert all(call[3]["DOCKER_HOST"] == docker_discovery[2]["endpoint"]["Host"] for call in calls)
+    assert all("DOCKER_CONFIG" not in call[3] and "DOCKER_CONTEXT" not in call[3] for call in calls)
     assert "refund-panel" in labels and "normalizer-controls" in labels
     command = next(row[0] for row in calls if row[1] == "refund-panel")
     assert command[command.index("--agent") + 1] == "control_agent:ControlAgent"
@@ -607,7 +609,171 @@ def test_missing_job_is_incomplete_even_for_expected_errors(tmp_path):
     assert native.summarize(tmp_path, 0)["status"] == "incomplete"
 
 
-def test_private_home_exposes_only_required_docker_plugins(tmp_path):
+@pytest.fixture
+def docker_discovery(tmp_path, monkeypatch):
+    native = load("tools/scorer_native.py")
+    caller = {
+        "PATH": "/synthetic/bin",
+        "HOME": str(tmp_path / "caller"),
+        "DOCKER_CONFIG": str(tmp_path / "docker-config"),
+        "OPENAI_API_KEY": "credential-sentinel",
+        "DOCKER_AUTH_CONFIG": "registry-credential-sentinel",
+    }
+    monkeypatch.setattr(native.os, "environ", caller)
+    context = {
+        "name": "desktop-linux",
+        "endpoint": {"Host": "unix:///synthetic/desktop.sock", "SkipTLSVerify": False},
+        "tls": None,
+        "tls_path": str(tmp_path / "context-tls"),
+    }
+    calls = []
+    run = subprocess.run
+
+    def discover(command, **kwargs):
+        if command[0] != "docker":
+            return run(command, **kwargs)
+        calls.append((command, kwargs))
+        return subprocess.CompletedProcess(command, 0, json.dumps(context))
+
+    monkeypatch.setattr(subprocess, "run", discover)
+    return native, caller, context, calls
+
+
+def test_private_home_preserves_selected_context_without_credentials(tmp_path, docker_discovery):
+    native, caller, context, calls = docker_discovery
+    env = native.private_env(tmp_path)
+    assert env.get("DOCKER_HOST") == context["endpoint"]["Host"]
+    assert len(calls) == 1
+    command, options = calls[0]
+    assert command[:3] == ["docker", "context", "inspect"]
+    assert "--format" in command
+    assert options["env"] == {key: caller[key] for key in ("PATH", "HOME", "DOCKER_CONFIG")}
+    assert options["stderr"] == subprocess.DEVNULL
+    assert options["timeout"] == 10
+    assert env["HOME"] != caller["HOME"]
+    assert not {"DOCKER_CONTEXT", "DOCKER_CONFIG", "DOCKER_AUTH_CONFIG", "OPENAI_API_KEY"} & env.keys()
+    assert not (Path(env["HOME"]) / ".docker/config.json").exists()
+    assert not any(path.is_file() and not path.is_symlink() for path in tmp_path.rglob("*"))
+
+
+@pytest.mark.parametrize("selected", ["remote", "default"])
+def test_explicit_context_has_priority_over_host(tmp_path, docker_discovery, selected):
+    native, caller, context, calls = docker_discovery
+    caller.update(DOCKER_CONTEXT=selected, DOCKER_HOST="tcp://ignored:2375")
+    context["name"] = selected
+    env = native.private_env(tmp_path)
+    assert env["DOCKER_HOST"] == context["endpoint"]["Host"]
+    assert calls[0][0][:3] == ["docker", "--context", selected]
+    assert calls[0][1]["env"]["DOCKER_HOST"] == caller["DOCKER_HOST"]
+    assert "DOCKER_CONTEXT" not in env
+
+
+@pytest.mark.parametrize("verify", [True, False])
+def test_context_tls_uses_only_original_transport_material(tmp_path, docker_discovery, verify):
+    native, caller, context, calls = docker_discovery
+    caller.update(DOCKER_TLS_VERIFY="1", DOCKER_CERT_PATH="/ignored-certs")
+    context["endpoint"] = {"Host": "tcp://remote:2376", "SkipTLSVerify": not verify}
+    context["tls"] = ["ca.pem", "cert.pem", "key.pem"]
+    env = native.private_env(tmp_path)
+    assert env["DOCKER_HOST"] == "tcp://remote:2376"
+    assert env.get("DOCKER_TLS") == "1"
+    assert env.get("DOCKER_TLS_VERIFY", "") == ("1" if verify else "")
+    assert env.get("DOCKER_CERT_PATH") == str(Path(context["tls_path"]) / "docker")
+    assert calls[0][1]["env"]["DOCKER_TLS_VERIFY"] == "1"
+    assert not any(path.is_file() and not path.is_symlink() for path in tmp_path.rglob("*"))
+
+
+@pytest.mark.parametrize("cert_source", ["explicit", "config", "home"])
+def test_default_tls_preserves_caller_certificate_directory(tmp_path, docker_discovery, cert_source):
+    native, caller, context, calls = docker_discovery
+    context.update(name="default", tls=["ca.pem", "cert.pem", "key.pem"], tls_path="<IN MEMORY>")
+    context["endpoint"] = {"Host": "tcp://explicit:2376", "SkipTLSVerify": False}
+    caller.update(DOCKER_HOST="tcp://explicit:2376", DOCKER_TLS_VERIFY="0")
+    if cert_source == "explicit":
+        caller["DOCKER_CERT_PATH"] = str(tmp_path / "certs")
+        expected = caller["DOCKER_CERT_PATH"]
+    elif cert_source == "config":
+        expected = caller["DOCKER_CONFIG"]
+    else:
+        del caller["DOCKER_CONFIG"]
+        expected = str(Path(caller["HOME"]) / ".docker")
+    env = native.private_env(tmp_path)
+    assert env["DOCKER_CERT_PATH"] == expected
+    assert env["DOCKER_TLS_VERIFY"] == "1"  # Docker treats any nonempty value as enabled.
+    assert calls[0][1]["env"]["DOCKER_HOST"] == caller["DOCKER_HOST"]
+
+
+@pytest.mark.parametrize("failure", ["command", "timeout", "json", "shape", "host", "ssh", "scheme", "tls-path"])
+def test_connection_discovery_fails_closed_without_raw_output(tmp_path, docker_discovery, monkeypatch, failure):
+    native, caller, context, calls = docker_discovery
+    if failure in ("command", "timeout", "json"):
+
+        def fail(command, **kwargs):
+            if failure == "command":
+                raise subprocess.CalledProcessError(1, command, output="secret-sentinel")
+            if failure == "timeout":
+                raise subprocess.TimeoutExpired(command, 10, output="secret-sentinel")
+            return subprocess.CompletedProcess(command, 0, "secret-sentinel")
+
+        monkeypatch.setattr(subprocess, "run", fail)
+    elif failure == "shape":
+        context["endpoint"] = None
+    elif failure == "host":
+        context["endpoint"]["Host"] = ""
+    elif failure == "ssh":
+        context["endpoint"]["Host"] = "ssh://user@host"
+    elif failure == "scheme":
+        context["endpoint"]["Host"] = "https://user:secret-sentinel@host"
+    elif failure == "tls-path":
+        context.update(tls=["ca.pem"], tls_path="<IN MEMORY>")
+    with pytest.raises(ValueError, match="Docker connection") as error:
+        native.private_env(tmp_path)
+    assert "secret-sentinel" not in str(error.value)
+    assert error.value.__cause__ is None
+    assert not (tmp_path / "home").exists()
+    if failure == "ssh":
+        assert "SSH" in str(error.value)
+
+
+@pytest.mark.parametrize("tls", [None, [], ["cert.pem", "key.pem"], ["ca.pem", "cert.pem"]])
+def test_context_tls_without_representable_certificates_fails_closed(tmp_path, docker_discovery, tls):
+    native, caller, context, calls = docker_discovery
+    context["endpoint"] = {"Host": "tcp://remote:2376", "SkipTLSVerify": True}
+    context["tls"] = tls
+    with pytest.raises(ValueError, match="Docker connection TLS.*ca.pem.*pair"):
+        native.private_env(tmp_path)
+
+
+@pytest.mark.parametrize(
+    "host", ["unix:///synthetic/default.sock", "npipe:////./pipe/docker_engine", "tcp://host:2375"]
+)
+def test_explicit_host_resolves_default_without_context_or_tls_leak(tmp_path, docker_discovery, host):
+    native, caller, context, calls = docker_discovery
+    caller.update(DOCKER_HOST=host, DOCKER_CONTEXT="", DOCKER_TLS_VERIFY="", DOCKER_TLS="")
+    context.update(name="default", tls=None, tls_path="<IN MEMORY>")
+    context["endpoint"]["Host"] = host
+    env = native.private_env(tmp_path)
+    assert env["DOCKER_HOST"] == host
+    assert calls[0][0][:3] == ["docker", "context", "inspect"]
+    assert calls[0][1]["env"]["DOCKER_HOST"] == host
+    assert not {"DOCKER_CONTEXT", "DOCKER_TLS", "DOCKER_TLS_VERIFY", "DOCKER_CERT_PATH"} & env.keys()
+
+
+def test_failed_discovery_stops_runner_before_native_commands(tmp_path, docker_discovery, monkeypatch):
+    native, caller, context, calls = docker_discovery
+    context["endpoint"] = None
+    monkeypatch.setattr(native.common, "execute", lambda *a, **k: pytest.fail("native launch forbidden"))
+    output = tmp_path / "native"
+    assert native.run(output) == 1
+    report = json.loads((output / "scorer-native-private.json").read_text())
+    assert "Docker connection discovery failed" in report["execution_error"]
+    public = json.loads((output / "scorer-native-summary.json").read_text())
+    assert public["status"] == "incomplete"
+    assert public["execution_failed"] is True
+    assert caller["HOME"] not in json.dumps(public)
+
+
+def test_private_home_exposes_only_required_docker_plugins(tmp_path, docker_discovery):
     native = load("tools/scorer_native.py")
     env = native.private_env(tmp_path)
     plugins = Path(env["HOME"]) / ".docker/cli-plugins"

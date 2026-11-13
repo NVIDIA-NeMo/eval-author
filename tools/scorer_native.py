@@ -29,10 +29,95 @@ def load_json(path, *, root=None):
     return loads(identity.source_bytes(path, root=root).decode("utf-8"))
 
 
+def docker_connection():
+    discovery_env = {
+        key: os.environ[key]
+        for key in (
+            "PATH",
+            "TMPDIR",
+            "HOME",
+            "DOCKER_CONFIG",
+            "DOCKER_HOST",
+            "DOCKER_CONTEXT",
+            "DOCKER_TLS",
+            "DOCKER_TLS_VERIFY",
+            "DOCKER_CERT_PATH",
+        )
+        if key in os.environ
+    }
+    selected = discovery_env.get("DOCKER_CONTEXT")
+    command = ["docker"] + (["--context", selected] if selected else [])
+    connection = None
+    try:
+        # No execute() here: discovery output must never enter retained logs.
+        result = common.subprocess.run(
+            command
+            + [
+                "context",
+                "inspect",
+                "--format",
+                '{"name":{{json .Name}},"endpoint":{{json .Endpoints.docker}},'
+                '"tls":{{json .TLSMaterial.docker}},"tls_path":{{json .Storage.TLSPath}}}',
+            ],
+            env=discovery_env,
+            stdout=common.subprocess.PIPE,
+            stderr=common.subprocess.DEVNULL,
+            text=True,
+            timeout=10,
+            check=True,
+        )
+        parsed = json.loads(result.stdout)
+        endpoint = parsed["endpoint"]
+        if (
+            isinstance(parsed["name"], str)
+            and parsed["name"]
+            and isinstance(endpoint["Host"], str)
+            and endpoint["Host"]
+            and type(endpoint["SkipTLSVerify"]) is bool
+            and (parsed["tls"] is None or isinstance(parsed["tls"], list))
+            and isinstance(parsed["tls_path"], str)
+        ):
+            connection = parsed
+    except (OSError, ValueError, KeyError, TypeError, common.subprocess.SubprocessError):
+        pass
+    if connection is None:
+        raise ValueError("Docker connection discovery failed; check the caller's Docker context")
+    endpoint = connection["endpoint"]
+    host = endpoint["Host"]
+    if host.startswith("ssh://"):
+        raise ValueError("Docker connection over SSH is unsupported with a private HOME; use a socket or TCP/TLS")
+    if not host.startswith(("unix://", "npipe://", "tcp://")):
+        raise ValueError("Docker connection transport is unsupported; use a socket or TCP/TLS")
+    env = {"DOCKER_HOST": host}
+    if connection["tls"] or endpoint["SkipTLSVerify"]:
+        tls = connection["tls"] or []
+        # Default-context CLI TLS requires a CA path even when verification is disabled.
+        if "ca.pem" not in tls or (("cert.pem" in tls) != ("key.pem" in tls)):
+            raise ValueError("Docker connection TLS requires ca.pem and an optional complete cert.pem/key.pem pair")
+        env["DOCKER_TLS"] = "1"
+        if not endpoint["SkipTLSVerify"]:
+            env["DOCKER_TLS_VERIFY"] = "1"
+        # Reference only transport certificates; never copy keys or registry config into evidence.
+        if connection["name"] == "default":
+            cert_path = (
+                discovery_env.get("DOCKER_CERT_PATH")
+                or discovery_env.get("DOCKER_CONFIG")
+                or str(Path.home() / ".docker")
+            )
+        else:
+            if not Path(connection["tls_path"]).is_absolute():
+                raise ValueError("Docker connection TLS storage is unavailable")
+            cert_path = str(Path(connection["tls_path"]) / "docker")
+        env["DOCKER_CERT_PATH"] = str(Path(cert_path).absolute())
+    return env
+
+
 def private_env(output):
+    connection = docker_connection()
     home = output / "home"
     home.mkdir(mode=0o700)
-    env = {key: os.environ[key] for key in ("PATH", "TMPDIR", "DOCKER_HOST", "DOCKER_CONTEXT") if key in os.environ}
+    env = {key: os.environ[key] for key in ("PATH", "TMPDIR") if key in os.environ}
+    env.update(connection)
     env.update(HOME=str(home), PYTHONDONTWRITEBYTECODE="1", PYTHONPATH=str(output / "panel"))
     plugins = Path("/Applications/Docker.app/Contents/Resources/cli-plugins")
     if plugins.is_dir():
