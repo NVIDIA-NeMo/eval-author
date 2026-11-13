@@ -50,25 +50,17 @@ def score_integrity_groups(native: dict) -> list[dict]:
     does not authenticate sources; rubric_report revalidates them before calling.
     """
     native = _mapping(native)
-    candidates = {
-        row["receipt"]
-        for row in _rows(_mapping(native.get("superseded_references")).get("findings"))
-        if isinstance(row, dict) and row.get("status") == "review_candidate" and isinstance(row.get("receipt"), str)
-    }
     claims = []
     for control in _rows(native.get("controls")):
         control = _mapping(control)
         integrity = _mapping(control.get("integrity"))
         state = integrity.get("status_claim")
-        if isinstance(control.get("receipt"), str) and control["receipt"] in candidates:
-            state = "excluded"
         claims.append(
             {
                 "consistent": "passed",
                 "contradiction": "failed",
                 "excluded": "excluded",
                 "not_applicable": "excluded",
-                "review_candidate": "excluded",
             }.get(state, "unknown")
             if isinstance(state, str)
             else "unknown"
@@ -77,9 +69,7 @@ def score_integrity_groups(native: dict) -> list[dict]:
     for case in _rows(_mapping(native.get("required_verification")).get("cases")):
         case = _mapping(case)
         state = case.get("state")
-        if state in ("excluded", "review_candidate", "not_applicable"):
-            required.append("excluded")
-        elif case.get("freshness") == "current" and state in ("pass", "fail"):
+        if case.get("freshness") == "current" and state in ("pass", "fail"):
             required.append("passed" if state == "pass" else "failed")
         else:
             required.append("unknown")

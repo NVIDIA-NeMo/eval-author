@@ -42,20 +42,7 @@ def _observed_input_tokens(spans: dict[str, Span], llm_span_ids: list[str]) -> l
 
 
 def audit_retries(trace: Trace, *, safe_trace_sha256: str) -> dict[str, Any]:
-    """Report each explicit tool error as one opportunity to avoid an unchanged repeat.
-
-    An opportunity is an ordered, model-issued call with usable input whose
-    single result has an explicit true error flag. Its repeat is the next
-    identical call by the same agent in a later turn.
-    Any different intervening call may have changed state, so
-    it excludes the repeat. A repeat with an explicit false error flag is also
-    excluded; that flag does not establish correctness. A repeat that also errs
-    is a review candidate. An undefined repeat status is unknown.
-    Assessed opportunities are eligible minus unknown minus excluded: candidates
-    plus no-repeat opportunities. The candidate rate is candidates / assessed,
-    or null when assessed is zero. Eligible counts retain unknown and excluded.
-    Findings cite safe-trace span and turn ids, never trace text.
-    """
+    """Match ordered scoped call keys one-to-one; emit only safe-trace citations and counts."""
     from trace_ingest import Initiator
 
     spans = spans_by_id(trace)
@@ -77,6 +64,7 @@ def audit_retries(trace: Trace, *, safe_trace_sha256: str) -> dict[str, Any]:
     opportunities = candidates = no_repeat = 0
     for agent_id, calls in ordered.items():
         keys = [call_key(owners[span.id], span) for _, _, span in calls]
+        attributed_repeats: set[int] = set()
         for index, (turn_index, turn, span) in enumerate(calls):
             if _status(span) != "error":
                 continue
@@ -96,7 +84,15 @@ def audit_retries(trace: Trace, *, safe_trace_sha256: str) -> dict[str, Any]:
             if not later:
                 no_repeat += 1
                 continue
-            repeat = later[0]
+            repeat = next((position for position in later if position not in attributed_repeats), None)
+            if repeat is None:
+                unknown["repeat_already_attributed"] += 1
+                continue
+            attributed_repeats.add(repeat)
+            repeated_call = calls[repeat][2].tool_call
+            if repeated_call is not None and repeated_call.initiator is Initiator.HARNESS:
+                excluded["harness_initiated_repeat"] += 1
+                continue
             if any(keys[position] != keys[index] for position in range(index + 1, repeat)):
                 excluded["intervening_action"] += 1
                 continue
@@ -109,7 +105,12 @@ def audit_retries(trace: Trace, *, safe_trace_sha256: str) -> dict[str, Any]:
                 continue
             candidates += 1
             recovery = next(
-                (calls[position][2].id for position in later[1:] if _status(calls[position][2]) == "not_error"), None
+                (
+                    calls[position][2].id
+                    for position in later
+                    if position > repeat and _status(calls[position][2]) == "not_error"
+                ),
+                None,
             )
             repeated_turn = calls[repeat][1]
             findings.append(

@@ -10,10 +10,11 @@ preview: workflows, skills, and saved artifacts may change between releases.
 
 ### Added
 
-- Opt-in verification-integrity checks report receipt contradictions,
-  states of required controls, superseded manifests, saved acceptance claims, and
-  unchanged repeats after tool errors. Repair manifests record the digest they
-  supersede. See
+- Rubric `native` selections automatically include verification-integrity
+  measurements, a receipt-consistency predicate, and group scores. Required
+  verification stays unassessed because rubric task freshness is unknown.
+  Audit and saved-acceptance checks require `--integrity`. Retry auditing uses a
+  separate command. Repair manifests record the digest they supersede. See
   [verification-integrity checks](docs/determinism-checks.md#verification-integrity-checks).
 
 ### Removed

@@ -300,7 +300,7 @@ def select(panel, records, ident, path, role):
 
     digest = task_evidence.digest(path)
     relative = path.relative_to(panel.tmp_path).as_posix()
-    template = records[0]
+    template = panel.identity["records"][0]
     records.append(
         dict(
             template, id=ident, role=role, path=relative, digest=digest, evidence=[{"path": relative, "digest": digest}]
@@ -361,6 +361,128 @@ def test_required_verification_separates_failed_missing_and_unknown_freshness(pa
     assert "agent" not in rows
 
 
+@pytest.mark.parametrize("old_reward", [0, 1], ids=["old-contradiction", "old-pass"])
+def test_real_out_of_place_repair_keeps_counts_predicate_and_score_consistent(panel, monkeypatch, old_reward):
+    import sys
+    from types import SimpleNamespace
+
+    import harbor.models.task.task
+    from eval_author_shared import task_evidence
+
+    monkeypatch.setattr(harbor.models.task.task, "Task", lambda path: SimpleNamespace(checksum="synthetic-checksum"))
+    root = panel.tmp_path
+    contract = root / "contract.json"
+    contract.write_text(json.dumps(panel.manifest["contract"]))
+    audit_records = root / "repair-records"
+    audit_records.mkdir()
+    old_manifest = audit_records / "old.json"
+    repair = audit_records / "repair.json"
+    task_evidence.prepare(panel.task, contract, old_manifest)
+    records = []
+    selected = {"manifest_ids": [], "receipt_ids": [], "result_ids": [], "trace_ids": []}
+
+    def retain(ident, path, role):
+        select(panel, records, ident, path, role)
+        selected[role + "_ids"].append(ident)
+
+    def record(manifest, name, case, reward, corrupt=False):
+        receipt, result = audit_records / (name + ".receipt.json"), root / (name + ".result.json")
+        native = dict(panel.result, id=name, trial_name=name, verifier_result={"rewards": {"reward": reward}})
+        command = [
+            sys.executable,
+            "-c",
+            f"from pathlib import Path; Path({str(result)!r}).write_text({json.dumps(native)!r})",
+        ]
+        value = task_evidence.run(manifest, case, name, receipt, result, None, command)
+        assert value["status"] == ("passed" if reward else "behavior_failed")
+        if corrupt:
+            value["status"] = "passed"
+            receipt.write_text(json.dumps(value))
+        retain(name, receipt, "receipt")
+        retain(name + "-result", result, "result")
+
+    retain("old", old_manifest, "manifest")
+    record(old_manifest, "old-reference", "reference", old_reward, corrupt=not old_reward)
+    task_evidence.prepare(panel.task, contract, repair, previous=old_manifest, reason="Repair control contract")
+    retain("repair", repair, "manifest")
+    for case in ("reference", "incorrect", "empty"):
+        record(repair, "new-" + case, case, 1)
+    completed = run_rubric_cli(panel, {"artifacts": records, "native": selected})
+    assert completed.returncode == 1
+    assert completed.stderr == ""
+    report = json.loads(completed.stdout)
+    native = report["measurements"]["native"]
+    summary = native["receipt_integrity"]
+    assert summary["selected_receipts"] == 4
+    assert summary["eligible_claims"] == 3
+    assert summary["excluded"] == 1
+    assert summary["contradictions"] == summary["contradiction_rate"] == 0
+    check = next(row for row in report["items"]["CREATE-07"]["check_results"] if row["id"] == "CREATE-07-C01")
+    predicate = next(row for row in check["predicate_results"] if row["id"] == "selected_receipt_status_consistent")
+    group = next(row for row in check["group_scores"] if row["id"] == "receipt_consistency")
+    assert predicate["outcome"] == "PASS"
+    assert group["score"] == 3
+    assert group["passed"] == 3
+    assert group["excluded"] == 1
+    assert group["failed"] == 0
+    measurements = {(row["unit"], row["name"]): row for row in check["measurements"]}
+    assert len(measurements) == len(check["measurements"])
+    assert measurements["selected receipt claims", "eligible_claims"]["value"] == 3
+    assert measurements["selected receipt claims", "contradictions"]["denominator"] == 3
+    assert measurements["selected required controls", "required_pass"]["denominator"] == 3
+    assert measurements["selected receipts", "superseded_references"]["value"] == 1
+    assert native["superseded_references"]["references"] == 1
+    assert native["superseded_references"]["ordering"] == "unknown"
+    assert native["superseded_references"]["confirmed"] == 0
+    assert all(row["integrity"]["freshness"] == "unknown" for row in native["controls"])
+    required = native["required_verification"]
+    assert required["required_cases"] == required["states"]["pass"] == 3
+    assert {row["manifest"] for row in required["cases"]} == {"repair"}
+    assert required["current_pass"] == required["current_fail"] == 0
+    assert required["verified"] is False
+    assert check["group_scores"][1]["score"] is None
+
+    # Audit must use the same projection through its public task-tree inspection.
+    import audit_verifier_evidence as audit
+    from verification_scoring import score_integrity_groups
+
+    audit_report = root / "audit.md"
+    audit_report.write_text("## Key findings\n\nNo defects observed.\n")
+    legacy = audit.check(root, audit_report, [panel.task], [audit_records], [root])
+    before = {path: path.read_bytes() for path in root.rglob("*.json")}
+    current = audit.check(root, audit_report, [panel.task], [audit_records], [root], include_integrity=True)
+    assert current["receipt_integrity"] == summary
+    required = current["required_verification"]
+    assert required["required_cases"] == required["states"]["pass"] == required["current_pass"] == 3
+    assert required["verified"] is True
+    assert {row["manifest"] for row in required["cases"]} == {"repair-records/repair.json"}
+    assert current["superseded_references"]["references"] == 1
+    assert current["superseded_references"]["ordering"] == "unknown"
+    assert current["superseded_references"]["confirmed"] == 0
+    assert current["valid"] is legacy["valid"] is False
+    assert current["missing_findings"] == legacy["missing_findings"]
+    assert current["evidence"] == legacy["evidence"]
+    assert [{key: value for key, value in row.items() if key != "integrity"} for row in current["controls"]] == legacy[
+        "controls"
+    ]
+    assert any("integrity" not in row and row.get("reported") is False for row in current["controls"])
+    receipts = [row for row in current["controls"] if "integrity" in row]
+    old = next(row for row in receipts if row["path"].endswith("old-reference.receipt.json"))
+    assert old["integrity"]["status_claim"] == "excluded"
+    assert old["integrity"]["code"] == "superseded"
+    assert old["integrity"]["behavior"] == ("failed" if not old_reward else "passed")
+    assert old["integrity"]["status"] == ("mismatched" if not old_reward else "consistent")
+    assert all(row["integrity"]["freshness"] == "current" for row in receipts)
+    scores = score_integrity_groups({**current, "controls": receipts})
+    assert scores[0]["score"] == group["score"] == 3
+    assert scores[0]["passed"] == summary["eligible_claims"] == 3
+    assert scores[0]["excluded"] == summary["excluded"] == 1
+    assert scores[0]["failed"] == summary["contradictions"] == 0
+    assert scores[1]["score"] == 3
+    assert scores[1]["passed"] == required["current_pass"] == 3
+    assert all(path.read_bytes() == raw for path, raw in before.items())
+
+
 def test_out_of_place_repair_marks_receipts_on_the_old_manifest_for_review(panel):
     from eval_author_shared import task_evidence
 
@@ -378,7 +500,11 @@ def test_out_of_place_repair_marks_receipts_on_the_old_manifest_for_review(panel
     )
     records = select(panel, records, "repair", repaired, "manifest")
     selection = {**panel.selection, "manifest_ids": ["manifest", "repair"]}
-    lineage = adapter().project_native(panel.tmp_path, {"records": records}, **selection)["superseded_references"]
+    output = adapter().project_native(panel.tmp_path, {"records": records}, **selection)
+    assert (
+        output["required_verification"]["required_cases"] == output["required_verification"]["states"]["missing"] == 3
+    )
+    lineage = output["superseded_references"]
     assert lineage["superseded_manifests"] == lineage["references"] == lineage["enacted"] == 1
     assert lineage["confirmed"] == 0
     assert lineage["findings"] == [
@@ -391,6 +517,24 @@ def test_out_of_place_repair_marks_receipts_on_the_old_manifest_for_review(panel
             "status": "review_candidate",
         }
     ]
+
+
+@pytest.mark.parametrize(
+    "supersedes", [{}, {"manifest_sha256": []}, {"manifest_sha256": True}, {"manifest_sha256": "invalid"}]
+)
+def test_malformed_supersession_cannot_exclude_selected_claims(panel, supersedes):
+    panel.receipt.update(status="passed", purpose="closure")
+    records = panel.seal()["records"]
+    repaired = panel.paths["manifest"].with_name("repair.json")
+    repaired.write_text(json.dumps(dict(panel.manifest, supersedes=supersedes)))
+    select(panel, records, "repair", repaired, "manifest")
+    output = adapter().project_native(
+        panel.tmp_path, {"records": records}, **{**panel.selection, "manifest_ids": ["manifest", "repair"]}
+    )
+    assert output["receipt_integrity"]["eligible_claims"] == output["receipt_integrity"]["contradictions"] == 1
+    assert output["receipt_integrity"]["excluded"] == 0
+    assert output["required_verification"]["required_cases"] == 6
+    assert output["superseded_references"]["references"] == output["superseded_references"]["superseded_manifests"] == 0
 
 
 def test_in_place_repair_excludes_the_old_receipt_from_current_verification(panel):

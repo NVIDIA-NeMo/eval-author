@@ -204,7 +204,10 @@ def test_receipt_integrity_treats_failed_health_assertions_as_definitive(panel, 
     )
 
 
-@pytest.mark.parametrize("damage", ["manifest_digest", "result_digest", "run_id", "malformed", "missing_result"])
+@pytest.mark.parametrize(
+    "damage",
+    ["manifest_digest", "result_digest", "run_id", "malformed", "missing_result", "missing_case", "schema", "control"],
+)
 def test_receipt_integrity_requires_bound_readable_native_sources(panel, damage):
     path, native = panel.record("early-exit", 1, status="passed")
     receipt = json.loads(path.read_text())
@@ -217,12 +220,20 @@ def test_receipt_integrity_requires_bound_readable_native_sources(panel, damage)
     elif damage == "malformed":
         native.write_text("{")
         receipt["result_sha256"] = panel.evidence.digest(native)
+    elif damage == "missing_case":
+        receipt.pop("case")
+    elif damage == "schema":
+        panel.write(native, {"id": receipt["native_run_id"]})
+        receipt["result_sha256"] = panel.evidence.digest(native)
+    elif damage == "control":
+        panel.write(native, {**json.loads(native.read_text()), "config": {"agent": {"name": "nop"}}})
+        receipt["result_sha256"] = panel.evidence.digest(native)
     else:
         native.unlink()
     panel.write(path, receipt)
     row = panel.inspect("early-exit")
     assert row["classification"] == "unproven"
-    assert row["integrity"]["status"] == ("unknown" if damage == "missing_result" else "mismatched")
+    assert row["integrity"]["status"] == "unknown"
     assert row["integrity"]["code"] == ("source_missing" if damage == "missing_result" else "invalid_evidence")
     assert row["integrity"]["behavior"] == row["integrity"]["status_claim"] == "unknown"
 
@@ -276,9 +287,13 @@ def test_receipt_integrity_does_not_infer_false_pass_without_supported_claim(pan
 @pytest.mark.parametrize(
     "status,returncode", [("infrastructure_error", 0), ("infrastructure_error", None), ("passed", 1)]
 )
-def test_receipt_integrity_records_structured_execution_error_without_result(panel, status, returncode):
+@pytest.mark.parametrize("native_damage", ["missing", "malformed"])
+def test_receipt_integrity_records_structured_execution_error_without_result(panel, status, returncode, native_damage):
     path, native = panel.record("early-exit", 1, status=status)
-    native.unlink()
+    if native_damage == "missing":
+        native.unlink()
+    else:
+        native.write_text("{")
     receipt = json.loads(path.read_text())
     if returncode is None:
         receipt.pop("returncode")
@@ -365,7 +380,7 @@ def test_receipt_integrity_never_parses_failure_text_as_execution_or_behavior(pa
     receipt["result_sha256"] = panel.evidence.digest(native_path)
     panel.write(path, receipt)
     integrity = panel.inspect("early-exit")["integrity"]
-    assert integrity["status"] == "mismatched"
+    assert integrity["status"] == "unknown"
     assert integrity["execution"] == integrity["behavior"] == integrity["status_claim"] == "unknown"
 
 

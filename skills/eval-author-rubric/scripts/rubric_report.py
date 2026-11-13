@@ -223,8 +223,8 @@ def _predicate(check, ident, outcome, scope):
     )
 
 
-def _counts(check, values, denominator, unit, missingness, uncertainty, denominators=None):
-    check["measurements"] = [
+def _counts(check, values, denominator, unit, missingness, uncertainty, denominators=None, *, append=False):
+    rows = [
         {
             "name": name,
             "value": value,
@@ -235,6 +235,10 @@ def _counts(check, values, denominator, unit, missingness, uncertainty, denomina
         }
         for name, value in values.items()
     ]
+    if append:
+        check.setdefault("measurements", []).extend(rows)
+    else:
+        check["measurements"] = rows
 
 
 def _artifact_refs(selection, ids):
@@ -487,7 +491,6 @@ def _native(check, measurements, selection):
         "The rate covers eligible passed claims only. It does not measure prevalence across trials or establish a cause.",
         {"contradictions": summary["eligible_claims"]},
     )
-    measured = native_check["measurements"]
     verification = measurement["required_verification"]
     _counts(
         native_check,
@@ -496,8 +499,8 @@ def _native(check, measurements, selection):
         "selected required controls",
         "A missing control is an evidence gap. The check does not read the attempt ledger. Native freshness is unknown here.",
         "States describe selected closure receipts, not current task qualification or agent behavior.",
+        append=True,
     )
-    measured += native_check["measurements"]
     lineage = measurement["superseded_references"]
     _counts(
         native_check,
@@ -506,8 +509,8 @@ def _native(check, measurements, selection):
         "selected receipts",
         "Only selected repair manifests supply supersession links.",
         "Receipts have no trustworthy order. Each reference is a review candidate, not a confirmed violation.",
+        append=True,
     )
-    native_check["measurements"] = measured + native_check["measurements"]
     check.setdefault("measurements", []).extend(native_check["measurements"])
     check["group_scores"] = score_integrity_groups(measurement)
     # Append after freshness so its scoped predicates, counts and evidence survive.

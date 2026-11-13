@@ -213,7 +213,7 @@ that the whole retained-credit or coverage workflow consumes this interface.
 
 ## Selected receipt consistency
 
-An explicit `native` selection also reports three measurements. The owning
+Every explicit `native` selection automatically reports three measurements. The owning
 receipt validator derives each one from the same selected receipt, manifest, and
 native result. None of them scans a task tree.
 
@@ -240,7 +240,8 @@ context growth caused the result. A correctly recorded failure or infrastructure
 error is not an eligible claim. Zero reward, permitted partial credit, valid
 alternatives, and legitimate no-action controls follow their declared checks.
 Agent, diagnostic, baseline, out-of-scope, and superseded receipts are excluded.
-When a later reference check fails, the validator withdraws the claim as unknown.
+When a later reference check fails, the validator withdraws a native-basis claim
+as unknown. A return-code contradiction stands.
 
 Report contradictions divided by eligible claims. Keep unknown, excluded, and
 not-applicable receipts separate. Execution errors and mismatches are overlapping
@@ -252,6 +253,12 @@ here. Do not report a rubric pass as a current pass. A missing control is an
 evidence gap. It does not show that verification was skipped. Retain earlier
 contradictions when another selected receipt passes. Ordering alone does not
 establish recovery.
+
+Keep both verification-integrity groups visible in `group_scores`.
+Only `receipt_consistency` can receive a numeric score in rubric reports.
+`required_verification` is always unassessed because this native projection cannot
+establish current task freshness. Display its null score as `Unassessed` and
+retain its evidence gaps. These group scores do not replace canonical scores.
 
 Treat each superseded reference as a review candidate. Receipts have no
 trustworthy time, so `confirmed` stays 0. Use `task_pipeline.py

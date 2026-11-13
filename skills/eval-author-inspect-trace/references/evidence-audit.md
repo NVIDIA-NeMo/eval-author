@@ -65,21 +65,31 @@ evidence audit. Findings cite safe-trace `span_id` and `turn_id` values only.
 | Field | Meaning and next action |
 | --- | --- |
 | Eligible opportunity | A model-issued, ordered call with usable input. It must have a single result whose error flag is explicitly true. |
-| Review candidate | The next identical call by the same agent in a later turn. Its error flag must also be explicitly true, with no different call between. Inspect the cited spans before reporting it. |
-| Excluded | A different call came between (`intervening_action`), or the repeat has an explicitly false error flag (`repeat_succeeded`). Do not report these as defects or treat the false flag as proof of correctness. |
-| Unknown | The repeat status is absent, invalid, conflicting, or unobservable, unless an intervening action already excludes the opportunity. Preserve the uncertainty. |
+| Review candidate | An attributed model-issued repeat with an explicitly true error flag and no different call between. Inspect the cited spans before reporting it. |
+| Excluded | The harness issued the repeat (`harness_initiated_repeat`), a different call came between (`intervening_action`), or the repeat has an explicitly false error flag (`repeat_succeeded`). Do not report these as defects or treat the false flag as proof of correctness. |
+| Unknown | All later identical calls are already attributed (`repeat_already_attributed`), or the repeat status is absent, invalid, conflicting, or unobservable. A harness repeat or intervening action takes precedence over unknown status. Preserve the uncertainty. |
 | `no_repeat` | An eligible error call with no identical call by the same agent in a later turn. This is assessed, not excluded. |
 | Ineligible | Error calls initiated by the harness, without ordering, or with unusable input. |
 | `later_success_span_id` | A later identical call with an explicitly false error flag, not proof of correctness or a successful side effect. Other recovery is not detected. |
 | `observed_input_tokens` | Input totals reported by the repeat turn's model spans. Do not infer a window, estimate, or compaction. |
 
+Process opportunities in recorded order. Attribute the next unused identical call
+by the same agent in a later turn. Use each repeat at most once, including
+excluded or unknown repeats. An attributed repeat can itself be a later error
+opportunity. A harness-issued repeat excludes its opportunity without searching
+past it for a model-issued call.
+
+`eligible_opportunities` retains unknown and excluded opportunities.
+`assessed_opportunities = eligible_opportunities - unknown - excluded`,
+which equals `review_candidates + no_repeat`. Keep unknown and excluded counts
+separate. `candidate_rate` is `review_candidates / assessed_opportunities`, or
+`null` when assessed is zero. `trials.observable` is 1 only when assessed is
+positive. `trials.affected` is 1 only when a review candidate exists.
+
 `confirmed_violations` is always 0 because the trace records no artifact or
 environment state. `feedback_visibility` is `unknown`: the trace does not show
-which result reached the model. Apply the exact
-[denominator contract](../../../docs/determinism-checks.md#verification-integrity-checks):
-eligible counts retain unknown and excluded opportunities. Assessed counts remove
-both and retain no-repeat opportunities. Report a null rate for zero assessed
-opportunities. Never present a candidate as evidence of context rot or ignored feedback.
+which result reached the model. Never present a candidate as evidence of context
+rot or ignored feedback. The evidence audit report is unchanged.
 
 ## Replay error status
 

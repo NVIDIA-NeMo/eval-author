@@ -193,10 +193,15 @@ Keep selections and output private because they can contain local evidence locat
 
 ### Verification-integrity checks
 
-These opt-in checks find contradictions between saved records and gaps in the
-evidence. They do not show agent intent, what the model saw, or whether context
-rot caused a result. They do not change canonical scores, closure requirements,
-or default outputs. Keep their output private.
+These checks find contradictions between saved records and gaps in the evidence.
+Every rubric `native` selection now includes the integrity measurements,
+`selected_receipt_status_consistent` predicate, and `group_scores` automatically.
+Audit and `check-acceptance` require `--integrity`. Their default outputs stay
+unchanged. Retry auditing uses a separate command.
+
+The checks do not show agent intent, what the model saw, or whether context rot
+caused a result. Canonical scores and closure requirements do not change.
+Keep the output private.
 
 | Check | How to run it | Output |
 | --- | --- | --- |
@@ -245,36 +250,28 @@ Missing or unreadable evidence is `unknown`. A changed task makes the
 claim `stale`. Agent runs are excluded. The command exits 0 only when the claim
 is `consistent`. Without `--integrity`, `check-acceptance` is unchanged.
 
+For a custom evidence layout, add `--repo-root <repository>` to the integrity
+command. See the [saved-acceptance check](../skills/eval-author/references/task-validation.md#revalidate-saved-acceptance)
+for root selection and path restrictions.
+
 #### Repeats after tool errors
 
-The report schema is `nemo.eval_author.retry_audit.v1`. An eligible opportunity is
-an ordered, model-issued tool call with usable input. It must have a single result
-whose error flag is explicitly true. Its repeat is the next identical call by
-the same agent in a later turn. The repeat is a review candidate when its error
-flag is also explicitly true and no different call came between.
-
-A repeat with an explicitly false error flag (`repeat_succeeded`), or a different
-call between (`intervening_action`), is
-excluded. A false flag does not prove correctness or a successful side effect.
-Absent, invalid, conflicting, or unobservable repeat status is unknown unless
-an intervening action already excludes the opportunity.
-
-`eligible_opportunities` retains all eligible error calls, including unknown and
-excluded opportunities. `assessed_opportunities = eligible_opportunities - unknown - excluded`,
-which equals `review_candidates + no_repeat`. A call with no identical repeat in
-a later turn counts as `no_repeat`, not an exclusion. `candidate_rate` is
-`review_candidates / assessed_opportunities`, or `null` when assessed is zero.
-`trials.observable` is 1 only when assessed is positive. `trials.affected` is 1
-only when a review candidate exists. Unknown and excluded counts remain separate.
-
-Traces record no artifact or environment state, so `confirmed_violations` is always 0. Token
-counts are the values each span reports. The check adds no model window or estimate.
-The evidence audit report is unchanged.
+The retry audit reports unchanged calls after explicit tool errors as review
+candidates. It does not confirm violations or establish which feedback reached
+the model. See the installed skill's
+[retry audit contract](../skills/eval-author-inspect-trace/references/evidence-audit.md#repeats-after-tool-errors)
+for eligibility, exclusions, unknowns, exact denominators, and token-count limits.
 
 #### Scores for each check group
 
 Verification-integrity scores apply to each supported check group separately.
 They do not replace canonical rubric scores or form an aggregate score.
+
+In rubric reports, only `receipt_consistency` can receive a numeric score.
+`required_verification` remains visible but is always **Unassessed** because the
+native projection cannot establish current task freshness. Its null score records
+that evidence gap. The numeric scale below does not assess required verification
+in rubric runs.
 
 | Score | Meaning |
 | --- | --- |
@@ -298,7 +295,8 @@ uv run --locked python tools/run_verification_integrity_demo.py \
   --format text --run-dir /absolute/path/to/new-demo-directory
 ```
 
-The demo shows expected and observed scores of 0, 1, 2, and 3. It also shows
+The demo shows expected and observed receipt-consistency scores of 0, 1, 2, and 3.
+Required verification stays Unassessed in every rubric case. The demo also shows
 unassessed missing and stale evidence, a contradictory saved claim, a consistent
 saved claim, and retry candidates that receive no score. Acceptance examples use
 partial claim fixtures to test integrity, not complete workflow acceptance. Each

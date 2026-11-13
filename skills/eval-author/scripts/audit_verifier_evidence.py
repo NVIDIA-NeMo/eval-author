@@ -17,10 +17,9 @@ from verification_integrity import (
     ACCEPTANCE_DETECTOR,
     CLAIMS,
     new_integrity,
+    project_integrity,
     receipt_state,
     required_verification,
-    summarize_receipts,
-    superseded_references,
 )
 
 
@@ -247,7 +246,7 @@ def inspect_receipt(
         row["reason"] = str(exc)
         if integrity["code"] == "unassessed":
             integrity.update(
-                status="unknown" if isinstance(exc, OSError) else "mismatched",
+                status="unknown",
                 code="source_missing" if isinstance(exc, OSError) else "invalid_evidence",
             )
     return row
@@ -615,14 +614,7 @@ def check(
         )
     if include_integrity:
         manifests = _selected_manifests(review, selected)
-        receipts = [row for row in rows if "integrity" in row]
-        accounting.update(
-            receipt_integrity=summarize_receipts([row["integrity"] for row in receipts]),
-            required_verification=required_verification(
-                {path: manifest for path, (manifest, _) in manifests.items()}, receipts
-            ),
-            superseded_references=superseded_references(manifests, receipts),
-        )
+        accounting.update(project_integrity(manifests, rows))
     return {
         **accounting,
         "mode": "selected" if identity is not None else "legacy",

@@ -399,6 +399,12 @@ control receipts, attempt ledger, and repair lineage:
 - `unknown`: evidence is missing or unreadable.
 - `stale`: the task changed after the controls ran.
 
+The integrity check uses the nearest enclosing Git root or the parent of an
+enclosing `.eval-author` directory as its evidence boundary. Without either, it
+uses the report directory. For another layout, pass `--repo-root <repository>`
+with `--integrity`. Keep the report and cited evidence inside that root.
+Selected paths must not traverse symlinks. Cited paths cannot widen the boundary.
+
 `violations` counts violating claims (0 or 1). `violation_findings` counts the
 supporting findings. Duplicate citations count once. An empty
 list of evidence is `unknown`, not a consistent claim.

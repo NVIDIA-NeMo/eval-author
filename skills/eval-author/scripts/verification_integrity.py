@@ -10,6 +10,7 @@ intent, model-visible context, or context-rot causation.
 
 from __future__ import annotations
 
+import re
 from typing import Literal, TypedDict
 
 RECEIPT_DETECTOR = "receipt-integrity-v1"
@@ -82,6 +83,30 @@ def summarize_receipts(states: list[ReceiptIntegrity]) -> dict:
         "mismatched": sum(row["status"] == "mismatched" for row in states),
         "contradiction_rate": contradictions / eligible if eligible else None,
         "context_rot_score": None,
+    }
+
+
+def project_integrity(manifests: dict[str, tuple[dict, str]], rows: list[dict]) -> dict:
+    """Apply selected lineage before projecting claim and verification measurements."""
+    lineage = superseded_references(manifests, rows)
+    candidates = {finding["receipt"] for finding in lineage["findings"]}
+    controls = [
+        {
+            **row,
+            "integrity": {**row["integrity"], "status_claim": "excluded", "code": "superseded"},
+        }
+        if row.get("path", row.get("receipt")) in candidates and "integrity" in row
+        else row
+        for row in rows
+    ]
+    superseded = _superseding(manifests)
+    return {
+        "controls": controls,
+        "receipt_integrity": summarize_receipts([row["integrity"] for row in controls if "integrity" in row]),
+        "required_verification": required_verification(
+            {path: manifest for path, (manifest, digest) in manifests.items() if digest not in superseded}, controls
+        ),
+        "superseded_references": lineage,
     }
 
 
@@ -158,6 +183,16 @@ def required_verification(manifests: dict[str, dict], rows: list[dict]) -> dict:
     }
 
 
+def _superseding(manifests: dict[str, tuple[dict, str]]) -> dict[str, str]:
+    return {
+        supersedes["manifest_sha256"]: path
+        for path, (manifest, _) in sorted(manifests.items())
+        if isinstance(supersedes := manifest.get("supersedes"), dict)
+        and isinstance(supersedes.get("manifest_sha256"), str)
+        and re.fullmatch(r"[0-9a-f]{64}", supersedes["manifest_sha256"])
+    }
+
+
 def superseded_references(manifests: dict[str, tuple[dict, str]], rows: list[dict]) -> dict:
     """Find receipts bound to a manifest that a selected repair explicitly supersedes.
 
@@ -165,11 +200,7 @@ def superseded_references(manifests: dict[str, tuple[dict, str]], rows: list[dic
     trustworthy timestamps, so each reference is a review candidate. A current
     completion claim that cites one is confirmed by the acceptance check instead.
     """
-    superseding = {
-        manifest["supersedes"]["manifest_sha256"]: path
-        for path, (manifest, _) in sorted(manifests.items())
-        if isinstance(manifest.get("supersedes"), dict)
-    }
+    superseding = _superseding(manifests)
     findings = [
         {
             "receipt": row["path"],

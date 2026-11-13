@@ -14,7 +14,7 @@ import audit_verifier_evidence as audit
 from eval_author_shared import task_evidence
 from rubric_identity import DIGEST, FIELDS, SelectedAccess, artifact_byte_limit, diagnostic, finish, read_selected, text
 from rubric_links import check_links
-from verification_integrity import new_integrity, required_verification, summarize_receipts, superseded_references
+from verification_integrity import new_integrity, project_integrity
 
 MAX_ARTIFACTS = 64
 MAX_BYTES = 2_000_000
@@ -155,7 +155,7 @@ def project_native(
     """
     diagnostics, nodes, links, controls, subjects = [], [], [], [], []
     bindings, consumer_rows = [], []
-    verified_manifests, lineage, joins = {}, {}, {}
+    lineage, joins = {}, {}
 
     def issue(code, subject="selection", status="fail"):
         diagnostics.append(diagnostic("native." + code, subject, status))
@@ -163,21 +163,27 @@ def project_native(
     def joined():
         # Join selected IDs so later reference failures stay visible and paths stay private.
         return [
-            {"path": row["receipt"], "manifest": joins[row["receipt"]][0], "case": joins[row["receipt"]][1], **row}
+            {
+                "path": row["receipt"],
+                "manifest": joins.get(row["receipt"], (None, None))[0],
+                "case": joins.get(row["receipt"], (None, None))[1],
+                **row,
+            }
             for row in controls
-            if row["receipt"] in joins
         ]
 
     def output():
         link_check = check_links(nodes, links)
+        integrity = project_integrity(lineage, joined())
+        projected = integrity.pop("controls")
         return {
             **finish([], diagnostics + link_check["diagnostics"]),
             "nodes": nodes,
             "links": links,
-            "controls": controls,
-            "receipt_integrity": summarize_receipts([row["integrity"] for row in controls]),
-            "required_verification": required_verification(verified_manifests, joined()),
-            "superseded_references": superseded_references(lineage, joined()),
+            "controls": [
+                {**row, "integrity": result["integrity"]} for row, result in zip(controls, projected, strict=True)
+            ],
+            **integrity,
             "subjects": subjects,
             "bindings": bindings,
             "link_check": link_check,
@@ -390,7 +396,6 @@ def project_native(
             _require(manifest.get("schema") in (task_evidence.SCHEMA, task_evidence.MANIFEST_SCHEMA))
             _require(isinstance(manifest.get("task_sha256"), str) and DIGEST.fullmatch(manifest["task_sha256"]))
             task_evidence.validate_contract(manifest["contract"])
-            verified_manifests[ident] = manifest
             lineage[ident] = (manifest, hashlib.sha256(review.read(path)).hexdigest())
             rows = audit.inspect_manifest(
                 review,

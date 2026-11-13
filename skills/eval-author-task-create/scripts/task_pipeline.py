@@ -14,7 +14,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import re
 import shutil
 import subprocess
@@ -508,19 +507,27 @@ def _check_acceptance(path: Path) -> tuple[int, dict]:
     return code, current
 
 
-def _acceptance_integrity(path: Path) -> tuple[int, dict]:
+def _acceptance_integrity(path: Path, repo_root: Path | None = None) -> tuple[int, dict]:
     """Report typed findings that compare claims with records. Continue past the first error."""
-    saved = _read_json(path)
     import task_evidence  # noqa: F401  # Puts the shared Eval Author scripts on the import path.
     from audit_verifier_evidence import Review, inspect_acceptance
 
-    evidence = saved.get("evidence")
-    cited = (
-        [Path(value).resolve() for value in evidence if isinstance(value, str)] if isinstance(evidence, list) else []
-    )
-    paths = [path.resolve(), *cited]
-    repo = Path(os.path.commonpath(paths))
-    repo = repo if repo.is_dir() else repo.parent
+    for selected in (path, repo_root):
+        if selected is not None and any(part.is_symlink() for part in (selected, *selected.parents)):
+            raise PipelineError("acceptance integrity: selected paths must not traverse symlinks")
+    path = path.resolve()
+    repo = repo_root.resolve() if repo_root is not None else path.parent
+    if repo_root is None:
+        for parent in path.parents:
+            if (parent / ".git").exists():
+                repo = parent
+                break
+            if parent.name == ".eval-author":
+                repo = parent.parent
+                break
+    if not repo.is_dir() or not path.is_relative_to(repo):
+        raise PipelineError("acceptance integrity: report must be inside the repository root")
+    saved = _read_json(path)
     try:
         result = inspect_acceptance(Review(repo, [repo]), saved)
     except (ValueError, KeyError, TypeError) as exc:
@@ -558,6 +565,11 @@ def _parser() -> argparse.ArgumentParser:
     recheck = subparsers.add_parser("check-acceptance", help="Revalidate every input of a saved acceptance")
     recheck.add_argument("--report", type=Path, required=True)
     recheck.add_argument(
+        "--repo-root",
+        type=Path,
+        help="Evidence boundary for --integrity (default: nearest Git or .eval-author root, else report directory)",
+    )
+    recheck.add_argument(
         "--integrity",
         action="store_true",
         help="Report typed contradictions between the saved claim and its control receipts and attempt ledger",
@@ -586,7 +598,7 @@ def main(argv: list[str] | None = None) -> int:
             )
             exit_code = 0
         elif args.command == "check-acceptance" and args.integrity:
-            exit_code, payload = _acceptance_integrity(args.report)
+            exit_code, payload = _acceptance_integrity(args.report, args.repo_root)
         elif args.command == "check-acceptance":
             exit_code, payload = _check_acceptance(args.report)
         else:

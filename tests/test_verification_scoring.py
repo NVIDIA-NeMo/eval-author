@@ -80,7 +80,19 @@ def test_native_groups_separate_consistency_from_current_verification(scoring, f
 
 
 @pytest.mark.parametrize(
-    "state", ["missing", "unknown", "unassessed", "stale", "execution_error", "mismatched", "nonsense"]
+    "state",
+    [
+        "missing",
+        "unknown",
+        "unassessed",
+        "stale",
+        "execution_error",
+        "mismatched",
+        "nonsense",
+        "excluded",
+        "review_candidate",
+        "not_applicable",
+    ],
 )
 def test_nonverdict_required_states_are_unknown(scoring, state):
     group = scoring.score_integrity_groups(
@@ -112,16 +124,16 @@ def test_empty_native_groups_are_unassessed(scoring):
         assert group["coverage"] is None
 
 
-def test_review_candidates_and_nonclaims_are_excluded_not_failures(scoring):
+def test_projected_supersession_and_nonclaims_are_excluded_not_failures(scoring):
     native = {
         "controls": [
-            {"receipt": "candidate", "integrity": {"status_claim": "contradiction"}},
+            {"receipt": "candidate", "integrity": {"status_claim": "excluded"}},
             {"receipt": "baseline", "integrity": {"status_claim": "excluded"}},
             {"receipt": "negative", "integrity": {"status_claim": "not_applicable"}},
             {"receipt": "current", "integrity": {"status_claim": "consistent"}},
         ],
         "superseded_references": {"findings": [{"receipt": "candidate", "status": "review_candidate"}]},
-        "required_verification": {"cases": [{"state": "review_candidate", "freshness": "current"}]},
+        "required_verification": {"cases": []},
     }
     receipt, required = scoring.score_integrity_groups(native)
     assert receipt["score"] == 3
@@ -129,4 +141,11 @@ def test_review_candidates_and_nonclaims_are_excluded_not_failures(scoring):
     assert receipt["applicable"] == 1
     assert receipt["failed"] == required["failed"] == 0
     assert required["score"] is None
-    assert required["excluded"] == 1
+    assert required["excluded"] == 0
+
+
+def test_unsupported_claim_state_is_unknown_not_excluded(scoring):
+    receipt = scoring.score_integrity_groups({"controls": [{"integrity": {"status_claim": "review_candidate"}}]})[0]
+    assert receipt["score"] is None
+    assert receipt["unknown"] == 1
+    assert receipt["excluded"] == 0

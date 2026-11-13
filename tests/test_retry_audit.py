@@ -77,6 +77,121 @@ def test_unchanged_repeat_after_an_explicit_error_is_a_review_candidate_with_rec
     assert "private" not in json.dumps(report)
 
 
+@pytest.mark.parametrize("repeat_count", [1, 2])
+def test_same_turn_errors_use_each_later_repeat_at_most_once(tmp_path, repeat_count):
+    report = audit(
+        tmp_path,
+        step(2, (call("a"), True), (call("b"), True)),
+        step(3, *((call(f"repeat-{index}"), True) for index in range(repeat_count))),
+    )
+    assert report["counts"] == {
+        "tool_calls": 2 + repeat_count,
+        "eligible_opportunities": 2 + repeat_count,
+        "assessed_opportunities": 2 * repeat_count,
+        "review_candidates": repeat_count,
+        "confirmed_violations": 0,
+        "no_repeat": repeat_count,
+        "excluded": 0,
+        "unknown": 2 - repeat_count,
+        "ineligible": 0,
+    }
+    assert report["unknown"] == ({"repeat_already_attributed": 1} if repeat_count == 1 else {})
+    assert report["candidate_rate"] == 0.5
+    assert [finding["span_ids"] for finding in report["findings"]] == [
+        [f"trajectory/step/2/tool/{index}", f"trajectory/step/3/tool/{index}"] for index in range(repeat_count)
+    ]
+    assert all(finding["outcome"] == "review_candidate" for finding in report["findings"])
+    assert report["execution_verified"] is False
+    assert report["trials"] == {"observable": 1, "affected": 1}
+
+
+@pytest.mark.parametrize(
+    "repeat_error,excluded,unknown",
+    [
+        (False, {"repeat_succeeded": 1}, {"repeat_already_attributed": 1}),
+        (None, {}, {"repeat_already_attributed": 1, "repeat_status_unrecorded": 1}),
+    ],
+)
+def test_repeat_is_consumed_even_when_excluded_or_unknown(tmp_path, repeat_error, excluded, unknown):
+    report = audit(
+        tmp_path,
+        step(2, (call("a"), True), (call("b"), True)),
+        step(3, (call("repeat"), repeat_error)),
+    )
+    assert report["counts"] == {
+        "tool_calls": 3,
+        "eligible_opportunities": 2,
+        "assessed_opportunities": 0,
+        "review_candidates": 0,
+        "confirmed_violations": 0,
+        "no_repeat": 0,
+        "excluded": sum(excluded.values()),
+        "unknown": sum(unknown.values()),
+        "ineligible": 0,
+    }
+    assert report["excluded"] == excluded
+    assert report["unknown"] == unknown
+    assert report["candidate_rate"] is None
+    assert report["trials"] == {"observable": 0, "affected": 0}
+    assert report["findings"] == []
+
+
+def test_recovery_must_follow_the_attributed_repeat(tmp_path):
+    report = audit(
+        tmp_path,
+        step(2, (call("a"), True), (call("b"), True), (call("c"), True)),
+        step(3, (call("d"), True), (call("e"), False), (call("f"), True)),
+    )
+    assert [finding["span_ids"] for finding in report["findings"]] == [
+        ["trajectory/step/2/tool/0", "trajectory/step/3/tool/0"],
+        ["trajectory/step/2/tool/2", "trajectory/step/3/tool/2"],
+    ]
+    assert [finding["later_success_span_id"] for finding in report["findings"]] == [
+        "trajectory/step/3/tool/1",
+        None,
+    ]
+    assert report["excluded"] == {"repeat_succeeded": 1}
+    assert report["unknown"] == {}
+    assert report["counts"]["assessed_opportunities"] == 4
+    assert report["candidate_rate"] == 0.5
+
+
+@pytest.mark.parametrize("repeat_error", [True, False, None])
+def test_harness_repeat_is_excluded_without_skipping_to_a_later_model_call(tmp_path, repeat_error):
+    from eval_author_shared.trace_view import tool_spans
+    from trace_ingest import Initiator
+
+    audit(
+        tmp_path,
+        step(2, (call("a"), True)),
+        step(3, (call("harness"), repeat_error)),
+        step(4, (call("b"), True)),
+    )
+    trace = load_trace(tmp_path / "source.atif.json", "atif")
+    for _, span in tool_spans(trace):
+        assert span.tool_call is not None
+        span.tool_call.initiator = Initiator.HARNESS if span.id == "trajectory/step/3/tool/0" else Initiator.MODEL
+    report = audit_retries(trace, safe_trace_sha256="synthetic")
+    assert report["counts"] == {
+        "tool_calls": 3,
+        "eligible_opportunities": 2,
+        "assessed_opportunities": 1,
+        "review_candidates": 0,
+        "confirmed_violations": 0,
+        "no_repeat": 1,
+        "excluded": 1,
+        "unknown": 0,
+        "ineligible": int(repeat_error is True),
+    }
+    assert report["excluded"] == {"harness_initiated_repeat": 1}
+    assert report["ineligible"] == {"unordered": 0, **({"harness_initiated": 1} if repeat_error is True else {})}
+    assert report["unknown"] == {}
+    assert report["findings"] == []
+    assert report["candidate_rate"] == 0.0
+    assert report["trials"] == {"observable": 1, "affected": 0}
+    assert report["execution_verified"] is False
+
+
 @pytest.mark.parametrize(
     "steps,outcome",
     [

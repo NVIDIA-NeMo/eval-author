@@ -37,6 +37,114 @@ def codes(result):
     return sorted((row["code"], row["outcome"]) for row in result["findings"] if row["outcome"] != "consistent")
 
 
+@pytest.mark.parametrize("root_mode", ["layout", "git", "explicit"])
+@pytest.mark.parametrize("state", ["consistent", "violation", "stale"])
+def test_cli_integrity_uses_repository_scope_for_nested_records(tmp_path, prepared, root_mode, state):
+    task, contract, _ = prepared
+    tasks = tmp_path / "tasks"
+    tasks.mkdir()
+    task = task.rename(tasks / task.name)
+    records = tmp_path / ("custom/records" if root_mode != "layout" else ".eval-author/task-measurements/cover-read")
+    records.mkdir(parents=True)
+    if root_mode == "git":
+        (tmp_path / ".git").write_text("gitdir: unused-worktree-metadata\n")
+    jobs = tmp_path / "jobs"
+    jobs.mkdir()
+    manifest = records / "revision.json"
+    evidence.prepare(task, contract, manifest)
+    receipts = []
+    for case, reward in (("reference", 1), ("incorrect", 0), ("empty", 0)):
+        native = jobs / f"{case}.json"
+        receipt = records / f"{case}.json"
+        payload = {
+            "rollout_id": case,
+            "reward": 1 if state == "violation" and case == "incorrect" else reward,
+            "error": None,
+            "task_checksum": "synthetic",
+            "exception_info": None,
+        }
+        evidence.run(
+            manifest,
+            case,
+            case,
+            receipt,
+            native,
+            None,
+            [
+                sys.executable,
+                "-c",
+                f"from pathlib import Path; Path({str(native)!r}).write_text({json.dumps(payload)!r})",
+            ],
+        )
+        receipts.append(receipt)
+    if state == "stale":
+        (task / "instruction.md").write_text("Changed requirement.")
+    path = saved(records, receipts)
+    before = {item: item.read_bytes() for item in tmp_path.rglob("*.json")}
+    command = [sys.executable, str(SCRIPTS / "task_pipeline.py"), "check-acceptance", "--integrity"]
+    if root_mode == "explicit":
+        command.extend(["--repo-root", str(tmp_path)])
+    measured = subprocess.run([*command, "--report", str(path)], capture_output=True, text=True, timeout=60)
+    payload = json.loads(measured.stdout)
+    assert payload["valid"] is True, payload
+    result = payload["acceptance_integrity"]
+    assert result["status"] == state
+    assert measured.returncode == (0 if state == "consistent" else 1)
+    assert result["required_verification"]["required_cases"] == 3
+    assert result["violations"] == (1 if state == "violation" else 0)
+    assert all(item.read_bytes() == raw for item, raw in before.items())
+
+
+@pytest.mark.parametrize(
+    "escape", ["outside_receipt", "receipt_symlink", "report_symlink", "root_symlink", "outside_report"]
+)
+def test_cli_integrity_keeps_an_explicit_repository_boundary(tmp_path, escape):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    outside = write(tmp_path / "private.json", {"private": "not evidence"})
+    receipt = outside
+    if escape == "receipt_symlink":
+        receipt = repo / "receipt.json"
+        receipt.symlink_to(outside)
+    path = saved(repo, [receipt] if escape in {"outside_receipt", "receipt_symlink"} else [])
+    root = repo
+    if escape == "report_symlink":
+        original = path
+        path = repo / "linked-report.json"
+        path.symlink_to(original)
+    elif escape == "root_symlink":
+        root = tmp_path / "linked-repo"
+        root.symlink_to(repo, target_is_directory=True)
+    elif escape == "outside_report":
+        path = saved(tmp_path, [])
+    measured = subprocess.run(
+        [
+            sys.executable,
+            str(SCRIPTS / "task_pipeline.py"),
+            "check-acceptance",
+            "--report",
+            str(path),
+            "--integrity",
+            "--repo-root",
+            str(root),
+        ],
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    assert measured.returncode == 1
+    assert json.loads(measured.stdout)["valid"] is False
+    assert "not evidence" not in measured.stdout
+
+
+def test_integrity_default_scope_is_not_widened_by_cited_evidence(tmp_path):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    outside = write(tmp_path / "private.json", {"private": "not evidence"})
+    with pytest.raises(pipeline.PipelineError, match="outside the repository"):
+        integrity(saved(repo, [outside]))
+
+
 def test_complete_current_controls_support_the_claim(tmp_path, prepared):
     code, result = integrity(saved(tmp_path, complete(tmp_path, prepared[2])))
     assert code == 0
