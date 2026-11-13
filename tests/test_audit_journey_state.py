@@ -136,7 +136,8 @@ def test_task_review_completion_and_approach_changes_survive_restart(modules, tm
         "source": "User approved checks",
     }
     saved = state.update(tmp_path, {"scopes": {"audit": {"lifecycle": lifecycle}}}, expected_revision=saved["revision"])
-    report = tmp_path / ".eval-author/audit-coverage-report.md"
+    report = tmp_path / ".eval-author/report_markdown/audits.md"
+    report.parent.mkdir(parents=True, exist_ok=True)
     report.write_text("Task review findings. Run coverage is unmeasured.")
     lifecycle["findings"] = {
         "report": {"path": report.relative_to(tmp_path).as_posix(), "digest": state.digest(report.read_bytes())},
@@ -789,7 +790,8 @@ def test_native_results_resume_and_changed_trace_reopens_audit(modules, tmp_path
         else "Native measurement and aggregate verification succeeded",
     }
     assert save()["measurement_complete"] is (not failed)
-    report = tmp_path / ".eval-author/audit-coverage-report.md"
+    report = tmp_path / ".eval-author/report_markdown/audits.md"
+    report.parent.mkdir(parents=True, exist_ok=True)
     report.write_text("# Findings\n\nLookup is exercised; unjudged behavior limits the findings.\n")
     lifecycle["findings"] = {"report": ref(report), "source": "Presented findings and evidence limits"}
     progress = save()

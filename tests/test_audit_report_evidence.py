@@ -92,7 +92,7 @@ def test_failed_control_remains_visible_alongside_a_pass_without_agent_trajector
     assert "Executed controls confirmed verifier cheating, as documented in " in report
     assert "The audit uncovered evidence of verifier cheating." in report
     assert "no evidence of verifier tampering" not in report
-    assert "[T1-example](../tasks/example" in report
+    assert "[T1-example](../../tasks/example" in report
     assert "T1-source-answer" not in report
     assert_markdown_links(report, renderer)
 

@@ -29,6 +29,16 @@ class ContentError(ValueError):
         super().__init__("\n".join(f"{row['field']}: {row['rule']}. {row['fix']}" for row in errors))
 
 
+def is_published_path(path: str) -> bool:
+    """Publishing the audit rewrites the suite README section, report.html, and the Markdown reports, and
+    retires the legacy report, so none can be bound as evidence: their digests change once it publishes."""
+    suite = suite_report_module()
+    folded = path.casefold()
+    directory = suite.MARKDOWN_DIR.casefold()
+    published = {name.casefold() for name in (suite.SUITE_README, suite.REPORT_HTML, suite.LEGACY_AUDIT_MARKDOWN)}
+    return folded in published or folded == directory or folded.startswith(directory + "/")
+
+
 def issue(path: str, rule: str, fix: str) -> dict:
     return {"field": path, "rule": rule, "fix": fix}
 
@@ -46,12 +56,22 @@ def load_module(name: str, path: Path):
     return module
 
 
-def core_module():
+def core_scripts() -> Path:
     scripts = Path(__file__).resolve().parents[3] / "eval-author/scripts"
     if not scripts.is_dir():
         raise ValueError("Install the sibling eval-author skill to read task evidence")
+    return scripts
+
+
+def core_module():
+    scripts = core_scripts()
     sys.path.insert(0, str(scripts))
     return load_module("audit_verifier_evidence", scripts / "audit_verifier_evidence.py")
+
+
+def suite_report_module():
+    """The core skill's suite report, which owns the report locations; audit_spec has its own report module."""
+    return load_module("eval_author_suite_report", core_scripts() / "report.py")
 
 
 def local(repo: Path, name: str) -> Path:
@@ -231,6 +251,12 @@ def _sources(model: Content) -> list[dict]:
             model.sources[row["id"]] = row
             seen_paths.add(row["path"])
             source = local(model.repo, row["path"])
+            if is_published_path(row["path"]):
+                raise ValueError(
+                    "Generated suite reports cannot be source evidence: publishing the audit rewrites them. "
+                    "Remove this source and cite the underlying tasks, runs, receipts, or measurements; "
+                    "state findings in report-content.json"
+                )
             if row["kind"] == "task":
                 actual = core_module().task_evidence.task_digest(source)
             else:

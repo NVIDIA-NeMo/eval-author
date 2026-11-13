@@ -149,7 +149,6 @@ def test_provenance_notes_do_not_change_the_criteria(history):
         lambda row: row.update(dirty="no"),
         lambda row: row["kinds"]["tool"].update(covered="2"),
         lambda row: row["kinds"]["tool"].update(basis="guessed"),
-        lambda row: row["kinds"]["tool"].pop("criteria"),
     ],
 )
 def test_snapshots_missing_consumed_fields_are_skipped(history, tmp_path, damage):
@@ -201,3 +200,19 @@ def test_snapshots_saved_in_the_earlier_location_are_still_read(history, tmp_pat
     assert sorted(row["audit_id"] for row in rows) == ["new", "old"]
     assert history.previous(rows, "support", "new")["audit_id"] == "old"
     assert not history.save(tmp_path, make(history, "old"))
+
+
+def test_snapshots_recorded_before_criteria_fingerprints_remain_baselines(history, tmp_path):
+    # The first history format had no criteria; those audits compare on their item lists.
+    legacy = tmp_path / history.LEGACY_HISTORY_DIR
+    legacy.mkdir(parents=True)
+    old = make(history, "old", at="2026-10-01T00:00:00+00:00")
+    for row in old["kinds"].values():
+        row.pop("criteria")
+    (legacy / "old.json").write_text(json.dumps(old))
+    history.save(tmp_path, make(history, "new", at="2026-11-01T00:00:00+00:00"))
+    rows = history.load(tmp_path)
+    earlier = history.previous(rows, "support", "new")
+    assert earlier["audit_id"] == "old" and earlier["kinds"]["capability"]["criteria"] is None
+    assert history.compare(kind(["a", "b"], 2), earlier["kinds"]["capability"])["status"] == "comparable"
+    assert history.compare(kind(["a", "c"], 2), earlier["kinds"]["capability"])["status"] == "scope"

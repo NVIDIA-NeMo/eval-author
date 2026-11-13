@@ -40,6 +40,35 @@ preview: workflows, skills, and saved artifacts may change between releases.
 
 ### Changed
 
+- **Generated reports are not audit evidence.** Content validation now refuses to
+  bind `.eval-author/README.md`, `report.html`, `report_markdown/*`, or the legacy
+  `audit-coverage-report.md` as a source, because publishing the audit rewrites
+  them and left the findings stale (`source_binding`). Cite the underlying tasks,
+  runs, receipts, or measurements and state findings in `report-content.json`.
+  A `report-content.json` that already binds one of these must drop that source.
+- **Audit recommendations table.** The audit report's Recommended next actions
+  section is now a table with Priority, Finding / Advisory, Affected coverage,
+  and Description columns, instead of a bulleted list. A selected proposal's
+  Verification, Breadth, Next step, and Verifier links continue in its
+  Description cell. Existing `audits.md` files update on the next audit; no
+  content or schema change is needed.
+- **Suite README, HTML report, and Markdown reports.** The generated section of
+  `.eval-author/README.md` is now a general introduction to the evaluation suite
+  that links the reports; it no longer holds task, run, or audit data. The
+  human-readable report lives in `report.html`, which gains an **Audit** tab that
+  renders the latest audit coverage report, with task links that open the Tasks
+  row and run links that open the Runs tab. The former README tables are split
+  into one Markdown report per content tab for agents:
+  `.eval-author/report_markdown/tasks.md` and `runs.md`, and the audit report moves
+  from `.eval-author/audit-coverage-report.md` to `report_markdown/audits.md`. Each
+  tab links to its Markdown report. Refresh still rewrites the README's marked
+  section, so the first refresh after upgrading replaces the old tables there;
+  an older audit is shown from its old location until the next audit regenerates
+  it. First-eval review now links `tasks.md` and, for Harbor runs, `runs.md`
+  instead of the README, and the remaining-task artifact receipt retains
+  `report.html` and `tasks.md`. A receipt saved with `README.md` stays valid but
+  is no longer current, so the next refresh records a new one. See
+  [Case and run catalog](docs/results.md#case-and-run-catalog).
 - **One trace loader.** `skills/eval-author/scripts/trace_loading.py` loads
   `atif`, `mlflow`, `gym`, `intake`, and `trace` sources into NeMo Compass
   `Trace` objects (trace contract v3) and writes a

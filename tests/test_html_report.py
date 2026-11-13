@@ -30,6 +30,11 @@ def write(root, name, value):
     return path
 
 
+def markdown_report(root, *names):
+    """Read generated Markdown reports from report_markdown/, joined in the order given."""
+    return "\n".join((root / ".eval-author/report_markdown" / f"{name}.md").read_text() for name in names)
+
+
 def task(root, name="refund", readme=None):
     path = f".eval-author/tasks/{name}"
     write(root, path + "/task.toml", f'[task]\nname = "org/{name}"\n')
@@ -93,7 +98,14 @@ def test_bootstrap_and_documentation_are_deterministic(tmp_path):
     assert report.refresh(tmp_path) == first
     assert output.read_bytes() == before
     assert output.stat().st_mtime_ns == modified
-    assert sorted(p.name for p in output.parent.iterdir()) == [".working", "README.md", "report.html", "tasks"]
+    assert sorted(p.name for p in output.parent.iterdir()) == [
+        ".working",
+        "README.md",
+        "report.html",
+        "report_markdown",
+        "tasks",
+    ]
+    assert sorted(p.name for p in (output.parent / "report_markdown").iterdir()) == ["audits.md", "runs.md", "tasks.md"]
     write(
         tmp_path,
         path + "/README.md",
@@ -147,7 +159,7 @@ def test_task_heading_preserves_complete_readme_title(tmp_path, heading, display
     item = report.refresh(tmp_path, patch=patch)["tasks"][0]
     assert "heading_id" not in item
     assert item["title"] == heading
-    markdown = (tmp_path / ".eval-author/README.md").read_text()
+    markdown = markdown_report(tmp_path, "tasks")
     assert "| <strong><code>" + report.markdown_text(heading) + "</code></strong><br>" in markdown
     assert "<small>" not in markdown
     assert "<code>tasks/refund</code>" in markdown
@@ -163,7 +175,7 @@ def test_metadata_grader_type_wins_and_readme_type_is_fallback(tmp_path, kind, s
     item = report.refresh(tmp_path)["tasks"][0]
     assert item["grading_kind"] == kind
     assert item["grading_summary"] == summary
-    assert f"{kind}<br>{summary}" in (tmp_path / ".eval-author/README.md").read_text()
+    assert f"{kind}<br>{summary}" in markdown_report(tmp_path, "tasks")
     # A subsequent refresh must read the edited README rather than retain the old type.
     (tmp_path / path / "README.md").write_text("## Grading\n\nType: Custom code\n\n" + summary)
     assert report.refresh(tmp_path)["tasks"][0]["grading_kind"] == "Custom code"
@@ -253,9 +265,9 @@ def test_grader_summary_is_derived_from_readme(tmp_path, source, summary):
     assert item["grading_summary"] == summary
     if summary:
         assert 5 <= len(summary.split()) <= 10
-        assert report.markdown_text(summary) in (tmp_path / ".eval-author/README.md").read_text()
+        assert report.markdown_text(summary) in markdown_report(tmp_path, "tasks")
     else:
-        assert report.NO_GRADING_SUMMARY in (tmp_path / ".eval-author/README.md").read_text()
+        assert report.NO_GRADING_SUMMARY in markdown_report(tmp_path, "tasks")
     if source is not None:
         assert (tmp_path / path / "README.md").read_text() == source
 
@@ -391,7 +403,7 @@ def test_invalid_canonical_expected_result_does_not_fall_back_to_import(tmp_path
     metadata = {"tasks": {path: {"expected_outcome": "Imported result.", "source_refs": [path + "/README.md"]}}}
     data = report.refresh(tmp_path, patch=metadata)
     assert data["tasks"][0]["expected_outcome"] is None
-    markdown = (tmp_path / ".eval-author/README.md").read_text()
+    markdown = markdown_report(tmp_path, "tasks")
     assert "Not documented" in markdown
     assert "Imported result." not in markdown
 
@@ -703,8 +715,8 @@ def test_markdown_legacy_trials_mirrors_the_separate_html_section(tmp_path):
     legacy = ".eval-author/jobs/checks/single"
     trial(tmp_path, legacy)
     report.refresh(tmp_path, patch=rule(path))
-    raw = (tmp_path / ".eval-author/README.md").read_text()
-    jobs, standalone = raw.split("### Legacy trials")
+    raw = markdown_report(tmp_path, "runs")
+    jobs, standalone = raw.split("## Legacy trials")
     assert "| Job | Reward |" in jobs and "| Trial | Reward |" in standalone
     assert legacy not in jobs and path not in standalone
     assert legacy in standalone and path in jobs
@@ -760,9 +772,9 @@ def test_harbor_and_gym_workloads_share_reports_without_harbor_links_for_gym(tmp
     assert found[manifest]["title"] == "NeMo Gym refund policy"
     assert found[manifest]["readme_path"] == readme
     assert "Refund saved." in found[manifest]["readme_html"]
-    raw = (tmp_path / ".eval-author/README.md").read_text()
-    assert "[NeMo Gym source](tasks/gym-refund/environments/refund/manifest.yaml)" in raw
-    assert "[Task README](tasks/gym-refund/README.md)" in raw
+    raw = markdown_report(tmp_path, "tasks")
+    assert "[NeMo Gym source](../tasks/gym-refund/environments/refund/manifest.yaml)" in raw
+    assert "[Task README](../tasks/gym-refund/README.md)" in raw
     assert "task-definitions/refund" in raw
     assert "task-definitions/row-task" not in raw
     assert report.refresh(tmp_path) == data
@@ -1187,9 +1199,10 @@ def test_task_readiness_is_projected_without_changing_tasks_or_suite_selection(t
     row = accepted["tasks"][0]
     assert row["readiness"] == "accepted"
     assert row["path"] == path
-    markdown = (tmp_path / ".eval-author/README.md").read_text()
+    markdown = markdown_report(tmp_path, "tasks")
     assert "| Status |" in markdown
-    assert "Accepted<br>Existing workflow review completed" in markdown
+    assert "**Accepted**<br>Existing workflow review completed" in markdown
+    assert "| Accepted | 1 | You approved this exact task revision" in markdown
     assert report.previous_report(tmp_path / ".eval-author/report.html")[0]["tasks"] == accepted["tasks"]
     assert (tmp_path / path / "README.md").read_bytes() == before_task
     assert configured.read_text() == "tasks: []\n"
@@ -1217,7 +1230,7 @@ def test_repository_root_task_keeps_unknown_readiness_without_hiding_other_tasks
     assert rows[path]["readiness"] == "draft"
     assert rows[path]["readiness_reason"] == "Case creation in progress"
     assert report.previous_report(tmp_path / ".eval-author/report.html")[0]["tasks"] == data["tasks"]
-    assert "Unknown<br>" in (tmp_path / ".eval-author/README.md").read_text()
+    assert "**Unknown**<br>" in markdown_report(tmp_path, "tasks")
     assert state_path.read_bytes() == before_state
     assert report.refresh(tmp_path) == data
 
@@ -1274,10 +1287,10 @@ def test_incomplete_inventory_recomputes_retained_task_readiness(tmp_path, chang
     assert row["readiness"] == "draft"
     assert row["readiness_reason"] != "Workflow review complete"
     assert report.previous_report(tmp_path / ".eval-author/report.html")[0]["tasks"] == data["tasks"]
-    markdown = (tmp_path / ".eval-author/README.md").read_text()
+    markdown = markdown_report(tmp_path, "tasks")
     assert "Inventory unverified" in markdown
-    assert "Draft<br>" in markdown
-    assert "Accepted<br>" not in markdown
+    assert "**Draft**<br>" in markdown
+    assert "**Accepted**<br>" not in markdown
     assert journey_state.state_path(tmp_path).read_bytes() == before_state
 
 
@@ -1463,10 +1476,14 @@ vm.createContext(context);vm.runInContext(input.helper,context);
     assert result.returncode == 0, result.stderr
 
 
-def markdown_tokens(tmp_path):
+def markdown_tokens(tmp_path, name="tasks"):
     from markdown_it import MarkdownIt
 
-    return MarkdownIt("commonmark").enable("table").parse((tmp_path / ".eval-author/README.md").read_text())
+    return MarkdownIt("commonmark").enable("table").parse(markdown_report(tmp_path, name))
+
+
+def headings_of(tokens):
+    return [(token.tag, tokens[i + 1].content) for i, token in enumerate(tokens) if token.type == "heading_open"]
 
 
 @pytest.mark.parametrize("with_proposals", [False, True])
@@ -1497,20 +1514,20 @@ def test_markdown_mirrors_report_tabs_rows_and_links(tmp_path, with_proposals):
     proposal_count = 2 if with_proposals else 0
     assert all(item["status"] == "proposed" for item in data["tasks"][:proposal_count])
     assert [item["path"] for item in data["tasks"][proposal_count:]] == [path, sibling, other]
-    tokens = markdown_tokens(tmp_path)
-    headings = [(token.tag, tokens[i + 1].content) for i, token in enumerate(tokens) if token.type == "heading_open"]
-    assert [(tag, text) for tag, text in headings if tag == "h2"] == [("h2", "Tasks"), ("h2", "Runs")]
-    assert len([token for token in tokens if token.type == "table_open"]) == 2
-    assert not any(tag == "h3" for tag, _ in headings)
-    raw = (tmp_path / ".eval-author/README.md").read_text()
+    tokens = markdown_tokens(tmp_path) + markdown_tokens(tmp_path, "runs")
+    headings = headings_of(tokens)
+    assert headings == [("h1", "Tasks"), ("h2", "Status summary"), ("h2", "Task list"), ("h1", "Runs")]
+    # Status summary, task list, and runs.
+    assert len([token for token in tokens if token.type == "table_open"]) == 3
+    raw = markdown_report(tmp_path, "tasks", "runs")
     rows = [line for line in raw.splitlines() if line.startswith("| <strong><code>")]
     assert len(rows) == len(data["tasks"])
     for row, item in zip(rows, data["tasks"], strict=True):
         assert row.startswith("| <strong><code>" + report.markdown_text(item["title"] or item["name"]) + "</code>")
     assert "Settings" not in raw
     assert "http://127.0.0.1:8081/task-definitions/with%20%23%20fragment" in raw
-    assert "[Task README](../evals/other%20suite/tasks/with%20%23%20fragment/README.md)" in raw
-    assert "[Task README](tasks/refund/README.md)" in raw
+    assert "[Task README](../../evals/other%20suite/tasks/with%20%23%20fragment/README.md)" in raw
+    assert "[Task README](../tasks/refund/README.md)" in raw
     assert "http://127.0.0.1:8080/jobs/baseline" in raw
     # Compare rendered text to the HTML report's source records, not independently authored content.
     text = " ".join(child.content for token in tokens for child in token.children or [] if child.type == "text")
@@ -1525,10 +1542,15 @@ def test_markdown_mirrors_report_tabs_rows_and_links(tmp_path, with_proposals):
     assert "1/2 passed" in text
     assert "agent · completed" in text
     assert all(part in text for part in data["runs"][0]["date"].split("T"))
+    # Each content tab of the HTML has its own Markdown report, and every report links back to the others.
     template = (SCRIPTS / "report-template.html").read_text()
     html_tabs = re.findall(r'<button role="tab"[^>]*>([^<]+)</button>', template)
-    assert [text for tag, text in headings if tag == "h2"] == [name for name in html_tabs if name != "Settings"]
-    assert headings[0] == ("h1", "NeMo Eval Author Report")
+    assert html_tabs == ["Tasks", "Runs", "Audit", "Settings"]
+    for name, anchor in (("tasks", "cases"), ("runs", "runs"), ("audits", "audit")):
+        page = markdown_report(tmp_path, name)
+        assert f"[HTML report](../report.html#{anchor})" in page
+        assert "[Suite README](../README.md)" in page
+        assert "[Tasks](tasks.md) · [Runs](runs.md) · [Audits](audits.md)" in page
 
 
 def test_markdown_refresh_repairs_missing_or_edited_mirror_without_touching_html(tmp_path):
@@ -1555,9 +1577,18 @@ def test_markdown_refresh_repairs_missing_or_edited_mirror_without_touching_html
         assert html_path.stat().st_mtime_ns == html_stamp
     write(tmp_path, path + "/README.md", "## Behavior under test\nUpdated.\n## Expected result\nSaved.")
     report.refresh(tmp_path)
-    assert "Updated" in md_path.read_text()
-    assert "Original" not in md_path.read_text()
+    assert "Updated" in markdown_report(tmp_path, "tasks")
+    assert "Original" not in markdown_report(tmp_path, "tasks")
     assert plan.read_text() == "Existing planning and run summary."
+    # Generated reports are repaired from the report data when deleted or edited.
+    tasks_path = tmp_path / ".eval-author/report_markdown/tasks.md"
+    expected_tasks = tasks_path.read_bytes()
+    tasks_path.write_text("Hand edit")
+    report.refresh(tmp_path)
+    assert tasks_path.read_bytes() == expected_tasks
+    tasks_path.unlink()
+    report.refresh(tmp_path)
+    assert tasks_path.read_bytes() == expected_tasks
 
 
 def test_refresh_preserves_authored_readme_bytes_before_and_after_report(tmp_path):
@@ -1574,7 +1605,8 @@ def test_refresh_preserves_authored_readme_bytes_before_and_after_report(tmp_pat
     raw = markdown.read_bytes()
     assert raw.startswith(prefix) and raw.endswith(suffix)
     assert raw.count(report.README_BEGIN) == raw.count(report.README_END) == 1
-    assert b"Before." not in raw and b"After." in raw
+    tasks = markdown_report(tmp_path, "tasks")
+    assert "Before." not in tasks and "After." in tasks
     stamp = markdown.stat().st_mtime_ns
     assert report.refresh(tmp_path) == data
     assert markdown.read_bytes() == raw
@@ -1607,7 +1639,7 @@ def test_readme_sections_preserve_paragraphs_and_lists_in_both_reports(tmp_path)
     task(tmp_path, readme=f"## Behavior under test\n{behavior}\n\n## Expected result\nSaved.")
     data = report.refresh(tmp_path)
     assert data["tasks"][0]["behavior"] == behavior
-    raw = (tmp_path / ".eval-author/README.md").read_text()
+    raw = markdown_report(tmp_path, "tasks")
     assert "First paragraph.<br><br>- Check one.<br>- Check two." in raw
 
 
@@ -1645,7 +1677,7 @@ def test_expected_result_summary_is_shared_by_reports_and_preserves_readme_detai
     ):
         assert text in preview
         assert text not in data["tasks"][0]["expected_outcome"]
-    markdown = (tmp_path / ".eval-author/README.md").read_text()
+    markdown = markdown_report(tmp_path, "tasks")
     assert report.markdown_text(expected) in markdown
     assert "Compare the saved bytes" not in markdown
     assert "Example output" not in markdown
@@ -1664,7 +1696,8 @@ def test_markdown_text_cannot_inject_tables_headings_links_or_html(tmp_path):
         tmp_path, patch={"tasks": {path: {"behavior": dangerous, "source_refs": [path + "/instruction.md"]}}}
     )
     tokens = markdown_tokens(tmp_path)
-    assert len([token for token in tokens if token.type == "tr_open"]) == 2  # Header and one task.
+    # The status summary's header and four statuses, then the task list's header and one task.
+    assert len([token for token in tokens if token.type == "tr_open"]) == 5 + 2
     assert not any(
         token.type == "heading_open" and token.tag == "h2" and tokens[i + 1].content == "forged"
         for i, token in enumerate(tokens)
@@ -1681,24 +1714,25 @@ def test_markdown_preserves_warnings_missing_data_and_stale_status(tmp_path):
     run_path = job(tmp_path, total=1)
     trial(tmp_path, run_path + "/one", reward=0.65)
     report.refresh(tmp_path)
-    raw = (tmp_path / ".eval-author/README.md").read_text()
+    raw = markdown_report(tmp_path, "tasks", "runs")
     assert "Not documented" in raw
     assert "reward: 0.65 total" in raw
     shutil.rmtree(tmp_path / path)
     shutil.rmtree(tmp_path / run_path)
     data = report.refresh(tmp_path, max_entries=1)
-    raw = (tmp_path / ".eval-author/README.md").read_text()
+    raw = markdown_report(tmp_path, "tasks", "runs")
     for warning in data["warnings"]:
         assert report.markdown_text(warning) in raw
     assert "Inventory unverified" in raw
     assert "Saved Task README snapshot" in raw
     assert "Review saved artifacts" not in raw
-    assert f"[Task README](tasks/{Path(path).name}/README.md)" not in raw
+    assert "[Saved Task README snapshot](../report.html#cases)" in raw
+    assert f"[Task README](../tasks/{Path(path).name}/README.md)" not in raw
     assert "[View task]" not in raw
     assert "http://127.0.0.1" not in raw
     assert "Source artifacts were not found in this scan" in raw
     report.refresh(tmp_path, task_roots=["empty"], jobs_roots=["empty"])
-    raw = (tmp_path / ".eval-author/README.md").read_text()
+    raw = markdown_report(tmp_path, "tasks", "runs")
     assert "No tasks match." in raw
     assert "No recorded evaluation jobs." in raw
 
@@ -1711,7 +1745,7 @@ def test_markdown_runs_include_error_invalid_pending_and_dates(tmp_path):
     metadata = rule(run_path)
     metadata["runs"][run_path]["invalid_attempts"] = {"invalid": "Invalid evidence"}
     report.refresh(tmp_path, patch=metadata)
-    raw = (tmp_path / ".eval-author/README.md").read_text()
+    raw = markdown_report(tmp_path, "runs")
     for label in ("1 execution errors", "1 invalid", "2 pending or unscored", "incomplete", "Score unavailable"):
         assert label in raw
     assert "0/4 passed" not in raw
@@ -1720,14 +1754,17 @@ def test_markdown_runs_include_error_invalid_pending_and_dates(tmp_path):
 def test_markdown_render_failure_preserves_both_outputs(tmp_path, monkeypatch):
     path = task(tmp_path)
     report.refresh(tmp_path)
-    paths = [tmp_path / ".eval-author" / name for name in ("report.html", "README.md")]
+    paths = [
+        tmp_path / ".eval-author" / name
+        for name in ("report.html", "README.md", "report_markdown/tasks.md", "report_markdown/runs.md")
+    ]
     before = [p.read_bytes() for p in paths]
     write(tmp_path, path + "/README.md", "## Behavior under test\nNew content")
 
     def fail(_):
         raise report.ReportError("Synthetic Markdown rendering failure")
 
-    monkeypatch.setattr(report, "render_markdown", fail)
+    monkeypatch.setattr(report, "render_tasks_markdown", fail)
     with pytest.raises(report.ReportError, match="Synthetic"):
         report.refresh(tmp_path)
     assert [p.read_bytes() for p in paths] == before
@@ -1755,7 +1792,7 @@ def test_interrupted_publication_is_repaired_on_next_refresh(tmp_path, monkeypat
     path = task(tmp_path, readme="## Behavior under test\nBefore")
     report.refresh(tmp_path)
     html_path = tmp_path / ".eval-author/report.html"
-    md_path = tmp_path / ".eval-author/README.md"
+    md_path = tmp_path / ".eval-author/report_markdown/tasks.md"
     html_before = html_path.read_bytes()
     write(tmp_path, path + "/README.md", "## Behavior under test\nAfter")
     replace = report.os.replace
@@ -1775,22 +1812,22 @@ def test_interrupted_publication_is_repaired_on_next_refresh(tmp_path, monkeypat
     report.refresh(tmp_path)
     data, _ = report.previous_report(html_path)
     assert data["tasks"][0]["behavior"] == "After"
-    assert md_path.read_text() == report.render_markdown(data)
+    assert md_path.read_text() == report.render_tasks_markdown(data)
 
 
 def test_concurrent_markdown_edit_is_not_overwritten(tmp_path, monkeypatch):
     task(tmp_path)
     report.refresh(tmp_path)
     html = tmp_path / ".eval-author/report.html"
-    markdown = tmp_path / ".eval-author/README.md"
+    markdown = tmp_path / ".eval-author/report_markdown/tasks.md"
     before = html.read_bytes()
-    render = report.render_markdown
+    render = report.render_tasks_markdown
 
     def concurrent_edit(data):
         markdown.write_text("Concurrent edit")
         return render(data)
 
-    monkeypatch.setattr(report, "render_markdown", concurrent_edit)
+    monkeypatch.setattr(report, "render_tasks_markdown", concurrent_edit)
     with pytest.raises(report.ReportError, match="changed during refresh"):
         report.refresh(tmp_path)
     assert markdown.read_text() == "Concurrent edit"
@@ -1886,7 +1923,7 @@ def test_legacy_import_retains_unfinished_task_and_directs_explicit_resume(tmp_p
     assert report.refresh(tmp_path, task_roots=[path])["tasks"][0]["path"] == path
 
 
-def test_suite_refresh_keeps_audit_recommendations_in_audit_report(tmp_path):
+def test_suite_refresh_shows_a_legacy_audit_without_changing_it(tmp_path):
     path = task(tmp_path, readme="## Verifier\nChecks saved refund state against policy rules.\n")
     audit = write(
         tmp_path,
@@ -1904,9 +1941,156 @@ def test_suite_refresh_keeps_audit_recommendations_in_audit_report(tmp_path):
     assert second["standalone_trials"] != first["standalone_trials"]
     assert audit.read_bytes() == original_audit
     assert (tmp_path / path / "README.md").read_bytes() == original_task
-    for filename in ("README.md", "report.html"):
-        rendered = (tmp_path / ".eval-author" / filename).read_text()
-        assert "Audit recommendations" not in rendered
-        assert "Fix trusted-ledger verification" not in rendered
+    # The hand-written legacy audit appears in the Audit tab, labeled, and is never rewritten or moved.
+    assert second["audit"]["path"] == ".eval-author/audit-coverage-report.md"
+    assert second["audit"]["legacy_location"] and not second["audit"]["generated"]
+    assert "Fix trusted-ledger verification" in second["audit"]["html"]
+    assert report.previous_report(tmp_path / ".eval-author/report.html")[0]["audit"] == second["audit"]
+    placeholder = markdown_report(tmp_path, "audits")
+    assert placeholder.startswith(report.AUDIT_PLACEHOLDER)
+    assert "[audit-coverage-report.md](../audit-coverage-report.md)" in placeholder
+    readme = (tmp_path / ".eval-author/README.md").read_text()
+    assert "Fix trusted-ledger verification" not in readme
     assert "audit_recommendations" not in second
     assert not (tmp_path / ".eval-author/proposals/dataset-recommendations.md").exists()
+
+
+def generated_audit(body: str) -> str:
+    """A rendered audit report: the renderer's metadata header and its Markdown body."""
+    import hashlib
+    from urllib.parse import quote
+
+    header = {"body_sha256": hashlib.sha256(body.encode()).hexdigest()}
+    return report.AUDIT_HEADER + quote(json.dumps(header), safe="") + "\n\n" + body
+
+
+def test_readme_introduces_the_suite_and_always_links_every_report(tmp_path):
+    task(tmp_path, readme="# Refund\n")
+    run_path = job(tmp_path, total=1)
+    trial(tmp_path, run_path + "/one")
+    report.refresh(tmp_path, patch=rule(run_path))
+    readme = (tmp_path / ".eval-author/README.md").read_text()
+    for target in (
+        "report.html",
+        "report_markdown/tasks.md",
+        "report_markdown/runs.md",
+        "report_markdown/audits.md",
+    ):
+        assert f"]({target})" in readme
+    # Nothing in the README may change from report to report: no counts, dates, run names, or paths.
+    for volatile in ("1 tasks", "1 evaluation jobs", "No audit recorded", "harbor view", "Current state"):
+        assert volatile not in readme
+    for tab in ("**Tasks**", "**Runs**", "**Audit**", "**Settings**"):
+        assert tab in readme
+    # The README describes the suite; task and run tables live only in the Markdown reports.
+    assert "| Task | Status |" not in readme
+    assert "- `tasks/`:" in readme and "- `jobs/`:" in readme and "- `.working/`:" in readme
+    audits = markdown_report(tmp_path, "audits")
+    assert audits.startswith(report.AUDIT_PLACEHOLDER)
+    assert "No audit has been recorded for this suite yet." in audits
+    assert report.refresh(tmp_path)["audit"] is None
+
+
+def test_audit_links_keep_encoded_paths_and_external_urls_intact(tmp_path):
+    base = ".eval-author/report_markdown"
+    task_rows = {".eval-author/tasks/refund#policy": "#task:row"}
+    link, external = report.audit_link("../tasks/refund%23policy/README.md", base, task_rows)
+    assert link == "tasks/refund%23policy/README.md" and not external
+    link, external = report.audit_link("../tasks/refund%23policy", base, task_rows)
+    assert link == "#task:row" and not external
+    url = "https://example.test/a?next=%2Fx%3Fy%3D1#frag%20x"
+    assert report.audit_link(url, base, {}) == (url, True)
+    assert report.audit_link("#finding-%231", base, {}) == ("#audit-finding-#1", False)
+
+
+def test_audit_links_map_a_dotted_task_folder_to_its_own_row(tmp_path):
+    from urllib.parse import quote
+
+    path = task(tmp_path, name="v1.2-refund", readme="# Refund v1.2\n")
+    body = (
+        "# Audit coverage report: assistant\n\n"
+        "[folder](../tasks/v1.2-refund) [readme](../tasks/v1.2-refund/README.md) "
+        "[instruction](../tasks/v1.2-refund/instruction.md) [config](../tasks/v1.2-refund/task.toml) "
+        "[suite](../tasks/README.md)\n"
+    )
+    (tmp_path / ".eval-author/report_markdown").mkdir(parents=True, exist_ok=True)
+    (tmp_path / ".eval-author/report_markdown/audits.md").write_text(generated_audit(body))
+    html = report.refresh(tmp_path)["audit"]["html"]
+    row = quote("harbor:" + path, safe="")
+    for label in ("folder", "readme", "instruction", "config"):
+        assert f'href="#task:{row}">{label}</a>' in html
+    assert f'href="#task:{row}">suite</a>' not in html
+
+
+def test_missing_markdown_renderer_is_a_report_error(monkeypatch):
+    import builtins
+
+    real_import = builtins.__import__
+
+    def without_markdown_it(name, *args, **kwargs):
+        if name == "markdown_it":
+            raise ImportError("No module named 'markdown_it'")
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", without_markdown_it)
+    with pytest.raises(report.ReportError, match="markdown-it-py"):
+        report.render_audit_html("# Audit\n", report.AUDIT_MARKDOWN, [], [], Path("."))
+
+
+def test_audit_tab_links_tasks_runs_and_sections_to_report_views(tmp_path):
+    path = task(tmp_path, readme="# Refund\n")
+    run_path = job(tmp_path, total=1)
+    trial(tmp_path, run_path + "/one")
+    report.refresh(tmp_path, patch=rule(run_path))
+    body = (
+        "# Audit coverage report: assistant\n\n"
+        "- **Date:** 2026-11-12\n"
+        "- **Suite reports:** [HTML report](../report.html#audit), [Tasks](tasks.md), [Runs](runs.md)\n\n"
+        "## Findings\n\n"
+        "### Finding 1 - Coverage gaps\n\n"
+        "[refund](../tasks/refund/README.md) misses a case. See [Finding 1](#finding-1---coverage-gaps). "
+        "Verifier: [refund Verifier section](../tasks/refund/README.md#verifier). "
+        "Runs: [.eval-author/jobs/](../jobs) and [baseline](../jobs/baseline). "
+        "[Ethos](../../ETHOS.md). [Eval Author](https://example.test/eval-author). "
+        "[bad](javascript:alert(1)) <img src=x onerror=alert(1)>\n"
+    )
+    audit_path = tmp_path / ".eval-author/report_markdown/audits.md"
+    audit_path.write_text(generated_audit(body))
+    data = report.refresh(tmp_path)
+    audit = data["audit"]
+    assert audit["path"] == ".eval-author/report_markdown/audits.md"
+    assert audit["generated"] and not audit["edited"] and not audit["legacy_location"]
+    assert audit["date"] == "2026-11-12"
+    assert audit["title"] == "Audit coverage report: assistant"
+    html = audit["html"]
+    task_id = "harbor:" + path
+    from urllib.parse import quote
+
+    assert f'href="#task:{quote(task_id, safe="")}">refund</a>' in html
+    assert 'id="audit-finding-1---coverage-gaps"' in html
+    assert 'href="#audit-finding-1---coverage-gaps"' in html
+    assert 'href="tasks/refund/README.md#verifier"' in html
+    assert 'href="#runs">.eval-author/jobs/</a>' in html
+    assert f'href="#run:{quote(run_path, safe="")}">baseline</a>' in html
+    assert 'href="#audit">HTML report</a>' in html and 'href="#cases">Tasks</a>' in html
+    assert 'href="../ETHOS.md"' in html
+    assert 'href="https://example.test/eval-author" target="_blank" rel="noopener noreferrer"' in html
+    # Unsafe links and raw HTML stay inert text.
+    assert 'href="javascript' not in html and "<img" not in html and "&lt;img src=x" in html
+    # Refresh never rewrites a rendered audit, and the README carries nothing from it.
+    assert audit_path.read_text() == generated_audit(body)
+    readme = (tmp_path / ".eval-author/README.md").read_text()
+    assert "2026-11-12" not in readme and "Saved " not in readme
+    # An edited report is still shown, flagged as edited.
+    audit_path.write_text(generated_audit(body).replace("misses a case", "was edited"))
+    assert report.refresh(tmp_path)["audit"]["edited"]
+
+
+def test_browser_audit_tab_imports_only_allowlisted_markup():
+    source = (SCRIPTS / "report-template.html").read_text()
+    assert "audit-body').replaceChildren(...safeNodes(" in source
+    assert "new DOMParser().parseFromString(audit.html,'text/html')" in source
+    allowed = re.search(r"const auditTags=new Set\(\[([^\]]+)\]\)", source)
+    assert allowed and "'SCRIPT'" not in allowed[1] and "'IMG'" not in allowed[1] and "'IFRAME'" not in allowed[1]
+    for route in ("'#task:'", "'#run:'", "'#audit-'"):
+        assert route in source
