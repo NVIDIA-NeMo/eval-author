@@ -10,6 +10,7 @@ import hashlib
 import json
 import re
 from pathlib import Path
+from typing import Literal, TypedDict
 from urllib.parse import unquote, urlsplit
 
 from eval_author_shared import task_evidence
@@ -17,6 +18,24 @@ from eval_author_shared import task_evidence
 
 class EvidenceScopeError(ValueError):
     pass
+
+
+class ReceiptIntegrity(TypedDict):
+    status: Literal["consistent", "mismatched", "unknown"]
+    execution: Literal["healthy", "execution_error", "unknown"]
+    behavior: Literal["passed", "failed", "unknown"]
+    status_claim: Literal["consistent", "contradiction", "unknown", "excluded"]
+    code: Literal[
+        "validated",
+        "unassessed",
+        "status_contradiction",
+        "source_missing",
+        "invalid_evidence",
+        "excluded",
+        "unsupported",
+        "execution_error",
+    ]
+    freshness: Literal["current", "stale", "unknown"]
 
 
 class Review:
@@ -109,9 +128,36 @@ def findings_links(report: Path, text: str) -> set[Path]:
 
 
 def inspect_receipt(
-    review: Review, path: Path, receipt: dict, tasks: set[Path], *, verify_historical: bool = False
+    review: Review,
+    path: Path,
+    receipt: dict,
+    tasks: set[Path],
+    *,
+    verify_historical: bool = False,
+    include_integrity: bool = False,
 ) -> dict:
-    row = {"path": path.relative_to(review.repo).as_posix(), "classification": "unproven"}
+    integrity = ReceiptIntegrity(
+        status="unknown",
+        execution="unknown",
+        behavior="unknown",
+        status_claim="unknown",
+        code="unassessed",
+        freshness="unknown",
+    )
+    supported = (
+        receipt.get("schema") == task_evidence.SCHEMA
+        and receipt.get("purpose") in ("closure", "baseline")
+        and receipt.get("status") in ("passed", "behavior_failed", "infrastructure_error")
+        and (
+            type(receipt.get("returncode")) is int
+            or (receipt.get("status") == "infrastructure_error" and "returncode" not in receipt)
+        )
+    )
+    if not supported:
+        integrity["code"] = "unsupported"
+    row: dict = {"path": path.relative_to(review.repo).as_posix(), "classification": "unproven"}
+    if include_integrity:
+        row["integrity"] = integrity
     try:
         manifest_path = review.path(receipt["manifest"])
         row["manifest"] = manifest_path.relative_to(review.repo).as_posix()
@@ -130,16 +176,21 @@ def inspect_receipt(
         contract = manifest["contract"]
         task_evidence.validate_contract(contract)
         case = contract["cases"][receipt["case"]]
+        if case["kind"] in {"agent", "diagnostic"} or receipt.get("purpose") == "baseline":
+            integrity.update(status_claim="excluded", code="excluded")
         if case["kind"] == "agent":
             row.update(classification="agent_run", reason="Agent runs are reviewed through the selected trace evidence")
             return row
         row["kind"] = case["kind"]
         row["task_revision"] = manifest.get("task_sha256")
         historical = review.task_digest(task) != manifest.get("task_sha256")
+        integrity["freshness"] = "stale" if historical else "current"
         if historical and not verify_historical:
             row.update(classification="stale", reason="Task changed since this control ran")
             return row
         if receipt.get("status") == "infrastructure_error" or receipt.get("returncode") != 0:
+            if supported and integrity["status_claim"] != "excluded":
+                integrity.update(execution="execution_error", code="execution_error")
             raise ValueError("Control has no healthy completed execution")
         result_path = review.path(receipt["result"])
         native = review.object(result_path)
@@ -152,7 +203,23 @@ def inspect_receipt(
             raise ValueError("Native control health checks failed")
         passed = task_evidence.assertions(native, case["checks"])
         expected_status = "passed" if passed else "behavior_failed"
+        if supported and integrity["status_claim"] != "excluded":
+            integrity.update(
+                status="consistent",
+                execution="healthy",
+                behavior="passed" if passed else "failed",
+                status_claim="consistent",
+                code="validated",
+                freshness="stale" if historical else "current",
+            )
         if receipt.get("status") != expected_status:
+            if supported and integrity["status_claim"] != "excluded":
+                contradiction = receipt.get("status") == "passed" and not passed
+                integrity.update(
+                    status="mismatched",
+                    status_claim="contradiction" if contradiction else "unknown",
+                    code="status_contradiction" if contradiction else "invalid_evidence",
+                )
             raise ValueError("Receipt status disagrees with native assertions")
         if case["kind"] == "diagnostic":
             classification = "diagnostic"
@@ -175,6 +242,11 @@ def inspect_receipt(
         raise
     except (OSError, ValueError, KeyError, TypeError) as exc:
         row["reason"] = str(exc)
+        if integrity["code"] == "unassessed":
+            integrity.update(
+                status="unknown" if isinstance(exc, OSError) else "mismatched",
+                code="source_missing" if isinstance(exc, OSError) else "invalid_evidence",
+            )
     return row
 
 

@@ -453,6 +453,43 @@ def _native(check, measurements, selection):
         "Selected retained receipt/manifest/result/ATIF identities and qualified task/run/trace/tool links only; "
         "control classification is not reference integrity, current task freshness or executed qualification.",
     )
+    summary = measurement["receipt_integrity"]
+    claim_outcome = (
+        "FAIL"
+        if summary["contradictions"]
+        else "BLOCKED"
+        if summary["unknown"] or not summary["eligible_opportunities"]
+        else "PASS"
+    )
+    _predicate(
+        native_check,
+        "selected_receipt_status_consistent",
+        claim_outcome,
+        "A passed closure-control receipt must not contradict its bound healthy native assertions. "
+        "This detects record inconsistency, not agent false closure or context rot.",
+    )
+    _counts(
+        native_check,
+        {
+            key: summary[key]
+            for key in (
+                "eligible_opportunities",
+                "contradictions",
+                "unknown",
+                "excluded",
+                "execution_errors",
+                "mismatched",
+            )
+        },
+        summary["selected_receipts"],
+        "selected receipt claims",
+        "Unknown and excluded records are not passing opportunities; unselected attempts are outside scope.",
+        "Violations per eligible receipt claim only; no trial-level prevalence or causal attribution.",
+    )
+    for count in native_check["measurements"]:
+        if count["name"] == "contradictions":
+            count["denominator"] = summary["eligible_opportunities"]
+    check.setdefault("measurements", []).extend(native_check["measurements"])
     # Append after freshness so its scoped predicates, counts and evidence survive.
     for key in ("evidence", "evidence_refs", "diagnostic_refs", "predicate_results"):
         check.setdefault(key, []).extend(native_check[key])

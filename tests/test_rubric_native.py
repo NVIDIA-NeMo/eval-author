@@ -261,9 +261,10 @@ def test_cli_retains_failed_control_and_native_references(panel):
     result = run_rubric_cli(panel, {"artifacts": panel.identity["records"], "native": panel.selection})
     report = json.loads(result.stdout)
     native = report["measurements"]["native"]
-    assert native["controls"] == [
-        {"receipt": "receipt", "classification": "false_rejection", "task_freshness": "unknown"}
-    ]
+    assert [
+        {key: row[key] for key in ("receipt", "classification", "task_freshness")} for row in native["controls"]
+    ] == [{"receipt": "receipt", "classification": "false_rejection", "task_freshness": "unknown"}]
+    assert native["controls"][0]["integrity"]["status_claim"] == "unknown"
     assert {node["role"] for node in native["nodes"]} == {"task", "run", "trace", "tool_call", "result"}
     assert native["link_check"]["status"] == "pass"
     assert native["subjects"][0]["native_identity"] == "verified"
@@ -529,9 +530,10 @@ def test_same_trace_cannot_be_bound_to_two_native_runs(panel):
 def test_missing_selected_receipt_retains_unknown_control(panel):
     panel.selection["receipt_ids"] = ["missing-receipt"]
     output = adapter().project_native(panel.tmp_path, panel.identity, **panel.selection)
-    assert output["controls"] == [
-        {"receipt": "missing-receipt", "classification": "unproven", "task_freshness": "unknown"}
-    ]
+    assert [
+        {key: row[key] for key in ("receipt", "classification", "task_freshness")} for row in output["controls"]
+    ] == [{"receipt": "missing-receipt", "classification": "unproven", "task_freshness": "unknown"}]
+    assert output["controls"][0]["integrity"]["status_claim"] == "unknown"
     assert "native.controls_missing" in {row["code"] for row in output["diagnostics"]}
 
 

@@ -113,6 +113,9 @@ the validated representation across selected criteria; do not duplicate discover
 The helper supplies bounded observations, not replacement rubric scores. Preserve
 its unknowns and unsupported integrations; do not infer semantic correctness,
 solver access, or successful workflow preflight from identity matches.
+For selected native receipts, use the [receipt-consistency measurement](references/identity.md#selected-receipt-consistency)
+to distinguish structured contradictions from failed controls and evidence gaps.
+Report its eligible-opportunity rate, not a context-rot or prevention score.
 
 Record the task and verifier revisions, selected configuration, solver role,
 protected artifacts, intentional access, and evidence locations. A path name or

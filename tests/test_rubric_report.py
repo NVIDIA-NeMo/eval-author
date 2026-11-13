@@ -795,7 +795,9 @@ def test_native_qualified_refs_are_bounded_and_preserve_freshness(modules, nativ
         previous = baseline_checks["CREATE-07-C01"]
         assert previous["evidence"][0] in check["evidence"]
         assert previous["predicate_results"][0] in check["predicate_results"]
-        assert check["measurements"] == previous["measurements"]
+        assert [row for row in check["measurements"] if row["unit"] != "selected receipt claims"] == previous[
+            "measurements"
+        ]
         assert set(previous["evidence_refs"]) <= set(check["evidence_refs"])
         assert all(row in check["diagnostic_refs"] for row in previous["diagnostic_refs"])
     for ident, other in checks.items():

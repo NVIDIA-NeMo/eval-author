@@ -131,6 +131,24 @@ def _trace_graph(trace, trace_ref, run_ref, nodes, links, issue):
         _require(len(nodes) + len(links) <= MAX_REFERENCES)
 
 
+def _integrity_summary(controls):
+    states = [row["integrity"] for row in controls]
+    eligible = sum(row["status_claim"] in {"consistent", "contradiction"} for row in states)
+    contradictions = sum(row["status_claim"] == "contradiction" for row in states)
+    return {
+        "detector_version": "receipt-integrity-v1",
+        "selected_receipts": len(states),
+        "eligible_opportunities": eligible,
+        "contradictions": contradictions,
+        "unknown": sum(row["status_claim"] == "unknown" for row in states),
+        "excluded": sum(row["status_claim"] == "excluded" for row in states),
+        "execution_errors": sum(row["execution"] == "execution_error" for row in states),
+        "mismatched": sum(row["status"] == "mismatched" for row in states),
+        "violation_rate": contradictions / eligible if eligible else None,
+        "context_rot_score": None,
+    }
+
+
 def project_native(
     root: Path,
     identity: dict,
@@ -163,6 +181,7 @@ def project_native(
             "nodes": nodes,
             "links": links,
             "controls": controls,
+            "receipt_integrity": _integrity_summary(controls),
             "subjects": subjects,
             "bindings": bindings,
             "link_check": link_check,
@@ -241,7 +260,19 @@ def project_native(
     seen_traces = set()
     consumed_paths = set()
     for ident in receipt_ids:
-        row = {"receipt": ident, "classification": "unproven", "task_freshness": "unknown"}
+        row = {
+            "receipt": ident,
+            "classification": "unproven",
+            "task_freshness": "unknown",
+            "integrity": {
+                "status": "unknown",
+                "execution": "unknown",
+                "behavior": "unknown",
+                "status_claim": "unknown",
+                "code": "evidence_unavailable",
+                "freshness": "unknown",
+            },
+        }
         controls.append(row)
         if ident not in objects:
             continue
@@ -260,26 +291,34 @@ def project_native(
             contract = manifest["contract"]
             _require(contract["provider"] == "harbor")
             result_path = review.path(receipt["result"])
-            _require(result_path in result_paths)
-            consumed_paths.add(result_path)
-            native = review.object(result_path)
-            _require(hashlib.sha256(review.read(result_path)).hexdigest() == receipt.get("result_sha256"))
-            # The shared control consumer assumes these optional containers are objects.
-            config = native.get("config", {})
-            _require(isinstance(config, dict))
-            agent = config.get("agent", {})
-            _require(isinstance(agent, dict))
-            _require(agent.get("name") is None or isinstance(agent["name"], str))
+            # Missing output may still prove an execution error, but another
+            # selected role must never authorize native-result consumption.
+            if result_path in snapshots:
+                _require(result_path in result_paths)
+            if result_path in result_paths:
+                native = review.object(result_path)
+                _require(native.get("task_name") == contract["task_id"])
+                config = native.get("config", {})
+                _require(isinstance(config, dict))
+                agent = config.get("agent", {})
+                _require(isinstance(agent, dict))
+                _require(agent.get("name") is None or isinstance(agent["name"], str))
             task = review.path(manifest["task_dir"])
             inspected = audit.inspect_receipt(
-                review, root / records[ident]["path"], receipt, {task}, verify_historical=True
+                review, root / records[ident]["path"], receipt, {task}, verify_historical=True, include_integrity=True
             )
             consumer_rows.append(inspected)
+            if "integrity" in inspected:
+                row["integrity"] = {**inspected["integrity"], "freshness": "unknown"}
             classification = inspected.get("historical_classification", inspected["classification"])
             row["classification"] = classification
             issue("task_freshness_unmeasured", ident, "unknown")
             if classification == "unproven":
                 issue("control_unproven", ident, "unknown")
+            _require(result_path in result_paths)
+            consumed_paths.add(result_path)
+            native = review.object(result_path)
+            _require(hashlib.sha256(review.read(result_path)).hexdigest() == receipt.get("result_sha256"))
             native_id = task_evidence.pointer(native, contract["native_run_id"])
             _require(text(native_id))
             identity_status = "verified"

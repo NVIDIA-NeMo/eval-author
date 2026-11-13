@@ -191,6 +191,30 @@ The result records the document and validator digests and the validator's
 verdict. A valid result checks structure only, not confirmed or adequate intent.
 Keep selections and output private because they can contain local evidence locations.
 
+### Receipt-consistency checks
+
+An existing `native` selection now adds `receipt_integrity` (`receipt-integrity-v1`)
+to the measurement output. Each selected control retains typed consistency,
+execution, behavior, and status-claim results. The report counts contradictions
+per eligible receipt claim, with unknowns and exclusions kept separate. This
+measures contradictory records, not context-rot causation or agent prevention.
+It does not change canonical scores, native closure requirements, or Audit outputs.
+Regenerate saved derived reports to include the new fields; retained receipts do
+not change. The report builder revalidates against the selected source bytes.
+
+Run the credential-free integration panel:
+
+```bash
+uv run --locked pytest tests/test_rubric_receipt_integrity.py -q
+```
+
+The recorder-to-CLI case exercises the real receipt producer using scripted
+synthetic native results. It plants a false passing status beside a later valid
+receipt and expects one contradiction in two eligible claims. It also checks
+repeatable output and preserves the original receipts. This is not live Harbor
+or model-performance evidence. Current task freshness remains unknown, so the
+rubric CLI still exits 1 even when all supplied status claims agree.
+
 ## Provenance demo
 
 Run the separate provenance panel from the checkout:
