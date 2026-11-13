@@ -97,6 +97,31 @@
       "id": "unknown-ethos-change", "mutation": "unknown-ethos-change", "cli_exit_code": 1,
       "description": "Mutate handcrafted ETHOS refund intent with explicitly unknown semantic impact; affected note is unresolved, never fresh or automatically regraded, while the neighbor remains current.",
       "measurement": "freshness", "status": "unknown", "codes": ["freshness.unresolved"], "affected_status": "unresolved", "changed_dependencies": ["ethos"]
+    },
+    {
+      "id": "ethos-valid", "mutation": "ethos-valid", "cli_exit_code": 0,
+      "description": "The ethos-write router-help fixture ETHOS.md passes the installed ethos-write validator.",
+      "measurement": "ethos", "status": "pass", "codes": [], "valid": true
+    },
+    {
+      "id": "ethos-malformed", "mutation": "ethos-malformed", "cli_exit_code": 1,
+      "description": "Rename the router-help fixture ETHOS.md Constraints section; the installed validator rejects the structure.",
+      "measurement": "ethos", "status": "fail", "codes": ["ethos.invalid"], "valid": false
+    },
+    {
+      "id": "authority-resolved", "mutation": "authority-resolved", "cli_exit_code": 0,
+      "description": "Handcrafted construction plan cites an ETHOS.md heading and a task JSON pointer; both name selected bytes.",
+      "measurement": "authority", "status": "pass", "codes": [], "requirement_statuses": ["resolved", "resolved"]
+    },
+    {
+      "id": "authority-broken-reference", "mutation": "authority-broken-reference", "cli_exit_code": 1,
+      "description": "One handcrafted requirement cites an ETHOS.md heading that does not exist; the neighbor requirement still resolves.",
+      "measurement": "authority", "status": "fail", "codes": ["authority.reference_broken"], "requirement_statuses": ["broken", "resolved"]
+    },
+    {
+      "id": "authority-prose", "mutation": "authority-prose", "cli_exit_code": 1,
+      "description": "One handcrafted requirement cites prose; it is reported as not checkable, never as broken, and the neighbor still resolves.",
+      "measurement": "authority", "status": "unknown", "codes": ["authority.reference_prose"], "requirement_statuses": ["prose", "resolved"]
     }
   ],
   "not_assessed": ["DISC-02-A", "DISC-02-B", "DISC-03-A", "AUD-02", "ENV-01", "ENV-02-A", "ENV-03", "CREATE-07"],

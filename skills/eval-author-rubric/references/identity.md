@@ -49,7 +49,7 @@ artifact uses `access: denied` without trying the read; an unresolved selection 
 The checked-in mutation panel exercises these distinctions with actual local files.
 
 Raw measurements are named `identity`, `route`, `config`, `links`, and `approvals`.
-Explicit `sourced_config`, `freshness`, `native`, `reconstruction`, and `ethos` selections add their
+Explicit `sourced_config`, `freshness`, `native`, `reconstruction`, `ethos`, and `authority` selections add their
 corresponding measurements. Absent optional selections do not establish coverage.
 They have statuses and diagnostics, not numeric scores. The eleven canonical
 criteria consume this evidence under their own anchors; a helper passing is not
@@ -87,6 +87,36 @@ validator's reason; its warnings are kept. A changed digest is
 `ethos.digest_mismatch`. A missing or broken validator leaves validity unknown.
 A valid result is structure only: it does not show the content was confirmed,
 is current, or states adequate intent.
+
+## Construction authority references
+
+`authority` is `{"plan_artifact_id": <id>}` naming one selected construction plan
+with role `construction`. Every artifact a reference cites must also be selected.
+A whitespace-free reference is a locator when its path names a selected artifact
+or contains `/` or `.`; its path is relative to the measurement root. Each locator
+is resolved against the selected bytes: `path` names the artifact, `path#Heading`
+a Markdown heading's visible text or its GitHub anchor, `path#L3-L5` a line range,
+and `path#/json/pointer` a JSON value. Headings in front matter and fenced code
+don't count.
+
+| Code | Status | Meaning |
+| --- | --- | --- |
+| `authority.reference_broken` | fail | The fragment is missing, or the path is unselected and doesn't exist. |
+| `authority.reference_changed` | fail | The cited bytes differ from the selected digest. |
+| `authority.reference_invalid` | fail | The cited path is a symlink, escapes the root, or isn't a regular file. |
+| `authority.reference_unselected` | unknown | The path exists but wasn't selected. |
+| `authority.reference_unreadable` | unknown | The selected artifact isn't available or couldn't be read. |
+| `authority.reference_prose` | unknown | The reference is prose; never guess what it refers to. |
+| `authority.unresolved` | unknown | The requirement's basis is `unresolved`. |
+| `authority.requirement_unmapped` | unknown | No check maps the requirement; proposal plans may allow this. |
+| `authority.check_dangling` | fail | A check cites an undeclared requirement. |
+| `authority.plan_malformed` | fail | The plan lacks the requirement and check shape this measurement reads. |
+| `authority.plan_changed`, `authority.plan_invalid`, `authority.plan_unreadable` | fail, fail, unknown | The same as the `reference_` codes, for the plan itself. |
+
+The result also counts requirements by basis and status, scored checks, and
+mapped requirements. Full plan validation stays with `construction_contract.py`.
+A resolved reference shows that the cited content exists, not that it supports
+the requirement.
 
 ## Source-backed inventory assessment
 
