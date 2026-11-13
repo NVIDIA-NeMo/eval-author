@@ -1326,54 +1326,20 @@ def render_audit_placeholder(data: dict) -> str:
     return "\n".join(lines).rstrip() + "\n"
 
 
-def viewer_command(roots: list[str], mode: str, port: int) -> list[str]:
-    return [f"harbor view {shell_quote(root)} --{mode} --port {port}" for root in roots]
-
-
-def shell_quote(value: str) -> str:
-    return value if re.fullmatch(r"[\w./-]+", value) else "'" + value.replace("'", "'\\''") + "'"
-
-
 def render_readme_section(repo: Path, data: dict) -> str:
     """Introduce the suite and the report for people; point agents at the Markdown reports."""
-    counts = readiness_counts(data["tasks"])
-    status = " · ".join(f"{counts[key]} {READINESS_LABELS[key][0].lower()}" for key in READINESS_LABELS)
-    audit = data.get("audit")
-    if audit is None:
-        audit_line = "No audit recorded yet."
-    else:
-        audit_line = (
-            ("Saved " + markdown_text(audit["date"]) + ". " if audit["date"] else "")
-            + "[Read it in the report](report.html#audit) or in "
-            + artifact_link("Markdown", audit["path"], ".eval-author")
-            + "."
-        )
-    runs = f"{len(data['runs'])} evaluation jobs" + (f" ({run_roles(data['runs'])})" if data["runs"] else "")
-    if data["standalone_trials"]:
-        runs += f", plus {len(data['standalone_trials'])} legacy trials"
-    task_roots = sorted(
-        {
-            PurePosixPath(task["path"]).parent.as_posix()
-            for task in data["tasks"]
-            if task["provider"] == "harbor" and task["status"] == "found"
-        }
-    )
-    job_roots = sorted({run["viewer_root"] for run in data["runs"] if run["status"] != "unverified"})
     layout = [
         (
-            ".eval-author/tasks",
             "`tasks/`",
             "One folder per task: its README, instruction, configuration, verifier, and reference solution.",
         ),
         (
-            ".eval-author/jobs",
             "`jobs/`",
             "Retained Harbor evaluation jobs and their trials, logs, rewards, and trajectories.",
         ),
-        (REPORT_HTML, "`report.html`", "The suite report for people. Open it in a browser."),
-        (MARKDOWN_DIR, "`report_markdown/`", "The same reports as Markdown, for agents and reviews."),
+        ("`report.html`", "The suite report for people. Open it in a browser."),
+        ("`report_markdown/`", "The same reports as Markdown, for agents and reviews."),
         (
-            ".eval-author/.working",
             "`.working/`",
             "Eval Author's private workflow state, evidence, and drafts. Do not edit it by hand.",
         ),
@@ -1386,12 +1352,6 @@ def render_readme_section(repo: Path, data: dict) -> str:
         "Eval Author builds and maintains this evaluation suite for the agent in this repository. It holds the "
         "suite's tasks (test cases), the evaluation runs retained from them, and the latest audit of what the "
         "suite covers. Start with the HTML report.",
-        "",
-        "| Contents | Current state |",
-        "| --- | --- |",
-        f"| [Tasks](report_markdown/tasks.md) | {len(data['tasks'])} tasks: {status} |",
-        f"| [Runs](report_markdown/runs.md) | {runs} |",
-        f"| [Audits](report_markdown/audits.md) | {audit_line} |",
         "",
         "## Review the suite in report.html",
         "",
@@ -1419,19 +1379,6 @@ def render_readme_section(repo: Path, data: dict) -> str:
         "choose the next evaluation to add.",
         "",
     ]
-    if task_roots or job_roots:
-        lines.extend(
-            [
-                "The task and job links open Harbor's local viewers. Start them from the repository root, and keep "
-                "each command running while you browse:",
-                "",
-                "```bash",
-                *viewer_command(task_roots, "tasks", 8081),
-                *viewer_command(job_roots, "jobs", 8080),
-                "```",
-                "",
-            ]
-        )
     lines.extend(
         [
             "## Markdown reports for agents",
@@ -1454,9 +1401,8 @@ def render_readme_section(repo: Path, data: dict) -> str:
             "",
         ]
     )
-    for path, label, description in layout:
-        if path in {REPORT_HTML, MARKDOWN_DIR} or local(repo, path).exists():
-            lines.append(f"- {label}: {description}")
+    for label, description in layout:
+        lines.append(f"- {label}: {description}")
     lines.extend(["", README_END.decode()])
     return "\n".join(lines).rstrip() + "\n"
 

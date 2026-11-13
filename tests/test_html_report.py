@@ -1977,13 +1977,11 @@ def test_readme_introduces_the_suite_and_always_links_every_report(tmp_path):
         "report_markdown/audits.md",
     ):
         assert f"]({target})" in readme
-    assert "1 tasks: 0 proposed · 0 draft · 0 accepted · 1 unknown" in readme
-    assert "1 evaluation jobs (1 agent)" in readme
-    assert "No audit recorded yet." in readme
+    # Nothing in the README may change from report to report: no counts, dates, run names, or paths.
+    for volatile in ("1 tasks", "1 evaluation jobs", "No audit recorded", "harbor view", "Current state"):
+        assert volatile not in readme
     for tab in ("**Tasks**", "**Runs**", "**Audit**", "**Settings**"):
         assert tab in readme
-    assert "harbor view .eval-author/tasks --tasks --port 8081" in readme
-    assert "harbor view .eval-author/jobs --jobs --port 8080" in readme
     # The README describes the suite; task and run tables live only in the Markdown reports.
     assert "| Task | Status |" not in readme
     assert "- `tasks/`:" in readme and "- `jobs/`:" in readme and "- `.working/`:" in readme
@@ -2033,10 +2031,10 @@ def test_audit_tab_links_tasks_runs_and_sections_to_report_views(tmp_path):
     assert 'href="https://example.test/eval-author" target="_blank" rel="noopener noreferrer"' in html
     # Unsafe links and raw HTML stay inert text.
     assert 'href="javascript' not in html and "<img" not in html and "&lt;img src=x" in html
-    # Refresh never rewrites a rendered audit; the README points at it.
+    # Refresh never rewrites a rendered audit, and the README carries nothing from it.
     assert audit_path.read_text() == generated_audit(body)
     readme = (tmp_path / ".eval-author/README.md").read_text()
-    assert "Saved 2026-11-12. [Read it in the report](report.html#audit)" in readme
+    assert "2026-11-12" not in readme and "Saved " not in readme
     # An edited report is still shown, flagged as edited.
     audit_path.write_text(generated_audit(body).replace("misses a case", "was edited"))
     assert report.refresh(tmp_path)["audit"]["edited"]
