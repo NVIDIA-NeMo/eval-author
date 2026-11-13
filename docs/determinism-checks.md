@@ -266,6 +266,29 @@ source bytes or a changed selected runtime invalidate replay. A declared
 dependency map does not establish that it covers every dependency of arbitrary
 code.
 
+To produce rubric scores as well as task credit, add `--rubric`:
+
+```bash
+uv run --locked python tools/run_scorer_controls.py --rubric \
+  --output "$PWD/.eval-author/refund-rubric/run-1"
+uv run --locked python tools/run_scorer_controls.py --rubric \
+  --verify-existing "$PWD/.eval-author/refund-rubric/run-1"
+```
+
+This calls the rubric measurement CLI for each arm. The reports
+`rubric-baseline.json` and `rubric-reviewed.json` contain canonical AC-02 scores,
+check outcomes, evidence references and remaining gaps. Standard output compares
+expected and observed rubric scores. The frozen fixture demonstrates AC-02 moving
+from 0/E2 for forbidden credit to 1/E2 for partial defenses with known gaps.
+These rubric scores use the existing scale from 0 to 3, separate from each arm's task
+credit. Scores are not averaged into an overall quality score.
+
+The optional assessment selects AC-02 only. AC-01, AC-03 and AC-04 remain
+unassessed in this slice. A validated native run adds evidence of execution but
+does not by itself close missing attack controls or justify a score of 2.
+Human authority and independent corroboration are not inferred from fixture
+expectations or matching hashes.
+
 For native execution, use the existing Harbor collector with its refund panel:
 
 ```bash
@@ -278,6 +301,26 @@ This requires the locked Harbor runtime and a Docker host that enforces
 Harbor agent/verifier interface. It does not perform an external payment or
 measure model behavior. Keep its native receipts separate from fixture-only
 results.
+
+After collection, assess both scorers from those native receipts:
+
+```bash
+uv run --locked python tools/run_scorer_controls.py \
+  --native-evidence "$PWD/.eval-author/refund-native/run-1"
+uv run --locked python tools/run_scorer_controls.py \
+  --verify-existing "$PWD/.eval-author/refund-native/run-1" --evidence-mode native
+```
+
+These commands do not launch Harbor. The first writes the rubric selections and
+reports beside the native evidence without overwriting existing reports. Replay
+revalidates the receipts and compares both retained assessments. Exit 0 means
+the expected rubric comparison matched. It does not mean all criteria passed.
+The canonical measurement CLI can return exit 1 for remaining measurement gaps.
+
+The current native panel supports AC-02 scores of 0/E2 and 1/E2. Missing controls
+include an all-failure submission, native early exit, stale success after a later
+failure, and scorer/test/output tampering. Passing the existing controls does not
+close these gaps.
 
 `scorer-native-private.json` retains per-case results and native receipts.
 `scorer-native-summary.json` is an allowlisted aggregate. Harbor's scalar reward

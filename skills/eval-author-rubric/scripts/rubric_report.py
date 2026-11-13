@@ -643,6 +643,12 @@ def _helper_check(check, item_id, measurements, selection, root, records, valid,
 def build_report(items, measurements, selection, root):
     definitions = loads(CANONICAL.read_bytes())
     known = {item["id"] for item in definitions["items"]}
+    controls = {}
+    if "scorer_controls" in selection:
+        from rubric_scorer_controls import assess_controls
+
+        controls = assess_controls(measurements, selection, root)
+        known.update(controls)
     if not isinstance(items, dict) or not items.keys() <= known:
         raise ValueError("unknown rubric item")
     records, valid = _validated(measurements, selection, root)
@@ -698,4 +704,5 @@ def build_report(items, measurements, selection, root):
         )
         row["next_action"] = definition["on_gap"]
         rows[ident] = row
+    rows.update(controls)
     return rows

@@ -11,6 +11,7 @@ import platform
 import subprocess
 import sys
 import tempfile
+from copy import deepcopy
 from pathlib import Path
 from types import ModuleType
 
@@ -105,7 +106,12 @@ def prepare(output):
     output.mkdir(parents=True, exist_ok=False, mode=0o700)
     inputs = output / "inputs"
     inputs.mkdir(mode=0o700)
-    paths = {"contract": "contract.json", "controls": "cases.json", "scorer": "refund_scorer.py"}
+    paths = {
+        "contract": "contract.json",
+        "controls": "cases.json",
+        "scorer": "refund_scorer.py",
+        "applicability": "applicability.json",
+    }
     for relative in paths.values():
         (inputs / relative).write_bytes(source_bytes(FIXTURES / relative))
     (inputs / "runtime.json").write_text(
@@ -131,6 +137,7 @@ def run_panel(output, selection):
         "scorer": "refund_scorer.py",
         "runtime": "runtime.json",
         "dispatch": "dispatch.json",
+        "applicability": "applicability.json",
     }
     records = selection["artifacts"]
     if (
@@ -162,7 +169,7 @@ def run_panel(output, selection):
     contract = loads(selected_bytes["contract"])
     cases_document = loads(selected_bytes["controls"])
     # Bind schema, case IDs, roles and expectations to the current fixed panel.
-    for ident in ("contract", "controls"):
+    for ident in ("contract", "controls", "applicability"):
         if selected_bytes[ident] != source_bytes(FIXTURES / required[ident]):
             raise ValueError("retained input differs from fixed panel")
     runtime = loads(selected_bytes["runtime"])
@@ -216,14 +223,74 @@ def run_panel(output, selection):
     }
 
 
+def rubric_selection(selection, arm, mode="fixture"):
+    selected = deepcopy(selection)
+    for record in selected["artifacts"]:
+        record["path"] = "inputs/" + record["path"]
+        for evidence in record["evidence"]:
+            evidence["path"] = "inputs/" + evidence["path"]
+    selected["scorer_controls"] = {"evidence_root": ".", "mode": mode, "arm": arm}
+    return selected
+
+
+def rubric_demo(output, selection, *, verify=False, mode="fixture"):
+    if not verify:
+        for arm in ("baseline", "reviewed"):
+            for name in (f"rubric-selection-{arm}.json", f"rubric-{arm}.json"):
+                if os.path.lexists(output / name):
+                    raise ValueError("retained rubric output already exists")
+    reports = {}
+    for arm in ("baseline", "reviewed"):
+        selected = rubric_selection(selection, arm, mode)
+        report = measure_identity(output, selected)
+        for name, value in ((f"rubric-selection-{arm}.json", selected), (f"rubric-{arm}.json", report)):
+            path = output / name
+            if verify:
+                if encoded(loads(source_bytes(path, root=output))) != encoded(value):
+                    raise ValueError("retained rubric report disagrees with replay")
+            else:
+                with path.open("x") as stream:
+                    stream.write(encoded(value))
+        reports[arm] = report
+    observed = {arm: report["items"]["AC-02"]["score"] for arm, report in reports.items()}
+    expected = {"baseline": 0, "reviewed": 1}
+    return {"criterion": "AC-02", "expected": expected, "observed": observed, "matched": observed == expected}
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     mode = parser.add_mutually_exclusive_group(required=True)
     mode.add_argument("--output", type=Path)
     mode.add_argument("--verify-existing", type=Path)
+    mode.add_argument(
+        "--native-evidence",
+        type=Path,
+        help="Measure both rubric arms from retained native evidence; implies --rubric and never launches native work",
+    )
+    parser.add_argument(
+        "--evidence-mode",
+        choices=("fixture", "native"),
+        default=None,
+        help="Evidence mode for --verify-existing (default: fixture); native implies --rubric",
+    )
+    parser.add_argument("--rubric", action="store_true", help="Measure canonical AC-02 before/after through measure.py")
     args = parser.parse_args(argv)
+    if args.evidence_mode is not None and args.verify_existing is None:
+        parser.error("--evidence-mode requires --verify-existing")
     try:
-        output = (args.output or args.verify_existing).absolute()
+        output = (args.output or args.verify_existing or args.native_evidence).absolute()
+        native = args.native_evidence is not None or args.evidence_mode == "native"
+        if native:
+            selection = loads(source_bytes(output / "selection.json", root=output))
+            comparison = rubric_demo(output, selection, verify=bool(args.verify_existing), mode="native")
+            report = {
+                "schema": "refund-scorer-panel-v1",
+                "status": "passed" if comparison["matched"] else "failed",
+                "execution": "retained-native",
+                "rubric_comparison": comparison,
+            }
+            print(encoded(report), end="")
+            return 0 if report["status"] == "passed" else 1
         if args.output:
             selection = prepare(output)
             report = run_panel(output, selection)
@@ -233,6 +300,8 @@ def main(argv=None):
             report = run_panel(output, selection)
             if encoded(report) != encoded(loads(source_bytes(output / "panel.json"))):
                 raise ValueError("retained report disagrees with replay")
+        if args.rubric:
+            report["rubric_comparison"] = rubric_demo(output, selection, verify=bool(args.verify_existing))
         print(encoded(report), end="")
         return 0 if report["status"] == "passed" else 1
     except (OSError, ValueError, KeyError, TypeError, subprocess.SubprocessError):

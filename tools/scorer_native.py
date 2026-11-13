@@ -204,7 +204,12 @@ def stage_panel(destination, runtime=None):
     destination.mkdir(parents=True, exist_ok=False)
     snapshot = destination.parent / "inputs"
     snapshot.mkdir(mode=0o700)
-    paths = {"contract": "contract.json", "controls": "cases.json", "scorer": "refund_scorer.py"}
+    paths = {
+        "contract": "contract.json",
+        "controls": "cases.json",
+        "scorer": "refund_scorer.py",
+        "applicability": "applicability.json",
+    }
     captured = {}
     for relative in paths.values():
         captured[relative] = identity.source_bytes(FIXTURES / relative)
@@ -414,6 +419,7 @@ def native_check(output, cases):
     return [
         {
             "id": case["id"],
+            "role": case["role"],
             "status": "passed" if same_json(row["results"], case["expected"]) else "failed",
             "results": row["results"],
             "expected": case["expected"],
@@ -423,7 +429,7 @@ def native_check(output, cases):
 
 
 def validate_snapshot(output):
-    for relative in ("contract.json", "cases.json", "refund_scorer.py"):
+    for relative in ("contract.json", "cases.json", "refund_scorer.py", "applicability.json"):
         common.require(
             identity.source_bytes(output / "inputs" / relative, root=output)
             == identity.source_bytes(FIXTURES / relative),
@@ -490,13 +496,23 @@ def validate_snapshot(output):
 def summarize(output, exit_code):
     output = output.resolve()
     errors, checks, cases = [], [], []
+    snapshot_identity = None
     try:
         common.require(
             load_json(output / "inputs/runtime.json", root=output) != {"execution": "staging-only"},
             "native runtime missing",
         )
-        validate_snapshot(output)
-        cases = load_json(output / "inputs/cases.json", root=output)["cases"]
+        snapshot_identity = validate_snapshot(output)
+        controls = next(
+            record for record in snapshot_identity["measurements"]["identity"]["records"] if record["id"] == "controls"
+        )
+        cases_bytes = identity.source_bytes(output / "inputs" / controls["path"], root=output)
+        common.require(
+            common.hashlib.sha256(cases_bytes).hexdigest() == controls["digest"]
+            and cases_bytes == identity.source_bytes(FIXTURES / "cases.json"),
+            "consumed cases differ from selected fixed panel",
+        )
+        cases = identity.loads(cases_bytes)["cases"]
         checks = native_check(output, cases)
     except (OSError, ValueError, KeyError, TypeError) as exc:
         errors.append(str(exc))
@@ -507,6 +523,7 @@ def summarize(output, exit_code):
         "status": "incomplete" if errors else "passed" if passed == len(cases) else "failed",
         "errors": errors,
         "checks": checks,
+        "identity": snapshot_identity,
         "metrics": {
             "native_trials": int(bool(checks)),
             "expected_cases": len(cases),

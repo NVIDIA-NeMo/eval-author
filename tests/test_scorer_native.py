@@ -3,6 +3,7 @@
 
 import asyncio
 import importlib.util
+import inspect
 import json
 import subprocess
 import sys
@@ -316,6 +317,49 @@ def synthetic_job(tmp_path):
     (trial / "verifier/reward.txt").write_text("1\n")
     (trial / "verifier/test-stdout.txt").write_text("")
     return native, trial
+
+
+def test_summary_rejects_transient_expected_bytes_at_consumption(tmp_path, monkeypatch):
+    native, trial = synthetic_job(tmp_path)
+    monkeypatch.setattr(native.common, "execute", lambda *a, **k: pytest.fail("native launch forbidden"))
+    assert native.summarize(tmp_path, 0)["status"] == "passed"
+    path = tmp_path / "inputs/cases.json"
+    original = path.read_bytes()
+    forged = json.loads(original)
+    for case in forged["cases"]:
+        case["expected"]["reviewed"] = case["expected"]["baseline"]
+    replacement = json.dumps(forged).encode()
+    receipt_path = trial / "verifier/checks.json"
+    receipt = json.loads(receipt_path.read_text())
+    for row in receipt["rows"]:
+        row["results"]["reviewed"] = row["results"]["baseline"]
+    receipt_path.write_text(json.dumps(receipt))
+    read = native.identity.source_bytes
+    swaps = []
+
+    def swap(selected_path, **kwargs):
+        frame = inspect.currentframe()
+        assert frame is not None and frame.f_back is not None
+        caller = frame.f_back
+        if caller.f_code.co_name == "load_json":
+            assert caller.f_back is not None
+            caller = caller.f_back
+        if selected_path == path and caller.f_code.co_name == "summarize":
+            path.write_bytes(replacement)
+            try:
+                data = read(selected_path, **kwargs)
+            finally:
+                path.write_bytes(original)
+            swaps.append(data)
+            return data
+        return read(selected_path, **kwargs)
+
+    monkeypatch.setattr(native.identity, "source_bytes", swap)
+    report = native.summarize(tmp_path, 0)
+    assert swaps == [replacement]
+    assert path.read_bytes() == original
+    assert report["status"] == "incomplete", report
+    assert report["checks"] == []
 
 
 def test_native_receipts_require_complete_cases_and_host_comparison(tmp_path):

@@ -228,7 +228,7 @@ def test_panel_executes_only_measured_trusted_scorer_bytes(tmp_path, monkeypatch
     module = runner()
     trusted = tmp_path / "trusted"
     trusted.mkdir()
-    for relative in ("contract.json", "cases.json", "refund_scorer.py"):
+    for relative in ("contract.json", "cases.json", "refund_scorer.py", "applicability.json"):
         (trusted / relative).write_bytes((module.FIXTURES / relative).read_bytes())
     monkeypatch.setattr(module, "FIXTURES", trusted)
     output = tmp_path / "retained"
@@ -338,6 +338,160 @@ def test_panel_rejects_input_root_symlink_replacement_after_measurement(tmp_path
         if inputs.is_symlink():
             inputs.unlink()
             moved.rename(inputs)
+
+
+def native_shaped_evidence(output, monkeypatch):
+    # Reuse native parser fixtures without leaking their sys.path changes.
+    with monkeypatch.context() as scoped:
+        scoped.setattr(sys, "path", sys.path[:])
+        path = ROOT / "tests/test_scorer_native.py"
+        spec = importlib.util.spec_from_file_location("demo_native_test_helpers", path)
+        assert spec and spec.loader
+        helper = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(helper)
+        return helper.synthetic_job(output)
+
+
+def test_native_demo_cli_retains_both_scores_and_replays_without_launch(tmp_path, monkeypatch):
+    output = tmp_path / "native"
+    native_shaped_evidence(output, monkeypatch)
+    original = {path.relative_to(output): path.read_bytes() for path in output.rglob("*") if path.is_file()}
+    command = [sys.executable, str(ROOT / "tools/run_scorer_controls.py")]
+    result = subprocess.run(command + ["--native-evidence", str(output)], capture_output=True, text=True, timeout=90)
+    assert result.returncode == 0, (result.stdout, result.stderr)
+    report = json.loads(result.stdout)
+    assert report["execution"] == "retained-native"
+    assert report["rubric_comparison"] == {
+        "criterion": "AC-02",
+        "expected": {"baseline": 0, "reviewed": 1},
+        "observed": {"baseline": 0, "reviewed": 1},
+        "matched": True,
+    }
+    for arm, score in (("baseline", 0), ("reviewed", 1)):
+        selected = json.loads((output / f"rubric-selection-{arm}.json").read_text())
+        assert selected["scorer_controls"] == {"arm": arm, "mode": "native", "evidence_root": "."}
+        measured = json.loads((output / f"rubric-{arm}.json").read_text())
+        assert measured["items"]["AC-02"]["score"] == score
+        assert measured["items"]["AC-02"]["remaining_gaps"]
+        assert measured["measurements"]["scorer_controls"]["native"]["status"] == "passed"
+    replay = subprocess.run(
+        command + ["--verify-existing", str(output), "--evidence-mode", "native"],
+        capture_output=True,
+        text=True,
+        timeout=90,
+    )
+    assert replay.returncode == 0, (replay.stdout, replay.stderr)
+    assert json.loads(replay.stdout) == report
+    assert all((output / relative).read_bytes() == data for relative, data in original.items())
+    assert not (output / "panel.json").exists()
+
+
+@pytest.mark.parametrize("flag", ["--output", "--native-evidence"])
+def test_evidence_mode_is_only_a_replay_option(tmp_path, flag):
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(ROOT / "tools/run_scorer_controls.py"),
+            flag,
+            str(tmp_path / "evidence"),
+            "--evidence-mode",
+            "native",
+        ],
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    assert result.returncode == 2
+    assert "--evidence-mode requires --verify-existing" in result.stderr
+    assert not (tmp_path / "evidence").exists()
+
+
+def test_native_demo_does_not_partially_write_when_report_exists(tmp_path, monkeypatch):
+    output = tmp_path / "native"
+    native_shaped_evidence(output, monkeypatch)
+    sentinel = output / "rubric-reviewed.json"
+    sentinel.write_text("do not overwrite\n")
+    assert runner().main(["--native-evidence", str(output)]) == 2
+    assert sentinel.read_text() == "do not overwrite\n"
+    assert not (output / "rubric-selection-baseline.json").exists()
+    assert not (output / "rubric-baseline.json").exists()
+
+
+@pytest.mark.parametrize("mutation", ["missing-receipt", "duplicate-selection", "nonfinite-selection", "symlink-root"])
+def test_native_demo_rejects_invalid_evidence_despite_passing_summary(tmp_path, monkeypatch, mutation):
+    output = tmp_path / "native"
+    _, trial = native_shaped_evidence(output, monkeypatch)
+    (output / "scorer-native-summary.json").write_text('{"status":"passed","score":3}')
+    if mutation == "missing-receipt":
+        (trial / "result.json").unlink()
+    elif mutation in ("duplicate-selection", "nonfinite-selection"):
+        path = output / "selection.json"
+        prefix = '{"artifacts":[],' if mutation == "duplicate-selection" else '{"unexpected":NaN,'
+        path.write_text(path.read_text().replace("{", prefix, 1))
+    else:
+        alias = tmp_path / "alias"
+        alias.symlink_to(output, target_is_directory=True)
+        output = alias
+    result = subprocess.run(
+        [sys.executable, str(ROOT / "tools/run_scorer_controls.py"), "--native-evidence", str(output)],
+        capture_output=True,
+        text=True,
+        timeout=90,
+    )
+    assert result.returncode == 2, (result.stdout, result.stderr)
+    assert json.loads(result.stdout)["status"] == "invalid"
+    assert result.stderr == ""
+    assert not list(output.glob("rubric-*.json"))
+
+
+@pytest.mark.parametrize("mutation", ["receipt", "report", "selection", "duplicate-report", "symlink-report"])
+def test_native_demo_replay_revalidates_receipts_and_retained_rubric(tmp_path, monkeypatch, capsys, mutation):
+    output = tmp_path / "native"
+    native, trial = native_shaped_evidence(output, monkeypatch)
+    monkeypatch.setattr(native.common, "execute", lambda *a, **k: pytest.fail("native launch forbidden"))
+    module = runner()
+    assert module.main(["--native-evidence", str(output)]) == 0
+    if mutation == "receipt":
+        (trial / "verifier/reward.txt").write_text("0")
+    else:
+        path = output / ("rubric-selection-reviewed.json" if mutation == "selection" else "rubric-reviewed.json")
+        if mutation == "symlink-report":
+            moved = output / "moved-report.json"
+            path.rename(moved)
+            path.symlink_to(moved)
+        elif mutation == "duplicate-report":
+            path.write_text(path.read_text().replace("{", '{"items":{},', 1))
+        else:
+            document = json.loads(path.read_text())
+            if mutation == "selection":
+                document["scorer_controls"]["arm"] = "baseline"
+            else:
+                document["items"]["AC-02"]["score"] = 3
+            path.write_text(json.dumps(document))
+    original = {p.relative_to(output): p.read_bytes() for p in output.rglob("*") if p.is_file()}
+    capsys.readouterr()
+    assert module.main(["--verify-existing", str(output), "--evidence-mode", "native"]) == 2
+    assert json.loads(capsys.readouterr().out)["status"] == "invalid"
+    assert all((output / relative).read_bytes() == data for relative, data in original.items())
+
+
+@pytest.mark.parametrize("flag", ["--output", "--verify-existing"])
+def test_native_evidence_is_exclusive_with_existing_modes(tmp_path, flag):
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(ROOT / "tools/run_scorer_controls.py"),
+            "--native-evidence",
+            str(tmp_path),
+            flag,
+            str(tmp_path),
+        ],
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    assert result.returncode == 2
+    assert "not allowed with argument" in result.stderr
 
 
 def test_replay_rejects_symlinked_input_directory(tmp_path):
