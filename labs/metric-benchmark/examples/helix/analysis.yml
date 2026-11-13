@@ -1,0 +1,18 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Description, subset and coverage-tool paths are illustrative; targets are not included.
+case_settings:
+  example:
+    description: {path: description.json}
+    subsets: {path: subsets.json}
+coverage:
+  system_id: placeholder-coverage
+  system_revision: '1'
+  command: [/path/to/your/coverage-tool]
+scoring:
+  metric: reward
+  direction: higher_is_better
+  completed_statuses: [succeeded]
+  attempt_policy: only
+missing_policy: error
