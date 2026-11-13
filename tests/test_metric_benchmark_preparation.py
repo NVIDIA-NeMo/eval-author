@@ -8,6 +8,7 @@ import subprocess
 import sys
 import threading
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
 
 import pytest
 import yaml
@@ -238,3 +239,72 @@ def test_symlinks_are_not_copied_into_prepared_benchmark(tmp_path):
 def test_direct_source_requires_plain_url():
     with pytest.raises(ValueError, match="without embedded credentials"):
         GitSource(git_url="https://secret@example.com/repo", git_commit_id="a" * 40, path="task")
+
+
+@pytest.mark.parametrize("alias", ["tasks/workspace/tasks.yml", "./tasks/workspace/tasks.yml"])
+def test_shared_task_manifest_prepared_once(tmp_path, registry, alias):
+    _, _, url, _, _ = registry
+    source, _ = experiment(tmp_path, two_cases=True)
+    write_yaml(source.parent / "tasks/workspace/tasks.yml", dataset(url))
+    cases_path = source.parent / "cases.yml"
+    cases = read_yaml(cases_path)
+    assert isinstance(cases, list)
+    cases[1]["tasks"] = {**cases[1]["tasks"], "path": alias}
+    write_yaml(cases_path, cases)
+    remove_pins(source.parent)
+    output = tmp_path / "prepared"
+    receipt = prepare_inputs(source, output, benchmark=True)
+    check_benchmark(output / source.name)
+    assert list(receipt["origins"]) == ["tasks/workspace/tasks.yml"]
+    assert len(list((output / "prepared-tasks").iterdir())) == 1
+
+
+def test_registry_rejects_ambiguous_branch_and_annotated_tag(tmp_path, registry):
+    repo, commit, url, served, rows = registry
+    git(repo, "tag", "-a", "release", "-m", "release", commit)
+    git(repo, "commit", "--allow-empty", "-qm", "another revision")
+    git(repo, "branch", "release")
+    for task in rows[0]["tasks"]:
+        task["git_commit_id"] = "release"
+    (served / "registry.json").write_text(json.dumps(rows))
+    source = write_yaml(tmp_path / "source/tasks.yml", dataset(url))
+    with pytest.raises(ValueError, match="exactly one"):
+        prepare_inputs(source, tmp_path / "prepared")
+    assert not (tmp_path / "prepared").exists()
+
+
+@pytest.mark.parametrize("ref", ["release", "refs/tags/release"])
+def test_registry_resolves_annotated_tag(tmp_path, registry, ref):
+    repo, commit, url, served, rows = registry
+    git(repo, "tag", "-a", "release", "-m", "release", commit)
+    for task in rows[0]["tasks"]:
+        task["git_commit_id"] = ref
+    (served / "registry.json").write_text(json.dumps(rows))
+    source = write_yaml(tmp_path / "source/tasks.yml", dataset(url))
+    receipt = prepare_inputs(source, tmp_path / "prepared")
+    assert {item["source"]["git_commit_id"] for item in receipt["origins"]["tasks.yml"]["sources"]} == {commit}
+
+
+@pytest.mark.parametrize("benchmark", [False, True])
+def test_changed_copy_is_not_signed_as_the_authored_input(tmp_path, monkeypatch, benchmark):
+    source, _ = experiment(tmp_path)
+    remove_pins(source.parent)
+    if not benchmark:
+        source = write_yaml(
+            source.parent / "local.yml",
+            {"tasks": [{"task_id": "local", "revision": 1, "path": "tasks/workspace/inspect-files"}]},
+        )
+    before = file_manifest(source.parent)
+    copytree = shutil.copytree
+
+    def changed_copy(src, dst, *args, **kwargs):
+        result = copytree(src, dst, *args, **kwargs)
+        for instruction in Path(result).rglob("instruction.md"):
+            instruction.write_text("Changed while copying")
+        return result
+
+    monkeypatch.setattr("metric_benchmark.preparation.shutil.copytree", changed_copy)
+    with pytest.raises(ValueError, match="copied.*differ"):
+        prepare_inputs(source, tmp_path / "prepared", benchmark=benchmark)
+    assert file_manifest(source.parent) == before
+    assert not (tmp_path / "prepared").exists()

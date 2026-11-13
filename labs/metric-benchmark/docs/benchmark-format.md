@@ -133,9 +133,10 @@ continue to consume the explicit local task format above. Run
 [input preparation](tools.md#prepare-remote-inputs) first; it resolves upstream
 Git refs in registry entries to immutable commits, downloads the tasks, and
 produces a separate signed experiment bundle. Case names and analysis settings
-are preserved. Registry task names become task IDs; dataset-generated integer
-task revisions start at `1`. The exact upstream version, commit, and content
-hashes are retained separately rather than encoded as an integer revision.
+are preserved. Registry refs that match different commits are rejected; use a
+fully qualified ref or commit to disambiguate. Registry task names become task IDs;
+dataset-generated integer task revisions start at `1`. The exact upstream version,
+commit, and content hashes are retained separately rather than encoded as an integer revision.
 
 The design keeps resolution explicit so execution and saved-result analysis do
 not query a potentially changed registry. Reuse the prepared bundle to repeat an

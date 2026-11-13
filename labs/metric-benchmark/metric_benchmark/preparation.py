@@ -129,9 +129,8 @@ def _resolve_git(url: str, ref: str | None) -> str:
     result = subprocess.run(
         ["git", "ls-remote", url, ref, ref + "^{}"], capture_output=True, text=True, check=True, timeout=60
     )
-    rows = [line.split() for line in result.stdout.splitlines()]
-    peeled = [sha for sha, name in rows if name.endswith("^{}")]
-    commits = set(peeled or [sha for sha, _ in rows])
+    refs = {name: sha for sha, name in (line.split() for line in result.stdout.splitlines())}
+    commits = {refs.get(name + "^{}", sha) for name, sha in refs.items() if not name.endswith("^{}")}
     if len(commits) != 1:
         raise ValueError(f"Git revision must resolve to exactly one commit: {ref}")
     commit = commits.pop()
@@ -203,12 +202,15 @@ def _prepare_tasks(data: object, source_root: Path, root: Path, ordinal: int) ->
             sources.append({"task_id": task.task_id, "source": task.source.model_dump()})
         else:
             source_path = task.source().resolve(source_root, allow_unsigned=True)
+            source_digest = input_digest(source_path)
             relative = task.path
             path = root / relative
             if not path.exists():
                 path.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copytree(source_path, path, symlinks=True)
             task.source().resolve(root, allow_unsigned=True)
+            if input_digest(path) != source_digest:
+                raise ValueError(f"copied task contents differ from source: {task.path}")
         HarborTask(path)
         prepared.append(
             TaskSource(
@@ -303,13 +305,15 @@ def prepare_inputs(source: Path, output: Path, *, benchmark: bool = False, cache
         if benchmark:
             cases_path, entries = _verify_authored_benchmark(source)
             shutil.copytree(source_root, stage, symlinks=True)
+            if file_manifest(stage) != original:
+                raise ValueError("copied benchmark contents differ from source")
             root = stage / cases_path.parent.relative_to(source_root)
             seen = set()
             for entry in entries:
-                if entry.tasks.path in seen:
-                    continue
-                seen.add(entry.tasks.path)
                 target = root / entry.tasks.path
+                if target in seen:
+                    continue
+                seen.add(target)
                 manifest, origin = _prepare_tasks(read_yaml(target), cases_path.parent, root, len(seen) - 1)
                 _write_yaml(target, manifest)
                 origins[target.relative_to(stage).as_posix()] = origin

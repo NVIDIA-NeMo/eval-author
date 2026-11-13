@@ -75,7 +75,8 @@ the directory containing the experiment file, preserving its relative layout.
 The output must be outside that source directory. The source remains unchanged;
 provided input pins are verified before any manifests are rewritten. Preparation
 accepts missing pins, downloads remote tasks, then signs and checks the complete
-output. Analysis subsets must already exist and reference the selected task IDs.
+output. Copied files must match their authored sources, including unsigned inputs.
+Analysis subsets must already exist and reference the selected task IDs.
 
 Both task and benchmark preparation publish a complete output directory only
 after success. A failed download leaves no final bundle. Repeating a successful
