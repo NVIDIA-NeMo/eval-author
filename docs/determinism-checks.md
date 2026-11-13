@@ -186,6 +186,10 @@ It emits `rubric-measurements-v2` JSON without modifying workflow state. Exit 1
 means failed/unknown raw predicates or comparisons still requiring review. Exit 2
 means invalid input. Exit 0 does not mean every canonical item is assessed or that
 native preflight passed. Configuration acceptability remains unassessed.
+To check a selected `ETHOS.md`, add an `ethos` selection naming its artifact and
+pass `--ethos-validator` with the installed `ethos-write/scripts/validate_ethos.py`.
+The result records the document and validator digests and the validator's
+verdict. A valid result checks structure only, not confirmed or adequate intent.
 Keep selections and output private because they can contain local evidence locations.
 
 ## Provenance demo

@@ -158,7 +158,7 @@ def test_cli_sanitizes_output_serialization_failure(tmp_path, monkeypatch, capsy
 
     request = tmp_path / "selection.json"
     request.write_text("{}")
-    monkeypatch.setattr(measure, "measure", lambda root, selection: {"unexpected": float("inf")})
+    monkeypatch.setattr(measure, "measure", lambda root, selection, ethos_validator: {"unexpected": float("inf")})
     assert measure.main(["--root", str(tmp_path), "--selection", str(request)]) == 2
     output = capsys.readouterr()
     assert output.err == ""

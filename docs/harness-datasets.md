@@ -4,8 +4,9 @@
 # SkillEvaluator checkpoint datasets
 
 The four datasets added for audit, discovery, Intake inspection, and trace
-environment derivation each contain three scoped cases and one unrelated
-negative case. CI discovers them through each skill's `evals/evals.json`.
+environment derivation each contain one unrelated negative case. Discovery,
+Intake inspection, and trace environment each have three scoped cases; audit has
+four. CI discovers them through each skill's `evals/evals.json`.
 Repository-authored cases also cover shared entry for first evaluations and
 expansion in NeMo Gym and Harbor. The core and first-eval datasets each contain six
 cases, retaining their existing routing, recovery, and negative controls.
@@ -25,8 +26,9 @@ The five imported datasets use the `portable-synthetic-v1` harness comparison co
 scenarios and records source paths, byte hashes, and transformations. Negative
 arithmetic cases are new controls. Historical harness results remain separate.
 The manifest's separate `repository_authored` section records the new first-eval,
-expansion, and audit report cases and synthetic agent documentation; they do not come from
-the imported corpus.
+expansion, audit report, and audit verifier cases, the synthetic agent
+documentation, and the synthetic Harbor task the verifier case inspects; they do
+not come from the imported corpus.
 
 ## What these cases establish
 
@@ -34,7 +36,7 @@ the imported corpus.
 | --- | --- |
 | First evaluations | Direct shared entry for NeMo Gym and Harbor; no existing suite or traces |
 | Core expansion | Shared entry for NeMo Gym and Harbor; user-created suite, no prior audit or traces |
-| Audit | Shared entry, existing-spec validation, report content validation and rendering from the skill's worked example |
+| Audit | Shared entry, existing-spec validation, report content validation and rendering from the skill's worked example, read-only verifier inspection that finds an unstated scored requirement |
 | Discovery | Inventory, Oracle/grader limitations, blocked-readiness interpretation |
 | Intake inspection | Missing selection, rejected URI, unavailable CLI boundaries |
 | Trace environment | Harbor and NeMo Gym proposals, blocked-validation handoff |

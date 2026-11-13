@@ -12,7 +12,7 @@ not establish that integration.
 
 ## Canonical definitions
 
-The [canonical Rubric v4 subset](artifact-configuration-provenance.json) is the
+The [canonical subset](artifact-configuration-provenance.json) is the
 single source for the 11 criterion IDs, original questions, applicability,
 measurements, 38 checks, 44 score anchors, evidence requirements, and boundaries.
 Read each selected `items` entry in full before assessment. Links below use JSON
