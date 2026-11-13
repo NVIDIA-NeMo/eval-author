@@ -99,19 +99,14 @@
       "measurement": "freshness", "status": "unknown", "codes": ["freshness.unresolved"], "affected_status": "unresolved", "changed_dependencies": ["ethos"]
     },
     {
-      "id": "ethos-confirmed", "mutation": "ethos-confirmed", "cli_exit_code": 0,
-      "description": "Handcrafted ETHOS.md passes the installed ethos-write validator, and the saved journey state confirms exactly its current bytes.",
-      "measurement": "ethos", "status": "pass", "codes": [], "valid": true, "confirmation_status": "confirmed"
+      "id": "ethos-valid", "mutation": "ethos-valid", "cli_exit_code": 0,
+      "description": "Handcrafted ETHOS.md passes the installed ethos-write validator.",
+      "measurement": "ethos", "status": "pass", "codes": [], "valid": true
     },
     {
       "id": "ethos-malformed", "mutation": "ethos-malformed", "cli_exit_code": 1,
-      "description": "Rename the handcrafted ETHOS.md Constraints section before confirmation; the validator rejects the structure.",
-      "measurement": "ethos", "status": "fail", "codes": ["ethos.invalid"], "valid": false, "confirmation_status": "confirmed"
-    },
-    {
-      "id": "ethos-changed-after-confirmation", "mutation": "ethos-changed-after-confirmation", "cli_exit_code": 1,
-      "description": "Edit the confirmed handcrafted ETHOS.md; it still validates, but the saved confirmation names the earlier bytes.",
-      "measurement": "ethos", "status": "fail", "codes": ["ethos.confirmation_stale"], "valid": true, "confirmation_status": "stale"
+      "description": "Rename the handcrafted ETHOS.md Constraints section; the installed validator rejects the structure.",
+      "measurement": "ethos", "status": "fail", "codes": ["ethos.invalid"], "valid": false
     },
     {
       "id": "authority-resolved", "mutation": "authority-resolved", "cli_exit_code": 0,

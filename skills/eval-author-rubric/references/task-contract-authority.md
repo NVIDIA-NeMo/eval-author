@@ -32,10 +32,11 @@ Use the same inputs for every selected task:
   resolved scorer and dependencies from [the identity measurement](identity.md).
 - The reference solution, if present, as feasibility evidence only.
 - The current Ethos, if the suite has one, as owner intent. Before citing it as a
-  correctness source, run the [Ethos measurement](identity.md#selected-ethos-structure-and-confirmation)
-  with the saved journey state when one exists. An Ethos that fails, changed since
-  selection, or has a stale confirmation is not a usable source; an unconfirmed one
-  is a claim to compare, not owner intent.
+  correctness source, run the [Ethos structure measurement](identity.md#selected-ethos-structure)
+  and read Eval Author's saved confirmation with the read-only
+  [`journey_state.py show`](../../eval-author/scripts/journey_state.py), which
+  rechecks it against the current bytes. Only an Ethos that passes and whose review
+  is `complete` is owner intent; otherwise it is a claim to compare.
 
 Construction plans, requirement maps, generator labels, task READMEs, and trace
 candidates are claims to compare, never authority. A disagreement between them

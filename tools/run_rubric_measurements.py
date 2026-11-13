@@ -5,7 +5,6 @@
 
 import argparse
 import copy
-import hashlib
 import json
 import subprocess
 import sys
@@ -18,7 +17,6 @@ sys.path.insert(0, str(ROOT / "skills/eval-author-rubric/scripts"))
 sys.path.insert(0, str(ROOT / "skills/eval-author/scripts"))
 from eval_author_shared.task_evidence import digest, loads  # noqa: E402
 from first_eval_state import fingerprint  # noqa: E402
-from journey_state import new_state  # noqa: E402
 from measure import measure  # noqa: E402
 
 
@@ -178,24 +176,12 @@ ETHOS_DOCUMENT = (ROOT / "team-skills/ethos/ethos-write/evals/files/router-help/
 
 
 def ethos_selection(root, selection, mutation):
-    """Select a handcrafted ETHOS.md and Eval Author's saved confirmation of it."""
+    """Select a handcrafted ETHOS.md for the installed ethos-write validator."""
     content = ETHOS_DOCUMENT
     if mutation == "ethos-malformed":
         content = content.replace(b"\n## Constraints\n", b"\n## Limits\n")
-    confirmed = hashlib.sha256(content).hexdigest()
-    if mutation == "ethos-changed-after-confirmation":
-        content = content.replace(b"## Vision\n", b"## Vision\n\nRevised after confirmation.\n")
     selected_file(root, selection, "ethos-document", "ethos", content, "ETHOS.md")
-    state = new_state(root)
-    state.update(repository="handcrafted:rubric-demo", agent="router-help", updated_at="2026-01-01T00:00:00+00:00")
-    state["ethos"].update(
-        stage="complete",
-        confirmed_digest=confirmed,
-        confirmation_source="handcrafted user confirmation",
-        validation="handcrafted validate_ethos.py result",
-    )
-    selected_file(root, selection, "journey-state", "journey_state", state)
-    selection["ethos"] = {"artifact_id": "ethos-document", "confirmation_artifact_id": "journey-state"}
+    selection["ethos"] = {"artifact_id": "ethos-document"}
 
 
 def authority_selection(root, selection, mutation):
@@ -346,8 +332,7 @@ def ethos_or_authority_matches(observation, case):
     if codes != case["codes"]:
         return False
     if case["measurement"] == "ethos":
-        confirmation = observation.get("confirmation") or {}
-        return observation.get("valid") == case["valid"] and confirmation.get("status") == case["confirmation_status"]
+        return observation.get("valid") == case["valid"]
     return [row["status"] for row in observation.get("requirements", [])] == case["requirement_statuses"]
 
 

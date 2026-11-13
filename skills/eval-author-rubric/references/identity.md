@@ -73,11 +73,9 @@ denied/unresolved access, and changed digests with stable `identity.*` diagnosti
 A missing optional revision stays null; a missing required content digest does not
 pass. Do not turn content identity into an ownership or confidentiality claim.
 
-## Selected Ethos structure and confirmation
+## Selected Ethos structure
 
-`ethos` is `{"artifact_id": <id>}` naming one selected artifact with role `ethos`,
-plus an optional `confirmation_artifact_id` naming the selected
-`.eval-author/.working/journey-state.json` with role `journey_state`.
+`ethos` is `{"artifact_id": <id>}` naming one selected artifact with role `ethos`.
 Pass `--ethos-validator <ethos-write-skill-dir>/scripts/validate_ethos.py`, with the
 skill directory located as the
 [shared prerequisites](../../eval-author/references/shared-prerequisites.md) describe.
@@ -87,14 +85,8 @@ through the shared reader, records its digest and the validator file's digest, a
 runs the validator on those bytes. A rejection is `ethos.invalid` (fail) with the
 validator's reason; its warnings are kept. A changed digest is
 `ethos.digest_mismatch`. A missing or broken validator leaves validity unknown.
-
-With a confirmation artifact, the measurement validates the journey state with its
-owning validator and compares its saved `confirmed_digest` with the document's
-current bytes. `confirmed` needs the same path, the same digest, and stage
-`complete`. A different digest is `ethos.confirmation_stale` (fail). No saved
-confirmation, a confirmation still under review, or one for another path stays
-unknown. A confirmed result shows the saved binding, not who approved the content
-or that it states adequate intent.
+A valid result is structure only: it does not show the content was confirmed,
+is current, or states adequate intent.
 
 ## Construction authority references
 

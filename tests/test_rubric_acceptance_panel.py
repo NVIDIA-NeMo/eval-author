@@ -7,7 +7,7 @@ from test_rubric_measurements import rubric_panel_runs as rubric_panel_runs
 
 def test_one_command_package_acceptance_is_separate(rubric_panel):
     report = rubric_panel
-    assert report["counts"] == {"cases": 14, "assessments": 5, "evidence_cases": 14}
+    assert report["counts"] == {"cases": 14, "assessments": 5, "evidence_cases": 13}
     package = report["package_acceptance"]
     assert package["status"] == "passed"
     assert package["runtime_acceptance"] == "not_measured"
