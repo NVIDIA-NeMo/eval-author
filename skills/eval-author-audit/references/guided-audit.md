@@ -363,7 +363,9 @@ request does not select it. Accepting findings and the offered action together
 settles both without another permission prompt.
 
 Once proposals are selected, enter `eval-author-task-create` at **Step 1: propose dataset
-improvements**. Carry the Audit coverage report, reviewed Audit specification,
+improvements**. Save specific recommendation IDs through the
+[selected improvement handoff](coverage-report.md#selected-improvement-handoff-and-follow-through).
+Carry the Audit coverage report, reviewed Audit specification,
 available Coverage measurements (JSON) and evidence, selected source scope, user
 corrections, and agreed priorities.
 Do not restart the audit or repeat settled questions. Expand the existing

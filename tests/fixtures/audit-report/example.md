@@ -1,7 +1,7 @@
 <!-- SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved. -->
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 
-[eval-author-audit-report]: urn:eval-author:audit-report:%7B%22body_sha256%22%3A%20%22c869d2e8f78a83585a7826bc482107ee34373a523cdb9d377a7cf4f6020a9ad5%22%2C%20%22content_sha256%22%3A%20%224ac97454cee3e6dd1a9894962e205422f81e54038319d63826d48b814115181c%22%2C%20%22renderer_version%22%3A%201%2C%20%22sources_sha256%22%3A%20%22c3f754c65550da88c25a6f2457ee1139d23bc0181574efe31c2cdec19c9d535b%22%2C%20%22validator_version%22%3A%201%7D
+[eval-author-audit-report]: urn:eval-author:audit-report:%7B%22body_sha256%22%3A%20%22b75ae7aae0b8071b2d832674553d80b5ef120811400936f785069e1ae10482a0%22%2C%20%22content_sha256%22%3A%20%224ac97454cee3e6dd1a9894962e205422f81e54038319d63826d48b814115181c%22%2C%20%22renderer_version%22%3A%201%2C%20%22sources_sha256%22%3A%20%22c3f754c65550da88c25a6f2457ee1139d23bc0181574efe31c2cdec19c9d535b%22%2C%20%22validator_version%22%3A%201%7D
 
 # Audit coverage report: research-agent
 
@@ -58,19 +58,19 @@ Proposed task: Require the trace to show a read\_file call on the cited source b
 
 The recommendations draw on the inspected task definitions, the audit specification, and the selected Ethos.
 
-- **High** · [Advisory 1 - The verifier accepts an unchecked success response](#advisory-1---the-verifier-accepts-an-unchecked-success-response) · cited\_answers (capability)
+- **High** · R1 · [Advisory 1 - The verifier accepts an unchecked success response](#advisory-1---the-verifier-accepts-an-unchecked-success-response) · cited\_answers (capability)
   - Repair the verifier. Revise the verifier to compare the submitted quotation with verifier-owned source data and reject empty answers.
 
-- **Medium** · [Finding 1 - Coverage gaps](#finding-1---coverage-gaps) · missing\_evidence (failure case)
+- **Medium** · R2 · [Finding 1 - Coverage gaps](#finding-1---coverage-gaps) · missing\_evidence (failure case)
   - Add a task. Supply a source without an answer and require the agent to acknowledge that limitation.
   - **Verification:** Accept a reply that says the sources do not contain the answer. Reject a reply that supplies a quotation, a participant, or a count, because none can come from the supplied source.
   - **Breadth:** Provisionally three inputs: no answer in the source, a partial answer, and an answer that exists only in a different source. Exclude multi-turn variants until the first set is agreed.
   - **Next step:** Needs manual task design
 
-- **Medium** · [Finding 3 - Quotation accuracy is unchecked](#finding-3---quotation-accuracy-is-unchecked) · read\_file (tool)
+- **Medium** · R4 · [Finding 3 - Quotation accuracy is unchecked](#finding-3---quotation-accuracy-is-unchecked) · read\_file (tool)
   - Revise a task ([T1-source-answer](../report-sources/tasks/source-answer/instruction.md)). Require the trace to show a read\_file call on the cited source before the answer, and reject quotations that do not appear in what was read.
 
-- **Low** · [Finding 2 - Retained controls are unavailable](#finding-2---retained-controls-are-unavailable) · no mapped capability or tool
+- **Low** · R3 · [Finding 2 - Retained controls are unavailable](#finding-2---retained-controls-are-unavailable) · no mapped capability or tool
   - Collect more evidence.
 
 ## Task catalog

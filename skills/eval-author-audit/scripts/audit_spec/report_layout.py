@@ -28,6 +28,13 @@ NEXT_STEPS = {
     "more_measurement": "Needs more measurement",
 }
 PRIORITIES = {"high": "High", "medium": "Medium", "low": "Low"}
+FOLLOW_THROUGH = {
+    "selected": "Selected",
+    "in_progress": "In progress",
+    "blocked": "Blocked",
+    "implemented": "Implemented",
+}
+FOLLOW_THROUGH_NOTE = "Follow-through does not update audit measurements. Changed tasks require review before earlier measurements can be treated as current."
 PRIORITY_RANK = {"high": 0, "medium": 1, "low": 2}
 KIND_NAMES = {"capability": "capability", "tool": "tool", "failure_case": "failure case"}
 TABLES = {

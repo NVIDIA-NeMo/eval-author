@@ -173,6 +173,10 @@ for new shared flows; returning audits use the continuation route above.
 
 ### Expansion handoff
 
+When `scopes.expand.audit_handoff` is present, resume the audit's
+[selected improvement handoff](../eval-author-audit/references/coverage-report.md#selected-improvement-handoff-and-follow-through)
+before choosing a new source or repeating settled audit decisions.
+
 An expansion request does not imply an audit. Carry supplied suite context,
 requested additions, confirmed Ethos, prerequisites, and pending decisions into
 the selected authoring flow. Resolve an unsupported suite format during

@@ -111,6 +111,8 @@ OTHER_ACTION_QUESTION = (
     "Do these findings look right? If so, would you like to finish the audit here or choose a recommended next action?"
 )
 REVIEW_ACCEPTED = "You’ve accepted the audit findings."
+SELECTED_RECOMMENDATIONS = "Selected report recommendations: {ids}."
+LEGACY_SELECTION = "The saved improvement decision does not identify specific report recommendations. Resolve that selection before planning."
 AUDIT_COMPLETE = "The audit is complete for the reviewed scope."
 AUDIT_LIMITED = "The limited findings review is complete; the full measured audit remains incomplete."
 NEXT_ACTIONS = {

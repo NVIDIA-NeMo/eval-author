@@ -79,3 +79,60 @@ python <eval-author-skill-dir>/scripts/audit_verifier_evidence.py --repo . \
 - Keep selection, construction, validation, control execution, agent execution, acceptance, and measured coverage as separate facts.
 - Reconcile historical `dataset-recommendations.md` entries into the authored content during requested conversion. Preserve IDs, decisions, evidence, and unresolved risks. Leave the historical file intact and rebase relative links.
 - Regenerate Markdown after authorized content changes. Never maintain another authored recommendation list or edit the generated report directly.
+
+## Selected improvement handoff and follow-through
+
+At findings review, use the report's stable recommendation IDs in conversation
+recommendations (`id`, alongside `kind`, `label`, and `reason`). Keep IDs when
+reordering or expanding recommendations; never reuse an ID for a different action.
+A recommendation's priority is advice until the user agrees it.
+
+When the user selects specific improvements, update the lifecycle's `next_action`
+with `kind: improve`, its current `findings_digest`, the reply's `source`, and a
+nonempty `recommendation_ids` list such as `["R1", "R3"]`. Use the normal
+revision-checked journey-state update after saving findings acceptance. The same
+update can record acceptance and selection when the reply settles both. Selection
+is checked against the bound report content, including its action types.
+`collect_evidence` and `fix_agent` may also record matching recommendation IDs;
+`finish` records no IDs. Acceptance alone records no new next action.
+
+The helper saves an `audit_handoff` in `scopes.expand` with the selected IDs,
+originating report/content references, findings digest, and decision source.
+Keep the audit scope intact: it retains source selections and exclusions,
+measurement, and review context. Reuse that scope and the report for findings,
+priorities, and limits rather than copying another recommendation list. An old
+`improve` decision without IDs needs only the unresolved specific selection.
+Never infer it or repeat onboarding to recover it.
+Expansion-scope updates with a retained handoff also require the latest
+`--expected-revision`; they preserve the handoff automatically. Change the
+selection through a new reviewed audit next-action decision, not by replacing
+the handoff directly.
+
+On entering `expand`, retain this handoff and reuse the confirmed Ethos and
+applicable prerequisites. Continue selected proposal work at task-create Step 1;
+Journey 3 still agrees its construction scope and execution separately. Additions,
+case revisions, and verifier repairs can all be selected. Automatic tool-gap
+eligibility limits implementation, not selection. If no supported authoring path
+can perform the chosen change, preserve the handoff and pending question, explain
+the missing capability, and stop before construction. Do not restart the audit.
+If selected IDs are absent from the evolved report or its source context differs,
+retain the original decision and ask only how to reconcile that missing context.
+
+Record follow-through on the same recommendation in authored content, using
+`follow_through.status` (`selected`, `in_progress`, `blocked`, or `implemented`),
+`summary` (what changed or remains), and `evidence` (bound source IDs, possibly
+empty before implementation). `implemented` requires evidence of the change;
+it does not claim validated grading, successful agent execution, or better
+coverage. Record those facts only when their own evidence exists. Do not add
+progress for unselected recommendations. Refresh the same report through the
+validator and renderer; a progress edit does not undo the originating selection.
+
+Leave freshness checks unchanged. If task files changed, earlier measurements
+cannot establish current coverage. Explain that limitation and retain the
+original findings and task revisions. Before refreshing, inspect and explicitly
+rebind changed report inputs, retaining old findings as historical and any old
+measurements as applicable only to their original revisions. Never silently
+update evidence digests or claim a current audit from stale measurements. If a
+valid refresh needs further review, retain the existing report and handoff and
+explain the blocker. Repeating the audit or running new controls is a separate
+request, not an automatic consequence of improving a task.

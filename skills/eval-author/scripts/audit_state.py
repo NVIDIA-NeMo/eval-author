@@ -6,6 +6,8 @@
 from __future__ import annotations
 
 import copy
+import hashlib
+import json
 import re
 from pathlib import Path, PurePosixPath
 
@@ -117,6 +119,77 @@ def _decision(value) -> None:
     _text(value["source"])
 
 
+def recommendation_ids(value) -> None:
+    if (
+        not isinstance(value, list)
+        or not value
+        or len(value) > 1000
+        or any(not isinstance(item, str) or not re.fullmatch(r"R[1-9][0-9]*", item) for item in value)
+        or len(set(value)) != len(value)
+    ):
+        raise ValueError("Select unique report recommendation IDs such as R1")
+
+
+def validate_handoff(value: dict) -> None:
+    _fields(value, "recommendation_ids findings_digest report content source")
+    recommendation_ids(value["recommendation_ids"])
+    _digest(value["findings_digest"])
+    _ref(value["report"])
+    _ref(value["content"])
+    _text(value["source"])
+
+
+def selected_recommendations(repo: Path, lifecycle: dict) -> list[dict]:
+    action = lifecycle["next_action"]
+    ids = action.get("recommendation_ids", []) if action else []
+    if not ids:
+        return []
+    findings = lifecycle["findings"]
+    if not findings or "content" not in findings:
+        raise ValueError("Recommendation selection requires the reviewed structured report")
+    ref = findings["content"]
+    path = (repo / ref["path"]).resolve()
+    if not path.is_relative_to(repo.resolve()):
+        raise ValueError("Report content must stay inside the repository")
+    raw = path.read_bytes()
+    if hashlib.sha256(raw).hexdigest() != ref["digest"]:
+        raise ValueError("Report content changed; review before selecting recommendations")
+    rows = {row["id"]: row for row in json.loads(raw)["recommendations"]}
+    if any(identifier not in rows for identifier in ids):
+        raise ValueError("Select recommendation IDs from the reviewed report")
+    allowed = {
+        "improve": {"new_task", "revise_task", "repair_verifier"},
+        "collect_evidence": {"collect_evidence"},
+        "fix_agent": {"fix_agent"},
+    }.get(action["kind"], set())
+    if any(rows[identifier]["action"] not in allowed for identifier in ids):
+        raise ValueError("Selected recommendations must match the next action")
+    return [rows[identifier] for identifier in ids]
+
+
+def retain_handoff(previous: dict, updated: dict) -> None:
+    lifecycle = record(updated)
+    action = lifecycle["next_action"] if lifecycle else None
+    if not action or action == (record(previous) or {}).get("next_action"):
+        return
+    assert lifecycle is not None
+    if action["kind"] != "improve" or not action.get("recommendation_ids"):
+        # A declined or replacement action must not leave an older selection active.
+        scope = updated["scopes"].get("expand", {})
+        if isinstance(scope, dict):
+            scope.pop("audit_handoff", None)
+        return
+    scope = updated["scopes"].setdefault("expand", {})
+    if not isinstance(scope, dict):
+        scope = {"legacy_context": scope}
+        updated["scopes"]["expand"] = scope
+    scope["audit_handoff"] = copy.deepcopy(
+        {key: action[key] for key in ("recommendation_ids", "findings_digest", "source")}
+        | {key: lifecycle["findings"][key] for key in ("report", "content")}
+    )
+    scope.update(confirmed=False, needs_review=True)
+
+
 def validate(value: dict) -> None:
     try:
         value = {"selection_manifest": None, **value}
@@ -187,11 +260,16 @@ def validate(value: dict) -> None:
                 _paths([ref["path"] for ref in findings["inputs"]])
         action = value["next_action"]
         if action is not None:
-            _fields(action, "kind findings_digest source")
+            _fields(
+                action,
+                "kind findings_digest source" + (" recommendation_ids" if "recommendation_ids" in action else ""),
+            )
             if action["kind"] not in ACTIONS:
                 raise ValueError("Unknown audit next action")
             _digest(action["findings_digest"])
             _text(action["source"])
+            if "recommendation_ids" in action:
+                recommendation_ids(action["recommendation_ids"])
         pending = value["pending"]
         if pending is not None:
             _fields(pending, "stage digest question source")
@@ -480,6 +558,8 @@ def transition(repo, previous: dict, updated: dict) -> dict | None:
             raise ValueError("Review current findings from complete, partial, or explicitly deferred measurement")
         if field == "next_action" and not current["next_action_current"]:
             raise ValueError("Select a next action explicitly against reviewed current findings")
+        if field == "next_action":
+            selected_recommendations(repo, after)
         if field == "pending" and not current["pending_checkpoint"]:
             raise ValueError("Pending audit checkpoint must match the current unresolved decision")
     return current

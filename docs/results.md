@@ -234,6 +234,21 @@ for how changed inputs reopen review and measurement.
 For the combined findings review and optional next-action handoff, see
 [Audit coverage](existing-evals.md#audit-coverage).
 
+### Selected audit improvements
+
+Recommended next actions show stable IDs such as `R1`. You can select one or
+several to plan, finish with the findings, or choose an evidence or agent fix.
+Accepting findings alone does not start improvement work.
+
+Selected improvements survive a later session with their audit context. Their
+scope still needs agreement before implementation. Progress and available
+evidence appear beneath the same recommendation in the Audit coverage report.
+An implemented change does not by itself establish successful validation or
+better coverage. If task files change, earlier audit measurements need review
+before they can describe the changed tasks. Eval Author retains the original
+findings and explains that limit; it does not automatically repeat the audit.
+
+
 ### Identity-aware coverage results
 
 When measurement uses the paired

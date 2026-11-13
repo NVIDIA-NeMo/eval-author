@@ -67,11 +67,10 @@ to turn audit evidence into prioritized dataset improvements across tools,
 capabilities, and failure cases. For proposal-only requests, stop after Step 1. Shared lifecycle decisions and
 pending work belong only in `.eval-author/.working/journey-state.json`; recommendations
 remain a user-facing deliverable and native evidence remains immutable.
-Enter that step directly from the core's proposal route, carrying existing audit
-findings and prior answers. Accepting the audit's offer to propose tasks also
-enters Step 1 directly; reuse the reviewed Audit coverage report and agreed priorities.
-When handing off from a guided audit, wait for an explicit answer accepting that
-offer; report acceptance alone is not permission to begin proposals.
+Enter Step 1 directly from the core's proposal route, reusing findings and prior answers.
+For guided audits and `scopes.expand.audit_handoff`, follow the
+[selected improvement handoff and follow-through](../eval-author-audit/references/coverage-report.md#selected-improvement-handoff-and-follow-through).
+Accepting findings alone does not select proposal work.
 For task creation, consume the core's shared prerequisite result, including direct
 invocation. Proposal-only requests keep their supplied-input scope. Reuse the
 confirmed Ethos and prerequisites.

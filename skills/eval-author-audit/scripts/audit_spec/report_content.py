@@ -445,6 +445,10 @@ def _references(model: Content) -> list[dict]:
                 raise ValueError("Details describe a proposed task, so a recommendation with details needs one")
             if row["action"] in {"new_task", "revise_task"} and row["proposed_task"] is None:
                 raise ValueError("A task proposal needs its concrete scenario and verifier requirements")
+            if follow := row.get("follow_through"):
+                known(follow["evidence"], model.paths)
+                if follow["status"] == "implemented" and not follow["evidence"]:
+                    raise ValueError("Implemented follow-through requires bound evidence of the change")
 
         check(f"content.recommendations[{index}]", recommendation)
     for index, row in enumerate(data["scope_notes"]):

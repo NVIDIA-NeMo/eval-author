@@ -826,3 +826,30 @@ the file, show a diff, and identify the content field to change.
 For a legacy report, confirm that ordinary refresh preserves it. Request
 conversion explicitly and confirm that the original bytes remain available.
 HTML reports, all READMEs, and audit-history storage remain unchanged.
+
+## Scripted report-to-improvement demonstrations (ASE-1294)
+
+Run the retained deterministic scenarios with a fresh output directory:
+
+```bash
+uv run --locked pytest -q tests/test_audit_report_content.py \
+  -k 'audit_handoff_demo or no_change_report_demo' \
+  --basetemp /tmp/ase-1294-new-demo
+```
+
+Pytest clears `--basetemp` at startup. Each handoff scenario retains the synthetic
+suite, authored content, generated `.eval-author/audit-coverage-report.md`, shared
+journey state, `scripted-transcript.md`, and `demo-evidence.json`. The matrix covers
+user-created and Eval Author-created origin labels, acceptance alone, finish,
+selected additions/case revisions/verifier repair, evidence collection, and agent
+fixes. The improvement path reloads into expansion, preserves its selection
+through a planning update, records blocked follow-through in the same report,
+and intentionally changes a task to demonstrate the existing stale-input blocker.
+The no-change example maps all agreed behaviors and renders no recommendations;
+it establishes definition-level mappings only.
+
+These are reproducible scripted decisions and synthetic artifacts, not live
+assistant conversations, grader controls, or agent runs. Origin labels exercise
+context retention, not suite creation. No grading behavior, model reliability,
+or improved measured coverage is established. Existing conversation fixtures
+cover check approval, partial evidence, no-change findings, and legacy decisions.

@@ -592,9 +592,18 @@ def build(model: content.Content) -> tuple[str, dict[int, str]]:
     ranked = sorted(data["recommendations"], key=lambda row: (layout.PRIORITY_RANK[row["priority"]], row["order"]))
     for row in ranked:
         details = detail_lines(model, row)
+        if follow := row.get("follow_through"):
+            details.append(
+                "  - **Follow-through: "
+                + layout.FOLLOW_THROUGH[follow["status"]]
+                + ".** "
+                + prose(model, follow["summary"])
+            )
+            if follow["evidence"]:
+                details.append("  - **Follow-through evidence:** " + evidence(model, follow["evidence"]))
         add(
             [
-                f"- **{layout.PRIORITIES[row['priority']]}** · "
+                f"- **{layout.PRIORITIES[row['priority']]}** · {row['id']} · "
                 + jump(row["finding_id"], finding_heading(model, row["finding_id"]))
                 + " · "
                 + involved_items(model, row),
@@ -604,6 +613,8 @@ def build(model: content.Content) -> tuple[str, dict[int, str]]:
             ],
             "recommendations",
         )
+    if any(row.get("follow_through") for row in ranked):
+        add([layout.FOLLOW_THROUGH_NOTE, ""], "recommendations")
     section(4, "tasks")
     add([layout.COPY["catalog"], ""], "tasks")
     task_rows = []

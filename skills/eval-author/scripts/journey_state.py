@@ -269,6 +269,9 @@ def validate(state: dict, *, check_size: bool = True) -> None:
     if isinstance(creation_scope, dict) and "first_eval" in creation_scope:
         first_eval_state.validate(creation_scope["first_eval"])
     audit_scope = state["scopes"].get("audit", {})
+    expansion_scope = state["scopes"].get("expand", {})
+    if isinstance(expansion_scope, dict) and "audit_handoff" in expansion_scope:
+        audit_state.validate_handoff(expansion_scope["audit_handoff"])
     if isinstance(audit_scope, dict) and "mode" in audit_scope:
         audit_state.validate_mode(audit_scope["mode"])
     if isinstance(audit_scope, dict) and "lifecycle" in audit_scope:
@@ -879,6 +882,23 @@ def update(repo: Path, patch: dict, *, expected_revision: int | None = None, sta
         if typed_create and expected_revision is None:
             raise ValueError("Creation scope updates require --expected-revision from the latest show")
         scope_patch = patch.get("scopes", {})
+        prior_expand = state["scopes"].get("expand", {})
+        expand_patch = scope_patch.get("expand") if isinstance(scope_patch, dict) else None
+        if (
+            isinstance(prior_expand, dict)
+            and "audit_handoff" in prior_expand
+            and isinstance(scope_patch, dict)
+            and "expand" in scope_patch
+        ):
+            if not isinstance(expand_patch, dict):
+                raise ValueError("Retain the selected audit handoff when updating expansion scope")
+            if expected_revision is None:
+                raise ValueError("Audit handoff scope updates require --expected-revision from the latest show")
+        if isinstance(expand_patch, dict) and "audit_handoff" in expand_patch:
+            if expand_patch["audit_handoff"] != (
+                prior_expand.get("audit_handoff") if isinstance(prior_expand, dict) else None
+            ):
+                raise ValueError("Select audit recommendations through the reviewed audit next action")
         audit_patch = scope_patch.get("audit") if isinstance(scope_patch, dict) else None
         prior_audit = state["scopes"].get("audit", {})
         retained_audit = isinstance(prior_audit, dict) and "lifecycle" in prior_audit
@@ -922,6 +942,13 @@ def update(repo: Path, patch: dict, *, expected_revision: int | None = None, sta
                     changes["create"] = {**copy.deepcopy(prior_create), **changes["create"]}
                 if field == "scopes" and isinstance(audit_patch, dict) and isinstance(prior_audit, dict):
                     changes["audit"] = {**copy.deepcopy(prior_audit), **changes["audit"]}
+                if (
+                    field == "scopes"
+                    and isinstance(expand_patch, dict)
+                    and isinstance(prior_expand, dict)
+                    and "audit_handoff" in prior_expand
+                ):
+                    changes["expand"] = {**copy.deepcopy(prior_expand), **changes["expand"]}
                 state[field].update(changes)
             else:
                 state[field] = copy.deepcopy(value)
@@ -969,6 +996,7 @@ def update(repo: Path, patch: dict, *, expected_revision: int | None = None, sta
                 raise ValueError("Creation completion requires current selected native runs and their exact review")
         if not state_only and state["journey"] == "audit":
             audit = audit_state.transition(repo, previous, state)
+            audit_state.retain_handoff(previous, state)
             if patch.get("journey_status", {}).get("audit") == "complete":
                 if audit is None:
                     audit = audit_state.progress(repo, state)

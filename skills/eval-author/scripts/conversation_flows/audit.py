@@ -48,8 +48,12 @@ def rows(value: object, label: str, *, maximum: int = 100) -> list:
 def recommendations(facts: dict) -> list[dict]:
     result = rows(facts.get("recommendations", []), "recommendations", maximum=3)
     labels = set()
+    identifiers = []
     for item in result:
-        mapping(item, "recommendation", {"kind", "label", "reason"})
+        mapping(item, "recommendation", {"kind", "label", "reason", "id"})
+        if "id" in item:
+            audit_state.recommendation_ids([item["id"]])
+            identifiers.append(item["id"])
         if item.get("kind") not in audit_state.ACTIONS - {"finish"}:
             raise ValueError("Recommendations require a supported next action")
         label = text(item.get("label"), "recommendation label")
@@ -57,6 +61,8 @@ def recommendations(facts: dict) -> list[dict]:
         if label in labels:
             raise ValueError("Recommendation labels must be distinct")
         labels.add(label)
+    if identifiers:
+        audit_state.recommendation_ids(identifiers)
     return result
 
 
@@ -246,7 +252,8 @@ def recommendation_section(facts: dict) -> str | None:
     for index, item in enumerate(items, 1):
         label = text(item["label"], "recommendation label")
         label = literal(label[:1].upper() + label[1:], "recommendation label")
-        lines.append(f"{index}. **{label}:** {literal(item['reason'], 'recommendation reason')}")
+        identifier = item["id"] + " · " if "id" in item else ""
+        lines.append(f"{index}. **{identifier}{label}:** {literal(item['reason'], 'recommendation reason')}")
     return copy.RECOMMENDATIONS_HEADING + "\n\n" + "\n".join(lines)
 
 
@@ -373,6 +380,11 @@ def render(payload: dict) -> str:
             parts.append(measurement_status(lifecycle, audit))
         if audit["next_action_current"]:
             parts.append(copy.NEXT_ACTIONS[lifecycle["next_action"]["kind"]])
+            action = lifecycle["next_action"]
+            if ids := action.get("recommendation_ids"):
+                parts.append(copy.SELECTED_RECOMMENDATIONS.format(ids=", ".join(ids)))
+            elif action["kind"] == "improve":
+                parts.append(copy.LEGACY_SELECTION)
         elif pending and (recommended := recommendation_section(facts)):
             parts.append(recommended)
     if stage in {"suites", "traces", "measurement"} and "report_action" in facts:

@@ -717,6 +717,42 @@
           ],
           "x-authored": false,
           "description": "Optional. Fill it only for a proposal the user selected. The report shows it under that item in Recommended next actions."
+        },
+        "follow_through": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "status",
+            "summary",
+            "evidence"
+          ],
+          "properties": {
+            "status": {
+              "enum": [
+                "selected",
+                "in_progress",
+                "blocked",
+                "implemented"
+              ],
+              "x-authored": false
+            },
+            "summary": {
+              "$ref": "#/$defs/prose",
+              "x-authored": true,
+              "description": "What changed or remains unfinished. Distinguish implementation, validation, agent runs, and measured coverage."
+            },
+            "evidence": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/source_id"
+              },
+              "uniqueItems": true,
+              "maxItems": 1000,
+              "x-authored": false
+            }
+          },
+          "description": "Optional progress for a selected recommendation. Evidence references existing bound sources; this does not update audit measurements.",
+          "x-authored": false
         }
       },
       "x-authored": false

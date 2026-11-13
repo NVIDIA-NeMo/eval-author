@@ -251,6 +251,7 @@ def continuation(modules, scenario):
         "missing_traces": "blockers",
         "returning_findings": "findings",
         "selected_improvement": "next_action",
+        "specific_improvement": "next_action",
         "limited_findings": "findings",
         "partial_findings": "findings",
     }[scenario]
@@ -313,12 +314,14 @@ def continuation(modules, scenario):
         payload["stage"] = "audit_resume"
         payload["facts"]["report_action"] = "unchanged"
         return payload
-    elif scenario == "selected_improvement":
+    elif scenario in {"selected_improvement", "specific_improvement"}:
         lifecycle["next_action"] = {
             "kind": "improve",
             "findings_digest": progress(payload, modules)["findings_digest"],
             "source": "User accepted the findings and chose to plan both improvements",
         }
+        if scenario == "specific_improvement":
+            lifecycle["next_action"]["recommendation_ids"] = ["R1", "R2"]
     elif scenario in {"limited_findings", "partial_findings"}:
         lifecycle["measurement"].update(
             status="partial" if scenario == "partial_findings" else "deferred",
@@ -724,3 +727,22 @@ def test_changed_task_bindings_tell_the_user_the_approval_no_longer_applies(modu
     message = flow.measurement_status(lifecycle, progress(payload, modules))
     assert message.startswith("Tasks recorded in the findings changed after approval: suites/refund.")
     assert "no longer apply" in message
+
+
+def test_findings_identify_report_recommendations(modules):
+    payload = checkpoint(modules, "findings")
+    for item, identifier in zip(payload["facts"]["recommendations"], ["R4", "R2"], strict=True):
+        item["id"] = identifier
+    remember_question(payload, modules)
+    rendered = modules[2].render(payload)
+    assert "1. **R4 · Grader improvement:**" in rendered
+    assert "2. **R2 · New scenario:**" in rendered
+
+
+@pytest.mark.parametrize("ids", [["R1", "R1"], ["R0", "R2"], ["<script>", "R2"]])
+def test_findings_reject_invalid_recommendation_ids(modules, ids):
+    payload = checkpoint(modules, "findings")
+    for item, identifier in zip(payload["facts"]["recommendations"], ids, strict=True):
+        item["id"] = identifier
+    with pytest.raises(ValueError, match="recommendation IDs"):
+        modules[2].render(payload)
