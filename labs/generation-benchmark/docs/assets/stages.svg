@@ -1,0 +1,249 @@
+<!-- SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved. -->
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+<!-- Editable SVG: labels are text; no external fonts, scripts, or assets. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="1640" viewBox="0 0 1280 1640" role="img" aria-labelledby="title description">
+  <title id="title">Generation benchmark stages and the artifacts between them</title>
+  <desc id="description">Five stages run in order. Cards sit on the boundary between stages. A colored card is an artifact that stage wrote. A white card is supplied. Stage 1, baseline, reads the signed case, ETHOS, the items source, agent A, and the M base. It writes audit.tar, execution/ with H(B), images.json, and coverage-full/ with M(B). Stage 2 reads the subset manifest plus audit.tar, execution/, and the M image, and writes subsets/i/before/, the sealed M(Bi) workspace. Stage 3 also reads audit.tar, the Bi task trees, and the G image and argv, and writes subsets/i/generated/ plus the generation receipt, logs, and generation-harbor/. Stage 4 reads Gi, execution/, audit.tar, the M image, agent A, and the subset manifest. It writes subsets/i/execution/ for H(Gi) and subsets/i/after/ for M(Bi+), delta M, and R. Stage 4 re-selects H(Bi) from execution/. Stage 5 reads M(B), M(Bi), the stage 4 values, the tool names in the M(B) and M(Bi+) details, the partial-run mark, and items_from, and writes generation-analysis.json, including tool names the measured traces called that D does not include.</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M1 1 L9 5 L1 9 Z" fill="#64748b"/>
+    </marker>
+    <style>
+      text { font-family: Arial, Helvetica, sans-serif; fill: #1e293b; }
+      .title { font-size: 28px; font-weight: 700; letter-spacing: -.4px; }
+      .subtitle { font-size: 16px; fill: #64748b; }
+      .phase { font-size: 22px; font-weight: 700; }
+      .number { font-size: 16px; font-weight: 700; fill: #fff; text-anchor: middle; }
+      .label { font-size: 16px; font-weight: 700; }
+      .detail { font-size: 13px; fill: #475569; }
+      .small { font-size: 13px; fill: #64748b; }
+      .mono { font-family: 'DejaVu Sans Mono', Consolas, monospace; font-size: 13px; fill: #334155; }
+      .seam { font-size: 13px; font-weight: 700; fill: #64748b; }
+      .eyebrow { font-size: 12px; font-weight: 700; }
+      .flow { fill: none; stroke: #64748b; stroke-width: 2; stroke-linecap: round; marker-end: url(#arrow); }
+      .band { stroke-width: 1.5; }
+      .plate { fill: #f8fafc; stroke: #e2e8f0; stroke-width: 1.5; }
+      .card { stroke-width: 1.5; }
+    </style>
+  </defs>
+
+  <rect width="1280" height="1640" rx="20" fill="#fff"/>
+  <text x="40" y="46" class="title">Generation benchmark</text>
+  <text x="40" y="74" class="subtitle">How much of a subset's missing coverage can a generator recover?</text>
+  <text x="40" y="100" class="small">Cards sit on the boundary they cross. Color is the stage that wrote the artifact. White is supplied.</text>
+
+  <!-- Into stage 1 -->
+  <rect x="32" y="122" width="1216" height="118" rx="16" class="plate"/>
+  <text x="56" y="146" class="seam">INTO STAGE 1</text>
+  <g class="card" stroke="#cbd5e1">
+    <rect x="56" y="158" width="224" height="68" rx="12" fill="#fff"/>
+    <rect x="292" y="158" width="224" height="68" rx="12" fill="#fff"/>
+    <rect x="528" y="158" width="224" height="68" rx="12" fill="#fff"/>
+    <rect x="764" y="158" width="224" height="68" rx="12" fill="#fff"/>
+    <rect x="1000" y="158" width="224" height="68" rx="12" fill="#fff"/>
+  </g>
+  <g class="eyebrow" fill="#64748b">
+    <text x="72" y="178">supplied</text>
+    <text x="308" y="178">supplied</text>
+    <text x="544" y="178">supplied</text>
+    <text x="780" y="178">supplied</text>
+    <text x="1016" y="178">supplied</text>
+  </g>
+  <text x="72" y="200" class="label">Case B</text>
+  <text x="72" y="218" class="detail">Signed task inventory</text>
+  <text x="308" y="200" class="label">ETHOS.md</text>
+  <text x="308" y="218" class="detail">Case description</text>
+  <text x="544" y="200" class="label">Items</text>
+  <text x="544" y="218" class="detail">Items file, or tool names</text>
+  <text x="780" y="200" class="label">Agent A</text>
+  <text x="780" y="218" class="detail">Baseline agent_bundle_id</text>
+  <text x="1016" y="200" class="label">M base</text>
+  <text x="1016" y="218" class="detail">Measurement image</text>
+
+  <path d="M640 240 V256" class="flow"/>
+
+  <!-- Stage 1 -->
+  <rect x="32" y="256" width="1216" height="92" rx="16" class="band" fill="#eff9f6" stroke="#cce9e0"/>
+  <circle cx="68" cy="292" r="16" fill="#16856b"/>
+  <text x="68" y="298" class="number">1</text>
+  <text x="100" y="290" class="phase">Baseline</text>
+  <text x="100" y="318" class="detail">Build the M image, run H(B), freeze D, and measure M(B).</text>
+
+  <path d="M640 348 V364" class="flow"/>
+
+  <!-- Stage 1 to 2 -->
+  <rect x="32" y="364" width="1216" height="118" rx="16" class="plate"/>
+  <text x="56" y="388" class="seam">STAGE 1 WRITES · STAGE 2 READS</text>
+  <g class="card">
+    <rect x="56" y="400" width="224" height="68" rx="12" fill="#e7f6f1" stroke="#7dbeab"/>
+    <rect x="292" y="400" width="224" height="68" rx="12" fill="#e7f6f1" stroke="#7dbeab"/>
+    <rect x="528" y="400" width="224" height="68" rx="12" fill="#e7f6f1" stroke="#7dbeab"/>
+    <rect x="764" y="400" width="224" height="68" rx="12" fill="#e7f6f1" stroke="#7dbeab"/>
+    <rect x="1000" y="400" width="224" height="68" rx="12" fill="#fff" stroke="#cbd5e1"/>
+  </g>
+  <g class="eyebrow" fill="#16856b">
+    <text x="72" y="420">stage 1 → 2</text>
+    <text x="308" y="420">stage 1 → 2</text>
+    <text x="544" y="420">stage 1 → 2</text>
+    <text x="780" y="420">read by stage 5</text>
+  </g>
+  <text x="1016" y="420" class="eyebrow" fill="#64748b">supplied</text>
+  <text x="72" y="442" class="label">audit.tar</text>
+  <text x="72" y="460" class="mono">stage-1/audit.tar · D</text>
+  <text x="308" y="442" class="label">execution/</text>
+  <text x="308" y="460" class="mono">H(B)</text>
+  <text x="544" y="442" class="label">images.json</text>
+  <text x="544" y="460" class="mono">stage-1/images.json · M</text>
+  <text x="780" y="442" class="label">coverage-full/</text>
+  <text x="780" y="460" class="mono">M(B)</text>
+  <text x="1016" y="442" class="label">Subset manifest</text>
+  <text x="1016" y="460" class="detail">Task IDs for each B<tspan baseline-shift="sub" font-size="10">i</tspan></text>
+
+  <path d="M640 482 V498" class="flow"/>
+
+  <!-- Stage 2 -->
+  <rect x="32" y="498" width="1216" height="92" rx="16" class="band" fill="#f0f6fe" stroke="#d0e0f7"/>
+  <circle cx="68" cy="534" r="16" fill="#3578c4"/>
+  <text x="68" y="540" class="number">2</text>
+  <text x="100" y="532" class="phase">Subset baseline</text>
+  <text x="100" y="560" class="detail">Select H(B<tspan baseline-shift="sub" font-size="10">i</tspan>) from execution/ by task ID and measure M(B<tspan baseline-shift="sub" font-size="10">i</tspan>). execution/ stays.</text>
+
+  <path d="M640 590 V606" class="flow"/>
+
+  <!-- Stage 2 to 3 -->
+  <rect x="32" y="606" width="1216" height="118" rx="16" class="plate"/>
+  <text x="56" y="630" class="seam">STAGE 2 WRITES · STAGE 3 READS</text>
+  <g class="card">
+    <rect x="56" y="642" width="283" height="68" rx="12" fill="#e7f1fc" stroke="#8eb4e4"/>
+    <rect x="351" y="642" width="283" height="68" rx="12" fill="#e7f6f1" stroke="#7dbeab"/>
+    <rect x="646" y="642" width="283" height="68" rx="12" fill="#fff" stroke="#cbd5e1"/>
+    <rect x="941" y="642" width="283" height="68" rx="12" fill="#fff" stroke="#cbd5e1"/>
+  </g>
+  <text x="72" y="662" class="eyebrow" fill="#3578c4">stage 2 → 3</text>
+  <text x="367" y="662" class="eyebrow" fill="#16856b">from stage 1</text>
+  <text x="662" y="662" class="eyebrow" fill="#64748b">supplied</text>
+  <text x="957" y="662" class="eyebrow" fill="#64748b">supplied</text>
+  <text x="72" y="684" class="label">before/</text>
+  <text x="72" y="702" class="detail">M(B<tspan baseline-shift="sub" font-size="10">i</tspan>) workspace, with H(B<tspan baseline-shift="sub" font-size="10">i</tspan>)</text>
+  <text x="367" y="684" class="label">audit.tar</text>
+  <text x="367" y="702" class="mono">frozen D</text>
+  <text x="662" y="684" class="label">B<tspan baseline-shift="sub" font-size="10">i</tspan> tasks</text>
+  <text x="662" y="702" class="detail">Task trees for this subset</text>
+  <text x="957" y="684" class="label">G image and argv</text>
+  <text x="957" y="702" class="mono">generation.yml</text>
+
+  <path d="M640 724 V740" class="flow"/>
+
+  <!-- Stage 3 -->
+  <rect x="32" y="740" width="1216" height="92" rx="16" class="band" fill="#fbf6ef" stroke="#eadcc8"/>
+  <circle cx="68" cy="776" r="16" fill="#b86a2a"/>
+  <text x="68" y="782" class="number">3</text>
+  <text x="100" y="774" class="phase">Generate</text>
+  <text x="100" y="802" class="detail">Build the subset image, run G, and gate each extracted task.</text>
+
+  <path d="M640 832 V848" class="flow"/>
+
+  <!-- Stage 3 to 4 -->
+  <rect x="32" y="848" width="1216" height="194" rx="16" class="plate"/>
+  <text x="56" y="872" class="seam">STAGE 3 WRITES · STAGE 4 READS</text>
+  <g class="card">
+    <rect x="56" y="884" width="578" height="68" rx="12" fill="#fbf3e8" stroke="#e0b98a"/>
+    <rect x="646" y="884" width="578" height="68" rx="12" fill="#fbf3e8" stroke="#e0b98a"/>
+  </g>
+  <text x="72" y="904" class="eyebrow" fill="#b86a2a">stage 3 → 4</text>
+  <text x="662" y="904" class="eyebrow" fill="#b86a2a">read by stage 5</text>
+  <text x="72" y="926" class="label">generated/</text>
+  <text x="72" y="944" class="mono">subsets/&lt;i&gt;/generated/ · G<tspan baseline-shift="sub" font-size="10">i</tspan></text>
+  <text x="662" y="926" class="label">generation-receipt.json</text>
+  <text x="662" y="944" class="detail">Partial mark. Logs and generation-harbor/ stay beside it.</text>
+
+  <g class="card">
+    <rect x="56" y="960" width="224" height="68" rx="12" fill="#e7f6f1" stroke="#7dbeab"/>
+    <rect x="292" y="960" width="224" height="68" rx="12" fill="#e7f6f1" stroke="#7dbeab"/>
+    <rect x="528" y="960" width="224" height="68" rx="12" fill="#e7f6f1" stroke="#7dbeab"/>
+    <rect x="764" y="960" width="224" height="68" rx="12" fill="#fff" stroke="#cbd5e1"/>
+    <rect x="1000" y="960" width="224" height="68" rx="12" fill="#fff" stroke="#cbd5e1"/>
+  </g>
+  <g class="eyebrow" fill="#16856b">
+    <text x="72" y="980">from stage 1</text>
+    <text x="308" y="980">from stage 1</text>
+    <text x="544" y="980">from stage 1</text>
+  </g>
+  <g class="eyebrow" fill="#64748b">
+    <text x="780" y="980">supplied</text>
+    <text x="1016" y="980">supplied</text>
+  </g>
+  <text x="72" y="1002" class="label">execution/</text>
+  <text x="72" y="1020" class="mono">H(B), re-selected</text>
+  <text x="308" y="1002" class="label">audit.tar</text>
+  <text x="308" y="1020" class="mono">frozen D</text>
+  <text x="544" y="1002" class="label">images.json</text>
+  <text x="544" y="1020" class="mono">M image</text>
+  <text x="780" y="1002" class="label">Agent A</text>
+  <text x="780" y="1020" class="detail">Same baseline bundle</text>
+  <text x="1016" y="1002" class="label">Subset manifest</text>
+  <text x="1016" y="1020" class="detail">Task IDs for H(B<tspan baseline-shift="sub" font-size="10">i</tspan>)</text>
+
+  <path d="M640 1042 V1058" class="flow"/>
+
+  <!-- Stage 4 -->
+  <rect x="32" y="1058" width="1216" height="92" rx="16" class="band" fill="#f7f4fc" stroke="#e1d7f0"/>
+  <circle cx="68" cy="1094" r="16" fill="#8060b0"/>
+  <text x="68" y="1100" class="number">4</text>
+  <text x="100" y="1092" class="phase">Measure generated tasks</text>
+  <text x="100" y="1120" class="detail">Run H(G<tspan baseline-shift="sub" font-size="10">i</tspan>) as A. Measure M(B<tspan baseline-shift="sub" font-size="10">i</tspan>+) on H(B<tspan baseline-shift="sub" font-size="10">i</tspan>) from execution/, plus H(G<tspan baseline-shift="sub" font-size="10">i</tspan>).</text>
+
+  <path d="M640 1150 V1166" class="flow"/>
+
+  <!-- Stage 4 to 5 -->
+  <rect x="32" y="1166" width="1216" height="194" rx="16" class="plate"/>
+  <text x="56" y="1190" class="seam">STAGE 4 WRITES · STAGE 5 READS</text>
+  <g class="card">
+    <rect x="56" y="1202" width="578" height="68" rx="12" fill="#f3eef9" stroke="#c4b0e0"/>
+    <rect x="646" y="1202" width="578" height="68" rx="12" fill="#f3eef9" stroke="#c4b0e0"/>
+  </g>
+  <text x="72" y="1222" class="eyebrow" fill="#8060b0">stage 4 writes</text>
+  <text x="662" y="1222" class="eyebrow" fill="#8060b0">stage 4 → 5</text>
+  <text x="72" y="1244" class="label">execution/</text>
+  <text x="72" y="1262" class="mono">subsets/&lt;i&gt;/execution/ · H(G<tspan baseline-shift="sub" font-size="10">i</tspan>)</text>
+  <text x="662" y="1244" class="label">after/</text>
+  <text x="662" y="1262" class="mono">subsets/&lt;i&gt;/after/ · M(B<tspan baseline-shift="sub" font-size="10">i</tspan>+), ΔM<tspan baseline-shift="sub" font-size="10">i</tspan>, R<tspan baseline-shift="sub" font-size="10">i</tspan></text>
+
+  <g class="card">
+    <rect x="56" y="1278" width="283" height="68" rx="12" fill="#e7f6f1" stroke="#7dbeab"/>
+    <rect x="351" y="1278" width="283" height="68" rx="12" fill="#e7f1fc" stroke="#8eb4e4"/>
+    <rect x="646" y="1278" width="283" height="68" rx="12" fill="#fbf3e8" stroke="#e0b98a"/>
+    <rect x="941" y="1278" width="283" height="68" rx="12" fill="#fff" stroke="#cbd5e1"/>
+  </g>
+  <text x="72" y="1298" class="eyebrow" fill="#16856b">from stage 1</text>
+  <text x="367" y="1298" class="eyebrow" fill="#3578c4">from stage 2</text>
+  <text x="662" y="1298" class="eyebrow" fill="#b86a2a">from stage 3</text>
+  <text x="957" y="1298" class="eyebrow" fill="#64748b">supplied</text>
+  <text x="72" y="1320" class="label">coverage-full/</text>
+  <text x="72" y="1338" class="mono">M(B)</text>
+  <text x="367" y="1320" class="label">before/</text>
+  <text x="367" y="1338" class="mono">M(B<tspan baseline-shift="sub" font-size="10">i</tspan>) score</text>
+  <text x="662" y="1320" class="label">generation-receipt.json</text>
+  <text x="662" y="1338" class="detail">Partial-run mark</text>
+  <text x="957" y="1320" class="label">items_from</text>
+  <text x="957" y="1338" class="detail">Items file or baseline traces</text>
+
+  <path d="M640 1360 V1376" class="flow"/>
+
+  <!-- Stage 5 -->
+  <rect x="32" y="1376" width="1216" height="92" rx="16" class="band" fill="#f0f9fb" stroke="#c9e4ea"/>
+  <circle cx="68" cy="1412" r="16" fill="#0e7490"/>
+  <text x="68" y="1418" class="number">5</text>
+  <text x="100" y="1410" class="phase">Analysis</text>
+  <text x="100" y="1438" class="detail">Read the saved scores. Take the median of every defined R<tspan baseline-shift="sub" font-size="10">i</tspan>.</text>
+
+  <path d="M640 1468 V1484" class="flow"/>
+
+  <!-- Stage 5 writes -->
+  <rect x="32" y="1484" width="1216" height="118" rx="16" class="plate"/>
+  <text x="56" y="1508" class="seam">STAGE 5 WRITES</text>
+  <rect x="56" y="1520" width="578" height="68" rx="12" class="card" fill="#e5f6f8" stroke="#8ec9d4"/>
+  <text x="72" y="1540" class="eyebrow" fill="#0e7490">stage 5</text>
+  <text x="72" y="1562" class="label">generation-analysis.json</text>
+  <text x="72" y="1580" class="detail">Headline, raw ΔM<tspan baseline-shift="sub" font-size="10">i</tspan>, per-subset values, and counts</text>
+</svg>
