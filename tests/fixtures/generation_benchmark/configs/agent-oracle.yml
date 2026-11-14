@@ -1,0 +1,13 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+schema: nemo.eval_author.agent.v1
+name: gen-oracle
+model: oracle
+trace_agent_label: gen-oracle
+harbor:
+  command: [harbor]
+  agent: oracle
+  environment: docker
+  agent_timeout_seconds: 60
+  agent_setup_timeout_seconds: 120
