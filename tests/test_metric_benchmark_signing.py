@@ -143,3 +143,37 @@ def test_signing_refusal_and_invalid_input_leave_every_manifest_unchanged(tmp_pa
     assert manifest_bytes(tmp_path) == before
     result = sha_cli(experiment, "--check", "--resign")
     assert result.returncode == 2
+
+
+def test_directory_pin_error_reports_ignored_files_without_excluding_them(tmp_path):
+    from metric_benchmark.io import input_digest, verify_input
+
+    subprocess.run(["git", "init", "-q", str(tmp_path)], check=True)
+    (tmp_path / ".gitignore").write_text("__pycache__/\n.DS_Store\n")
+    source = tmp_path / "source"
+    source.mkdir()
+    (source / "adapter.py").write_text("pass\n")
+    expected = input_digest(source)
+    (source / "__pycache__").mkdir()
+    (source / "__pycache__/adapter.pyc").write_bytes(b"generated")
+    (source / ".DS_Store").write_bytes(b"generated")
+    with pytest.raises(ValueError) as error:
+        verify_input(source, expected, label="adapter runtime")
+    message = str(error.value)
+    assert "adapter runtime" in message
+    assert "__pycache__/adapter.pyc" in message and ".DS_Store" in message
+    assert expected in message and input_digest(source) in message
+    assert input_digest(source) != expected
+    assert (source / "__pycache__/adapter.pyc").read_bytes() == b"generated"
+
+
+def test_directory_pin_error_without_git_still_reports_digests(tmp_path):
+    from metric_benchmark.io import input_digest, verify_input
+
+    (tmp_path / "source.py").write_text("pass\n")
+    expected = input_digest(tmp_path)
+    (tmp_path / "source.py").write_text("changed\n")
+    with pytest.raises(ValueError, match="Git ignore information unavailable") as error:
+        verify_input(tmp_path, expected)
+    assert expected in str(error.value)
+    assert input_digest(tmp_path) in str(error.value)

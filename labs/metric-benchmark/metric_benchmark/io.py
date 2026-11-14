@@ -7,6 +7,7 @@ import argparse
 import hashlib
 import json
 import os
+import subprocess
 import tempfile
 from collections.abc import Callable
 from pathlib import Path
@@ -70,12 +71,39 @@ def input_digest(path: Path) -> str:
     return digest_bytes(json_bytes(file_manifest(path))) if path.is_dir() else digest_file(path)
 
 
+def _ignored_input_files(path: Path) -> str:
+    if not path.is_dir():
+        return ""
+    names = file_manifest(path)
+    if not names:
+        return "; no files in directory"
+    try:
+        result = subprocess.run(
+            ["git", "-C", str(path.resolve()), "check-ignore", "--stdin", "-z"],
+            input="\0".join(names) + "\0",
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+    except OSError:
+        result = None
+    if result is None or result.returncode not in (0, 1):
+        return "; Git ignore information unavailable; all ordinary files are hashed"
+    ignored = sorted(filter(None, result.stdout.split("\0")))
+    return "; files ignored by Git (still hashed): " + json.dumps(ignored)
+
+
 def verify_input(path: Path, expected: str | None, *, allow_unsigned: bool = False, label: str | None = None) -> None:
     """Require a content pin by default and always verify any supplied pin."""
     if expected is None and not allow_unsigned:
         raise ValueError(f"missing SHA for input: {label if label is not None else path}")
-    if expected is not None and input_digest(path) != expected:
-        raise ValueError(f"input digest differs: {label if label is not None else path}")
+    if expected is not None:
+        actual = input_digest(path)
+        if actual != expected:
+            raise ValueError(
+                f"input digest differs: {label if label is not None else path}; "
+                f"expected {expected}, actual {actual}" + _ignored_input_files(path)
+            )
 
 
 def write_json(path: Path, value: BaseModel | dict | list) -> None:
