@@ -12,6 +12,64 @@ ROOT = Path(__file__).resolve().parents[1]
 CLI = ROOT / "skills/eval-author-rubric/scripts/measure.py"
 
 
+@pytest.mark.parametrize("key", ["task_contract", "scorer_control", "unknown_area"])
+def test_cli_rejects_unimplemented_selection_fields(tmp_path, key):
+    request = tmp_path / "selection.json"
+    request.write_text(json.dumps({"artifacts": [], key: {"private": "DO-NOT-ECHO"}}))
+    result = subprocess.run(
+        [sys.executable, str(CLI), "--root", str(tmp_path), "--selection", str(request)],
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    assert result.returncode == 2
+    assert json.loads(result.stdout)["code"] == "selection.invalid"
+    assert "DO-NOT-ECHO" not in result.stdout + result.stderr
+
+
+def test_cli_rejects_unimplemented_nested_scope(tmp_path):
+    request = tmp_path / "selection.json"
+    request.write_text(json.dumps({"rubric_scope": {"task_contract": {}}}))
+    result = subprocess.run(
+        [sys.executable, str(CLI), "--root", str(tmp_path), "--selection", str(request)],
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    assert result.returncode == 2
+    assert json.loads(result.stdout)["code"] == "selection.invalid"
+
+
+def test_recorded_evidence_preserves_existing_measurements(tmp_path):
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("evidence_fixtures", ROOT / "tests/test_rubric_evidence_scoring.py")
+    assert spec and spec.loader
+    fixtures = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(fixtures)
+    scorer = fixtures.module()
+    selection = fixtures.packet(tmp_path, scorer, "DISC-02-B", fixtures.facts_for("DISC-02-B", 1), synthetic=False)
+    selection.update(declared_config={"model": "a"}, observed_config={"model": "b"})
+    reports = []
+    for include in (False, True):
+        selected = dict(selection)
+        if not include:
+            selected.pop("criterion_evidence")
+        request = tmp_path / "selection.json"
+        request.write_text(json.dumps(selected))
+        result = subprocess.run(
+            [sys.executable, str(CLI), "--root", str(tmp_path), "--selection", str(request)],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        assert result.returncode == 1
+        reports.append(json.loads(result.stdout))
+    before, after = [report["items"]["DISC-02-B"] for report in reports]
+    assert after == before
+    assert reports[1]["recorded_criterion_evidence"]["DISC-02-B"]["score"] is None
+
+
 PANEL_RUNS = pytest.StashKey[tuple]()
 
 

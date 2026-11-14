@@ -28,6 +28,49 @@ trajectories or free-form prose. The
 separately requires byte-identical messages for identical rendering inputs;
 that presentation guarantee does not establish deterministic workflow execution.
 
+## Overall rubric showcase
+
+Run the identity, provenance, scorer, verification-integrity, task-contract/Ethos
+and synthetic criterion-rule demos, then inspect their retained results in one HTML page:
+
+```bash
+uv run --locked python tools/run_rubric_showcase.py \
+  --output "$PWD/.eval-author/showcase-new"
+```
+
+Use a new directory. Open its `index.html`. The page links each score to the
+emitted rubric report and shows all paired refund controls, including operational
+and ambiguous cases. It reads AC-02 scores from the actual reports, not task-credit
+counts. Receipt-consistency group scores remain separate from canonical scores.
+
+This command starts no models or Docker containers. It runs fixture scorers,
+synthetic native-result producers, the existing rubric commands, and scorer replay.
+Missing evidence stays unassessed. The page lists the controls needed for stronger
+AC-02 scores and the saved-envelope acceptance/recovery path that is not yet shown.
+It does not turn partial acceptance claims into complete workflow acceptance.
+
+The criterion-rule panel exercises 0, 1, 2, 3 and missing-evidence cases for all
+18 populated criteria. These are labeled synthetic examples in the separate
+`criterion_demonstration` field, not measured task scores. The real fixture panels
+emit DISC-01-A/B/C, AC-02, AC-03's forged-success defect and CREATE-04's hidden
+requirement. Remaining real-task scores still need criterion-specific evidence
+adapters, scoped human adjudication, native probes or independent corroboration.
+The coverage and diversity pillars remain unimplemented.
+
+Run only the scoring-rule panel with:
+
+```bash
+uv run --locked python tools/run_criterion_scoring_demo.py \
+  --output "$PWD/.eval-author/criterion-rules-new"
+uv run --locked python tools/run_criterion_scoring_demo.py \
+  --verify-existing "$PWD/.eval-author/criterion-rules-new"
+```
+
+Fresh-root comparisons retain raw path-bound evidence and compare explicitly
+scoped semantic results. Matching repeated fixtures establish neither independent
+corroboration nor identical behavior across machines. Bundle verification checks
+retained data against current rules; its hashes are not authenticated attestations.
+
 ## Rubric identity measurements
 
 The experimental rubric demo assesses source-bound task access (`DISC-01-A`),
@@ -419,9 +462,12 @@ from 0/E2 for forbidden credit to 1/E2 for partial defenses with known gaps.
 These rubric scores use the existing scale from 0 to 3, separate from each arm's task
 credit. Scores are not averaged into an overall quality score.
 
-The optional assessment selects AC-02 only. AC-01, AC-03 and AC-04 remain
-unassessed in this slice. A validated native run adds evidence of execution but
-does not by itself close missing attack controls or justify a score of 2.
+The assessment also emits AC-03 = 0/E2 when the verified `no-work` control earns
+credit from solver-authored success. AC-02 and AC-03 cite one shared finding;
+they are not independent defects. The reviewed arm's AC-03 remains unassessed
+because these controls do not establish its full consumer-ownership boundary.
+AC-01 and AC-04 remain unassessed. A validated native run adds execution evidence
+but does not by itself close missing attack controls or justify a score of 2.
 Human authority and independent corroboration are not inferred from fixture
 expectations or matching hashes.
 

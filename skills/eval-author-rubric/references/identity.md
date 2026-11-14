@@ -51,7 +51,10 @@ The checked-in mutation panel exercises these distinctions with actual local fil
 Raw measurements are named `identity`, `route`, `config`, `links`, and `approvals`.
 Explicit `sourced_config`, `freshness`, `native`, `reconstruction`, and `ethos` selections add their
 corresponding measurements. Absent optional selections do not establish coverage.
-They have statuses and diagnostics, not numeric scores. The eleven canonical
+These measurements have statuses and diagnostics, not numeric scores.
+Unknown top-level selection fields and unknown `rubric_scope` sections return
+`selection.invalid` (exit 2) rather than silently skipping a requested measurement.
+The supported `rubric_scope` sections are `task_artifacts` and `grading_dependencies`. The eleven canonical
 criteria consume this evidence under their own anchors; a helper passing is not
 automatically criterion acceptance. Configuration differences require interpretation;
 equality is not adequacy. Declared missing/denied access differs from a performed
@@ -72,6 +75,42 @@ current local bytes. Report duplicate IDs, malformed references, missing files,
 denied/unresolved access, and changed digests with stable `identity.*` diagnostics.
 A missing optional revision stays null; a missing required content digest does not
 pass. Do not turn content identity into an ownership or confidentiality claim.
+
+## Criterion evidence and scoring-rule demonstrations
+
+Select a retained packet with `criterion_evidence: {"artifact_id": "packet"}`.
+The packet and its cited sources must appear in `artifacts` with their exact
+digests. The [packet contract](../scripts/rubric_evidence_scoring.py) defines
+criterion-specific inventories, JSON-pointer bindings and provenance fields.
+Unsupported IDs, malformed facts, changed sources and contradictory records fail
+closed. Selection is explicit per criterion.
+
+Recorded judgments remain `NOT_ASSESSED/E0` unless an owning measurement adapter
+establishes the required evidence. A bound JSON record does not authenticate a
+reviewer, establish solver permissions or prove native execution.
+
+Packets with `assessment_scope: synthetic-scoring-demonstration` exercise the
+anchor rules in a separate `criterion_demonstration` report field. Their numeric
+outputs are synthetic examples, not task scores. They never replace `items`,
+establish human adjudication, or satisfy native evidence floors. Removing the
+synthetic scope does not promote their scores into a real assessment.
+
+## Bounded task-contract source inspection
+
+The `contract_controls` selector names a digest-bound manifest through
+`{"artifact_id": "manifest"}`. Its schema is `rubric-contract-controls-v1`, with
+`instruction_id`, `dockerfile_id`, `scorer_id`, `test_data_id` and `task_config_id`
+referencing selected artifacts. The [source adapter](../scripts/rubric_contract_controls.py)
+accepts only the frozen supported order-total fixture and its clean scorer neighbor.
+Unknown or changed source shapes fail closed rather than receiving a generic
+semantic assessment.
+
+For the planted fixture, the CLI emits CREATE-04 = 0/E1: the supported public
+instruction and declared COPY inventory supply no authority for the scorer's
+`summary.json` requirement. This is bounded static source inspection, not native
+solver-access proof. CREATE-03 and CREATE-05-A remain unassessed. The clean neighbor
+also remains unassessed because removing this condition does not establish every
+contract anchor or human adjudication.
 
 ## Selected Ethos structure
 

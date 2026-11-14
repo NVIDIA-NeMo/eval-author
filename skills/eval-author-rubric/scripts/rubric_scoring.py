@@ -255,6 +255,8 @@ def assess(measurements, selection, root: Path | None = None):
     scope = selection.get("rubric_scope", {})
     if not isinstance(scope, dict):
         raise ValueError("rubric_scope must be an object")
+    if scope.keys() - {"task_artifacts", "grading_dependencies"}:
+        raise ValueError("unsupported rubric scope field")
     _inventory(rows["DISC-01-A"], scope.get("task_artifacts"), records, diagnostics, root)
     dependency_scope = scope.get("grading_dependencies")
     _inventory(rows["DISC-01-C"], dependency_scope, records, diagnostics, root)

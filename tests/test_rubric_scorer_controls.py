@@ -101,20 +101,39 @@ def test_known_applicable_gaps_survive_native_health(tmp_path, mode):
     assert item["evidence_strength"] == "E2"
 
 
-@pytest.mark.parametrize("arm", ["baseline", "reviewed"])
-def test_ac03_null_means_unselected_not_absent_evidence(tmp_path, arm):
-    output = tmp_path / "fixture"
-    retained = runner.prepare(output)
-    (output / "panel.json").write_text(runner.encoded(runner.run_panel(output, retained)))
-    _, report = cli(output, selection_for(output, arm))
+@pytest.mark.parametrize("mode", ["fixture", "native"])
+def test_ac03_scores_verified_solver_success_with_one_shared_finding(tmp_path, mode):
+    output = tmp_path / "evidence"
+    if mode == "native":
+        synthetic_job(output)
+    else:
+        retained = runner.prepare(output)
+        (output / "panel.json").write_text(runner.encoded(runner.run_panel(output, retained)))
+    _, report = cli(output, selection_for(output, "baseline", mode))
     item = report["items"]["AC-03"]
-    assert item["score"] is None
-    assert item["status"] == "NOT_ASSESSED"
-    assert item["remaining_gaps"] == [
-        "AC-03 was not selected in this bounded assessment. The baseline solver-authored "
-        "success defect can also support AC-03=0 under the canonical shared-finding rule; "
-        "this null does not mean evidence is absent."
-    ]
+    assert item["score"] == 0
+    assert item["status"] == item["assessment_state"] == "ASSESSED"
+    assert item["evidence_strength"] == "E2"
+    assert item["finding_ids"] == report["items"]["AC-02"]["finding_ids"] == ["refund-solver-authored-success"]
+    observed = report["measurements"]["scorer_controls"]
+    (finding,) = observed["findings"]
+    assert finding["finding_id"] == item["finding_ids"][0]
+    assert finding["item_ids"] == ["AC-02", "AC-03"]
+    assert finding["control_id"] == "no-work"
+    assert finding["subject_revision"] == item["subject_revision"]
+    assert finding["evidence_refs"]
+    for reference in finding["evidence_refs"]:
+        value = report
+        for part in reference.removeprefix("#/").split("/"):
+            value = value[int(part)] if isinstance(value, list) else value[part]
+        assert value is not None
+    assert item["evidence_refs"] == ["#/measurements/scorer_controls/findings/0"]
+    assert all(report["items"][ident]["score"] is None for ident in ("AC-01", "AC-04"))
+    _, reviewed = cli(output, selection_for(output, "reviewed", mode))
+    assert reviewed["items"]["AC-03"]["score"] is None
+    assert reviewed["items"]["AC-03"]["status"] == "NOT_ASSESSED"
+    assert reviewed["measurements"]["scorer_controls"]["findings"] == []
+    assert reviewed["items"]["AC-03"]["remaining_gaps"]
 
 
 @pytest.mark.parametrize("mode", ["fixture", "native"])
@@ -133,7 +152,95 @@ def test_selected_root_symlink_cannot_borrow_another_evidence_root(tmp_path, mod
     assert "items" not in report
 
 
-def test_late_revalidation_cannot_leave_a_scored_report(tmp_path, monkeypatch):
+@pytest.mark.parametrize("mode", ["fixture", "native"])
+def test_scored_subject_binds_whole_selected_task_and_configuration(tmp_path, mode):
+    import hashlib
+
+    output = tmp_path / "evidence"
+    if mode == "native":
+        synthetic_job(output)
+    else:
+        retained = runner.prepare(output)
+        (output / "panel.json").write_text(runner.encoded(runner.run_panel(output, retained)))
+    retained = json.loads((output / "selection.json").read_text())
+    _, report = cli(output, selection_for(output, "baseline", mode))
+    observed = report["measurements"]["scorer_controls"]
+    binding = observed["binding"]
+    assert binding["selection_sha256"] == hashlib.sha256(runner.encoded(retained).encode()).hexdigest()
+    assert binding["input_sha256"] == {row["id"]: row["digest"] for row in retained["artifacts"]}
+    assert binding["mode"] == mode
+    assert binding["grader"] == "baseline"
+    revision = "sha256:" + hashlib.sha256(runner.encoded(binding).encode()).hexdigest()
+    assert report["items"]["AC-03"]["subject_revision"] == revision
+
+
+@pytest.mark.parametrize("artifact", ["contract", "controls", "scorer", "runtime", "dispatch", "applicability"])
+@pytest.mark.parametrize("reseal", [False, True])
+def test_ac03_rejects_changed_task_inputs_even_if_selection_is_resealed(tmp_path, artifact, reseal):
+    import hashlib
+
+    output = tmp_path / "fixture"
+    retained = runner.prepare(output)
+    (output / "panel.json").write_text(runner.encoded(runner.run_panel(output, retained)))
+    selected = selection_for(output, "baseline")
+    _, original = cli(output, selected)
+    assert original["items"]["AC-03"]["score"] == 0
+    record = next(row for row in retained["artifacts"] if row["id"] == artifact)
+    path = output / "inputs" / record["path"]
+    if artifact == "scorer":
+        path.write_text(path.read_text() + "\n# changed implementation\n")
+    else:
+        document = json.loads(path.read_text())
+        if artifact == "contract":
+            document["request"]["run_id"] = "different-task-run"
+        elif artifact == "controls":
+            next(case for case in document["cases"] if case["id"] == "no-work")["candidate"]["success"] = False
+        elif artifact == "runtime":
+            document["python"] = "stale-runtime"
+        elif artifact == "dispatch":
+            document["routes"]["reviewed"] = "contract"
+        else:
+            document["native_paths"] = []
+        path.write_text(json.dumps(document))
+    if reseal:
+        digest = hashlib.sha256(path.read_bytes()).hexdigest()
+        record.update(digest=digest, revision=digest)
+        record["evidence"][0]["digest"] = digest
+        (output / "selection.json").write_text(runner.encoded(retained))
+        selected = selection_for(output, "baseline")
+    result, rejected = cli(output, selected)
+    assert result.returncode == 2
+    assert rejected["status"] == "invalid"
+    assert "items" not in rejected
+
+
+@pytest.mark.parametrize("mutation", ["unmatched", "unhealthy", "rejected", "zero-credit"])
+def test_ac03_zero_requires_verified_healthy_credit_not_arm_label(tmp_path, monkeypatch, mutation):
+    # Inject only the owning replay result to isolate the adapter's predicate.
+    # This is not native evidence or a new fixture expectation.
+    output = tmp_path / "fixture"
+    retained = runner.prepare(output)
+    panel = runner.run_panel(output, retained)
+    case = next(case for case in panel["cases"] if case["id"] == "no-work")
+    result = case["observed"]["baseline"]
+    if mutation == "unmatched":
+        case["matched"] = False
+    elif mutation == "unhealthy":
+        result["health"] = "error"
+    elif mutation == "rejected":
+        result["accepted"] = False
+    else:
+        result["total_credit"] = 0
+    (output / "panel.json").write_text(runner.encoded(panel))
+    monkeypatch.setattr(runner, "run_panel", lambda *_: panel)
+    report = measure_module().measure(output, selection_for(output, "baseline"))
+    assert report["items"]["AC-03"]["score"] is None
+    assert report["items"]["AC-03"]["finding_ids"] == []
+    assert report["measurements"]["scorer_controls"]["findings"] == []
+
+
+@pytest.mark.parametrize("arm", ["baseline", "reviewed"])
+def test_late_revalidation_cannot_leave_a_scored_report(tmp_path, monkeypatch, arm):
     selected = runner.prepare(tmp_path / "fixture")
     output = tmp_path / "fixture"
     (output / "panel.json").write_text(runner.encoded(runner.run_panel(output, selected)))
@@ -147,7 +254,7 @@ def test_late_revalidation_cannot_leave_a_scored_report(tmp_path, monkeypatch):
 
     monkeypatch.setattr(module, "build_report", mutate)
     with pytest.raises(ValueError):
-        module.measure(output, selection_for(output, "reviewed"))
+        module.measure(output, selection_for(output, arm))
 
 
 def test_opt_in_demo_repeats_and_verifies_rubric_before_after(tmp_path):
@@ -183,7 +290,8 @@ def test_opt_in_demo_repeats_and_verifies_rubric_before_after(tmp_path):
 
 
 @pytest.mark.parametrize("mode", ["fixture", "native"])
-def test_applicability_inventory_is_bound_to_retained_sources(tmp_path, mode):
+@pytest.mark.parametrize("arm", ["baseline", "reviewed"])
+def test_applicability_inventory_is_bound_to_retained_sources(tmp_path, mode, arm):
     if mode == "fixture":
         selected = runner.prepare(tmp_path / "fixture")
         output = tmp_path / "fixture"
@@ -193,7 +301,7 @@ def test_applicability_inventory_is_bound_to_retained_sources(tmp_path, mode):
         synthetic_job(output)
     path = output / "inputs/applicability.json"
     assert path.is_file(), "applicability must be a selected retained input"
-    selected = selection_for(output, "reviewed", mode)
+    selected = selection_for(output, arm, mode)
     path.write_text('{"native_paths":[]}')
     result, report = cli(output, selected)
     assert result.returncode == 2
@@ -216,10 +324,12 @@ def test_applicability_inventory_is_bound_to_retained_sources(tmp_path, mode):
         "summary-only",
     ],
 )
-def test_native_tamper_withholds_all_scores_through_measure_cli(tmp_path, mutation):
+@pytest.mark.parametrize("arm", ["baseline", "reviewed"])
+def test_native_tamper_withholds_all_scores_through_measure_cli(tmp_path, mutation, arm):
     native, trial = synthetic_job(tmp_path)
-    selected = selection_for(tmp_path, "reviewed", "native")
+    selected = selection_for(tmp_path, arm, "native")
     _, original = cli(tmp_path, selected)
+    assert original["items"]["AC-03"]["score"] == (0 if arm == "baseline" else None)
     retained_report = tmp_path / "rubric-reviewed.json"
     retained_report.write_text(json.dumps(original))
     path = trial / "verifier/checks.json"
@@ -330,12 +440,14 @@ def test_caller_fields_cannot_confer_rubric_merit(tmp_path, field, value):
 
 
 @pytest.mark.parametrize("mutation", ["duplicate-json", "missing", "extra", "arm", "symlink"])
-def test_fixture_tamper_rejected_by_run_and_verify(tmp_path, mutation):
+@pytest.mark.parametrize("arm", ["baseline", "reviewed"])
+def test_fixture_tamper_rejected_by_run_and_verify(tmp_path, mutation, arm):
     output = tmp_path / "fixture"
     selected = runner.prepare(output)
     (output / "panel.json").write_text(runner.encoded(runner.run_panel(output, selected)))
-    selected = selection_for(output, "reviewed")
+    selected = selection_for(output, arm)
     _, report = cli(output, selected)
+    assert report["items"]["AC-03"]["score"] == (0 if arm == "baseline" else None)
     retained_report = output / "rubric-reviewed.json"
     retained_report.write_text(json.dumps(report))
     path = output / "panel.json"
@@ -426,8 +538,13 @@ def test_fixture_controls_reach_canonical_scores_through_real_cli(tmp_path):
         assert all("check_id" not in c for c in item["check_results"])
         assert item["remaining_gaps"]
         assert report["items"]["DISC-01-B"]["score"] == 2
-        assert all(report["items"][ident]["score"] is None for ident in ("AC-01", "AC-03", "AC-04"))
-        assert report["anti_cheat_scores"] == {"AC-01": None, "AC-02": score, "AC-03": None, "AC-04": None}
+        assert all(report["items"][ident]["score"] is None for ident in ("AC-01", "AC-04"))
+        assert report["anti_cheat_scores"] == {
+            "AC-01": None,
+            "AC-02": score,
+            "AC-03": 0 if arm == "baseline" else None,
+            "AC-04": None,
+        }
         assert cli(output, selected)[1] == report
         reports[arm] = report
     assert (

@@ -35,6 +35,30 @@ def measure(root, selection, ethos_validator=None):
     json.dumps(selection, allow_nan=False)
     if not isinstance(selection, dict):
         raise ValueError("selection must be an object")
+    supported = {
+        "approval_sources",
+        "approvals",
+        "artifacts",
+        "decisions",
+        "contract_controls",
+        "criterion_evidence",
+        "declared_config",
+        "entrypoint",
+        "ethos",
+        "expected_scorer",
+        "freshness",
+        "links",
+        "native",
+        "nodes",
+        "observed_config",
+        "reconstruction",
+        "route",
+        "rubric_scope",
+        "scorer_controls",
+        "sourced_config",
+    }
+    if selection.keys() - supported:
+        raise ValueError("unsupported selection field")
     artifacts = selection.get("artifacts", [])
     identity = identify(root, artifacts)
     route = (
@@ -109,7 +133,40 @@ def measure(root, selection, ethos_validator=None):
             or any(path.is_symlink() for path in (selected_root, *selected_root.parents))
         ):
             raise ValueError("selected evidence changed during assessment")
+    if "contract_controls" in selection:
+        from rubric_contract_controls import assess_contract_controls
+
+        contract_rows = assess_contract_controls(root, selection)
+        for ident, row in contract_rows.items():
+            if ident in items and items[ident]["score"] is not None:
+                if row["score"] != items[ident]["score"]:
+                    raise ValueError("conflicting canonical scores")
+            else:
+                items[ident] = row
+        if assess_contract_controls(root, selection) != contract_rows or identify(root, artifacts) != identity:
+            raise ValueError("selected evidence changed during assessment")
+    demonstration = {}
+    recorded = {}
+    if "criterion_evidence" in selection:
+        from rubric_evidence_scoring import assess_evidence
+
+        evidence_rows = assess_evidence(root, selection)
+        for ident, row in evidence_rows.items():
+            if not row["selected"]:
+                continue
+            if row["assessment_scope"] == "synthetic-scoring-demonstration":
+                demonstration[ident] = row
+            else:
+                recorded[ident] = row
+                if ident not in items:
+                    items[ident] = row
+                elif row["score"] is not None and row["score"] != items[ident]["score"]:
+                    raise ValueError("conflicting canonical scores")
+        if assess_evidence(root, selection) != evidence_rows or identify(root, artifacts) != identity:
+            raise ValueError("selected evidence changed during assessment")
     return {
+        **({"criterion_demonstration": demonstration} if demonstration else {}),
+        **({"recorded_criterion_evidence": recorded} if recorded else {}),
         "schema": "rubric-measurements-v2",
         "experimental": True,
         "scope": "explicit-local-selection",

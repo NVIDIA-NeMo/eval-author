@@ -108,6 +108,7 @@ def project(root, selection):
                 "expected": case["expected"][arm],
                 "observed": observed,
                 "contract_intended": intended,
+                "result_verified": case["matched"],
                 "forbidden_credit": forbidden,
                 "forbidden_checks": forbidden_checks,
                 "defense_pass": None
@@ -116,7 +117,45 @@ def project(root, selection):
             }
         )
     scorer_digest = next(row["digest"] for row in retained["artifacts"] if row["id"] == "scorer")
-    binding = {"scorer_sha256": scorer_digest, "grader": arm}
+    binding = {
+        "scorer_sha256": scorer_digest,
+        "grader": arm,
+        "mode": selected["mode"],
+        "selection_sha256": hashlib.sha256(runner.encoded(retained).encode()).hexdigest(),
+        "input_sha256": {row["id"]: row["digest"] for row in retained["artifacts"]},
+    }
+    subject_revision = "sha256:" + hashlib.sha256(runner.encoded(binding).encode()).hexdigest()
+    findings = []
+    for index, control in enumerate(controls):
+        # The owning replay/validator pins no-work to events=[] and success=true
+        # in the current fixed cases, not a caller-authored label or arm name.
+        # Other forbidden credit need not establish an AC-03 trust defect.
+        result = control["observed"]
+        if (
+            control["id"] == "no-work"
+            and control["role"] == "invalid"
+            and control["result_verified"]
+            and result["health"] == "ok"
+            and result["accepted"] is True
+            and result["total_credit"] > 0
+            and result["checks"].get("completion_signal", 0) > 0
+            and control["forbidden_credit"]
+        ):
+            findings.append(
+                {
+                    "finding_id": "refund-solver-authored-success",
+                    "item_ids": ["AC-02", "AC-03"],
+                    "control_id": control["id"],
+                    "subject_revision": subject_revision,
+                    "evidence_strength": "E2",
+                    "mechanism": "Solver-controlled success grants credit without required refund effects.",
+                    "evidence_refs": [
+                        f"#/measurements/scorer_controls/controls/{index}",
+                        "#/measurements/scorer_controls/binding",
+                        "#/measurements/scorer_controls/applicability/reachable_path",
+                    ],
+                }
+            )
     indexed = {row["id"]: row for row in controls}
     declared = set(metadata["required_valid_controls"])
     declared.update(ident for ids in metadata["attack_classes"].values() for ident in ids)
@@ -135,8 +174,9 @@ def project(root, selection):
         "mode": selected["mode"],
         "arm": arm,
         "native": native_report,
-        "subject_revision": "sha256:" + hashlib.sha256(runner.encoded(binding).encode()).hexdigest(),
+        "subject_revision": subject_revision,
         "binding": binding,
+        "findings": findings,
         "controls": controls,
         "applicability": metadata,
         "applicability_digest": "sha256:" + hashlib.sha256(metadata_bytes).hexdigest(),
@@ -159,7 +199,7 @@ def assess_controls(measurements, selection, root):
     if json.dumps(observed, sort_keys=True) != json.dumps(measurements.get("scorer_controls"), sort_keys=True):
         raise ValueError("scorer control measurement failed revalidation")
     reference = REFERENCE.read_text()
-    rows = {}
+    rows: dict[str, dict[str, Any]] = {}
     for ident, anchor in ANCHORS.items():
         definition_ref = f"anti-cheat.md#{ident.lower()}-{anchor}"
         section = reference.split(f"## {ident}:", 1)[1].split("\n## ", 1)[0]
@@ -179,11 +219,7 @@ def assess_controls(measurements, selection, root):
             "check_results": [],
             "remaining_gaps": ["No criterion-specific evidence assessment was selected."],
         }
-    rows["AC-03"]["remaining_gaps"] = [
-        "AC-03 was not selected in this bounded assessment. The baseline solver-authored "
-        "success defect can also support AC-03=0 under the canonical shared-finding rule; "
-        "this null does not mean evidence is absent."
-    ]
+
     row = rows["AC-02"]
     defect = any(control["forbidden_credit"] for control in observed["controls"])
     native = observed["native"] is not None
@@ -198,6 +234,7 @@ def assess_controls(measurements, selection, root):
         # This fixed panel has unresolved applicable controls even with native receipts.
         score=0 if defect else 1,
         evidence_strength="E2",
+        finding_ids=[finding["finding_id"] for finding in observed["findings"]],
         evidence_refs=["#/measurements/scorer_controls"],
         remaining_gaps=gaps,
         check_results=[
@@ -222,4 +259,37 @@ def assess_controls(measurements, selection, root):
             },
         ],
     )
+    trust = rows["AC-03"]
+    trust["remaining_gaps"] = [
+        "No criterion-specific producer/consumer ownership review establishes the AC-03 partial anchor; "
+        "passing event-level controls alone do not establish native result-consumer protection.",
+        *gaps,
+    ]
+    trust["finding_ids"] = []
+    if observed["findings"]:
+        refs = [f"#/measurements/scorer_controls/findings/{index}" for index in range(len(observed["findings"]))]
+        row["evidence_refs"].extend(refs)
+        trust.update(
+            status="ASSESSED",
+            assessment_state="ASSESSED",
+            score=0,
+            evidence_strength="E2",
+            finding_ids=row["finding_ids"].copy(),
+            evidence_refs=refs,
+            remaining_gaps=gaps,
+            check_results=[
+                {
+                    "method": "deterministic",
+                    "outcome": "FAIL",
+                    "definition_ref": trust["definition_ref"],
+                    "evidence_refs": refs,
+                },
+                {
+                    "method": "probe",
+                    "outcome": "PASS" if native else "NOT_RUN",
+                    "definition_ref": trust["definition_ref"],
+                    "remaining_gap": None if native else gaps[0],
+                },
+            ],
+        )
     return rows
