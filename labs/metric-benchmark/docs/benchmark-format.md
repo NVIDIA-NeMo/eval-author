@@ -102,8 +102,8 @@ environment:
 ```
 
 An empty mapping selects defaults: `backend: local_harbor`, `harbor_version: 0.24.0`,
-`n_concurrent_trials: 1`, and Docker. No other backend or Harbor version is currently
-supported. Install that version in the execution environment; the YAML does not
+`n_concurrent_trials: 1`, and Docker. Local execution supports only Harbor 0.24.0.
+Install that version in the execution environment; the YAML does not
 install it, and execution rejects a different installed version. The environment
 mapping accepts native Harbor environment settings.
 Execution always runs each case's baseline then mutants against its complete task
@@ -114,6 +114,37 @@ When upgrading from Harbor 0.20.0, update any explicit `harbor_version` to `0.24
 and choose a new execution output directory. The runtime version is part of the
 execution identity, so completed jobs from the old runtime cannot be resumed as
 0.24.0 jobs.
+
+### Helix execution
+
+Select Helix explicitly in the same execution configuration:
+
+```yaml
+backend: helix
+base_url: https://helix.example.com
+workspace: benchmark
+dispatcher_profile: workers
+max_concurrent_task_jobs: 2
+sandbox:
+  profile: evaluation
+```
+
+- **Agents:** use `Agent.harbor` for builtin controls or `helix-registered` for managed agent bundles.
+  Registered agents explicitly select a signed bundle; publication cannot override its definition.
+  Registered execution preserves absolute task paths with `fabric_workspace: /`;
+  other workspace values are rejected, including when runtime options are supplied explicitly.
+- **Tasks:** source tasks are uploaded unchanged or matched to existing pinned Helix tasks. See [publication](publish-helix-inputs.md).
+- **Destination:** omit `base_url` and `workspace` to use the authenticated context,
+  or set them to assert the destination. Resolved values are frozen in
+  publication/submission records.
+- **Deployment:** endpoint, workspace, dispatcher and sandbox settings do not change
+  case membership or the agent/task matrix. Execution uses the published bindings.
+- **Concurrency:** `max_concurrent_task_jobs` applies per remote run.
+- **Sandbox:** omitting it selects deployment defaults. Retain resolved settings
+  with the job evidence.
+- **Authentication:** comes from an existing Helix context. Keep credentials out of
+  YAML and actual deployment settings outside public checkouts.
+- **Local executor:** rejects `backend: helix` before creating outputs or jobs.
 
 ## Analysis: `analysis.yml`
 

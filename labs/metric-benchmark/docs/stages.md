@@ -15,7 +15,7 @@ fixed subset manifest.
 
 | Stage | Tool |
 | --- | --- |
-| 1. Run mutants x eval tasks | `run_evals.py` (local Harbor); future NeMo Helix implementation |
+| 1. Run mutants x eval tasks | `run_evals.py` (local Harbor); Helix publish, submit/collect, and import commands |
 | 2. Compute mutant scores | [`compute_mutant_scores.py`](compute-mutant-scores.md) |
 | 3. Compute coverage | [`compute_coverage.py`](compute-coverage.md) |
 | 4. Correlation | [`correlate.py`](correlate.md) |
@@ -57,10 +57,26 @@ The baseline is included because mutant scoring compares its outcomes with each
 mutant's outcomes. The local Harbor loop produces the shared index and native evidence used by
 the analysis tools.
 
-A future NeMo Helix implementation will use an orchestrator to run evaluations at
-scale. Each implementation owns invocation, scheduling, retries, and collection
-and produces the same output contract. Analysis can rerun against saved results
-without repeating this execution phase.
+### Helix execution
+
+Helix uses publication, execution and collection, with source recovery available
+independently:
+
+1. **Publish:** `helix_publish.py` registers agents and retains their signed sources,
+   uploads unchanged tasks or verifies pinned revisions, and returns `references.json`.
+   It does not choose compute or start image builds.
+2. **Execute:** `helix_execute.py` reads saved references, checks agent contents,
+   builds task images when needed, and runs one selected agent against a case's
+   taskset. It saves the retry key before submission and preserves the run receipt.
+3. **Collect:** `helix_collect.py` accepts the selected baseline/mutant receipts,
+   downloads evidence, verifies identities and writes the shared results directory.
+   There is no separate user-facing import command.
+
+`helix_sources.py` downloads exact sources from references or a run receipt;
+collection uses the same operation when needed. See the
+[architecture decisions](helix-architecture.md) and [publication guide](publish-helix-inputs.md).
+Registered agents initially run only on Helix; native Harbor controls retain their
+existing local path. Analysis uses the same results contract for both backends.
 
 ### Results-directory contract
 
