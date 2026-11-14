@@ -82,6 +82,8 @@ provided input pins are verified before any manifests are rewritten. The downloa
 accepts missing pins, downloads remote tasks, then signs and checks the complete
 output. Copied files must match their authored sources, including unsigned inputs.
 Analysis subsets must already exist and reference the selected task IDs.
+All cases sharing a task list have their subset memberships checked against its
+resolved inventory before that list's task contents are downloaded.
 
 Both task and benchmark commands publish a complete output directory only
 after success. A failed download leaves no final bundle. Repeating a successful
@@ -91,6 +93,7 @@ missing prepared files fail verification; changed source requests require a new
 output. The source must leave `prepared-tasks/` unused relative to the cases
 directory (or the standalone task manifest's directory), and `preparation.json`
 unused relative to the experiment or standalone task manifest's directory.
+Concurrent downloads must use distinct output directories; atomic publication does not reserve the destination against concurrent creation.
 
 Each prepared bundle contains:
 

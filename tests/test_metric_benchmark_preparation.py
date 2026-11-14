@@ -21,7 +21,7 @@ from metric_benchmark.io import digest_bytes, file_manifest, input_digest, read_
 from metric_benchmark.pipeline import run_experiment
 from metric_benchmark.preparation import GitSource, download_harbor_tasks, download_registry
 from metric_benchmark.signing import check_benchmark
-from test_metric_benchmark_config import LAB, TASK_IDS
+from test_metric_benchmark_config import LAB, SUBSETS_PATH, TASK_IDS
 from test_metric_benchmark_execution import fake_harbor
 from test_metric_benchmark_pipeline import experiment
 from test_metric_benchmark_signing import remove_pins
@@ -602,3 +602,53 @@ def test_benchmark_shares_registry_and_ref_resolution_per_invocation(tmp_path, r
         assert input_digest(snapshots[0]) != digest_bytes(expected_raw)
         assert receipt["files"][snapshots[0].relative_to(output).as_posix()] == input_digest(snapshots[0])
         check_benchmark(output / source.name)
+
+
+@pytest.mark.parametrize("source_kind", ["dataset", "git", "local"])
+@pytest.mark.parametrize("bad_case", ["rho-agent", "another-case"])
+def test_invalid_subsets_fail_before_shared_task_downloads(tmp_path, registry, monkeypatch, source_kind, bad_case):
+    repo, commit, url, _, _ = registry
+    source, _ = experiment(tmp_path, two_cases=True)
+    cases_path = source.parent / "cases.yml"
+    cases = read_yaml(cases_path)
+    assert isinstance(cases, list)
+    cases[1]["tasks"] = {**cases[1]["tasks"], "path": "./tasks/workspace/tasks.yml"}
+    write_yaml(cases_path, cases)
+    tasks_path = source.parent / "tasks/workspace/tasks.yml"
+    if source_kind == "dataset":
+        write_yaml(tasks_path, dataset(url))
+    elif source_kind == "git":
+        write_yaml(
+            tasks_path,
+            {
+                "tasks": [
+                    {
+                        "task_id": task_id,
+                        "revision": 1,
+                        "source": {"git_url": repo.as_uri(), "git_commit_id": commit, "path": task_id},
+                    }
+                    for task_id in TASK_IDS
+                ]
+            },
+        )
+    subsets = read_json(source.parent / SUBSETS_PATH)
+    assert isinstance(subsets, dict)
+    subsets["eval_subsets"][0]["task_ids"] = ["misspelled-task"]
+    (source.parent / "invalid-subsets.json").write_text(json.dumps(subsets))
+    analysis_path = source.parent / "analysis.yml"
+    analysis = read_yaml(analysis_path)
+    assert isinstance(analysis, dict)
+    analysis["case_settings"][bad_case] = {
+        **analysis["case_settings"][bad_case],
+        "subsets": {"path": "invalid-subsets.json"},
+    }
+    write_yaml(analysis_path, analysis)
+    remove_pins(source.parent)
+    before = file_manifest(source.parent)
+    monkeypatch.setattr(preparation.TaskClient, "download_tasks", forbidden)
+    monkeypatch.setattr(preparation, "sign_benchmark", forbidden)
+    with pytest.raises(ValueError, match="contains unknown task IDs.*misspelled-task"):
+        download_harbor_tasks(source, tmp_path / "prepared", benchmark=True)
+    assert file_manifest(source.parent) == before
+    assert not (tmp_path / "prepared").exists()
+    assert not list(tmp_path.glob(".prepare-*"))

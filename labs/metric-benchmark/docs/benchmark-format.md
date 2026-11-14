@@ -103,8 +103,11 @@ dataset:
   version: "2.0"
 ```
 
-The entire dataset is selected. An explicit release version is required; `latest`
-and `head` are rejected. Omit `registry` to use Harbor's default JSON registry, or
+The entire dataset is selected. An explicit dataset version is required; `latest`
+and `head` are rejected as dataset versions. Registry entries may still contain
+floating Git references, which are resolved when downloaded. Reuse the saved bundle
+to retain the same task contents; a fresh download may resolve different contents.
+Omit `registry` to use Harbor's default JSON registry, or
 add `registry: {url: https://example.org/registry.json}` inside `dataset`. The downloader
 supports Git-backed entries in JSON registries, not Harbor Hub package
 datasets. The task manifest contains either `dataset` or `tasks`, never both.

@@ -8,6 +8,7 @@ import re
 import shutil
 import subprocess
 import tempfile
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from importlib.metadata import version
 from pathlib import Path
@@ -35,7 +36,7 @@ from metric_benchmark.config import (
     read_yaml,
 )
 from metric_benchmark.io import digest_bytes, file_manifest, input_digest, json_bytes, read_json, write_json
-from metric_benchmark.models import Digest, Model, Task, Text, relative_path, resolve_evidence, unique
+from metric_benchmark.models import Digest, Model, Subsets, Task, Tasks, Text, relative_path, resolve_evidence, unique
 from metric_benchmark.signing import check_benchmark, sign_benchmark
 
 Commit = Annotated[str, StringConstraints(pattern=r"^[0-9a-f]{40}$")]
@@ -233,7 +234,13 @@ def _dataset_tasks(source: DatasetSource, snapshot: Path, downloads: _DownloadSo
 
 
 def _prepare_tasks(
-    data: object, source_root: Path, root: Path, ordinal: int, downloads: _DownloadSources
+    data: object,
+    source_root: Path,
+    root: Path,
+    ordinal: int,
+    downloads: _DownloadSources,
+    *,
+    subsets: Sequence[Subsets] = (),
 ) -> tuple[dict, dict]:
     directory = root / TASKS_DIR / f"set-{ordinal:04d}"
     directory.mkdir(parents=True)
@@ -243,6 +250,10 @@ def _prepare_tasks(
         tasks, origin = _dataset_tasks(document.dataset, directory / "registry.json", downloads)
     else:
         tasks = document
+    if subsets:
+        inventory = Tasks(tasks=[*tasks.tasks])
+        for selection in subsets:
+            selection.resolve_tasks(inventory)
     remote = [task for task in tasks.tasks if isinstance(task, RemoteTask)]
     downloaded = {}
     if remote:
@@ -299,7 +310,7 @@ def _write_yaml(path: Path, data: object) -> None:
     path.write_text(yaml.safe_dump(data, sort_keys=False), encoding="utf-8")
 
 
-def _verify_authored_benchmark(path: Path) -> tuple[Path, list[CaseDefinition]]:
+def _verify_authored_benchmark(path: Path) -> tuple[Path, list[CaseDefinition], dict[Path, list[Subsets]]]:
     definition = BenchmarkDefinition.model_validate(read_yaml(path))
     cases_path = definition.cases.resolve(path.parent, allow_unsigned=True)
     entries = TypeAdapter(list[CaseDefinition]).validate_python(read_yaml(cases_path))
@@ -313,20 +324,23 @@ def _verify_authored_benchmark(path: Path) -> tuple[Path, list[CaseDefinition]]:
     if analysis.case_settings.keys() != {entry.case_id for entry in entries}:
         raise ValueError("analysis case_settings must match the cases exactly")
     root = cases_path.parent
+    subsets: dict[Path, list[Subsets]] = {}
     for entry in entries:
         agents = AgentManifest.model_validate(read_yaml(entry.agent.resolve(root, allow_unsigned=True)))
         for agent in [agents.baseline, *agents.mutants]:
             for source in agent.inputs.values():
                 source.resolve(root, allow_unsigned=True)
-        document = _task_document(read_yaml(entry.tasks.resolve(root, allow_unsigned=True)))
+        task_path = entry.tasks.resolve(root, allow_unsigned=True)
+        document = _task_document(read_yaml(task_path))
         if isinstance(document, SourceTasks):
             for task in document.tasks:
                 if isinstance(task, TaskSource):
                     task.source().resolve(root, allow_unsigned=True)
         settings = analysis.case_settings[entry.case_id]
         settings.description.resolve(root, allow_unsigned=True)
-        settings.subsets.resolve(root, allow_unsigned=True)
-    return cases_path, entries
+        subset_path = settings.subsets.resolve(root, allow_unsigned=True)
+        subsets.setdefault(task_path, []).append(Subsets.model_validate(read_json(subset_path)))
+    return cases_path, entries, subsets
 
 
 def _source_files(source: Path, benchmark: bool) -> dict:
@@ -379,7 +393,7 @@ def download_harbor_tasks(source: Path, output: Path, *, benchmark: bool = False
         origins = {}
         downloads = _DownloadSources()
         if authored is not None:
-            cases_path, entries = authored
+            cases_path, entries, subsets = authored
             shutil.copytree(source_root, stage, symlinks=True)
             if file_manifest(stage) != original:
                 raise ValueError("copied benchmark contents differ from source")
@@ -390,7 +404,14 @@ def download_harbor_tasks(source: Path, output: Path, *, benchmark: bool = False
                 if target in seen:
                     continue
                 seen.add(target)
-                manifest, origin = _prepare_tasks(read_yaml(target), cases_path.parent, root, len(seen) - 1, downloads)
+                manifest, origin = _prepare_tasks(
+                    read_yaml(target),
+                    cases_path.parent,
+                    root,
+                    len(seen) - 1,
+                    downloads,
+                    subsets=subsets[cases_path.parent / entry.tasks.path],
+                )
                 _write_yaml(target, manifest)
                 origins[target.relative_to(stage).as_posix()] = TaskOrigin.model_validate(origin)
             sign_benchmark(stage / source.name, resign=True)
