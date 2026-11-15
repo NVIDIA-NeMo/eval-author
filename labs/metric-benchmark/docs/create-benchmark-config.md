@@ -61,17 +61,17 @@ re-signs modified source content. Use [sha-sign](sha-sign.md) when authoring inp
 and the [task downloader](tools.md#download-remote-harbor-tasks) to materialize
 remote task sources before generation.
 
-| Flag | Purpose |
-| --- | --- |
-| `--benchmark-source` | Required directory containing prepared cases and their inputs. |
-| `--execution` | Required execution-settings YAML; concurrency controls scheduling. |
-| `--benchmark-id` | Required identity for the generated experiment. |
-| `--output` | Required new directory outside the source bundle. |
-| `--selection` | Optional YAML selecting one derived case, mutants, tasks, and analysis subsets. |
-| `--case` | Include a complete source case; repeat for multiple cases. Defaults to all cases. Cannot accompany `--selection`. |
-| `--analysis` | Alternative analysis YAML; its references still resolve from the source root. |
-| `--agent-settings` | Harbor configuration mapping merged into every included baseline and mutant. |
-| `--coverage-author` | Optional standalone author-script snapshot, described below. |
+| Flag                 | Purpose                                                                                                           |
+| -------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| `--benchmark-source` | Required directory containing prepared cases and their inputs.                                                    |
+| `--execution`        | Required execution-settings YAML; concurrency controls scheduling.                                                |
+| `--benchmark-id`     | Required identity for the generated experiment.                                                                   |
+| `--output`           | Required new directory outside the source bundle.                                                                 |
+| `--selection`        | Optional YAML selecting one derived case, mutants, tasks, and analysis subsets.                                   |
+| `--case`             | Include a complete source case; repeat for multiple cases. Defaults to all cases. Cannot accompany `--selection`. |
+| `--analysis`         | Alternative analysis YAML; its references still resolve from the source root.                                     |
+| `--agent-settings`   | Harbor configuration mapping merged into every included baseline and mutant.                                      |
+| `--coverage-author`  | Optional standalone author-script snapshot, described below.                                                      |
 
 The [example selection](../examples/smoke/selection.yml) has this shape:
 
