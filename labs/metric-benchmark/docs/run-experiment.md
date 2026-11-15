@@ -6,7 +6,7 @@
 Run a prepared benchmark from agent execution through coverage, mutant scoring,
 and correlation, or analyze execution results you already have.
 
-To create a configuration from prepared cases, use
+To generate an experiment config from prepared cases, use
 [create_benchmark_config.py](create-benchmark-config.md).
 
 ## Start an experiment

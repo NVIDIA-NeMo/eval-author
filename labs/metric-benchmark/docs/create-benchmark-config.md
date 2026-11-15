@@ -1,13 +1,13 @@
 <!-- SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved. -->
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 
-# create_benchmark_config.py
+# Generate experiment configs
 
-Running a complete benchmark can be expensive. The optional
-[`create_benchmark_config.py`](../create_benchmark_config.py) tool creates
-`experiment.yml` and supporting files from prepared cases and your execution
-settings. Select fewer mutants and tasks to check infrastructure or obtain early
-signals, or preserve the complete benchmark composition.
+The optional [`create_benchmark_config.py`](../create_benchmark_config.py) tool
+generates `experiment.yml` and supporting configuration files from prepared cases
+and your execution settings. Running a complete benchmark can be expensive;
+generate a reduced configuration to check infrastructure or obtain early signals,
+or preserve the complete benchmark composition.
 
 Generation copies selected inputs, applies configuration overrides, writes and
 validates content pins, and reports planned trial counts. It starts no containers,
@@ -36,7 +36,8 @@ command requires Docker. Its one analysis subset checks plumbing; it cannot
 establish a meaningful coverage correlation. Use new output directories when
 repeating the example.
 
-Omit `--selection` to preserve all cases, mutants, tasks, and predefined subsets:
+Omit `--selection` to generate a configuration preserving all cases, mutants,
+tasks, and predefined subsets:
 
 ```bash
 uv run --locked python labs/metric-benchmark/create_benchmark_config.py \
@@ -122,7 +123,7 @@ command is rewritten to use the absolute output path. The script is verified
 while copying; imported modules and its interpreter environment are not bundled.
 Other coverage tools need no author script or special settings.
 
-## Generated output
+## Generated configuration
 
 The output contains `experiment.yml`, `cases.yml`, `execution.yml`, `analysis.yml`,
 per-case manifests, and selected input copies under `inputs/`. Reference paths

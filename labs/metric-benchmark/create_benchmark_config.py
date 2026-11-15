@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Create experiment.yml and supporting inputs without executing the experiment."""
+"""Generate experiment configs and copy their selected inputs."""
 
 import argparse
 from pathlib import Path

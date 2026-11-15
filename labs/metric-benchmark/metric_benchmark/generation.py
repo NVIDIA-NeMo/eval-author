@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Compose ordinary experiment manifests from prepared cases and explicit selections."""
+"""Generate experiment configs from prepared cases and explicit selections."""
 
 import copy
 import shutil

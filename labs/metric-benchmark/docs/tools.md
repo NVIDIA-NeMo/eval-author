@@ -11,8 +11,8 @@ These tools consume externally prepared cases. A prepared case contains:
 - Named, fixed subsets of those tasks for score and coverage comparisons.
 - Manifests connecting these inputs, with relative paths and optional SHA-256 digests for verification.
 
-Use the optional [experiment generator](create-benchmark-config.md)
-to assemble a complete experiment or select a smaller smoke run from these inputs.
+Use the optional [experiment config generator](create-benchmark-config.md)
+to generate a full benchmark configuration or a reduced smoke-run configuration.
 Generation and execution are separate commands.
 
 ## Benchmark config
