@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Generate an experiment from prepared benchmark cases without executing it."""
+"""Create experiment.yml and supporting inputs without executing the experiment."""
 
 import argparse
 from pathlib import Path

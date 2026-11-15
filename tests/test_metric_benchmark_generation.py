@@ -253,7 +253,7 @@ def test_cli_generates_signed_experiment(source, tmp_path):
     result = subprocess.run(
         [
             sys.executable,
-            str(LAB / "prepare_experiment.py"),
+            str(LAB / "create_benchmark_config.py"),
             "--benchmark-source",
             str(source),
             "--execution",

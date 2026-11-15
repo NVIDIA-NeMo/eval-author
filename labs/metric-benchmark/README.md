@@ -41,7 +41,7 @@ to exercise the pipeline locally without model credentials.
 For preparing bundles, use the [benchmark format specification](docs/benchmark-format.md).
 For execution outputs, use the [results format specification](docs/results-format.md).
 
-Use the optional [experiment generator](docs/run-experiment.md#generate-an-experiment-configuration)
+Use the optional [experiment generator](docs/create-benchmark-config.md)
 to assemble an experiment from cases and execution settings, or select fewer
 mutants and tasks for a smoke run. Generation does not execute the experiment.
 
