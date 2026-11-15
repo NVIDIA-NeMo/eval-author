@@ -35,7 +35,7 @@ from metric_benchmark.validation import agent_config
 
 class Selection(Model):
     source_case_id: Text
-    case_id: Text = Field(default_factory=lambda data: data["source_case_id"])
+    case_id: Text = Field(default_factory=lambda data: data.get("source_case_id", ""))
     mutant_ids: Literal["all"] | list[Text] = Field(default="all", min_length=1)
     task_ids: Literal["all"] | list[Text] = Field(default="all", min_length=1)
     subsets: Literal["parent"] | list[Subset] = Field(default="parent", min_length=1)
@@ -122,9 +122,9 @@ def _copy_agent(agent: Agent, root: Path, output: Path, overrides: dict[str, Jso
 class StagedCase:
     definition: CaseDefinition
     analysis: CaseAnalysis
-    agents: int
-    tasks: int
-    subsets: int
+    agent_count: int
+    task_count: int
+    subset_count: int
 
 
 def _stage_case(
@@ -255,8 +255,8 @@ def generate_experiment(
     return GenerationSummary(
         experiment=str(output / "experiment.yml"),
         cases=len(staged_cases),
-        agents=sum(case.agents for case in staged_cases),
-        tasks=sum(case.tasks for case in staged_cases),
-        subsets=sum(case.subsets for case in staged_cases),
-        trials=sum(case.agents * case.tasks for case in staged_cases),
+        agents=sum(case.agent_count for case in staged_cases),
+        tasks=sum(case.task_count for case in staged_cases),
+        subsets=sum(case.subset_count for case in staged_cases),
+        trials=sum(case.agent_count * case.task_count for case in staged_cases),
     )

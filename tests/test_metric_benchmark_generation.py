@@ -353,7 +353,9 @@ def test_cli_generates_signed_experiment(source: Path, tmp_path: Path, mode: str
     check_benchmark(Path(summary["experiment"]))
 
 
-@pytest.mark.parametrize("mode", ["mapping", "empty", "duplicate", "conflict"])
+@pytest.mark.parametrize(
+    "mode", ["mapping", "empty", "duplicate", "conflict", "missing-fields", "later-missing-fields"]
+)
 def test_cli_rejects_invalid_selection(source: Path, tmp_path: Path, mode: str) -> None:
     selection_path = tmp_path / "selection.yml"
     request = {"source_case_id": "smoke-case"}
@@ -361,6 +363,10 @@ def test_cli_rejects_invalid_selection(source: Path, tmp_path: Path, mode: str) 
         write_yaml(selection_path, request)
     elif mode == "empty":
         write_yaml(selection_path, [])
+    elif mode == "missing-fields":
+        write_yaml(selection_path, [{}])
+    elif mode == "later-missing-fields":
+        write_yaml(selection_path, [request, {}])
     else:
         write_yaml(selection_path, [request, request] if mode == "duplicate" else [request])
     result = subprocess.run(
@@ -383,7 +389,10 @@ def test_cli_rejects_invalid_selection(source: Path, tmp_path: Path, mode: str) 
         text=True,
         check=False,
     )
-    assert result.returncode != 0
+    assert result.returncode == 2
     assert "Traceback" not in result.stderr
+    if mode in {"missing-fields", "later-missing-fields"}:
+        assert "source_case_id" in result.stderr
+        assert "Field required" in result.stderr
     assert not (tmp_path / "generated").exists()
     assert not list(tmp_path.glob(".experiment-*"))
