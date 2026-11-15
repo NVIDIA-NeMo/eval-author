@@ -58,7 +58,7 @@ inputs in the existing [benchmark format](benchmark-format.md). An existing
 references are relative to the directory containing `cases.yml`. All referenced
 manifests and selected inputs must have valid pins; generation never silently
 re-signs modified source content. Use [sha-sign](sha-sign.md) when authoring inputs,
-and the [task downloader](tools.md#download-remote-harbor-tasks) to materialize
+and the [task downloader](tools.md#download-harbor-tasks) to materialize
 remote task sources before generation.
 
 | Flag                 | Purpose                                                                                                           |
@@ -67,28 +67,30 @@ remote task sources before generation.
 | `--execution`        | Required execution-settings YAML; concurrency controls scheduling.                                                |
 | `--benchmark-id`     | Required identity for the generated experiment.                                                                   |
 | `--output`           | Required new directory outside the source bundle.                                                                 |
-| `--selection`        | Optional YAML selecting one derived case, mutants, tasks, and analysis subsets.                                   |
+| `--selection`        | Optional YAML list selecting cases, mutants, tasks, and analysis subsets.                                         |
 | `--case`             | Include a complete source case; repeat for multiple cases. Defaults to all cases. Cannot accompany `--selection`. |
-| `--analysis`         | Alternative analysis YAML; its references still resolve from the source root.                                     |
+| `--analysis`         | Alternative analysis YAML covering every source case before selection; references resolve from the source root.   |
 | `--agent-settings`   | Harbor configuration mapping merged into every included baseline and mutant.                                      |
-| `--coverage-author`  | Optional standalone author-script snapshot, described below.                                                      |
 
 The [example selection](../examples/smoke/selection.yml) has this shape:
 
 ```yaml
-source_case_id: smoke-case
-case_id: smoke-reduced
-mutant_ids: [nop]
-task_ids: [answer]
-subsets:
-  - eval_subset_id: answer-only
-    task_ids: [answer]
+- source_case_id: smoke-case
+  case_id: smoke-reduced
+  mutant_ids: [nop]
+  task_ids: [answer]
+  subsets:
+    - eval_subset_id: answer-only
+      task_ids: [answer]
 ```
 
-The baseline is always retained. `case_id` must differ from every source case ID.
-`mutant_ids` and `task_ids` accept explicit nonempty ID lists or `all`; source
-inventory order is preserved. `subsets` accepts explicit nonempty memberships or
-`parent` to reuse the original subset document. Every subset member must be in
+The selection document is a nonempty list. Add entries to reduce multiple cases
+or create multiple variants of one source case. `case_id` defaults to
+`source_case_id`; output case IDs must be unique. Selection-list order is preserved.
+The baseline is always retained. `mutant_ids` and `task_ids` default to `all` and
+accept explicit nonempty ID lists; source inventory order is preserved. `subsets`
+defaults to `parent` to reuse the original subset document and also accepts
+explicit nonempty memberships. Every subset member must be in
 the selected task inventory, so `parent` fails if a retained subset refers to a
 removed task. Unknown IDs, duplicates, and empty inventories are rejected.
 Subsets group results for analysis; they do not schedule additional trials.
@@ -115,13 +117,9 @@ just as for a handwritten experiment; generation does not install them.
 commands remain literal, with no parameter substitution or inferred provider
 configuration. Keep credentials in the runtime environment rather than YAML.
 
-For a coverage integration using `coverage.settings.author_command`, the optional
-`--coverage-author /absolute/path/author.py` copies that standalone file into the
-output's `coverage/` directory. Its absolute source path must occur exactly once
-in `author_command`, and its digest must equal `coverage.system_revision`. The
-command is rewritten to use the absolute output path. The script is verified
-while copying; imported modules and its interpreter environment are not bundled.
-Other coverage tools need no author script or special settings.
+For a coverage integration using a standalone author script, stage that script
+separately and reference its absolute path in the analysis settings. The script
+and its dependencies must be available in the execution environment.
 
 ## Generated configuration
 
@@ -131,10 +129,9 @@ are rewritten to the copies; executable input bytes remain unchanged. Source
 files are never edited. A failure leaves no published output directory; existing
 outputs are rejected. Use distinct destinations for concurrent invocations.
 
-`generation.json` records input-manifest hashes, resolved selections, and the
-optional author snapshot pin. It is an informational generation receipt, not a
-new requirement of the experiment format. The ordinary runner validates the
-standard manifest graph; it does not read this receipt or independently enforce
-the optional author snapshot pin. Keep generated author code unchanged or use
-your coverage integration's runtime verification. Absolute coverage-command
-paths and external dependencies still need to exist when executing the result.
+`generation.json` records input-manifest hashes and selection requests, including
+defaults such as `all` and `parent`. The generated manifests contain the concrete
+selected inventories. The receipt is informational, not a new requirement of the
+experiment format. The ordinary runner validates the standard manifest graph;
+it does not read this receipt. Absolute coverage-command paths and external
+dependencies still need to exist when executing the result.

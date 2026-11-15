@@ -1,10 +1,10 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-source_case_id: smoke-case
-case_id: smoke-reduced
-mutant_ids: [nop]
-task_ids: [answer]
-subsets:
-  - eval_subset_id: answer-only
-    task_ids: [answer]
+- source_case_id: smoke-case
+  case_id: smoke-reduced
+  mutant_ids: [nop]
+  task_ids: [answer]
+  subsets:
+    - eval_subset_id: answer-only
+      task_ids: [answer]

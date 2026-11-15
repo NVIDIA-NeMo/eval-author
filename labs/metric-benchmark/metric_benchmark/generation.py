@@ -6,6 +6,7 @@
 import copy
 import shutil
 import tempfile
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal, Self
 
@@ -15,10 +16,10 @@ from pydantic import Field, JsonValue, TypeAdapter, model_validator
 from metric_benchmark.config import (
     Agent,
     AgentManifest,
-    AnalysisSettings,
     BenchmarkDefinition,
     CaseAnalysis,
     CaseDefinition,
+    LoadedAnalysis,
     LocalExecution,
     PinnedInput,
     TaskManifest,
@@ -34,10 +35,10 @@ from metric_benchmark.validation import agent_config
 
 class Selection(Model):
     source_case_id: Text
-    case_id: Text
-    mutant_ids: Literal["all"] | list[Text] = Field(min_length=1)
-    task_ids: Literal["all"] | list[Text] = Field(min_length=1)
-    subsets: Literal["parent"] | list[Subset] = Field(min_length=1)
+    case_id: Text = Field(default_factory=lambda data: data["source_case_id"])
+    mutant_ids: Literal["all"] | list[Text] = Field(default="all", min_length=1)
+    task_ids: Literal["all"] | list[Text] = Field(default="all", min_length=1)
+    subsets: Literal["parent"] | list[Subset] = Field(default="parent", min_length=1)
 
     @model_validator(mode="after")
     def unique_selections(self) -> Self:
@@ -117,22 +118,67 @@ def _copy_agent(agent: Agent, root: Path, output: Path, overrides: dict[str, Jso
     )
 
 
-def _snapshot_author(analysis: AnalysisSettings, author: Path, stage: Path, output: Path) -> PinnedInput:
-    author = author.resolve(strict=True)
-    coverage = analysis.coverage
-    command = coverage.settings.get("author_command")
-    if not isinstance(command, list) or command.count(str(author)) != 1:
-        raise ValueError("coverage author must appear exactly once as an absolute path in author_command")
-    if input_digest(author) != coverage.system_revision:
-        raise ValueError("coverage author differs from system_revision")
-    target = stage / "coverage" / author.name
-    target.parent.mkdir()
-    shutil.copy2(author, target)
-    ref = _pin(target, stage)
-    if ref.sha256 != coverage.system_revision:
-        raise ValueError("coverage author changed while copying")
-    command[command.index(str(author))] = str(output / ref.path)
-    return ref
+@dataclass(frozen=True)
+class StagedCase:
+    definition: CaseDefinition
+    analysis: CaseAnalysis
+    agents: int
+    tasks: int
+    subsets: int
+
+
+def _stage_case(
+    request: Selection,
+    index: int,
+    loaded: LoadedAnalysis,
+    stage: Path,
+    overrides: dict[str, JsonValue],
+) -> StagedCase:
+    source = loaded.inputs.root
+    case = loaded.inputs.case(request.source_case_id).case
+    mutants = _selected(request.mutant_ids, [agent.agent_bundle_id for agent in case.mutants], "mutant IDs")
+    task_ids = _selected(request.task_ids, [task.task_id for task in case.task_inventory.tasks], "task IDs")
+    agents = AgentManifest(
+        baseline=_copy_agent(case.baseline, source, stage, overrides),
+        mutants=[
+            _copy_agent(agent, source, stage, overrides) for agent in case.mutants if agent.agent_bundle_id in mutants
+        ],
+    )
+    tasks = []
+    for task in case.task_inventory.tasks:
+        if task.task_id in task_ids:
+            ref = _copy_input(source, stage, case.task_sources[task.task_id])
+            tasks.append(TaskSource(**task.model_dump(), path=ref.path, sha256=ref.sha256))
+    manifest = TaskManifest(tasks=tasks)
+    subsets = (
+        loaded.load_subsets(request.source_case_id)
+        if request.subsets == "parent"
+        else Subsets(
+            sampling_parameters={"method": "explicit frozen selection"},
+            eval_subsets=request.subsets,
+        )
+    )
+    subsets.resolve_tasks(manifest.task_inventory)
+    loaded.load_description(request.source_case_id)
+    case_analysis = loaded.settings.case_settings[request.source_case_id]
+    description = _copy_input(source, stage, case_analysis.description)
+    directory = stage / "manifests" / f"case-{index:04d}"
+    directory.mkdir(parents=True)
+    _write_yaml(directory / "agents.yml", agents)
+    _write_yaml(directory / "tasks.yml", manifest)
+    if request.subsets == "parent":
+        shutil.copy2(case_analysis.subsets.resolve(source), directory / "subsets.json")
+    else:
+        write_json(directory / "subsets.json", subsets)
+    definition = CaseDefinition(
+        case_id=request.case_id,
+        agent=_pin(directory / "agents.yml", stage),
+        tasks=_pin(directory / "tasks.yml", stage),
+    )
+    analysis = CaseAnalysis(description=description, subsets=_pin(directory / "subsets.json", stage))
+    for agent in [agents.baseline, *agents.mutants]:
+        agent_config(agent, stage)
+    return StagedCase(definition, analysis, 1 + len(agents.mutants), len(tasks), len(subsets.eval_subsets))
 
 
 def generate_experiment(
@@ -141,11 +187,10 @@ def generate_experiment(
     *,
     execution: Path,
     benchmark_id: str,
-    selection: Selection | None = None,
+    selection: list[Selection] | None = None,
     case_ids: list[str] | None = None,
     analysis: Path | None = None,
     agent_settings: Path | None = None,
-    coverage_author: Path | None = None,
 ) -> GenerationSummary:
     source, output = source.resolve(strict=True), output.resolve()
     if output.exists():
@@ -160,17 +205,15 @@ def generate_experiment(
     overrides = TypeAdapter(dict[str, JsonValue]).validate_python(read_yaml(agent_settings)) if agent_settings else {}
     available = list(loaded.inputs.cases)
     if selection is not None:
-        if selection.case_id in available:
-            raise ValueError("selected experiment needs a distinct case_id")
-        loaded.inputs.case(selection.source_case_id)
-        requests = [selection]
+        if not selection:
+            raise ValueError("selection must not be empty")
+        unique([request.case_id for request in selection], "output case IDs")
+        for request in selection:
+            loaded.inputs.case(request.source_case_id)
+        requests = selection
     else:
         chosen_ids = _selected(case_ids if case_ids is not None else "all", available, "case IDs")
-        requests = [
-            Selection(source_case_id=case_id, case_id=case_id, mutant_ids="all", task_ids="all", subsets="parent")
-            for case_id in available
-            if case_id in chosen_ids
-        ]
+        requests = [Selection(source_case_id=case_id) for case_id in available if case_id in chosen_ids]
     # Check the identity before copying potentially large inputs.
     TypeAdapter(Text).validate_python(benchmark_id)
     receipt: dict[str, JsonValue] = {
@@ -184,73 +227,15 @@ def generate_experiment(
     if agent_settings:
         receipt["agent_settings_sha256"] = input_digest(agent_settings)
     output.parent.mkdir(parents=True, exist_ok=True)
-    counts = dict(cases=len(requests), agents=0, tasks=0, subsets=0, trials=0)
     with tempfile.TemporaryDirectory(prefix=".experiment-", dir=output.parent) as temporary:
         stage = Path(temporary) / "bundle"
         stage.mkdir()
-        definitions: list[CaseDefinition] = []
-        case_settings: dict[str, CaseAnalysis] = {}
-        for index, request in enumerate(requests):
-            case = loaded.inputs.case(request.source_case_id).case
-            mutants = _selected(request.mutant_ids, [agent.agent_bundle_id for agent in case.mutants], "mutant IDs")
-            task_ids = _selected(request.task_ids, [task.task_id for task in case.task_inventory.tasks], "task IDs")
-            agents = AgentManifest(
-                baseline=_copy_agent(case.baseline, source, stage, overrides),
-                mutants=[
-                    _copy_agent(agent, source, stage, overrides)
-                    for agent in case.mutants
-                    if agent.agent_bundle_id in mutants
-                ],
-            )
-            tasks = []
-            for task in case.task_inventory.tasks:
-                if task.task_id in task_ids:
-                    ref = _copy_input(source, stage, case.task_sources[task.task_id])
-                    tasks.append(TaskSource(**task.model_dump(), path=ref.path, sha256=ref.sha256))
-            manifest = TaskManifest(tasks=tasks)
-            subsets = (
-                loaded.load_subsets(request.source_case_id)
-                if request.subsets == "parent"
-                else Subsets(
-                    sampling_parameters={"method": "explicit frozen selection"},
-                    eval_subsets=request.subsets,
-                )
-            )
-            subsets.resolve_tasks(manifest.task_inventory)
-            loaded.load_description(request.source_case_id)
-            settings = loaded.settings.case_settings[request.source_case_id]
-            description = _copy_input(source, stage, settings.description)
-            directory = stage / "manifests" / f"case-{index:04d}"
-            directory.mkdir(parents=True)
-            _write_yaml(directory / "agents.yml", agents)
-            _write_yaml(directory / "tasks.yml", manifest)
-            if request.subsets == "parent":
-                shutil.copy2(settings.subsets.resolve(source), directory / "subsets.json")
-            else:
-                write_json(directory / "subsets.json", subsets)
-            definitions.append(
-                CaseDefinition(
-                    case_id=request.case_id,
-                    agent=_pin(directory / "agents.yml", stage),
-                    tasks=_pin(directory / "tasks.yml", stage),
-                )
-            )
-            case_settings[request.case_id] = CaseAnalysis(
-                description=description, subsets=_pin(directory / "subsets.json", stage)
-            )
-            for agent in [agents.baseline, *agents.mutants]:
-                agent_config(agent, stage)
-            counts["agents"] += 1 + len(agents.mutants)
-            counts["tasks"] += len(tasks)
-            counts["subsets"] += len(subsets.eval_subsets)
-            counts["trials"] += (1 + len(agents.mutants)) * len(tasks)
-        settings = loaded.settings.model_copy(deep=True, update={"case_settings": case_settings})
-        if coverage_author is not None:
-            receipt["coverage_author"] = _snapshot_author(settings, coverage_author, stage, output).model_dump(
-                mode="json"
-            )
+        staged_cases = [_stage_case(request, index, loaded, stage, overrides) for index, request in enumerate(requests)]
+        definitions = [case.definition for case in staged_cases]
+        case_settings = {case.definition.case_id: case.analysis for case in staged_cases}
+        analysis_settings = loaded.settings.model_copy(deep=True, update={"case_settings": case_settings})
         _write_yaml(stage / "cases.yml", definitions)
-        _write_yaml(stage / "analysis.yml", settings)
+        _write_yaml(stage / "analysis.yml", analysis_settings)
         _write_yaml(stage / "execution.yml", execution_settings)
         _write_yaml(
             stage / "experiment.yml",
@@ -267,4 +252,11 @@ def generate_experiment(
         if output.exists():
             raise ValueError("output appeared during generation; use a new directory")
         stage.rename(output)
-    return GenerationSummary(experiment=str(output / "experiment.yml"), **counts)
+    return GenerationSummary(
+        experiment=str(output / "experiment.yml"),
+        cases=len(staged_cases),
+        agents=sum(case.agents for case in staged_cases),
+        tasks=sum(case.tasks for case in staged_cases),
+        subsets=sum(case.subsets for case in staged_cases),
+        trials=sum(case.agents * case.tasks for case in staged_cases),
+    )
