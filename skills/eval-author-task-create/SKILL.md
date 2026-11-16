@@ -142,7 +142,7 @@ path is not permission to include another corpus. Ask about an unresolved source
 before searching or reading it. Proposal-only work can use the available reviewed
 findings without requiring new traces or a creation-scope checkpoint.
 
-When available, read the **Audit coverage report** (`.eval-author/audit-coverage-report.md`)
+When available, read the **Audit coverage report** ([its location](../eval-author-audit/references/coverage-report.md#artifact-names))
 for test mappings, findings, limitations, and agreed next actions. Check its applicability
 against the underlying specification and reports; a mapped test does not establish
 measured coverage. The Markdown report supplies context, while measurement JSON
@@ -151,7 +151,7 @@ absence alone does not require repeating an otherwise usable audit.
 
 Keep the audit's [artifact names](../eval-author-audit/references/coverage-report.md#artifact-names)
 in proposal replies and links: Audit specification (`audit.md`), Audit coverage
-report (`audit-coverage-report.md`), and Coverage measurements (JSON)
+report (`report_markdown/audits.md`), and Coverage measurements (JSON)
 (`audit-coverage-report.json`). Review status does not change these names.
 
 Read available aggregate measurements, relevant per-trace `details.json` and

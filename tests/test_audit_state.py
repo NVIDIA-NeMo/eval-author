@@ -61,7 +61,7 @@ def measured(audit):
         "evidence": [artifact],
         "source": "Measurement and native report verification completed for every selected input and method",
     }
-    report = {"path": ".eval-author/audit-coverage-report.md", "digest": audit.fingerprint("findings")}
+    report = {"path": ".eval-author/report_markdown/audits.md", "digest": audit.fingerprint("findings")}
     value["findings"] = {"report": report, "source": "Presented strengths, gaps, and limits"}
     observed["files"].update({ref["path"]: ref["digest"] for ref in (artifact, report)})
     return state, value, observed
@@ -542,7 +542,7 @@ def test_task_review_finishes_without_traces_or_deferred_measurement(audit):
         "digest": audit.derive(state, observed)["checks_digest"],
         "source": "User approved task-review checks",
     }
-    report = {"path": ".eval-author/audit-coverage-report.md", "digest": audit.fingerprint("Task findings")}
+    report = {"path": ".eval-author/report_markdown/audits.md", "digest": audit.fingerprint("Task findings")}
     value["findings"] = {"report": report, "source": "Presented inspected task findings"}
     observed["files"][report["path"]] = report["digest"]
     # The preliminary checks report is recorded as findings, so approving the checks cannot finish the audit.
@@ -666,7 +666,7 @@ def test_saved_audit_without_mode_defaults_to_unmeasured_task_review(audit):
 def test_finalization_is_bound_to_the_current_findings_report(audit):
     state, value, observed = task_review(audit)
     value["checks_approval"] = {"digest": audit.derive(state, observed)["checks_digest"], "source": "User approval"}
-    report = {"path": ".eval-author/audit-coverage-report.md", "digest": audit.fingerprint("Checks report")}
+    report = {"path": ".eval-author/report_markdown/audits.md", "digest": audit.fingerprint("Checks report")}
     value["findings"] = {"report": report, "source": "Presented the checks"}
     observed["files"][report["path"]] = report["digest"]
     value["findings_final"] = {"digest": report["digest"], "source": "Finished the task analysis"}

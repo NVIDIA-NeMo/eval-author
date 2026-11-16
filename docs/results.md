@@ -20,16 +20,35 @@ and [provenance demo](determinism-checks.md#provenance-demo) for commands.
 
 ## Case and run catalog
 
-The case and run catalog can be found in `.eval-author/report.html` and the
-`.eval-author/README.md` which is a lighter weight version for agents and humans
-who prefer markdown. These catalogs provide provide a high level overview of tasks
-and runs, and link to the corresponding assets on disc, as well as provide links
-to the Harbor viewer for Harbor generated tasks.
+Open `.eval-author/report.html` in a browser. It is a single offline file with
+four tabs:
 
-To refresh the catalog, ask: “Use Eval Author to refresh the HTML report for evaluations in
-this repository.” The report is saved at `.eval-author/report.html`, with Tasks,
-Runs, and viewer Settings. The same command maintains the task and run tables inside a m
-arked section of `.eval-author/README.md`.
+- **Tasks** lists every task with its status, the behavior it tests, its expected
+  outcome, and its verifier. A summary above the table counts **Proposed**,
+  **Draft**, **Accepted**, and **Unknown** tasks. Open a task's README, or its
+  Harbor task viewer where available.
+- **Runs** lists each evaluation job with its role, completion, and combined reward.
+- **Audit** shows the latest [audit coverage report](#coverage-audits). Task names
+  in the audit open their rows in Tasks, and run evidence opens Runs.
+- **Settings** sets the Harbor viewer addresses.
+
+`.eval-author/README.md` introduces the suite: its contents, what each tab
+helps you decide, and links to every report. The Harbor task and job viewers each
+serve one folder at a time, so if your tasks or jobs span several folders, start a
+viewer on one folder and change its address in **Settings** before moving to the
+next. The same content is in Markdown under
+`.eval-author/report_markdown/` for agents and reviews: `tasks.md`, `runs.md`,
+and `audits.md`. Point a coding agent at these files when it needs to work with
+the suite's tasks, runs, or audit findings.
+
+To refresh the report, ask: “Use Eval Author to refresh the HTML report for evaluations in
+this repository.” Eval Author also refreshes it after authoring, runs, and audits.
+Refresh rewrites `report.html`, `tasks.md`, `runs.md`, and the generated section of
+`.eval-author/README.md` between its `BEGIN EVAL AUTHOR REPORT` and
+`END EVAL AUTHOR REPORT` markers. Your own README content outside the markers is
+kept. Suites created before this layout had their task and run tables inside the
+README; the next refresh replaces them with the introduction, and the tables move
+to `tasks.md` and `runs.md`. No action is needed.
 
 See the [Report generation](../skills/eval-author/references/suite-readme.md#report-generation)
 for selected roots, metadata, and CLI usage. The report reads existing artifacts;
@@ -95,7 +114,7 @@ item rerun commands, and known execution blockers.
 
 ## First evaluations
 
-The HTML report and Markdown catalog show proposed, authored, validated, and
+The HTML report and `report_markdown/tasks.md` show proposed, authored, validated, and
 executed task totals for your full saved plan. Use the
 [generated case review guide](#review-generated-cases) to inspect cases and their
 available evidence.
@@ -108,7 +127,7 @@ outcomes. See [Build your first evaluations](first-evals.md).
 
 ## Open readable cases and traces
 
-Start with the html report or the README.md for artifact paths and commands. Harbor
+Start with the HTML report or `.eval-author/README.md` for artifact paths and commands. Harbor
 tasks and recorded jobs use its native local viewer. Report links target the
 Harbor 0.24.0 viewer; refresh the report after upgrading to regenerate trial links.
 For NeMo Gym JSONL and ATIF, MLflow, or NeMo Gym traces, Eval Author includes an
@@ -138,13 +157,15 @@ and adds coverage analysis from selected recorded runs. See
 [Audit coverage](existing-evals.md#audit-coverage) for the initial choice and
 token tradeoff.
 
-The Audit coverage report is the only document you review; other outputs support
+The Audit coverage report is the only document you review. Read it in the
+**Audit** tab of `.eval-author/report.html`, where task names link to the Tasks
+tab and run evidence to the Runs tab, or as Markdown. Other outputs support
 internal validation, measurement, and saved progress:
 
 | Artifact | File | Role |
 | --- | --- | --- |
 | **Audit specification (internal)** | `.eval-author/audit.md` | Intended checks and evidence requirements |
-| **Audit coverage report** | `.eval-author/audit-coverage-report.md` | Readable scope, test mappings, findings, limits, and next actions |
+| **Audit coverage report** | `.eval-author/report_markdown/audits.md`, and the **Audit** tab of `.eval-author/report.html` | Readable scope, test mappings, findings, limits, and next actions |
 | **Coverage measurements (internal JSON)** | `.eval-author/audit-coverage-report.json` | Generated measured results aggregated over the selected runs, when available |
 | **Report content (internal)** | `.eval-author/.working/audit/report-content.json` | Saved report text and evidence references |
 | **Journey state (internal)** | `.eval-author/.working/journey-state.json` | Saved scope and review decisions, partial progress, pending questions, and next action |
@@ -162,14 +183,24 @@ audit's coverage criteria.
 
 The report opens with a Summary (including an ADVISORY when verifier cheating is
 confirmed and the Evaluation coverage table), then Key findings. Recommended
-next actions is a single list, highest priority first, that names each finding or
-advisory, the capabilities and tools it involves, and the proposed task.
+next actions is a single table, highest priority first, with **Priority**,
+**Finding / Advisory**, **Affected coverage** (the tool, capability, or failure
+case involved), and **Description** columns; the description gives the action and
+the proposed task.
 The Coverage report maps each audit item to its tasks and run evidence, followed by the task
 catalog, verifier cheat screening, scope and execution evidence, and
 definitions.
 
 The audit report is generated. Ask Eval Author to revise and regenerate it when
-you need changes. Direct Markdown edits block refresh.
+you need changes. Editing the generated audit Markdown blocks audit regeneration
+until the edits are resolved. HTML refresh continues to display the edited report,
+and the Audit tab marks it as edited. Each regeneration also refreshes `report.html`
+and the Markdown reports.
+
+Audits saved before this layout are at `.eval-author/audit-coverage-report.md`.
+The Audit tab shows such a report, labeled with its old location, until the next
+audit. That audit writes `report_markdown/audits.md` and removes the old file if it
+was not edited; an edited or handwritten old report stays where it is.
 
 Older manually written reports remain readable. Ask for conversion before
 regenerating one. Conversion preserves the original report and historical

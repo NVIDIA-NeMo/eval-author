@@ -97,9 +97,10 @@ NO_REMAINING_TASKS = "No additional tasks agreed."
 FIRST_REVIEW_INTRO = (
     "Your first task, **{task_id}**, is ready for review. It follows your approved design and confirmed `ETHOS.md`."
 )
-FIRST_REVIEW_ACTION = "Review your first task in the {report} or {readme}."
+FIRST_REVIEW_ACTION = "Review your first task in the {report} or the {markdown}."
 FIRST_REVIEW_REPORT_LABEL = "HTML report’s Tasks view"
-FIRST_REVIEW_README_LABEL = "mirrored README"
+FIRST_REVIEW_README_LABEL = "suite README"
+FIRST_REVIEW_MARKDOWN_LABEL = "Markdown task report"
 FIRST_QUESTION = (
     "Does this represent the behavior you want to test, and would its verifier assess the agent fairly? "
     "Approve the first task or tell me what to change before I build the remaining tasks."
@@ -113,7 +114,7 @@ SUITE_REVIEW_INTRO = (
     "Your evaluation suite is ready for review: {tasks} tasks; {examples} distinct input examples. "
     "It follows your approved design and confirmed `ETHOS.md`."
 )
-SUITE_REVIEW_ACTION = "Review your tasks in the {report} or {readme}."
+SUITE_REVIEW_ACTION = "Review your tasks in the {report} or the {markdown}."
 SUITE_REVIEW_TABLE = TASK_TABLE
 SUITE_REVIEW_STATUS = (
     "**Status:** Environment proof: {environments}/{tasks} passed. Verifier validation: {validated}/{tasks} passed. "
@@ -193,7 +194,7 @@ INCOMPLETE_EXECUTION_BLOCKER = (
 )
 SUITE_REVIEW_BLOCKER = (
     "- **Review the suite:** Current suite approval has not been recorded. "
-    "**Needed:** Review the authored tasks in the HTML report or mirrored README, then approve the suite or request changes."
+    "**Needed:** Review the authored tasks in the HTML report or the Markdown task report, then approve the suite or request changes."
 )
 JOB_ERRORS = (
     "Retained jobs with execution errors: {runs}. Successful attempts from these jobs count only where their "
@@ -214,8 +215,9 @@ ATTEMPT_EVIDENCE = "Attempt evidence: {links}"
 LIMITATIONS = "Limitations: {limitations}"
 RERUN = "You can rerun the full suite or just this task using the **{instructions}**."
 RESULTS_REPORT_LABEL = "HTML report"
+RESULTS_MARKDOWN_LABEL = "Markdown runs report"
 RESULTS_REVIEW = (
-    "Review your runs in the {report} (**Runs**) or the {readme}. "
+    "Review your runs in the {report} (**Runs**) or the {markdown}. "
     "Follow the linked evidence to inspect each attempt’s recorded responses or actions and grade."
 )
 GYM_RESULTS_REVIEW = (
@@ -272,6 +274,8 @@ Return here with those paths and results so I can recheck the connection and res
 LINK_LABELS = {
     "report": "the report",
     "readme": "the suite README",
+    "tasks_markdown": "the Markdown task report",
+    "runs_markdown": "the Markdown runs report",
     "tasks_view": "Tasks view",
     "task_readme": "task README",
     "rerun": "saved run instructions",

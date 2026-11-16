@@ -3,7 +3,7 @@
 
 # Write the Audit coverage report, section by section
 
-The renderer builds `audit-coverage-report.md` from `report-content.json`. You
+The renderer builds `report_markdown/audits.md` from `report-content.json`. You
 write only the fields named in this guide. Headings, counts, coverage
 statements, tables, evidence citations, links, numbering, and definitions are
 computed or come from fixed copy in `scripts/audit_spec/report_layout.py`.
@@ -35,6 +35,7 @@ renderer writes and, where the section has any, the fields you author, with an e
 - Never write HTML.
 - Evidence links come from each record's `evidence` source IDs.
 - `audit.md` and `ETHOS.md` are linked only in Scope and Execution Evidence. Other source files, such as grading scripts and run records, are linked only in the evidence citation that ends a finding or advisory. Don't name any of them anywhere else.
+- Never bind a generated suite report as a source: `.eval-author/README.md`, `report.html`, `report_markdown/*`, or the legacy `audit-coverage-report.md`. Publishing the audit rewrites them, so their digests would go stale and validation would fail with `source_binding`. Content validation refuses them (`source_binding`, "cannot be source evidence"). Cite the underlying tasks, runs, receipts, or measurements, and state findings in `report-content.json`.
 - List evidence sources freely in `evidence`. The citation drops the finding's own tasks, `audit.md`, and `ETHOS.md`, and shows each file name once. With nothing left to cite, it states the finding's status without a source.
 - Refer to coverage items by their description, such as "Answer with exact quotations", not by a link to the audit specification.
 - Name a file or path in plain text only when the reader needs it to understand the issue, such as `/logs/agent/reward.txt`.
@@ -200,16 +201,17 @@ say why the gap matters.
 
 ## Recommended next actions
 
-**The renderer writes:** one flat list with an item for every recommendation, with
-no grouping by capability, tool, or failure case. Items are ordered by `priority`
-(high, medium, low), and `order` breaks ties. Each item shows its priority, a link
-to its advisory or finding, every capability, tool, or failure case it involves
-(or "no mapped capability or tool"), and the action followed by your
-`proposed_task`. A revise-task item also links the task it revises. When a
-recommendation has `details`, three nested lines follow: Verification, Breadth, and
-Next step, plus a link to each affected task's README Verifier section when one
-exists. A finding or item without a recommendation appears elsewhere in the report
-with no suggestion.
+**The renderer writes:** one table with a row for every recommendation, with no
+grouping by capability, tool, or failure case. Rows are ordered by `priority`
+(high, medium, low), and `order` breaks ties. The columns are Priority (the
+recommendation priority), Finding / Advisory (a link to the advisory or finding), Affected
+coverage (every capability, tool, or failure case the row involves, or "no mapped
+capability or tool"), and Description (the action followed by your `proposed_task`).
+A revise-task row also links the task it revises. When a recommendation has
+`details`, the same Description cell continues with Verification, Breadth, and Next
+step, plus a link to each affected task's README Verifier section when one exists.
+A finding or item without a recommendation appears elsewhere in the report with no
+suggestion.
 
 **You author:** `proposed_task`. Write one or two imperative sentences: the
 scenario or change, then what the verifier must require or reject. Leave it
