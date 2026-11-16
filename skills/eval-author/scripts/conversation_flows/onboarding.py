@@ -429,9 +429,7 @@ def render(payload: dict) -> str:
         raise ValueError("Use audit_resume for saved audit checkpoints after shared onboarding is complete")
     expansion = expansion_state.record(state) if state["journey"] == "expand" else None
     if expansion is not None and not state_only:
-        if all(row["complete"] for row in journey_state.checklist(state)[:2]) and not journey_state.active_blockers(
-            state
-        ):
+        if expansion_state.entry_ready(state):
             raise ValueError(
                 "Use expansion_continue for saved expansion checkpoints after shared onboarding is complete"
             )

@@ -91,6 +91,12 @@ under `scopes.expand.lifecycle`; existing audit handoff, legacy context, and
 other scope fields remain available alongside it. No additional state file is
 introduced.
 
+Saved intent questions block entry even if older state marks Ethos complete.
+Reopen `ethos.stage: review` through a revision-checked update, save the actual
+unresolved intent question and `next_handoff: ethos-orchestrate`, then use shared
+Ethos recovery. Retain the expansion lifecycle and audit handoff while those
+questions are resolved; confirming the unchanged document restores its entry.
+
 After inspecting the request and retained context, create the entry record with
 `expansion_state.new_record(state, question=..., source=...)`. The question is
 the actual unresolved entry decision, and its source identifies the request or

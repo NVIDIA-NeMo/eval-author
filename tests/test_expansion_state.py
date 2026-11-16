@@ -437,6 +437,96 @@ def test_ethos_confirmation_keeps_unresolved_intent_question(modules, tmp_path):
     assert renderer.render(payload(modules, confirmed)) == renderer.render(payload(modules, saved))
 
 
+def test_unresolved_saved_intent_blocks_entry_adoption_without_writes(modules, tmp_path):
+    state, expansion, _ = modules
+    setup_ready(state, tmp_path, journey="expand")
+    ethos_ready(state, tmp_path)
+    saved = state.update(tmp_path, {"ethos": {"remaining_questions": ["Which actions require approval?"]}})
+    assert saved["ethos"]["stage"] == "complete"
+    value = expansion.new_record(saved, question="Which supported addition?", source="User entry request")
+    before = state.state_path(tmp_path).read_bytes()
+    with pytest.raises(ValueError, match="Expansion entry requires"):
+        state.update(
+            tmp_path,
+            {"scopes": {"expand": {"lifecycle": value}}, "pending_question": value["pending"]["question"]},
+            expected_revision=saved["revision"],
+        )
+    assert state.state_path(tmp_path).read_bytes() == before
+    assert expansion.record(state.load_state(tmp_path)) is None
+
+
+@pytest.mark.parametrize("clear_pending", [False, True])
+def test_unresolved_saved_intent_blocks_entry_continuation_and_restoration(modules, tmp_path, clear_pending):
+    state, expansion, renderer = modules
+    saved = start(modules, tmp_path, handoff=True)
+    patch = {"ethos": {"remaining_questions": ["Which account recovery actions require approval?"]}}
+    if clear_pending:
+        patch["pending_question"] = None
+    updated = state.update(tmp_path, patch, expected_revision=saved["revision"])
+    before = state.state_path(tmp_path).read_bytes()
+    current = state.load_state(tmp_path)
+    assert current["ethos"]["stage"] == "complete"
+    assert current["pending_question"] == (None if clear_pending else saved["pending_question"])
+    assert current["scopes"]["expand"] == saved["scopes"]["expand"]
+    assert not expansion.entry_ready(current)
+    with pytest.raises(ValueError, match="Resolve shared prerequisites, intent questions, and saved blockers"):
+        renderer.render(payload(modules, current))
+    with pytest.raises(ValueError, match="Resolve the saved intent questions"):
+        renderer.render({"stage": "resume", "state": current, "revision": updated["revision"]})
+    assert state.state_path(tmp_path).read_bytes() == before
+
+
+def test_unresolved_saved_intent_recovers_before_retained_entry(modules, tmp_path):
+    state, expansion, renderer = modules
+    saved = start(modules, tmp_path, handoff=True)
+    scope = copy.deepcopy(saved["scopes"]["expand"])
+    question = "Which account recovery actions require approval?"
+    unresolved = state.update(
+        tmp_path,
+        {"ethos": {"remaining_questions": [question]}, "pending_question": None},
+        expected_revision=saved["revision"],
+    )
+    review = state.update(
+        tmp_path,
+        {"ethos": {"stage": "review"}, "pending_question": question, "next_handoff": "ethos-orchestrate"},
+        expected_revision=unresolved["revision"],
+    )
+    resumed = state.load_state(tmp_path)
+    assert resumed["pending_question"] == question
+    assert resumed["scopes"]["expand"] == scope
+    output = renderer.render(
+        {
+            "stage": "resume",
+            "state": resumed,
+            "revision": review["revision"],
+            "facts": {
+                "ethos": {
+                    "status": "existing",
+                    "link": str(tmp_path / "ETHOS.md"),
+                    "summary": "The saved document describes the agent's intended behavior.",
+                }
+            },
+        }
+    )
+    assert question in output
+    assert expansion.record(saved)["pending"]["question"] not in output
+    resolved = state.update(
+        tmp_path,
+        {"ethos": {"remaining_questions": []}},
+        expected_revision=review["revision"],
+    )
+    confirmed = state.confirm_ethos(
+        tmp_path,
+        reviewed_digest=state.ethos_digest(tmp_path),
+        source="User resolved the saved intent question and confirms the document",
+        validation="Saved-file validation passed",
+        expected_revision=resolved["revision"],
+    )
+    assert confirmed["scopes"]["expand"] == scope
+    assert confirmed["pending_question"] == expansion.record(saved)["pending"]["question"]
+    assert renderer.render(payload(modules, confirmed)) == renderer.render(payload(modules, saved))
+
+
 @pytest.mark.parametrize("change", ["ethos", "handoff"])
 def test_ethos_confirmation_does_not_resume_stale_entry(modules, tmp_path, change):
     state, expansion, renderer = modules

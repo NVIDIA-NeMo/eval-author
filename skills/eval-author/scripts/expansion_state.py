@@ -95,6 +95,7 @@ def entry_ready(state: dict) -> bool:
 
     return (
         state["journey"] == "expand"
+        and not state["ethos"]["remaining_questions"]
         and not active_blockers(state)
         and all(row["complete"] for row in checklist(state)[:2])
     )
