@@ -132,6 +132,32 @@ didn't intend it. No match doesn't establish the task is free of leakage:
 paraphrases, image contents, and answers computable from public inputs stay
 unchecked.
 
+## Development and test overlap
+
+`overlap` is `{"splits": {<name>: [<task directory>, ...]}, "required": [<name>,
+...]}`. `required` names at least two splits a complete check needs, such as
+`development` and `test`. A required split that isn't declared is
+`overlap.split_missing` (unknown), never an empty clean split. Take split
+membership from the suite's own dataset configs or manifests; don't infer it
+from directory names.
+
+Every pair of tasks in different splits is compared:
+
+- `duplicate`: the same directory (`same-directory`), identical `instruction.md`
+  bytes (`exact-instruction`), or identical text after collapsing whitespace and
+  lowercasing (`normalized-instruction`).
+- `sibling`: different tasks with the same repository and commit
+  (`repository-commit`), read from `task.toml` `[metadata]` keys such as `repo`
+  and `base_commit`, or else from `git clone` and `git checkout` lines in the
+  environment's Dockerfile.
+
+Either finding is a fail. A task outside the Harbor layout or with an unreadable
+instruction is unknown. Each split reports how many tasks were declared,
+compared, and had a recoverable origin; a task without an origin can't be
+checked for siblings. Findings name tasks, never their content. Paraphrased
+duplicates, siblings with other kinds of shared origin, and model-training
+contamination are not checked.
+
 ## Construction authority references
 
 `authority` is `{"plan_artifact_id": <id>}` naming one selected construction plan
