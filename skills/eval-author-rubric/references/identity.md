@@ -102,6 +102,36 @@ that names `tests` or `solution` is `layout.private_path_in_environment`
 (unknown), a candidate for review. The labels describe the layout, not a tested
 runtime boundary or whether a public file contains an answer.
 
+## Internal answer leakage
+
+`leakage` is `{"task": <task directory>, "allowed_overlap": [...]}`. It uses the
+Harbor task layout labels above and compares every readable private
+file with every readable public file. Each finding records `kind`, `method`,
+`private` and `public` paths, the public `lines` range, and whether declared
+overlap allows it. Findings never contain the matched content.
+
+- `full`: the whole private file appears in a public file, by `exact`,
+  `normalized` (whitespace collapsed, lowercased), or `json-canonical` (sorted
+  keys) comparison. An unallowed full match is `leakage.full` (fail).
+- `hint`: part of a private file appears, as a `normalized-line` of at least 24
+  characters or a `json-value` of at least 6. An unallowed hint is
+  `leakage.hint` (unknown).
+- `reference`: `instruction.md` names a private file's task path, a distinctive
+  file name, or a `test_` function from a private Python file. It is
+  `leakage.reference` (unknown).
+
+Each `allowed_overlap` entry is `{"private", "public", "reason"}` with paths
+relative to the task directory. Use it only for content the task intends the
+agent to see, such as the input a task asks the agent to transform. When a
+`reconstruction` measurement declares a public file `generated`, overlap with
+it is never allowed: `leakage.generated_overlap_not_allowed` (fail).
+
+Non-UTF-8 files are listed in `unscanned` (`leakage.unscanned_files`, unknown).
+A match shows shared text, not that the agent can use it or that the author
+didn't intend it. No match doesn't establish the task is free of leakage:
+paraphrases, image contents, and answers computable from public inputs stay
+unchecked.
+
 ## Construction authority references
 
 `authority` is `{"plan_artifact_id": <id>}` naming one selected construction plan

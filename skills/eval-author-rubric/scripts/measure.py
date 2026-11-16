@@ -18,6 +18,7 @@ from rubric_ethos import check_ethos  # noqa: E402
 from rubric_freshness import check_freshness  # noqa: E402
 from rubric_identity import compare_config, finish, identify, read_selected, resolve_route, text  # noqa: E402
 from rubric_layout import label_task  # noqa: E402
+from rubric_leakage import scan_task  # noqa: E402
 from rubric_links import check_approvals, check_links, check_sourced_approvals  # noqa: E402
 from rubric_native import project_native  # noqa: E402
 from rubric_reconstruction import project_reconstruction  # noqa: E402
@@ -86,6 +87,8 @@ def measure(root, selection, ethos_validator=None):
         measurements["authority"] = check_authority(root, artifacts, selection["authority"])
     if "layout" in selection:
         measurements["layout"] = label_task(root, selection["layout"])
+    if "leakage" in selection:
+        measurements["leakage"] = scan_task(root, selection["leakage"], measurements.get("reconstruction"))
     if "native" in selection:
         selected_native = selection["native"]
         if not isinstance(selected_native, dict) or set(selected_native) != {
