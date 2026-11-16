@@ -25,6 +25,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import audit_state  # noqa: E402
+import expansion_state  # noqa: E402
 import first_eval_state  # noqa: E402
 from conversation_templates import CHECKLIST_LABELS, JOURNEYS  # noqa: E402
 from runtime_policy import load as runtime_policy  # noqa: E402
@@ -270,6 +271,8 @@ def validate(state: dict, *, check_size: bool = True) -> None:
         first_eval_state.validate(creation_scope["first_eval"])
     audit_scope = state["scopes"].get("audit", {})
     expansion_scope = state["scopes"].get("expand", {})
+    if isinstance(expansion_scope, dict) and "lifecycle" in expansion_scope:
+        expansion_state.validate(expansion_scope["lifecycle"])
     if isinstance(expansion_scope, dict) and "audit_handoff" in expansion_scope:
         audit_state.validate_handoff(expansion_scope["audit_handoff"])
     if isinstance(audit_scope, dict) and "mode" in audit_scope:
@@ -437,6 +440,7 @@ def load_state(repo: Path, *, state_only: bool = False) -> dict:
         creation = first_eval_state.progress(repo, state)
         if creation is not None and not creation["complete"]:
             state["journey_status"]["create"] = "in_progress"
+    expansion_state.reconcile_question(repo, state)
     return state
 
 
@@ -566,6 +570,8 @@ def checklist(state: dict, *, state_only: bool = False, audit: dict | None = Non
     completed = state["journey_status"].get(journey) == "complete" and journey not in blocked
     if journey == "audit":
         completed = bool(completed and audit and audit["complete"])
+    elif journey == "expand" and expansion_state.record(state) is not None:
+        completed = False
     elif isinstance(state["scopes"].get(journey), dict):
         completed = completed and not state["scopes"][journey].get("needs_review")
     rows = [
@@ -647,6 +653,12 @@ def view(state: dict, *, state_only: bool = False) -> dict:
     audit_checks = not state_only and state["journey"] == "audit"
     audit_observations = audit_state.observe(Path(state["repository"]), state) if audit_checks else None
     audit = audit_state.derive(state, audit_observations) if audit_observations is not None else None
+    expansion_observations = (
+        expansion_state.observe(Path(state["repository"]), state)
+        if not state_only and state["journey"] == "expand"
+        else None
+    )
+    expansion = expansion_state.derive(state, expansion_observations) if expansion_observations is not None else None
     state = audit_presentation_state(state, audit)
     if (
         creation is not None
@@ -670,6 +682,8 @@ def view(state: dict, *, state_only: bool = False) -> dict:
         "first_eval": creation,
         "audit_observations": audit_observations,
         "audit": audit,
+        "expansion_observations": expansion_observations,
+        "expansion": expansion,
     }
 
 
@@ -770,6 +784,8 @@ def initialize(
                     and scope.get("needs_review")
                 ):
                     state["journey_status"][selected] = "in_progress"
+        if not state_only:
+            expansion_state.reconcile_question(repo, state)
         save(repo, state)
         return state
 
@@ -894,6 +910,21 @@ def update(repo: Path, patch: dict, *, expected_revision: int | None = None, sta
                 raise ValueError("Retain the selected audit handoff when updating expansion scope")
             if expected_revision is None:
                 raise ValueError("Audit handoff scope updates require --expected-revision from the latest show")
+        retained_expansion = expansion_state.record(state) is not None
+        typed_expansion = isinstance(expand_patch, dict) and ("lifecycle" in expand_patch or retained_expansion)
+        expansion_status = isinstance(patch.get("journey_status"), dict) and "expand" in patch["journey_status"]
+        if retained_expansion and isinstance(scope_patch, dict) and "expand" in scope_patch:
+            if not isinstance(expand_patch, dict):
+                raise ValueError("Retain structured expansion progress when updating its scope")
+        if (
+            typed_expansion
+            or retained_expansion
+            and (expansion_status or state["journey"] == "expand" and "pending_question" in patch)
+        ):
+            if state["journey"] != "expand":
+                raise ValueError("Select the expansion journey before updating expansion progress")
+            if expected_revision is None:
+                raise ValueError("Expansion updates require --expected-revision from the latest show")
         if isinstance(expand_patch, dict) and "audit_handoff" in expand_patch:
             if expand_patch["audit_handoff"] != (
                 prior_expand.get("audit_handoff") if isinstance(prior_expand, dict) else None
@@ -946,9 +977,11 @@ def update(repo: Path, patch: dict, *, expected_revision: int | None = None, sta
                     field == "scopes"
                     and isinstance(expand_patch, dict)
                     and isinstance(prior_expand, dict)
-                    and "audit_handoff" in prior_expand
+                    and ("audit_handoff" in prior_expand or typed_expansion)
                 ):
                     changes["expand"] = {**copy.deepcopy(prior_expand), **changes["expand"]}
+                if field == "scopes" and typed_expansion and not isinstance(prior_expand, dict):
+                    changes["expand"] = {"legacy_context": copy.deepcopy(prior_expand), **changes["expand"]}
                 state[field].update(changes)
             else:
                 state[field] = copy.deepcopy(value)
@@ -991,6 +1024,7 @@ def update(repo: Path, patch: dict, *, expected_revision: int | None = None, sta
         validate(state, check_size=state_only)
         if not state_only and state["journey"] != "audit":
             first_eval_state.transition(repo, previous, state)
+            expansion_state.transition(repo, previous, state)
             creation = first_eval_state.progress(repo, state)
             if patch.get("journey_status", {}).get("create") == "complete" and creation and not creation["complete"]:
                 raise ValueError("Creation completion requires current selected native runs and their exact review")
