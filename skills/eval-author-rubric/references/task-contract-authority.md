@@ -12,9 +12,9 @@ same way to every task, whoever or whatever produced it. It has no aggregate sco
 
 The [canonical subset](task-contract-authority.json) is the single source
 for the three criterion IDs, original questions, measurements, nine checks, score
-anchors, evidence requirements, and boundaries. Criterion IDs name this area; each
-check ID adds its method. The source rubric's IDs stay in each entry's `source`
-and `source_id` fields. Look up entries by ID, never by position, and read each
+anchors, evidence requirements, and boundaries. Criterion IDs name this area.
+Each check ID adds its method. The source rubric's IDs stay in each entry's `source`
+and `source_id` fields. Look up entries by ID, never by position. Read each
 selected entry in full before assessment. Rubric-wide `policies` and the `result_template` row
 format are defined once in [the provenance subset](artifact-configuration-provenance.json);
 apply them here unchanged. Apply the result-row, check-accounting, assessment-state,
@@ -70,7 +70,7 @@ they are review notes, not a new file format.
 
 - Each check ID ends with its method. The three `.llm-judge` checks are
   `llm_as_judge`. Unless a scope-matched qualification record is supplied, record
-  your review with reviewer kind `agent`; never label it human review or a
+  your review with reviewer kind `agent`. Never label it human review or a
   qualified judge.
 - A score of 0 or 1 at E1 rests on the cited files, not on that review's verdict.
   Cite the scorer location and the solver-visible span, fixture, or source that
@@ -78,14 +78,14 @@ they are review notes, not a new file format.
   Confirming an unsupported condition requires inspecting the full declared
   solver-visible material; an incomplete search cannot establish absence.
 - Level 2 requires human adjudication of the crosswalk by the user or task owner,
-  recorded as `human_review` with its source: the `.human-review` check of
-  `task-contract.clear-contract` and `task-contract.scoring-authority`, and for
-  `task-contract.discoverable-requirements` a human decision on its `.llm-judge`
-  mapping, as the qualified alternative to the unqualified judge. Without it, an
-  agent-only crosswalk with no defect leaves the item `NOT_ASSESSED`: report its
-  measurements and name the review that would complete it.
+  recorded as `human_review` with its source. Use the `.human-review` check of
+  `task-contract.clear-contract` and `task-contract.scoring-authority`. For
+  `task-contract.discoverable-requirements`, use a human decision on its `.llm-judge`
+  mapping as the qualified alternative to the unqualified judge. Without this
+  adjudication, an agent-only crosswalk with no defect leaves the item `NOT_ASSESSED`.
+  Report its measurements and name the review that would complete it.
 - Authorized `.probe` checks through the native scorer supply the boundary and
-  blind-discovery evidence for the level-3 anchors; they do not replace level-2
+  blind-discovery evidence for the level-3 anchors. They do not replace level-2
   adjudication. Level 3 also requires independent corroboration.
 - The `.deterministic` checks of `task-contract.discoverable-requirements` and
   `task-contract.scoring-authority` count crosswalk rows by status against all

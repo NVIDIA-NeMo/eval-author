@@ -643,7 +643,7 @@ def run(output: Path, *, verify: bool = False) -> dict[str, Any]:
         "native_execution": "NOT_RUN",
         "limitations": [
             "Synthetic scores NEVER qualify a task.",
-            "Human judgments, native controls, independence and solver performance were not executed.",
+            "This demo does not perform human judgments, run native controls, establish independence or measure solver performance.",
         ],
         "engine": "actual-measure.py-cli",
         "criterion_count": len(VECTORS),

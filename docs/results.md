@@ -14,10 +14,10 @@ observations use `retained_credit`, `retained_credit_controls`, and `coverage` t
 identify their consumers. The provenance panel uses `rubric-provenance-demo-v2`
 with `rubric-provenance-expectations-v1` expectations.
 Criterion IDs name their area, such as `provenance.grading-path` or
-`task-contract.scoring-authority`, and each check ID adds its method, such as
+`task-contract.scoring-authority`. Each check ID adds its method, such as
 `.deterministic-1` or `.llm-judge`. Result rows and check results keep the source
-rubric's IDs in `source` and `source_id`; `skill_id` is no longer filled from the
-source rubric.
+rubric's IDs in `source` and `source_id`. The `skill_id` field is no longer filled
+from the source rubric.
 Rubric definitions use `4.1-draft`, measurement reports use
 `rubric-measurements-v3`, and identity mutation panels use
 `rubric-mutation-panel-v4`. The overall showcase, criterion scoring demo and task

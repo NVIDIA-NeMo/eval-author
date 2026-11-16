@@ -413,12 +413,12 @@ def collect(output):
         "# Task contract and Ethos local demonstration\n\n"
         + panel["scope"]
         + ". No human adjudication, model, native or container execution.\n\n"
-        + "Static crosswalks are authored, not emitted rubric scores. "
-        + "The clean neighbor is not human-approved; null scores are not a clean bill of health.\n\n"
-        + "Ethos structure uses the installed ethos-write validator. Owner confirmation: NOT_RUN. "
-        + "The owning skills/eval-author/scripts/journey_state.py validates saved-byte confirmation; "
-        + "no reviewed user turn is supplied, and no confirmation or journey-state approval is fabricated. "
-        + "Structure usability is not usable owner authority.\n\n"
+        + "The static crosswalks contain authored inspections, not emitted rubric scores. "
+        + "The clean neighbor is not human-approved. An Unassessed score does not establish that a task is free of defects.\n\n"
+        + "The installed ethos-write validator checks Ethos structure. Owner confirmation: NOT_RUN. "
+        + "The owning skills/eval-author/scripts/journey_state.py validates saved-byte confirmation. "
+        + "This demo supplies no reviewed user turn. It creates no confirmation or journey-state approval. "
+        + "Usable structure does not establish owner authority.\n\n"
         + "Criteria: "
         + "; ".join(f"{item['title']} (`{item['id']}`)" for item in canonical["items"])
         + ".\n\n"
@@ -427,7 +427,7 @@ def collect(output):
             + "; ".join(
                 f"{titles[criterion]}="
                 + (
-                    "null"
+                    "Unassessed"
                     if case["rubric_scores"][criterion] is None
                     else f"{case['rubric_scores'][criterion]}/{case['observed']['evidence_strengths'][criterion]}"
                 )

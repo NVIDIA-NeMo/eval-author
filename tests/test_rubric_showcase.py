@@ -222,7 +222,7 @@ def test_showcase_cli_reads_emitted_scores_and_keeps_boundaries(showcase_output)
     page = (output / "index.html").read_text()
     assert "Unassessed" in page
     assert "Independent held-out" in page
-    assert "Fixture execution" in page
+    assert "The fixture demo runs" in page
     assert "Canonical rubric" in page
     assert "receipt_consistency" in page
     assert "scorer/rubric-reviewed.json" in page

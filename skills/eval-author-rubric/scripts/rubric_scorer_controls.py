@@ -261,8 +261,7 @@ def assess_controls(measurements, selection, root):
     )
     trust = rows["AC-03"]
     trust["remaining_gaps"] = [
-        "No criterion-specific producer/consumer ownership review establishes the AC-03 partial anchor; "
-        "passing event-level controls alone do not establish native result-consumer protection.",
+        "No criterion-specific producer/consumer ownership review establishes the AC-03 partial anchor. Passing event-level controls alone do not establish native result-consumer protection.",
         *gaps,
     ]
     trust["finding_ids"] = []

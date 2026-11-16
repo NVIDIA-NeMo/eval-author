@@ -170,10 +170,10 @@ def test_markdown_distinguishes_emitted_scores_from_authored_crosswalk(tmp_path)
     panel = json.loads(result.stdout)
     assert "frozen supported source shapes only" in panel["scope"]
     markdown = (output / "report.md").read_text()
-    assert "Static crosswalks are authored, not emitted rubric scores" in markdown
+    assert "The static crosswalks contain authored inspections, not emitted rubric scores" in markdown
     assert "Discoverable grading requirements=0/E1" in markdown
     assert (
-        "Clear task contract=null; Discoverable grading requirements=null; Correctness and scoring authority=null"
+        "Clear task contract=Unassessed; Discoverable grading requirements=Unassessed; Correctness and scoring authority=Unassessed"
         in markdown
     )
     for criterion in CRITERIA:

@@ -246,7 +246,7 @@ def assess_contract_controls(root, selection):
             {"artifact_id": manifest["instruction_id"], "destination": "public instruction"},
             {"artifact_id": manifest["test_data_id"], "destination": copies[0][2]},
         ],
-        "inventory_scope": "Complete declared task COPY inventory plus public instruction; not a native image inspection.",
+        "inventory_scope": "The inspection covers the complete declared task COPY inventory and public instruction. It does not inspect a native image.",
         "expected_total": expected_total,
         "fixture_total": fixture_total,
         "summary_expected": summary_expected,
@@ -255,12 +255,9 @@ def assess_contract_controls(root, selection):
         "model_execution": False,
         "human_adjudication": False,
         "decision_basis": (
-            "Frozen full instruction specifies total.txt only; frozen data has only order_id/amount; "
-            "the only COPY exposes orders.csv. The scorer makes undeclared summary.json with USD "
-            "and order_count mandatory. This finite reviewed source mapping does not generalize."
+            "The frozen full instruction specifies total.txt only. The frozen data has only order_id/amount. The only COPY exposes orders.csv. The scorer requires undeclared summary.json with USD and order_count. This finite reviewed source mapping does not generalize."
             if planted
-            else "The frozen clean scorer has no summary requirement; absence of this one defect does not "
-            "establish a complete authority mapping or independently justified scoring semantics."
+            else "The frozen clean scorer has no summary requirement. The absence of this one defect does not establish a complete authority mapping or independently justified scoring semantics."
         ),
     }
     rows = {}
@@ -273,15 +270,15 @@ def assess_contract_controls(root, selection):
         ]
         if ident == "task-contract.clear-contract":
             gaps.append(
-                "Independent contract interpretations and boundary outcomes are unassessed; hidden-summary evidence is not an automatic task-contract.clear-contract score."
+                "Independent contract interpretations and boundary outcomes are unassessed. Hidden-summary evidence does not automatically establish a task-contract.clear-contract score."
             )
         elif ident == "task-contract.scoring-authority":
             gaps.append(
-                "Correctness and scoring semantics require separate authority review; no automatic task-contract.scoring-authority score."
+                "Correctness and scoring semantics require separate authority review. No task-contract.scoring-authority score is assigned automatically."
             )
         elif not planted:
             gaps.append(
-                "Removing the hidden summary is not proof of complete legitimate authority; scoring semantics and independent discovery remain unassessed."
+                "Removing the hidden summary does not prove complete legitimate authority. Scoring semantics and independent discovery remain unassessed."
             )
         checks = []
         for check in definition["checks"]:
@@ -295,7 +292,7 @@ def assess_contract_controls(root, selection):
                     "evidence_refs": list(refs.values()) if deterministic else [],
                     "remaining_gap": None
                     if deterministic
-                    else "Required review/probe not run; static source inspection is not that method.",
+                    else "The required review/probe was not run. Static source inspection does not replace that method.",
                 }
             )
         rows[ident] = {

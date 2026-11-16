@@ -54,7 +54,8 @@ corresponding measurements. Absent optional selections do not establish coverage
 These measurements have statuses and diagnostics, not numeric scores.
 Unknown top-level selection fields and unknown `rubric_scope` sections return
 `selection.invalid` (exit 2) rather than silently skipping a requested measurement.
-The supported `rubric_scope` sections are `task_artifacts` and `grading_dependencies`. The eleven canonical
+The supported `rubric_scope` sections are `task_artifacts` and `grading_dependencies`.
+The eleven canonical
 criteria consume this evidence under their own anchors; a helper passing is not
 automatically criterion acceptance. Configuration differences require interpretation;
 equality is not adequacy. Declared missing/denied access differs from a performed
@@ -83,7 +84,7 @@ The packet and its cited sources must appear in `artifacts` with their exact
 digests. The [packet contract](../scripts/rubric_evidence_scoring.py) defines
 criterion-specific inventories, JSON-pointer bindings and provenance fields.
 Unsupported IDs, malformed facts, changed sources and contradictory records fail
-closed. Selection is explicit per criterion.
+closed. Select each criterion explicitly.
 
 Recorded judgments remain `NOT_ASSESSED/E0` unless an owning measurement adapter
 establishes the required evidence. A bound JSON record does not authenticate a
@@ -98,19 +99,20 @@ synthetic scope does not promote their scores into a real assessment.
 ## Bounded task-contract source inspection
 
 The `contract_controls` selector names a digest-bound manifest through
-`{"artifact_id": "manifest"}`. Its schema is `rubric-contract-controls-v1`, with
-`instruction_id`, `dockerfile_id`, `scorer_id`, `test_data_id` and `task_config_id`
-referencing selected artifacts. The [source adapter](../scripts/rubric_contract_controls.py)
+`{"artifact_id": "manifest"}`. Its schema is `rubric-contract-controls-v1`.
+The fields `instruction_id`, `dockerfile_id`, `scorer_id`, `test_data_id` and `task_config_id`
+reference selected artifacts. The [source adapter](../scripts/rubric_contract_controls.py)
 accepts only the frozen supported order-total fixture and its clean scorer neighbor.
 Unknown or changed source shapes fail closed rather than receiving a generic
 semantic assessment.
 
-For the planted fixture, the CLI emits task-contract.discoverable-requirements = 0/E1: the supported public
-instruction and declared COPY inventory supply no authority for the scorer's
-`summary.json` requirement. This is bounded static source inspection, not native
-solver-access proof. task-contract.clear-contract and task-contract.scoring-authority remain unassessed. The clean neighbor
-also remains unassessed because removing this condition does not establish every
-contract anchor or human adjudication.
+For the planted fixture, the CLI emits task-contract.discoverable-requirements = 0/E1.
+The supported public instruction and declared COPY inventory supply no authority
+for the scorer's `summary.json` requirement. This is bounded static source inspection,
+not native solver-access proof. task-contract.clear-contract and
+task-contract.scoring-authority remain unassessed. The clean neighbor also remains
+unassessed: removing this condition does not establish every contract anchor or
+human adjudication.
 
 ## Selected Ethos structure
 

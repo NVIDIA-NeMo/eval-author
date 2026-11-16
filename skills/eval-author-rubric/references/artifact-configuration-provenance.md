@@ -15,9 +15,9 @@ not establish that integration.
 The [canonical subset](artifact-configuration-provenance.json) is the
 single source for the 11 criterion IDs, original questions, applicability,
 measurements, 38 checks, 44 score anchors, evidence requirements, and boundaries.
-Criterion IDs name this area; each check ID adds its method. The source rubric's
+Criterion IDs name this area. Each check ID adds its method. The source rubric's
 IDs stay in each entry's `source` and `source_id` fields. Look up entries by ID,
-never by position, and read each selected entry in full before assessment. Do not rewrite the source or
+never by position. Read each selected entry in full before assessment. Do not rewrite the source or
 replace distinct criteria with helper capability scores. Source code references
 and implementation-task descriptions are provenance, not proof of runnable
 integration or permission to execute them.
