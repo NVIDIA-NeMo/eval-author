@@ -45,3 +45,9 @@ See [benchmark tools](docs/tools.md) for the command guides and configuration-lo
 
 For the reusable case-example layout, see the
 [case example format](../case-examples/docs/benchmark-format.md).
+
+Directory input pins include every ordinary file, including files ignored by
+Git. On a pin mismatch, verification reports expected and actual digests and,
+when Git is available, lists ignored files that are still hashed. Check for
+accidental `__pycache__` or `.DS_Store` files before updating a pin; verification
+does not remove or exclude them.
