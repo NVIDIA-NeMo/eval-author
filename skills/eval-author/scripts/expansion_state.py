@@ -81,7 +81,6 @@ def derive(state: dict, observed: object) -> dict | None:
         state["ethos"]["stage"] == "complete"
         and value["ethos_digest"] == state["ethos"]["confirmed_digest"] == observed["ethos_digest"]
         and value["handoff_digest"] == handoff_digest(state)
-        and not state["scopes"]["expand"].get("needs_review", False)
     )
     return {
         "stage": "entry",
@@ -101,8 +100,12 @@ def entry_ready(state: dict) -> bool:
     )
 
 
-def reconcile_question(repo, state: dict) -> None:
-    if record(state) is None or state["pending_question"] is not None or not entry_ready(state):
+def reconcile_question(repo, state: dict, *, answered_ethos_review: bool = False) -> None:
+    if (
+        record(state) is None
+        or (state["pending_question"] is not None and not answered_ethos_review)
+        or not entry_ready(state)
+    ):
         return
     progress = derive(state, observe(repo, state))
     if progress is not None and progress["context_current"]:

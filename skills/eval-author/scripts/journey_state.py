@@ -1070,9 +1070,13 @@ def confirm_ethos(
             raise ValueError("The reviewed ETHOS.md path must match the selected document; supply --ethos")
         if reviewed_digest != ethos_digest(repo, ethos_path):
             raise ValueError("ETHOS.md differs from the reviewed content; review the saved file")
+        if state["ethos"]["remaining_questions"]:
+            raise ValueError("Resolve the saved intent questions before confirming ETHOS.md")
+        review_pending = state["ethos"]["stage"] != "complete"
         state["ethos"].update(
             stage="complete", confirmed_digest=reviewed_digest, confirmation_source=source, validation=validation
         )
+        expansion_state.reconcile_question(repo, state, answered_ethos_review=review_pending)
         save(repo, state)
         return state
 

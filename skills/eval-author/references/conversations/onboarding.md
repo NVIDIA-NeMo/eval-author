@@ -250,6 +250,11 @@ are described below.
 | `confirmed` | Saved complete Ethos and applicable completed prerequisites, before downstream work has started; saved document confirmation and the selected pending decision. Fresh creation without a structured saved design or source choice shows the canonical first-eval source choice directly; other cases retain their continuation. A relevant blocker takes precedence. |
 | `resume` | Saved pending decision or unfinished work; current progress and question, without a welcome, initial readiness question, or invented continuation approval |
 
+When `scopes.expand.lifecycle` is present, use the
+[expansion continuation contract](expansion.md) after shared onboarding or
+recovery is complete. These onboarding stages remain available for unresolved
+prerequisites, Ethos, and active blockers.
+
 When rendering `resume`, `results`, or `confirmed` for the audit journey, read
 the current journey state using `journey_state.py show` without `--state-only`.
 Forward the returned state snapshot's `audit_observations` as

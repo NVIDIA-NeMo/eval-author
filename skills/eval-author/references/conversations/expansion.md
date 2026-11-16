@@ -25,6 +25,10 @@ context that requires it. Save the record and the same top-level
 Loading legacy scope text does not infer a lifecycle or approval. Introducing a
 structured lifecycle retains that text as `legacy_context`.
 
+The audit handoff leaves construction scope unconfirmed and marked for review.
+Preserve those flags during entry planning; they do not invalidate the entry
+record's Ethos and handoff bindings or establish scope agreement.
+
 The record binds confirmed Ethos content and the saved audit handoff. Consume
 the handoff supplied by the audit workflow; do not edit its selection from the
 expansion workflow. The binding identifies saved handoff context, not fresh
@@ -50,6 +54,8 @@ switches. Shared recovery questions take precedence while prerequisites or
 blockers remain unresolved. After recovery clears its question, normal state
 inspection restores the retained entry question only when its bindings are
 current; state-only inspection never performs that artifact reconciliation.
+Successful Ethos confirmation also restores a current entry question after an
+unchanged review when no active blockers remain.
 
 Entry always remains incomplete. Additional checkpoint schemas, transition
 rules, rendering, and fixtures belong to the workflow that implements them;

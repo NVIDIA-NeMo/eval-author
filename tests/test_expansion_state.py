@@ -29,20 +29,27 @@ def start(modules, repo, *, handoff=False):
     legacy = "Earlier requested additions"
     scope = {"legacy_context": legacy, "priorities": ["refunds"]}
     if handoff:
-        # Audit selection owns this record; entry only consumes its saved form.
-        scope["audit_handoff"] = {
-            "recommendation_ids": ["R1", "R3"],
-            "findings_digest": "a" * 64,
+        audit = importlib.import_module("audit_state")
+        lifecycle = audit.new_record()
+        lifecycle["findings"] = {
             "report": {"path": ".eval-author/audit-coverage-report.md", "digest": "b" * 64},
             "content": {"path": ".eval-author/.working/audit/report-content.json", "digest": "c" * 64},
+            "inputs": [],
+            "source": "Reviewed audit findings",
+        }
+        lifecycle["next_action"] = {
+            "kind": "improve",
+            "recommendation_ids": ["R1", "R3"],
+            "findings_digest": "a" * 64,
             "source": "User selected these audit recommendations",
         }
+        audit.retain_handoff({"scopes": {}}, {"scopes": {"audit": {"lifecycle": lifecycle}, "expand": scope}})
     saved["scopes"]["expand"] = scope
     state.save(repo, saved)
     value = expansion.new_record(saved, question="Which supported improvement should we plan?", source="User request")
     return state.update(
         repo,
-        {"scopes": {"expand": {**scope, "lifecycle": value}}, "pending_question": value["pending"]["question"]},
+        {"scopes": {"expand": {"lifecycle": value}}, "pending_question": value["pending"]["question"]},
         expected_revision=saved["revision"],
     )
 
@@ -74,6 +81,20 @@ def test_entry_resume_retains_context_and_question(modules, tmp_path, handoff):
     assert ("retained your selected audit improvements" in rendered) == handoff
 
 
+def test_audit_handoff_can_enter_planning_before_scope_agreement(modules, tmp_path):
+    state, expansion, renderer = modules
+    saved = start(modules, tmp_path, handoff=True)
+    scope = saved["scopes"]["expand"]
+    assert scope["needs_review"] and scope["confirmed"] is False
+    assert scope["priorities"] == ["refunds"]
+    assert expansion.record(saved)["handoff_digest"] == expansion.handoff_digest(saved)
+    assert state.view(saved)["expansion"]["context_current"]
+    assert not state.checklist(saved)[2]["complete"]
+    resumed = state.initialize(tmp_path, journey="expand")
+    assert resumed["scopes"]["expand"] == scope
+    assert renderer.render(payload(modules, resumed)) == renderer.render(payload(modules, saved))
+
+
 def test_updates_preserve_context_and_require_current_revision(modules, tmp_path):
     state, _, _ = modules
     saved = start(modules, tmp_path)
@@ -89,18 +110,16 @@ def test_updates_preserve_context_and_require_current_revision(modules, tmp_path
         state.update(tmp_path, {"scopes": {"expand": None}}, expected_revision=updated["revision"])
 
 
-@pytest.mark.parametrize("change", ["ethos", "handoff", "review"])
+@pytest.mark.parametrize("change", ["ethos", "handoff"])
 def test_context_changes_block_stale_entry_without_erasing_it(modules, tmp_path, change):
     state, expansion, renderer = modules
     saved = start(modules, tmp_path, handoff=True)
     lifecycle = copy.deepcopy(expansion.record(saved))
     if change == "ethos":
         (tmp_path / "ETHOS.md").write_text("# Changed intent\n")
-    elif change == "handoff":
+    else:
         saved["scopes"]["expand"]["audit_handoff"]["recommendation_ids"] = ["R2"]
         state.save(tmp_path, saved)
-    else:
-        state.update(tmp_path, {"scopes": {"expand": {"needs_review": True}}}, expected_revision=saved["revision"])
     current = state.load_state(tmp_path)
     assert expansion.record(current) == lifecycle
     assert not state.view(current)["expansion"]["context_current"]
@@ -326,6 +345,136 @@ def test_state_only_view_defers_expansion_inspection(modules, tmp_path, monkeypa
     assert view["expansion_observations"] is None
 
 
+@pytest.mark.parametrize("state_only", [False, True])
+def test_unchanged_ethos_confirmation_resumes_retained_entry(modules, tmp_path, state_only):
+    state, expansion, renderer = modules
+    saved = start(modules, tmp_path, handoff=True)
+    scope = copy.deepcopy(saved["scopes"]["expand"])
+    review = state.update(
+        tmp_path,
+        {
+            "ethos": {"stage": "review"},
+            "pending_question": "Is this still the correct document and intended behavior?",
+            "next_handoff": "ethos-orchestrate",
+        },
+        expected_revision=saved["revision"],
+        state_only=state_only,
+    )
+    confirmed = state.confirm_ethos(
+        tmp_path,
+        reviewed_digest=state.ethos_digest(tmp_path),
+        source="User confirms unchanged saved intent",
+        validation="Saved-file validation passed",
+        expected_revision=review["revision"],
+    )
+    assert confirmed["pending_question"] == expansion.record(saved)["pending"]["question"]
+    assert confirmed["scopes"]["expand"] == scope
+    resumed = state.initialize(tmp_path, journey="expand")
+    updated = state.update(tmp_path, {"next_handoff": "eval-author-task-create"})
+    assert updated["pending_question"] == resumed["pending_question"] == confirmed["pending_question"]
+    assert renderer.render(payload(modules, updated)) == renderer.render(payload(modules, saved))
+
+
+def test_ethos_confirmation_keeps_unresolved_intent_question(modules, tmp_path):
+    state, expansion, renderer = modules
+    saved = start(modules, tmp_path, handoff=True)
+    question = "Which account recovery actions require approval?"
+    review = state.update(
+        tmp_path,
+        {"ethos": {"stage": "review", "remaining_questions": [question]}, "pending_question": question},
+        expected_revision=saved["revision"],
+    )
+    before = state.state_path(tmp_path).read_bytes()
+    with pytest.raises(ValueError, match="Resolve the saved intent questions"):
+        state.confirm_ethos(
+            tmp_path,
+            reviewed_digest=state.ethos_digest(tmp_path),
+            source="User confirms unchanged saved intent",
+            validation="Saved-file validation passed",
+            expected_revision=review["revision"],
+        )
+    assert state.state_path(tmp_path).read_bytes() == before
+    assert state.load_state(tmp_path)["pending_question"] == question
+    resolved = state.update(
+        tmp_path,
+        {"ethos": {"remaining_questions": []}},
+        expected_revision=review["revision"],
+    )
+    confirmed = state.confirm_ethos(
+        tmp_path,
+        reviewed_digest=state.ethos_digest(tmp_path),
+        source="User resolved saved intent questions and confirms the document",
+        validation="Saved-file validation passed",
+        expected_revision=resolved["revision"],
+    )
+    assert confirmed["pending_question"] == expansion.record(saved)["pending"]["question"]
+    assert renderer.render(payload(modules, confirmed)) == renderer.render(payload(modules, saved))
+
+
+@pytest.mark.parametrize("change", ["ethos", "handoff"])
+def test_ethos_confirmation_does_not_resume_stale_entry(modules, tmp_path, change):
+    state, expansion, renderer = modules
+    saved = start(modules, tmp_path, handoff=True)
+    question = "Is this still the correct document and intended behavior?"
+    review = state.update(
+        tmp_path,
+        {"ethos": {"stage": "review"}, "pending_question": question},
+        expected_revision=saved["revision"],
+        state_only=True,
+    )
+    if change == "ethos":
+        (tmp_path / "ETHOS.md").write_text("# Changed agent intent\n")
+    else:
+        review["scopes"]["expand"]["audit_handoff"]["recommendation_ids"] = ["R2"]
+        state.save(tmp_path, review)
+    reconciled = state.load_state(tmp_path)
+    confirmed = state.confirm_ethos(
+        tmp_path,
+        reviewed_digest=state.ethos_digest(tmp_path),
+        source="User confirms saved intent",
+        validation="Saved-file validation passed",
+    )
+    assert confirmed["pending_question"] == reconciled["pending_question"]
+    assert confirmed["pending_question"] != expansion.record(saved)["pending"]["question"]
+    assert expansion.record(confirmed) == expansion.record(saved)
+    assert not state.view(confirmed)["expansion"]["context_current"]
+    with pytest.raises(ValueError, match="context changed"):
+        renderer.render(payload(modules, confirmed))
+
+
+@pytest.mark.parametrize("phase", ["setup", "ethos", "expand"])
+def test_ethos_confirmation_preserves_active_blocker_recovery(modules, tmp_path, phase):
+    state, expansion, renderer = modules
+    saved = start(modules, tmp_path, handoff=True)
+    question = "Resolve the unavailable dependency before continuing."
+    review = state.update(
+        tmp_path,
+        {
+            "ethos": {"stage": "review"},
+            "blockers": [{"id": "dependency", "phase": phase, "message": "Required dependency unavailable"}],
+            "pending_question": question,
+        },
+        expected_revision=saved["revision"],
+        state_only=True,
+    )
+    confirmed = state.confirm_ethos(
+        tmp_path,
+        reviewed_digest=state.ethos_digest(tmp_path),
+        source="User confirms unchanged saved intent",
+        validation="Saved-file validation passed",
+        expected_revision=review["revision"],
+    )
+    assert confirmed["blockers"] == review["blockers"]
+    assert confirmed["pending_question"] == state.load_state(tmp_path)["pending_question"] == question
+    repaired = state.update(
+        tmp_path,
+        {"blockers": [], "pending_question": None},
+        expected_revision=confirmed["revision"],
+    )
+    assert repaired["pending_question"] == expansion.record(saved)["pending"]["question"]
+    assert renderer.render(payload(modules, repaired)) == renderer.render(payload(modules, saved))
+
+
 def test_fresh_entry_binding_after_intent_review_preserves_handoff(modules, tmp_path):
     state, expansion, renderer = modules
     saved = start(modules, tmp_path, handoff=True)
@@ -343,12 +492,14 @@ def test_fresh_entry_binding_after_intent_review_preserves_handoff(modules, tmp_
     updated = state.update(
         tmp_path,
         {
-            "scopes": {"expand": {"lifecycle": value, "needs_review": False}},
+            "scopes": {"expand": {"lifecycle": value}},
             "pending_question": question,
         },
         expected_revision=saved["revision"],
     )
     assert updated["scopes"]["expand"]["audit_handoff"] == original
+    assert updated["scopes"]["expand"]["needs_review"]
+    assert updated["scopes"]["expand"]["confirmed"] is False
     assert question in renderer.render(payload(modules, updated))
 
 

@@ -1146,7 +1146,6 @@ def test_agent_change_keeps_current_context_without_reusing_approval(state, tmp_
                 "draft_source": "Original agent draft approval in reply 4",
                 "source_findings": findings,
                 "prior_answers": answers,
-                "remaining_questions": ["Which refund regions apply?"],
             }
         },
     )
@@ -1156,6 +1155,7 @@ def test_agent_change_keeps_current_context_without_reusing_approval(state, tmp_
         state,
         tmp_path,
         {
+            "ethos": {**state.load_state(tmp_path)["ethos"], "remaining_questions": ["Which refund regions apply?"]},
             "scopes": {
                 "create": {"cases": ["refund"], "priorities": ["accuracy"], "confirmed": True},
                 "audit": {"traces": ["selected.json"], "confirmed": True},
