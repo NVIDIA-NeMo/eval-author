@@ -1,0 +1,89 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+name: omp review
+
+on:
+  pull_request_target:
+    types: [opened, reopened, ready_for_review, labeled]
+
+permissions: {}
+
+concurrency:
+  group: omp-review-${{ github.event.pull_request.number }}-${{ github.event.action == 'labeled' && github.event.label.name != 'omp-review' && github.run_id || 'review' }}
+  cancel-in-progress: true
+
+jobs:
+  review:
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.user.type == 'User' &&
+      contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.pull_request.author_association) &&
+      ((github.event.action == 'labeled' && github.event.label.name == 'omp-review') ||
+       (github.event.action != 'labeled' && !github.event.pull_request.draft))
+    runs-on: ubuntu-24.04
+    timeout-minutes: 75
+    environment: omp-review
+    permissions:
+      contents: read
+      pull-requests: read
+    env:
+      PR_NUMBER: ${{ github.event.pull_request.number }}
+      BASE_SHA: ${{ github.event.pull_request.base.sha }}
+      HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          path: trusted
+          persist-credentials: false
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          path: pr
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Collect PR context
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python3 trusted/tools/omp_review_context.py --repo "$GITHUB_REPOSITORY" --pr "$PR_NUMBER" --base-sha "$BASE_SHA" --head-sha "$HEAD_SHA" --out "$RUNNER_TEMP/omp-review/context"
+      - name: Run sandboxed review
+        env:
+          OMP_REVIEW_INFERENCE_HUB_API_KEY: ${{ secrets.OMP_REVIEW_INFERENCE_HUB_API_KEY }}
+          OMP_REVIEW_MODEL: ${{ vars.OMP_REVIEW_MODEL }}
+          OMP_REVIEW_MODEL_API: ${{ vars.OMP_REVIEW_MODEL_API }}
+        run: bash trusted/tools/omp-review/run.sh --repo "$GITHUB_WORKSPACE/pr" --context "$RUNNER_TEMP/omp-review/context" --out "$RUNNER_TEMP/omp-review/out"
+      - if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: omp-review
+          path: ${{ runner.temp }}/omp-review/out
+          retention-days: 14
+          if-no-files-found: ignore
+
+  post:
+    needs: review
+    if: always() && needs.review.result != 'skipped' && needs.review.result != 'cancelled'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          path: trusted
+          persist-credentials: false
+          sparse-checkout: tools
+      - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+        continue-on-error: true
+        with:
+          name: omp-review
+          path: ${{ runner.temp }}/omp-review/out
+      - name: Post review
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: python3 trusted/tools/omp_review_post.py --repo "$GITHUB_REPOSITORY" --pr "$PR_NUMBER" --base-sha "$BASE_SHA" --head-sha "$HEAD_SHA" --review "$RUNNER_TEMP/omp-review/out/review.json" --run-url "$RUN_URL"
