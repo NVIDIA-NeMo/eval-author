@@ -78,11 +78,18 @@ All checkpoints use the existing state and rendering interfaces:
 
 The lifecycle schema version identifies the persisted record shape so unsupported
 records fail validation instead of being interpreted as current decisions.
-Version 1 currently accepts only the entry record described below. Extend its
-schema deliberately when a stage needs new state; keep existing saved entry
-records resumable. Do not save a parallel checklist, introduce another state
-file, or register future-stage placeholders. Reuse shared formatting and labels;
-add a flow template module when new fixed copy is needed.
+Schema version 1 retains the entry record described below. Schema version 2
+saves the selected authoring workflow's existing coverage-planning checkpoint
+through `expansion_state.new_scope`: a plan for display, its actual user decision,
+and an optional unresolved question. The
+[validator](../../scripts/expansion_state.py) owns the exact presentation fields.
+Task-create continues to own gap selection, authoring, native validation, and
+acceptance; starter expansion and trace mode retain their existing workflows.
+There is no additional construction approval or command. Once its question is
+answered, this checkpoint leaves later authoring questions with their owner.
+Preserve shared prerequisite/Ethos recovery and the existing context bindings.
+Do not save a parallel checklist, introduce another state file, or register
+future-stage placeholders. Reuse shared formatting and labels.
 
 ## Cross-checkpoint invariants
 

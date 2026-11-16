@@ -432,6 +432,8 @@ def render(payload: dict) -> str:
     ):
         raise ValueError("Use audit_resume for saved audit checkpoints after shared onboarding is complete")
     expansion = expansion_state.record(state) if state["journey"] == "expand" else None
+    if expansion is not None and expansion["schema_version"] == 2:
+        raise ValueError("Use expansion_scope to render structured expansion scopes")
     if expansion is not None and not state_only:
         if expansion_state.entry_ready(state):
             raise ValueError(

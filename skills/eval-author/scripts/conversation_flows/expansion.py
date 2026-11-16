@@ -26,6 +26,9 @@ def render(payload: dict) -> str:
         raise ValueError("Expansion continuation requires stateful input only")
     if type(payload.get("revision")) is not int or payload["revision"] != state["revision"]:
         raise ValueError("State revision differs; reload before rendering expansion")
+    lifecycle = expansion_state.record(state)
+    if lifecycle is not None and lifecycle["schema_version"] == 2:
+        raise ValueError("Use expansion_scope to render structured expansion scopes")
     facts = mapping(payload.get("facts", {}), "expansion facts", {"expansion_observations"})
     progress = expansion_state.derive(state, facts.get("expansion_observations"))
     if progress is None:

@@ -42,9 +42,40 @@ class EntryRecord(TypedDict):
     pending: PendingDecision
 
 
-def record(state: dict) -> EntryRecord | None:
+class ScopeTask(TypedDict):
+    task: str
+    scenario: str
+    outcome: str
+    verification: str
+
+
+class ScopePlan(TypedDict):
+    summary: str
+    tasks: list[ScopeTask]
+    breadth: str
+    limits: str
+    deferred: list[str]
+
+
+class ScopeDecision(TypedDict):
+    kind: Literal["approved", "declined", "revise"]
+    source: str
+
+
+class ScopeRecord(TypedDict):
+    schema_version: Literal[2]
+    setup: Literal["gym", "harbor"]
+    ethos_digest: str | None
+    handoff_digest: str | None
+    pending: PendingDecision | None
+    path: Literal["starter_suite", "audit_tool_gap", "recorded_interaction"]
+    plan: ScopePlan
+    decision: ScopeDecision | None
+
+
+def record(state: dict) -> EntryRecord | ScopeRecord | None:
     scope = state["scopes"].get("expand", {})
-    return cast(EntryRecord | None, scope.get("lifecycle")) if isinstance(scope, dict) else None
+    return cast(EntryRecord | ScopeRecord | None, scope.get("lifecycle")) if isinstance(scope, dict) else None
 
 
 def handoff_digest(state: dict) -> str | None:
@@ -56,28 +87,77 @@ def handoff_digest(state: dict) -> str | None:
 
 
 def validate(value: object) -> None:
-    if not isinstance(value, dict) or set(value) - {"setup"} != {
+    if not isinstance(value, dict):
+        raise ValueError("Expansion requires a saved checkpoint")
+    scope = value.get("schema_version") == 2
+    fields = {
         "schema_version",
         "ethos_digest",
         "handoff_digest",
         "pending",
-    }:
+    }
+    if scope:
+        fields |= {"setup", "path", "plan", "decision"}
+    if (set(value) if scope else set(value) - {"setup"}) != fields:
         raise ValueError("Expansion entry requires versioned context bindings and a pending decision")
-    if type(value["schema_version"]) is not int or value["schema_version"] != 1:
+    if type(value["schema_version"]) is not int or value["schema_version"] not in (1, 2):
         raise ValueError("Unsupported expansion lifecycle version")
     if "setup" in value and value["setup"] not in ("gym", "harbor"):
         raise ValueError("Expansion entry requires a supported provider")
     for field in ("ethos_digest", "handoff_digest"):
         digest = value[field]
-        if digest is None and field == "handoff_digest":
+        if digest is None and (field == "handoff_digest" or scope and value["path"] == "recorded_interaction"):
             continue
         if not isinstance(digest, str) or not re.fullmatch(r"[a-f0-9]{64}", digest):
             raise ValueError(f"Invalid expansion {field}")
     pending = value["pending"]
+    if scope:
+        _validate_plan(value)
+        if pending is None:
+            return
     if not isinstance(pending, dict) or set(pending) != {"question", "source"}:
         raise ValueError("Expansion entry requires the unresolved question and its source")
     if any(not isinstance(item, str) or not item.strip() or len(item) > 4000 for item in pending.values()):
         raise ValueError("Expansion question and source must be bounded nonempty text")
+
+
+def _text(value: object) -> bool:
+    return isinstance(value, str) and bool(value.strip()) and len(value) <= 4000
+
+
+def _validate_plan(value: dict) -> None:
+    if value["path"] not in ("starter_suite", "audit_tool_gap", "recorded_interaction"):
+        raise ValueError("Use the existing supported authoring workflow")
+    plan = value["plan"]
+    if not isinstance(plan, dict) or set(plan) != {"summary", "tasks", "breadth", "limits", "deferred"}:
+        raise ValueError("Save the existing coverage-planning checkpoint's presentation fields")
+    if not all(_text(plan[key]) for key in ("summary", "breadth", "limits")):
+        raise ValueError("Scope summary, breadth and limits require bounded nonempty text")
+    for key in ("tasks", "deferred"):
+        if not isinstance(plan[key], list) or len(plan[key]) > 1000:
+            raise ValueError("Scope presentation lists must be bounded")
+    if not all(_text(item) for item in plan["deferred"]):
+        raise ValueError("Retain deferred work as bounded nonempty text")
+    for task in plan["tasks"]:
+        if not isinstance(task, dict) or set(task) != {"task", "scenario", "outcome", "verification"}:
+            raise ValueError("Scope task rows require the task, scenario, outcome and verification")
+        if not all(_text(item) for item in task.values()):
+            raise ValueError("Scope task cells require bounded nonempty text")
+    decision = value["decision"]
+    if decision is not None:
+        if (
+            not isinstance(decision, dict)
+            or set(decision) != {"kind", "source"}
+            or decision["kind"] not in ("approved", "declined", "revise")
+            or not _text(decision["source"])
+        ):
+            raise ValueError("Save the actual scope decision and its source")
+        if decision["kind"] in ("approved", "declined") and value["pending"] is not None:
+            raise ValueError("Clear the answered scope question")
+        if decision["kind"] == "revise" and value["pending"] is None:
+            raise ValueError("Save the actual unresolved scope revision question")
+        if decision["kind"] == "approved" and not plan["tasks"]:
+            raise ValueError("Resolve supported scope before recording its agreement")
 
 
 def new_record(state: dict, *, question: str, source: str) -> EntryRecord:
@@ -90,6 +170,23 @@ def new_record(state: dict, *, question: str, source: str) -> EntryRecord:
     }
     validate(value)
     return value
+
+
+def new_scope(state: dict, *, path: str, plan: dict, question: str | None, source: str) -> ScopeRecord:
+    import copy
+
+    value = {
+        "schema_version": 2,
+        "setup": state["setup"],
+        "ethos_digest": state["ethos"]["confirmed_digest"],
+        "handoff_digest": handoff_digest(state),
+        "path": path,
+        "plan": copy.deepcopy(plan),
+        "decision": None,
+        "pending": {"question": question, "source": source} if question is not None else None,
+    }
+    validate(value)
+    return cast(ScopeRecord, value)
 
 
 def observe(repo, state: dict) -> dict:
@@ -117,17 +214,28 @@ def derive(state: dict, observed: object) -> dict | None:
         or observed["revision"] != state["revision"]
     ):
         raise ValueError("Supply expansion observations from the current repository and revision")
-    current = (
-        state["ethos"]["stage"] == "complete"
-        and "setup" in value
-        and value["setup"] == state["setup"]
-        and value["ethos_digest"] == state["ethos"]["confirmed_digest"] == observed["ethos_digest"]
-        and value["handoff_digest"] == handoff_digest(state)
+    scoped_trace = (
+        value["schema_version"] == 2 and value["path"] == "recorded_interaction" and value["ethos_digest"] is None
     )
+    current = (
+        "setup" in value
+        and value["setup"] == state["setup"]
+        and value["ethos_digest"] == state["ethos"]["confirmed_digest"]
+        and value["handoff_digest"] == handoff_digest(state)
+        and (
+            scoped_trace or state["ethos"]["stage"] == "complete" and value["ethos_digest"] == observed["ethos_digest"]
+        )
+    )
+    scope = state["scopes"]["expand"]
+    decision = value["decision"] if value["schema_version"] == 2 and current and not scope.get("needs_review") else None
     return {
-        "stage": "entry",
+        "stage": "entry"
+        if value["schema_version"] == 1
+        else {"approved": "scope_approved", "declined": "scope_declined", "revise": "scope_revision"}.get(
+            decision["kind"] if decision else None, "scope"
+        ),
         "context_current": current,
-        "pending_question": value["pending"]["question"] if current else None,
+        "pending_question": value["pending"]["question"] if current and value["pending"] else None,
         "complete": False,
     }
 
@@ -143,11 +251,29 @@ def entry_ready(state: dict) -> bool:
     )
 
 
+def checkpoint_ready(state: dict) -> bool:
+    value = record(state)
+    if value is None or value["schema_version"] == 1 or value["path"] != "recorded_interaction":
+        return entry_ready(state)
+    return (
+        state["journey"] == "expand"
+        and all(
+            state["prerequisites"].get(key, {}).get("status") in ("verified", "confirmed")
+            for key in ("python", "runtime")
+        )
+        and not any(row["phase"] in ("setup", "ethos", "expand") for row in state["blockers"])
+        and state["ethos"]["stage"] not in ("review", "interview", "draft", "write")
+        and not state["ethos"]["remaining_questions"]
+    )
+
+
 def reconcile_question(repo, state: dict, *, answered_ethos_review: bool = False) -> None:
+    value = record(state)
     if (
-        record(state) is None
+        value is None
+        or not value["pending"]
         or (state["pending_question"] is not None and not answered_ethos_review)
-        or not entry_ready(state)
+        or not checkpoint_ready(state)
     ):
         return
     progress = derive(state, observe(repo, state))
@@ -160,6 +286,26 @@ def transition(repo, previous: dict, updated: dict) -> None:
     if before is not None and after is None:
         raise ValueError("Retain structured expansion progress when updating its scope")
     if after is None:
+        return
+    if after["schema_version"] == 2:
+        if before is not None and before["schema_version"] == 2:
+            fields = ("plan", "path", "setup", "ethos_digest", "handoff_digest")
+            if any(before[key] != after[key] for key in fields) and after["decision"] is not None:
+                if after["decision"] == before["decision"]:
+                    raise ValueError("Record the user's decision on the changed scope, or leave it unresolved")
+        if before != after:
+            scope = updated["scopes"]["expand"]
+            progress = derive(updated, observe(repo, updated))
+            assert progress is not None
+            current = progress["context_current"]
+            scope["confirmed"] = bool(current and after["decision"] and after["decision"]["kind"] == "approved")
+            scope["needs_review"] = not current
+        if after["pending"] is not None and checkpoint_ready(updated):
+            if updated["pending_question"] != after["pending"]["question"]:
+                if not checkpoint_ready(previous) and updated["pending_question"] is None:
+                    reconcile_question(repo, updated)
+                else:
+                    raise ValueError("Save the actual unresolved scope question")
         return
     progress = derive(updated, observe(repo, updated))
     assert progress is not None
