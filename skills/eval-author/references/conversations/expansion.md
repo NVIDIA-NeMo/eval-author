@@ -22,6 +22,14 @@ reuse existing scope agreement and execution authorization where applicable.
 Do not ask the user to select improvements again or insert a generic scope or
 readiness pause before developing the proposals.
 
+Check whether a selected change fits an existing authoring flow, including the
+[repair and revalidation procedure](../task-validation.md#repair-and-retain).
+Eval Author can revise tasks and graders within that workflow. A general path
+for applying arbitrary audit-selected revisions to existing suite cases or
+graders is not yet supported; those changes can still receive a proposal.
+Describe an unavailable implementation path as not yet supported. Do not apply
+that limitation to supported authoring or repair work.
+
 `expansion_continue` presents a saved unresolved entry question; it is not a
 prerequisite to Step 1 and does not render its proposal response.
 Use it only when an unanswered entry input prevents the selected planning from

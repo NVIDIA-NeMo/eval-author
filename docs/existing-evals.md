@@ -288,9 +288,27 @@ See [audit results](results.md#coverage-audits) for where protections and later
 findings belong.
 Accepting the proposal offer produces recommendations. Creating, validating,
 or running tasks remains separately scoped: ask for the selected proposal to be
-implemented and validated when you are ready. The current automatic creation
-workflow supports one eligible, measured tool-coverage gap at a time; other
-recommendations may need further task design or measurement.
+implemented and validated when you are ready. The supported authoring paths are
+summarized below.
+
+### What Eval Author can create or improve
+
+| Work | Current support |
+|---|---|
+| Build a first NeMo Gym or Harbor suite | Supported, including task instructions, fixtures, environments, graders, and validation |
+| Add tasks to a starter suite created with Eval Author | Supported; no audit or measured tool gap is required |
+| Create a task from an audit finding | The audit-gap creation workflow supports one eligible, measured tool gap at a time |
+| Automatically create tasks for capability or failure-case audit gaps | Not supported by the audit-gap generator; proposals are supported |
+| Create a task candidate from a recorded agent interaction | Experimental; requires privacy review, candidate admission, and native qualification |
+| Revise or repair tasks and graders within Eval Author's existing authoring workflow | Supported; affected validation and acceptance evidence must be renewed |
+| Propose stronger cases, grader repairs, regressions, or additional evidence | Supported |
+| Apply arbitrary audit-selected revisions to existing suite cases or graders | Proposals are supported; a general implementation workflow is not yet supported |
+
+Creating a task includes authoring and validating its grader. The repair workflow
+also supports fixing verified defects in Eval Author tasks and revalidating them.
+That support does not establish a general editor for every existing evaluation
+suite. For an audit recommendation, Eval Author should identify the applicable
+authoring path or explain that it can currently prepare only the proposal.
 
 For the complete workflows, see the [discovery](../skills/eval-author-discover/SKILL.md),
 [audit](../skills/eval-author-audit/SKILL.md), and
