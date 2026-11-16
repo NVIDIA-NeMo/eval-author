@@ -25,6 +25,7 @@ from rubric_native import project_native  # noqa: E402
 from rubric_overlap import check_overlap  # noqa: E402
 from rubric_reconstruction import project_reconstruction  # noqa: E402
 from rubric_report import build_report  # noqa: E402
+from rubric_reuse import check_reuse  # noqa: E402
 from rubric_scoring import assess  # noqa: E402
 
 
@@ -95,6 +96,8 @@ def measure(root, selection, ethos_validator=None):
         measurements["overlap"] = check_overlap(root, selection["overlap"])
     if "external" in selection:
         measurements["external"] = check_external(root, selection["external"])
+    if "reuse" in selection:
+        measurements["reuse"] = check_reuse(root, selection["reuse"])
     if "native" in selection:
         selected_native = selection["native"]
         if not isinstance(selected_native, dict) or set(selected_native) != {

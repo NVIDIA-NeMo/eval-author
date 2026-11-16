@@ -42,7 +42,7 @@ class Finding(TypedDict):
     allowed_reason: str | None
 
 
-class _Text(TypedDict):
+class TaskText(TypedDict):
     path: str
     relative: str
     content: str
@@ -88,7 +88,7 @@ def _normalized_lines(public: str, private: str) -> list[int] | None:
     return None
 
 
-def _json_values(content: str) -> list[str]:
+def json_values(content: str) -> list[str]:
     """Return distinctive scalar values from a JSON document, as text."""
     try:
         document = json.loads(content)
@@ -111,31 +111,37 @@ def _json_values(content: str) -> list[str]:
     return sorted(set(values))
 
 
-def _hint_lines(private: str) -> list[str]:
+def hint_lines(private: str) -> list[str]:
     return sorted({line for line in (normalize(row) for row in private.splitlines()) if len(line) >= MIN_HINT_CHARS})
 
 
-def _private_names(private: _Text) -> list[str]:
+def test_names(private: TaskText) -> list[str]:
+    """Return the ``test_`` function names defined in a private Python file."""
+    if not private["relative"].endswith(".py"):
+        return []
+    try:
+        tree = ast.parse(private["content"])
+    except (SyntaxError, ValueError, RecursionError):
+        return []
+    return sorted(
+        {
+            node.name
+            for node in ast.walk(tree)
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name.startswith("test_")
+        }
+    )
+
+
+def private_names(private: TaskText) -> list[str]:
     """Return names that point at a private file: its task path, a distinctive basename, and test names."""
     relative = PurePosixPath(private["relative"])
-    names = {relative.as_posix(), "/" + relative.as_posix()}
+    names = {relative.as_posix(), "/" + relative.as_posix(), *test_names(private)}
     if relative.name not in GENERIC_NAMES:
         names.add(relative.name)
-    if relative.suffix == ".py":
-        try:
-            tree = ast.parse(private["content"])
-        except (SyntaxError, ValueError, RecursionError):
-            tree = None
-        if tree is not None:
-            names.update(
-                node.name
-                for node in ast.walk(tree)
-                if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name.startswith("test_")
-            )
     return sorted(names)
 
 
-def _compare(private: _Text, public: _Text) -> list[tuple[Kind, str, list[int] | None]]:
+def _compare(private: TaskText, public: TaskText) -> list[tuple[Kind, str, list[int] | None]]:
     content, target = private["content"], public["content"]
     stripped = content.strip()
     if len(stripped) >= MIN_FULL_CHARS:
@@ -150,16 +156,43 @@ def _compare(private: _Text, public: _Text) -> list[tuple[Kind, str, list[int] |
             return [("full", "json-canonical", [1, max(1, target.count("\n") + 1)])]
     matches: list[tuple[Kind, str, list[int] | None]] = []
     normalized_lines = [normalize(line) for line in target.splitlines()]
-    for line in _hint_lines(content):
+    for line in hint_lines(content):
         for index, candidate in enumerate(normalized_lines):
             if line in candidate:
                 matches.append(("hint", "normalized-line", [index + 1, index + 1]))
                 break
-    for value in _json_values(content):
+    for value in json_values(content):
         lines = _exact_lines(target, value)
         if lines:
             matches.append(("hint", "json-value", lines))
     return matches
+
+
+def read_texts(root: Path, layout: dict) -> tuple[dict[str, list[TaskText]], list[str]]:
+    """Read a labeled task's public and private UTF-8 files; return them and the paths that couldn't be read."""
+    root = Path(root).resolve(strict=True)
+    texts: dict[str, list[TaskText]] = {"public": [], "private": []}
+    unscanned = []
+    for record in layout["files"]:
+        if record["visibility"] not in texts:
+            continue
+        data, _ = read_selected(root, record["path"])
+        try:
+            content = data.decode("utf-8") if data is not None else None
+        except UnicodeDecodeError:
+            content = None
+        if content is None:
+            unscanned.append(record["path"])
+            continue
+        texts[record["visibility"]].append(
+            {
+                "path": record["path"],
+                "relative": record["path"][len(layout["task"]) + 1 :],
+                "content": content,
+                "digest": record["digest"],
+            }
+        )
+    return texts, unscanned
 
 
 def _allowed(selection: object, task: str) -> dict[tuple[str, str], str]:
@@ -213,27 +246,7 @@ def scan_task(root: Path, selected: object, reconstruction: dict | None = None) 
     ]
     if layout["format"] != "harbor":
         return {**result, **_status(diagnostics)}
-    root = Path(root).resolve(strict=True)
-    texts: dict[str, list[_Text]] = {"public": [], "private": []}
-    for record in layout["files"]:
-        if record["visibility"] not in texts:
-            continue
-        data, _ = read_selected(root, record["path"])
-        try:
-            content = data.decode("utf-8") if data is not None else None
-        except UnicodeDecodeError:
-            content = None
-        if content is None:
-            result["unscanned"].append(record["path"])
-            continue
-        texts[record["visibility"]].append(
-            {
-                "path": record["path"],
-                "relative": record["path"][len(task) + 1 :],
-                "content": content,
-                "digest": record["digest"],
-            }
-        )
+    texts, result["unscanned"] = read_texts(root, layout)
     generated = _generated_digests(reconstruction)
     findings: list[Finding] = []
     instruction = next((row for row in texts["public"] if row["relative"] == "instruction.md"), None)
@@ -257,9 +270,9 @@ def scan_task(root: Path, selected: object, reconstruction: dict | None = None) 
                     }
                 )
         if instruction is not None:
-            for name in _private_names(private):
+            for name in private_names(private):
                 lines = _exact_lines(instruction["content"], name)
-                if lines and _bounded(instruction["content"], name):
+                if lines and bounded(instruction["content"], name):
                     findings.append(
                         {
                             "kind": "reference",
@@ -293,7 +306,7 @@ def scan_task(root: Path, selected: object, reconstruction: dict | None = None) 
     return {**result, **_status(diagnostics)}
 
 
-def _bounded(content: str, name: str) -> bool:
+def bounded(content: str, name: str) -> bool:
     """True when ``name`` appears as a whole token, not inside a longer word."""
     return re.search(rf"(?<![\w.-]){re.escape(name)}(?![\w-])", content) is not None
 
