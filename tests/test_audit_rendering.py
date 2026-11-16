@@ -729,14 +729,15 @@ def test_changed_task_bindings_tell_the_user_the_approval_no_longer_applies(modu
     assert "no longer apply" in message
 
 
-def test_findings_identify_report_recommendations(modules):
+def test_recommendation_ids_stay_internal(modules):
     payload = checkpoint(modules, "findings")
     for item, identifier in zip(payload["facts"]["recommendations"], ["R4", "R2"], strict=True):
         item["id"] = identifier
     remember_question(payload, modules)
     rendered = modules[2].render(payload)
-    assert "1. **R4 · Grader improvement:**" in rendered
-    assert "2. **R2 · New scenario:**" in rendered
+    assert "1. **Grader improvement:**" in rendered
+    assert "2. **New scenario:**" in rendered
+    assert "R4" not in rendered and "R2" not in rendered
 
 
 @pytest.mark.parametrize("ids", [["R1", "R1"], ["R0", "R2"], ["<script>", "R2"]])

@@ -252,8 +252,7 @@ def recommendation_section(facts: dict) -> str | None:
     for index, item in enumerate(items, 1):
         label = text(item["label"], "recommendation label")
         label = literal(label[:1].upper() + label[1:], "recommendation label")
-        identifier = item["id"] + " · " if "id" in item else ""
-        lines.append(f"{index}. **{identifier}{label}:** {literal(item['reason'], 'recommendation reason')}")
+        lines.append(f"{index}. **{label}:** {literal(item['reason'], 'recommendation reason')}")
     return copy.RECOMMENDATIONS_HEADING + "\n\n" + "\n".join(lines)
 
 
@@ -381,9 +380,7 @@ def render(payload: dict) -> str:
         if audit["next_action_current"]:
             parts.append(copy.NEXT_ACTIONS[lifecycle["next_action"]["kind"]])
             action = lifecycle["next_action"]
-            if ids := action.get("recommendation_ids"):
-                parts.append(copy.SELECTED_RECOMMENDATIONS.format(ids=", ".join(ids)))
-            elif action["kind"] == "improve":
+            if action["kind"] == "improve" and not action.get("recommendation_ids"):
                 parts.append(copy.LEGACY_SELECTION)
         elif pending and (recommended := recommendation_section(facts)):
             parts.append(recommended)

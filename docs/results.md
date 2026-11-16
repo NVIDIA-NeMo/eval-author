@@ -236,7 +236,7 @@ For the combined findings review and optional next-action handoff, see
 
 ### Selected audit improvements
 
-Recommended next actions show stable IDs such as `R1`. You can select one or
+Refer to recommended next actions by their descriptions. You can select one or
 several to plan, finish with the findings, or choose an evidence or agent fix.
 Accepting findings alone does not start improvement work.
 

@@ -603,7 +603,7 @@ def build(model: content.Content) -> tuple[str, dict[int, str]]:
                 details.append("  - **Follow-through evidence:** " + evidence(model, follow["evidence"]))
         add(
             [
-                f"- **{layout.PRIORITIES[row['priority']]}** · {row['id']} · "
+                f"- **{layout.PRIORITIES[row['priority']]}** · "
                 + jump(row["finding_id"], finding_heading(model, row["finding_id"]))
                 + " · "
                 + involved_items(model, row),

@@ -106,7 +106,8 @@ success checklists and preserve the recovery question over an older review quest
 
 Use the [selected improvement handoff](../../../eval-author-audit/references/coverage-report.md#selected-improvement-handoff-and-follow-through)
 for recommendation IDs, revision-checked decisions, resume behavior, and report
-follow-through. Include each highlighted recommendation's report ID in `facts.recommendations[].id`.
+follow-through. Include each highlighted recommendation's internal ID in `facts.recommendations[].id`.
+Present its descriptive label, not the ID, and resolve the user's choice internally.
 The renderer accepts older payloads without IDs for compatibility; new findings
 reviews must identify the report recommendations being offered. A legacy generic
 improvement acknowledgement identifies the unresolved selection; the receiving

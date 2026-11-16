@@ -688,7 +688,7 @@ def test_multiple_recommendations_for_one_finding_have_one_explanation_and_valid
     report = renderer.render(model)[0].decode()
     assert report.count(renderer.prose(model, data["findings"][0]["explanation"])) == 1
     assert_markdown_links(report, renderer)
-    assert " · R2 · " in next_actions(report)
+    assert "R2" not in report
 
 
 def test_malformed_audit_has_a_named_input_error(audit_report):
@@ -1236,8 +1236,9 @@ def test_audit_handoff_demo(audit_report, monkeypatch, origin, action):
     if action != "improve":
         assert "audit_handoff" not in saved["scopes"].get("expand", {})
         return
-    assert "R1, R2, R4" in transcript
     handoff = copy.deepcopy(saved["scopes"]["expand"]["audit_handoff"])
+    assert handoff["recommendation_ids"] == ["R1", "R2", "R4"]
+    assert not re.search(r"\bR[1-9][0-9]*\b", transcript)
     resumed = state.initialize(root, journey="expand")
     assert resumed["scopes"]["expand"]["audit_handoff"] == handoff
     with pytest.raises(ValueError, match="expected-revision"):

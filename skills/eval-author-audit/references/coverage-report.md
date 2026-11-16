@@ -83,7 +83,9 @@ python <eval-author-skill-dir>/scripts/audit_verifier_evidence.py --repo . \
 ## Selected improvement handoff and follow-through
 
 At findings review, use the report's stable recommendation IDs in conversation
-recommendations (`id`, alongside `kind`, `label`, and `reason`). Keep IDs when
+recommendation data (`id`, alongside `kind`, `label`, and `reason`). Keep IDs internal;
+present descriptive labels and resolve the user's selection to those IDs. Ask
+only when their description is ambiguous. Keep IDs when
 reordering or expanding recommendations; never reuse an ID for a different action.
 A recommendation's priority is advice until the user agrees it.
 
