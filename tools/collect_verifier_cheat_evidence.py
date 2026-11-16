@@ -22,12 +22,11 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 FIXTURES = ROOT / "evals/verifier-cheats"
+MANIFEST = json.loads((FIXTURES / "manifest.json").read_text())
 PANEL = {
-    f"{grader}--{control}": int(
-        (grader == "vulnerable" and control != "hang") or (grader == "sound" and control == "reference")
-    )
-    for grader in ("sound", "vulnerable", "always-fail")
-    for control in ("reference", "early-exit", "fake-success", "hidden-case-read", "hang", "boolean-output")
+    f"{grader}--{control['id']}": control["expected_reward"][grader]
+    for grader in MANIFEST["graders"]
+    for control in MANIFEST["controls"]
 }
 
 

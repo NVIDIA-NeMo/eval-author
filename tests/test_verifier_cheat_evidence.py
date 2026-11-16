@@ -471,3 +471,19 @@ def test_protected_read_boundary_is_reported(tmp_path):
 
     check = next(row for row in report["checks"] if row["name"] == "sound--hidden-case-read")
     assert check["read_boundary"] == "protected"
+
+
+def test_manifest_is_the_single_source_for_controls_and_rewards():
+    module = collector()
+    manifest = json.loads((ROOT / "evals/verifier-cheats/manifest.json").read_text())
+    controls = {row["id"]: row for row in manifest["controls"]}
+    assert set(controls) == {path.stem for path in (ROOT / "evals/verifier-cheats/controls").glob("*.py")}
+    assert module.PANEL == {
+        f"{grader}--{name}": row["expected_reward"][grader]
+        for name, row in controls.items()
+        for grader in manifest["graders"]
+    }
+    assert all(
+        row["criteria"] and (row["role"] == "reference") == (row["attack_class"] is None) for row in controls.values()
+    )
+    assert "AUD-05-B" in controls["hidden-case-read"]["criteria"]
