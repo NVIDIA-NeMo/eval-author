@@ -102,7 +102,7 @@ FINDING_KINDS = {
 }
 LIMITS_HEADING = "**Evidence limits**"
 RECOMMENDATIONS_HEADING = "**Recommended next actions**"
-FINDINGS_QUESTION = "Do these findings look right? If so, would you like to finish the audit here or plan {choices}?"
+FINDINGS_QUESTION = "Do these findings look right? If so, would you like to finish the audit here or continue with {choices}?"
 IMPROVEMENT_CHOICE = "the {label}"
 TWO_IMPROVEMENTS = "{choices}, or both"
 MULTIPLE_IMPROVEMENTS = "{choices}, or any combination"
@@ -111,12 +111,12 @@ OTHER_ACTION_QUESTION = (
     "Do these findings look right? If so, would you like to finish the audit here or choose a recommended next action?"
 )
 REVIEW_ACCEPTED = "You’ve accepted the audit findings."
-LEGACY_SELECTION = "The saved improvement decision does not identify specific report recommendations. Resolve that selection before planning."
+LEGACY_SELECTION = "The saved improvement decision does not identify specific report recommendations. Resolve that selection before continuing."
 AUDIT_COMPLETE = "The audit is complete for the reviewed scope."
 AUDIT_LIMITED = "The limited findings review is complete; the full measured audit remains incomplete."
 NEXT_ACTIONS = {
     "finish": "You chose to finish here.",
-    "improve": "You chose to plan evaluation improvements. The next step is to review their scope and grading before implementation.",
+    "improve": "You chose to work on the selected audit recommendations.",
     "create": "You chose to plan your first evaluations from the reviewed findings.",
     "collect_evidence": "You chose to gather the missing evidence. The selected source and any new runs still need their applicable authorization.",
     "fix_agent": "You chose to address the observed agent behavior before changing the evaluations.",

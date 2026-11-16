@@ -166,12 +166,13 @@ The suite is in [path/to/evals].
 
 General improvement requests first offer the supported paths, for both first-time
 users and users returning after another journey. An already selected path or
-specific audit improvement carries forward. Selected audit findings continue
-directly into concrete proposals, with implementation limits explained for the
-affected work.
+specific audit improvement carries forward. Selected audit recommendations
+continue to the supported authoring path, with any implementation limits made
+clear without another proposal step.
 
-Current authoring routes extend Eval Author starter suites or propose additions
-from reviewed audit findings. Broader suite expansion is still in development.
+Current authoring routes extend Eval Author starter suites or create tasks for
+eligible measured tool gaps from reviewed audit findings. Broader suite expansion
+is still in development.
 
 ### Other requests
 

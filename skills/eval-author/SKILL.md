@@ -199,7 +199,7 @@ continue the appropriate flow without asking the user to select it again.
 
 When `scopes.expand.audit_handoff` is present, resume the audit's
 [selected improvement handoff](../eval-author-audit/references/coverage-report.md#selected-improvement-handoff-and-follow-through)
-through [selected audit planning](references/conversations/expansion.md#selected-audit-improvements).
+through [selected audit continuation](references/conversations/expansion.md#selected-audit-improvements).
 
 An expansion request does not imply an audit. Carry supplied suite context,
 requested additions, confirmed Ethos, prerequisites, and pending decisions into
@@ -215,9 +215,9 @@ without appending another pause explanation.
 For a starter suite created by first-eval, resume its scope stage. For a selected
 trace-derived task, use task-create's experimental trace-source mode and the
 [shared trace handoff](references/trace-input.md); retain source selection before
-trace inspection. For supplied reviewed audit findings, use
-`eval-author-task-create` proposals and its existing
-eligibility checks. If no supported authoring flow matches the supplied suite,
+trace inspection. For supplied reviewed audit findings, follow the selected
+audit continuation above and the applicable authoring eligibility checks.
+If no supported authoring flow matches the supplied suite,
 save the pending handoff in shared state and explain the missing capability.
 An explicitly selected addition or proposal-only request keeps that scope.
 
@@ -309,14 +309,15 @@ This file carries the standard and boundaries; the sub-flow carries the steps.
 
 `eval-author-audit` works one level above tasks: it generates and validates the
 coverage denominator, measures traces against it, and aggregates deterministic
-coverage reports. `eval-author-task-create` owns the proposal step: prioritize
-dataset improvements from those findings across tools, capabilities, and failure
+coverage reports. For explicit planning requests, `eval-author-task-create` can
+prioritize dataset improvements from those findings across tools, capabilities, and failure
 cases while preserving their measured or unmeasured status. Proposal-only
 requests stop there. Its audit-gap task-creation mode consumes only actionable
 tool gaps and uses the selected NeMo Gym or Harbor native scaffolder rather than guessing a task
 layout. Its trace source mode instead applies privacy and candidate admission without
-requiring an audit gap. For a requested full workflow, proceed from audit to proposals even when
-there are no eligible tool gaps; an audit-only request ends with the findings.
+requiring an audit gap. Selected audit recommendations follow the existing
+handoff above without another proposal offer. An audit-only request ends with
+the findings and recommendations.
 
 Sub-flows that read provider traces load them through the shared
 `scripts/trace_loading.py`, which normalizes ATIF, MLflow, NeMo Gym, and Intake

@@ -564,20 +564,33 @@ complete.” Only then may it mark the fifth step complete and record that answe
 channels and tool/delegation logs: there must be no proposal analysis, writes,
 or background proposal agents. A broad audit-and-suggest request does not change
 this. A later explicit request may select the offered next action.
-Reply: “Yes, propose those task improvements.” It proceeds directly to
+Reply: “Let's work on the first recommendation.” The agent retains that selection
+and follows the selected audit continuation without another recommendation pass.
+It checks the applicable construction path, reuses agreed scope, and asks only
+for missing construction decisions. If implementation is unsupported, it explains
+the limit instead of offering another written repair proposal. Selection alone
+does not approve construction or agent execution.
+
+**Explicit proposal-only request:** Reply instead: “Please expand the first
+recommendation into a detailed proposal.” The agent enters
 `eval-author-task-create` Step 1, reusing the current report, specification,
 measurements, reviewed Ethos, and selected source scope. It does not replay audit
 onboarding, repeat settled input questions, or add another readiness checkpoint.
-The ranked, evidence-based proposals are saved and linked as
-the same generated `.eval-author/audit-coverage-report.md` from authored content, distinguishing new tasks,
-improvements to existing tasks, and evidence gathering. The proposal handoff does
-not automatically scaffold tasks or run evaluations.
+The requested details expand the same generated
+`.eval-author/audit-coverage-report.md` from authored content. The proposal-only
+request does not authorize scaffolding tasks or running evaluations.
 
 Run these concise variants from the report-review checkpoint:
 
-- **Accept review and proposals together:** “The report looks right; propose
-  tasks to improve that coverage.” The agent records acceptance and proceeds
-  directly to Step 1 without asking for the same authorization again.
+- **Accept review and select improvements together:** “The report looks right;
+  work on the first and third recommendations.” The agent records acceptance
+  and selection, reuses those recommendations, and proceeds to the applicable
+  construction decision or unsupported implementation explanation. It does not
+  offer a separate proposal step.
+- **Accept review and request proposals together:** “The report looks right;
+  expand those recommendations into detailed proposals.” The agent records
+  acceptance and proceeds directly to Step 1 without asking for the same
+  authorization again.
 - **Decline:** Accept review and decline the offered next action in the same reply. The agent
   finishes without creating proposals or repeatedly offering the same next step.
 - **Missing evidence:** Use an unmeasured report. The offer prioritizes gathering
@@ -785,8 +798,8 @@ check, not evidence of reliability across models or repeated runs.
 ## Audit proposals without duplicate reports
 
 Start from a report with intended checks, evidence, findings, and next actions.
-Accept proposal work. The agent expands the existing next actions and links
-material already covered elsewhere. No extra overview, mapping table, lifecycle
+Explicitly request proposal-only work. The agent expands the existing next
+actions and links material already covered elsewhere. No extra overview, mapping table, lifecycle
 section, or recommendations document appears. The suite README and HTML report
 contain no audit recommendations. An audit with no justified change can end.
 

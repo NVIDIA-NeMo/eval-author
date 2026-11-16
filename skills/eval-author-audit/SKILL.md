@@ -54,10 +54,11 @@ coverage denominator from `<ethos_path>` and
 reviewed audit items, then can measure traces and aggregate coverage reports
 against it. It identifies coverage gaps and recommends improvements grounded in
 the findings and evidence limits, then writes a human-readable
-`audit-coverage-report.md` and reviews it with the user. Detailed task proposals
-expand in this same report through the
-[improvement handoff](references/coverage-report.md#findings-limitations-and-next-actions). Task
-construction and execution keep their existing scope and approval boundaries.
+`audit-coverage-report.md` and reviews it with the user. Selected recommendations
+continue through the [improvement handoff](references/coverage-report.md#selected-improvement-handoff-and-follow-through),
+without another recommendation pass. Explicit requests for additional planning
+can expand the same report; proposal-only requests stop there. Task construction
+and execution keep their existing scope and approval boundaries.
 
 ## Start a guided audit
 
@@ -480,12 +481,12 @@ audit; keep their scope. Read-only and `suggest` requests remain read-only.
 - For audit-generation inputs and reconciliation modes, return to
   [Step 2: Generate Or Reconcile Audit.md](#step-2-generate-or-reconcile-auditmd).
 - Follow the [combined findings review and handoff](references/guided-audit.md#after-review-offer-the-next-step)
-  before entering [`eval-author-task-create`](../eval-author-task-create/SKILL.md).
-- The proposal step considers tools, capabilities, and failure cases. Automatic
+  for the selected next action.
+- Audit recommendations consider tools, capabilities, and failure cases. Automatic
   task creation still accepts only uncovered tool items with
   `reason: not_covered_by_any_input_report`. Items with
-  `reason: not_measured_by_any_method` remain unmeasured, even when the proposal
-  step suggests a candidate scenario for them.
+  `reason: not_measured_by_any_method` remain unmeasured, even when a
+  recommendation identifies a candidate scenario for them.
 
 ## Scripts
 

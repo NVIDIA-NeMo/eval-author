@@ -13,28 +13,29 @@ continuation retains an already-selected path and its unresolved decision.
 
 ## Selected audit improvements
 
-The audit handoff already identifies the recommendations the user selected.
-Continue directly at [task-create Step 1](../../../eval-author-task-create/SKILL.md#step-1-propose-dataset-improvements),
-using the originating report and retained decisions. Present concrete proposals
-for those recommendations and explain implementation support alongside each
-affected proposal. Ask only the next unresolved question about the selected work;
-reuse existing scope agreement and execution authorization where applicable.
-Do not ask the user to select improvements again or insert a generic scope or
-readiness pause before developing the proposals.
+The audit already records the recommended changes, and its handoff identifies
+which ones the user selected. Reuse that report and the retained decisions;
+do not offer to prepare another proposal or repeat the recommendation pass.
 
-Check whether a selected change fits an existing authoring flow, including the
+Check which selected changes have a supported authoring path. For an audit
+tool-gap addition, continue at [task-create Step 2](../../../eval-author-task-create/SKILL.md#step-2-select-one-actionable-gap),
+matching eligibility to the selected recommendation. Do not substitute an
+unselected gap. Resolve only missing construction details at the existing scope
+and design checkpoints, reusing applicable agreement and execution authorization.
+An explicit request for additional planning keeps that scope and may use
+task-create Step 1; selecting an audit recommendation does not request it.
+
+For repairs within an existing authoring flow, use the
 [repair and revalidation procedure](../task-validation.md#repair-and-retain).
-Eval Author can revise tasks and graders within that workflow. A general path
-for applying arbitrary audit-selected revisions to existing suite cases or
-graders is not yet supported; those changes can still receive a proposal.
-Describe an unavailable implementation path as not yet supported. Do not apply
-that limitation to supported authoring or repair work.
+The audit handoff does not add a general workflow for editing existing suite
+cases or graders. Describe an unavailable implementation path as not yet supported, retaining the
+audit's recommendation without offering to write it again. Do not apply that
+limitation to supported authoring or repair work.
 
 `expansion_continue` presents a saved unresolved entry question; it is not a
-prerequisite to Step 1 and does not render its proposal response.
-Use it only when an unanswered entry input prevents the selected planning from
-proceeding. If a retained entry question repeats the audit's settled selection,
-continue proposal work and replace that question with the actual unresolved
+prerequisite to the selected authoring flow. Use it only when an unanswered
+entry input prevents that work from proceeding. If a retained entry question
+repeats the audit's settled selection, replace it with the actual unresolved
 decision through the revision-checked update below. Preserve the lifecycle and
 update its question and the top-level `pending_question` together.
 
