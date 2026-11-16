@@ -9,8 +9,8 @@ description: >-
   forward. Scoped utilities keep their scope.
   Explicit full audits quietly check bounded saved context before choosing an
   introduction. New audits choose task review or add run measurement before checks.
-  Returning audits reuse applicable prerequisites and confirmed Ethos. Separate returning requests get
-  a brief acknowledgment, then continue without another readiness pause.
+  Returning audits reuse prerequisites and Ethos. Separate returning requests
+  get a brief acknowledgment, then continue without another readiness pause.
   Build first evals from ETHOS.md, work on existing suites, inspect a NeMo Intake
   run, or derive a trace environment (experimental). Owns the evidence standard
   for every Eval Author flow. Creating, auditing, and improving evals require

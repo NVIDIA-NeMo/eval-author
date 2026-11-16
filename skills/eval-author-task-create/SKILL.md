@@ -56,10 +56,6 @@ candidate admission, environment preparation, construction and native qualificat
 This source mode does not require an audit gap and does not claim coverage closure.
 Skip the audit selector and gap-only scaffold/acceptance steps; use the selected
 provider's native task initialization and the handoff's qualification procedure.
-For audit-gap requests, reuse the reviewed recommendation and retain Steps 2–8
-and their measured eligibility rules. Use Step 1 when additional planning is
-explicitly requested.
-Proposal-only requests still stop before construction.
 
 ## Purpose
 
@@ -69,8 +65,7 @@ requested recommendations or additional planning across tools, capabilities,
 and failure cases. For proposal-only requests, stop after Step 1. Shared lifecycle decisions and
 pending work belong only in `.eval-author/.working/journey-state.json`; recommendations
 remain a user-facing deliverable and native evidence remains immutable.
-Enter Step 1 directly from the core's proposal route, reusing findings and prior answers.
-For guided audits and `scopes.expand.audit_handoff`, follow the
+Reuse prior findings and answers. For guided audits and `scopes.expand.audit_handoff`, follow the
 [selected audit continuation](../eval-author/references/conversations/expansion.md#selected-audit-improvements)
 instead of requiring another proposal step. Accepting findings alone does not
 select implementation work.

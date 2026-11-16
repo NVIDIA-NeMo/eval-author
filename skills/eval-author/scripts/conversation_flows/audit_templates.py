@@ -102,7 +102,9 @@ FINDING_KINDS = {
 }
 LIMITS_HEADING = "**Evidence limits**"
 RECOMMENDATIONS_HEADING = "**Recommended next actions**"
-FINDINGS_QUESTION = "Do these findings look right? If so, would you like to finish the audit here or continue with {choices}?"
+FINDINGS_QUESTION = (
+    "Do these findings look right? If so, would you like to finish the audit here or continue with {choices}?"
+)
 IMPROVEMENT_CHOICE = "the {label}"
 TWO_IMPROVEMENTS = "{choices}, or both"
 MULTIPLE_IMPROVEMENTS = "{choices}, or any combination"
