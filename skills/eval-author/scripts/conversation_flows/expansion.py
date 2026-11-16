@@ -33,7 +33,9 @@ def render(payload: dict) -> str:
     if not progress["context_current"]:
         raise ValueError("Expansion context changed; reconcile intent and handoff before continuation")
     if not expansion_state.entry_ready(state):
-        raise ValueError("Resolve shared prerequisites and saved blockers before expansion continuation")
+        raise ValueError(
+            "Resolve shared prerequisites, intent questions, and saved blockers before expansion continuation"
+        )
     if state["pending_question"] != progress["pending_question"]:
         raise ValueError("Render only the saved unresolved expansion question")
     parts = [shared.NEXT_STEPS, onboarding.checklist("expand", state)]

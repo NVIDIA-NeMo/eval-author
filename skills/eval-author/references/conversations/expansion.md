@@ -39,6 +39,80 @@ repeats the audit's settled selection, replace it with the actual unresolved
 decision through the revision-checked update below. Preserve the lifecycle and
 update its question and the top-level `pending_question` together.
 
+## Shared checkpoint contract
+
+Extend this flow at real decision boundaries using the following ownership and
+authority rules. Each owner delivers its lifecycle fields, transition gates,
+renderer and fixed-copy templates, fixtures, and resume tests together. The
+checkpoint names below describe responsibilities; they are not registered stage
+names or accepted lifecycle fields. Missing decisions or evidence remain
+renderable as unresolved, pending, or blocked work. The gates below control
+advancement and success claims, not whether an incomplete checkpoint can be shown.
+
+| Checkpoint | Owner | Owned state and advancement gates |
+| --- | --- | --- |
+| Unresolved entry/path inputs and supported scope agreement | ASE-1425 | Retain the request or audit selection and resolve the supported creation path. Bind explicit scope agreement to the exact proposed task set; an audit selection alone cannot approve construction. Save decline or revision without approval. |
+| Creation/validation progress and blockers | ASE-1426 | Agreed scope permits construction. Current task artifacts and applicable native evidence establish validation. Preserve partial work and blockers; drafts and intended repairs do not establish validation. |
+| Generated-task review and execution settings/authorization | ASE-1427 | Present the complete agreed task set and its current validation for review. Require explicit task review and separate authorization bound to the exact task set, agent, and settings before execution. |
+| Execution progress, results, rerun, and continuation | ASE-1428 | Explicit execution authorization permits a run. Current actual-agent evidence bound to the selected tasks/settings establishes run status and results. Keep missing or partial results visible and require a new decision for changed run scope or settings. |
+
+Reuse onboarding for shared prerequisite and Ethos recovery, and the audit
+workflow's retained handoff for selected recommendations and originating report
+context. Entry and scope agreement consume that selection without creating a
+second recommendation pass. These checkpoints orchestrate existing supported
+authoring workflows; they do not extend which cases or graders can be changed.
+
+All checkpoints use the existing state and rendering interfaces:
+
+| Interface | Responsibility |
+| --- | --- |
+| `expansion_state.record` / `validate` | Read and validate the versioned lifecycle under `scopes.expand.lifecycle`; preserve sibling scope fields and legacy context |
+| `expansion_state.observe` | Inspect only artifacts required by the implemented checkpoint, outside rendering, with bounded observations tied to repository and revision |
+| `expansion_state.derive` | Compute current progress, unresolved decisions, and evidence validity from supplied state and observations without I/O or mutation |
+| `expansion_state.transition` through `journey_state.update` | Validate a proposed transition against current context and the exact expected revision before saving a real user decision |
+| `conversation_renderer.render` | Dispatch a registered checkpoint and render its complete response from the reconciled snapshot, exact revision, and permitted facts |
+
+Version 1 currently accepts only the entry record described below. Extend its
+schema deliberately when a stage needs new state; keep existing saved entry
+records resumable. Do not save a parallel checklist, introduce another state
+file, or register future-stage placeholders. Reuse shared formatting and labels;
+add a flow template module when new fixed copy is needed.
+
+## Cross-checkpoint invariants
+
+Keep audit selection, construction scope agreement, generated-task review, and
+execution authorization as separate decisions with their own source and content
+bindings. Saved questions and settled decisions survive resume. A renderer call,
+presentation fact, filename, routing handoff, or generic completion flag cannot
+create any of these decisions or establish evidence validity.
+
+Reconcile changes before presenting the next checkpoint. Retain the audit
+handoff, prior decisions as history, partial artifacts, and unaffected reusable
+work. Reopen only decisions and checks that depend on changed inputs:
+
+| Changed input | Required reconciliation in its owning workflow |
+| --- | --- |
+| Confirmed intent or selected audit handoff | Reconcile affected entry/scope decisions and their downstream bindings; retain the originating context for review |
+| Planned task set or construction scope | Reopen scope agreement and approvals bound to that set; retain reusable tasks and evidence for unchanged work |
+| Task or grader content | Recompute validation and reopen dependent task review, execution authorization, and run/result validity for the changed tasks |
+| Validation or run evidence | Recompute the statuses, reviews, and approvals that depend on that evidence; missing or stale evidence cannot remain current |
+| Agent or execution settings | Reopen execution authorization and dependent run/result bindings; retain task construction and validation that remain applicable |
+
+An approved subset cannot silently replace the complete agreed set. Record an
+explicit scope revision before treating a reduced set as the agreed work.
+Declining execution preserves validated tasks and their review without implying
+a run. Native validation controls do not count as actual-agent runs; a completed
+run does not establish passing results or measured audit-gap closure. Derive
+each claim from its applicable current evidence. The entry record always derives
+`complete: false`.
+
+Each stage extension must cover unchanged resume, approval/decline/revision,
+partial or blocked work, stale revisions without writes, and targeted
+invalidation. Keep fixture-backed byte-identical rendering checks separate from
+an end-to-end assistant demonstration: fixtures prove supplied-state rendering
+and gates, while a demonstration records the assistant's actual workflow choices.
+Neither establishes deterministic task generation or evaluation results.
+
 ## State authority
 
 Reuse the normal reconciled state from `journey_state.py show`, never
@@ -47,6 +121,12 @@ blockers resolved before this checkpoint. The expansion lifecycle is versioned
 under `scopes.expand.lifecycle`; existing audit handoff, legacy context, and
 other scope fields remain available alongside it. No additional state file is
 introduced.
+
+Saved intent questions block entry even if older state marks Ethos complete.
+Reopen `ethos.stage: review` through a revision-checked update, save the actual
+unresolved intent question and `next_handoff: ethos-orchestrate`, then use shared
+Ethos recovery. Retain the expansion lifecycle and audit handoff while those
+questions are resolved; confirming the unchanged document restores its entry.
 
 After inspecting the request and retained context, create the entry record with
 `expansion_state.new_record(state, question=..., source=...)`. The question is
@@ -92,7 +172,3 @@ inspection restores the retained entry question only when its bindings are
 current; state-only inspection never performs that artifact reconciliation.
 Successful Ethos confirmation also restores a current entry question after an
 unchanged review when no active blockers remain.
-
-Entry always remains incomplete. Additional checkpoint schemas, transition
-rules, rendering, and fixtures belong to the workflow that implements them;
-do not add unimplemented stages or infer execution approval from this record.
