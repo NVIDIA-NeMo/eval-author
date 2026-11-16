@@ -78,7 +78,6 @@ def test_entry_resume_retains_context_and_question(modules, tmp_path, handoff):
     assert not state.view(resumed)["expansion"]["complete"]
     assert not state.checklist(resumed)[2]["complete"]
     assert expansion.record(resumed)["schema_version"] == 1
-    assert ("retained your selected audit improvements" in rendered) == handoff
 
 
 def test_audit_handoff_can_enter_planning_before_scope_agreement(modules, tmp_path):

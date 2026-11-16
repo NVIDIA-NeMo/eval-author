@@ -38,8 +38,6 @@ def render(payload: dict) -> str:
     if state["pending_question"] != progress["pending_question"]:
         raise ValueError("Render only the saved unresolved expansion question")
     parts = [copy.INTRO]
-    if expansion_state.handoff_digest(state) is not None:
-        parts.append(copy.HANDOFF)
     parts.extend([copy.SUPPORT, copy.LIMIT, shared.NEXT_STEPS, onboarding.checklist("expand", state)])
     parts.append(literal(progress["pending_question"], "expansion question"))
     return "\n\n".join(parts) + "\n"

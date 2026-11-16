@@ -24,7 +24,7 @@ context that requires it. Save the record and the same top-level
 `pending_question` through the existing revision-checked update interface.
 Choose that question using the core's [expansion handoff](../../SKILL.md#expansion-handoff)
 and the selected authoring flow's eligibility rules. Retain unsupported selected
-improvements as context and explain their required separate work; do not frame
+improvements as context and explain their implementation limit; do not frame
 them as available construction choices. The renderer's supported options and
 limits live in the linked template module below.
 Loading legacy scope text does not infer a lifecycle or approval. Introducing a
