@@ -72,11 +72,23 @@ All checkpoints use the existing state and rendering interfaces:
 | `expansion_state.transition` through `journey_state.update` | Validate a proposed transition against current context and the exact expected revision before saving a real user decision |
 | `conversation_renderer.render` | Dispatch a registered checkpoint and render its complete response from the reconciled snapshot, exact revision, and permitted facts |
 
-Version 1 currently accepts only the entry record described below. Extend its
-schema deliberately when a stage needs new state; keep existing saved entry
-records resumable. Do not save a parallel checklist, introduce another state
-file, or register future-stage placeholders. Reuse shared formatting and labels;
-add a flow template module when new fixed copy is needed.
+The entry record described below uses schema version 1. Schema version 2 adds
+construction scope state through `expansion_state.new_scope`, retaining a selected
+supported path, task and example identities, digest-bound sources, deferred work,
+unresolved inputs, and construction limits. Its presentation and user decision
+receipts bind to `scope_digest`; changing scope invalidates the agreement and
+replacement decisions retain history. Existing entry records remain resumable.
+Use `expansion_continue` only for entry records; structured construction scope
+records require a compatible scope renderer. Do not save a parallel checklist,
+introduce another state file, or register future-stage placeholders.
+
+`expansion_state.construction_guard` rechecks the saved revision, exact selected
+task, current sources, applicable prerequisites, measured audit-gap eligibility,
+and explicit current scope approval before returning construction inputs. Its
+read-only CLI is `journey_state.py --repo REPO check-expansion-scope --task-id ID
+--expected-revision REV`. The result always has `execution_authorized: false`;
+construction approval does not authorize running the agent. Scope agreement
+cannot establish journey completion.
 
 ## Cross-checkpoint invariants
 
