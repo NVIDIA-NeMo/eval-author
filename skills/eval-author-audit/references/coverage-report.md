@@ -74,7 +74,7 @@ python <eval-author-skill-dir>/scripts/audit_verifier_evidence.py --repo . \
 
 - Explain missing scenarios, observed failures, fixture limits, and insufficient measurement separately. Missing judgments or an unencountered trigger don't prove that another task is needed.
 - Recommend the next useful action from the evidence. Retain an existing failing task instead of proposing a duplicate when the scenario already exists.
-- Expand the same authored recommendation records only after the user selects proposal work. Follow [task-create](../../eval-author-task-create/SKILL.md#step-1-propose-dataset-improvements) without restarting settled audit decisions.
+- Reuse the same authored recommendation records for construction scope and follow-through. Explicit requests for additional planning may expand those records through [task-create](../../eval-author-task-create/SKILL.md#step-1-propose-dataset-improvements) without restarting settled audit decisions. Do not offer another proposal pass by default.
 - Keep planned cheat controls and expected rejection only in the task README's [Verifier section](../../eval-author/references/suite-readme.md#task-documentation) during task authoring. Link those definitions once they exist.
 - Keep selection, construction, validation, control execution, agent execution, acceptance, and measured coverage as separate facts.
 - Reconcile historical `dataset-recommendations.md` entries into the authored content during requested conversion. Preserve IDs, decisions, evidence, and unresolved risks. Leave the historical file intact and rebase relative links.
@@ -111,12 +111,12 @@ selection through a new reviewed audit next-action decision, not by replacing
 the handoff directly.
 
 On entering `expand`, retain this handoff and reuse the confirmed Ethos and
-applicable prerequisites. Continue selected proposal work at task-create Step 1;
-Journey 3 still agrees its construction scope and execution separately. Additions,
-case revisions, and verifier repairs can all be selected. Automatic tool-gap
-eligibility limits implementation, not selection. If no supported authoring path
-can perform the chosen change, preserve the handoff and pending question, explain
-the missing capability, and stop before construction. Do not restart the audit.
+applicable prerequisites. Follow the [selected audit continuation](../../eval-author/references/conversations/expansion.md#selected-audit-improvements)
+using the report's existing recommendations, without offering another proposal
+pass. Selection does not approve construction or agent execution; retain current
+approvals and resolve only the next required decision. If implementation is not
+supported, preserve the handoff and explain the limit rather than offering a
+written recommendation as the next deliverable. Do not restart the audit.
 If selected IDs are absent from the evolved report or its source context differs,
 retain the original decision and ask only how to reconcile that missing context.
 

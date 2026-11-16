@@ -272,8 +272,9 @@ an interrupted pause cannot silently start evaluation work.
 Request “help me onboard to expand my evals” with no audit findings. Preserve the
 expansion goal and run the shared entry. Do not route automatically to audit or
 fabricate a coverage report. Starter-suite expansion resumes first-eval scope
-planning; provided audit findings support proposals through task-create. When no
-supported authoring flow matches the supplied suite, save the pending handoff
+planning; selected audit recommendations continue to supported authoring without
+another proposal offer. Explicit requests for additional planning use task-create.
+When no supported authoring flow matches the supplied suite, save the pending handoff
 and explain the missing capability.
 
 ### Existing suite uses an unsupported format

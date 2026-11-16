@@ -165,14 +165,21 @@ def test_render_neither_reads_files_nor_executes_nor_mutates(conversation, state
 @pytest.mark.parametrize("journey", JOURNEYS)
 def test_orientation_does_not_need_state(conversation, journey):
     result = conversation.render({"stage": "orientation", "journey": journey})
-    assert result.startswith("Welcome to Eval Author!")
-    assert result.count("- [ ]") == 3
-    assert result.count("**We're here**") == 1
-    if journey == "audit":
-        assert "How would you like to audit your evaluations?" in result
+    if journey == "expand":
+        assert result.startswith("Let’s work on improving your existing evaluations.")
+        assert result.count("\n- ") == 3
+        assert "- [ ]" not in result
+        assert result.endswith("What would you like to work on?\n")
         assert "Ready to get started?" not in result
     else:
-        assert result.endswith("Ready to get started?\n")
+        assert result.startswith("Welcome to Eval Author!")
+        assert result.count("- [ ]") == 3
+        assert result.count("**We're here**") == 1
+        if journey == "audit":
+            assert "How would you like to audit your evaluations?" in result
+            assert "Ready to get started?" not in result
+        else:
+            assert result.endswith("Ready to get started?\n")
     assert "### Next Steps" not in result
     assert "| Prerequisite |" not in result
 

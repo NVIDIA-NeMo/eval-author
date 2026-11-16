@@ -45,6 +45,17 @@ facts, or readiness claim, and renders only the approach choice from
 [audit_templates.py](../../scripts/conversation_flows/audit_templates.py).
 Use it before checks under the [approach procedure](../shared-prerequisites.md#choose-the-audit-approach).
 
+For journey `expand`, both `orientation` and `goal_selected` render the same
+neutral acknowledgment, supported-path bullets, and action question last,
+without a checklist or generic readiness question. The fixed copy lives only
+in `options_prompt()` in
+[expansion_templates.py](../../scripts/conversation_flows/expansion_templates.py).
+Use this entry for first-time users and new general improvement requests after
+a prior journey. The core's [expansion handoff](../../SKILL.md#expansion-handoff)
+preserves explicit paths, selected audit improvements, and active pending
+decisions instead of restarting this choice. Rendering requires no saved-state
+lookup and makes no claim about prior work.
+
 `orientation` and `goal_selected` use the no-input preview mode under the
 [core entry rules](../../SKILL.md#choose-the-entry-route). They accept no repository,
 state, revision, facts, or input-file context. Source dependencies may be loaded;
@@ -59,18 +70,19 @@ python3 -B <skill_dir>/scripts/conversation_renderer.py --stage goal_selected --
 Use one command appropriate to the current turn, replacing `<skill_dir>` with
 the core skill directory. Journeys are `create`, `audit`, and `expand`.
 `orientation` without a journey uses the shorter welcome and asks for the goal,
-without introducing a checklist. With a known journey it shows the full welcome,
-matching checklist, and readiness question or audit-approach choice. `goal_selected`
-shows the selected goal's introduction, checklist, and applicable question, without
-repeating the welcome. Selecting a goal does not establish readiness; the core
+without introducing a checklist. For `create` or `audit`, a known journey shows
+the full welcome, matching checklist, and readiness question or audit-approach
+choice. `goal_selected` shows that goal's introduction, checklist, and applicable
+question without repeating the welcome. Expansion uses the path choice above
+for either stage. Selecting a goal does not establish readiness; the core
 owns the orientation and goal-selection pauses.
 
 For an explicit audit request, the core's
 [returning-audit procedure](../shared-prerequisites.md#return-to-an-audit)
 governs entry and whether the [returning audit welcome](#returning-audit-welcome) applies.
 
-`prerequisites` requires the selected journey and the actual readiness reply
-or audit-approach choice:
+`prerequisites` requires the selected journey and the actual readiness reply,
+selected authoring improvement path, or audit-approach choice:
 
 ```bash
 python3 -B <skill_dir>/scripts/conversation_renderer.py --stage prerequisites --journey create --ready
@@ -98,8 +110,8 @@ Use the statuses and evidence requirements in [Prerequisite row facts](#prerequi
 The initial preview additionally accepts `checking`; it is not a final status.
 Known facts must retain their actual evidence status. A user-supplied availability
 answer can appear as Confirmed by you without claiming verification. The
-`--ready` flag or `ready: true` represents the actual readiness reply or selected
-audit approach, never
+`--ready` flag or `ready: true` represents the actual readiness reply, selected
+authoring improvement path, or selected audit approach, never
 permission inferred by rendering.
 
 ## Returning audit welcome
@@ -254,6 +266,10 @@ When `scopes.expand.lifecycle` is present, use the
 [expansion continuation contract](expansion.md) after shared onboarding or
 recovery is complete. These onboarding stages remain available for unresolved
 prerequisites, Ethos, and active blockers.
+An already-selected improvement path goes directly to its actual downstream
+decision after Ethos confirmation under the
+[shared handoff](../shared-prerequisites.md#pause-after-ethos-confirmation),
+without a generic completion-readiness question or another path choice.
 
 When rendering `resume`, `results`, or `confirmed` for the audit journey, read
 the current journey state using `journey_state.py show` without `--state-only`.

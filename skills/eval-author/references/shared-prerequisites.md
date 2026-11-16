@@ -9,9 +9,13 @@ direct skill calls. The [onboarding rendering contract](conversations/onboarding
 defines stage inputs and outputs; it does not duplicate this sequence.
 It supports NeMo Gym and Harbor through the same flow. Scoped operations retain their
 existing input requirements and do not acquire a full onboarding checklist.
-For creation and improvement, begin this procedure only after the selected goal's rendered
+For creation, begin this procedure only after the selected goal's rendered
 checklist and readiness question have been shown and the user replies to that
-question. A goal-choice reply triggers `goal_selected`, not this procedure.
+question. For improvement, selecting or explicitly requesting a supported
+authoring path supplies readiness for its applicable checks under the
+[expansion handoff](../SKILL.md#expansion-handoff). A general goal-choice reply
+triggers `goal_selected`, not this procedure. Choosing an audit follows the
+audit approach choice below before checks, without authoring runtime probes.
 Do not load repository context or save state in preparation for either
 orientation turn. The [onboarding renderer](conversations/onboarding.md#orientation-and-prerequisite-entry) has a
 narrow no-input command exception for those turns; other helpers remain deferred,
@@ -175,7 +179,8 @@ After the user continues, load only the selected goal's prerequisite reference:
 | Audit coverage, gaps, and improvement opportunities | [Audit prerequisites](pre-reqs/audit.md) |
 | Improve existing evaluations | [Improvement prerequisites](pre-reqs/improve.md) |
 
-For fresh onboarding, after the actual readiness reply or audit-approach choice, render `prerequisites` with its canonical
+For fresh onboarding, after the actual readiness reply, selected authoring
+improvement path, or audit-approach choice, render `prerequisites` with its canonical
 grounding sentence above the initial status table before inspecting the
 repository or saved state. Reuse facts already in
 conversation; do not perform reads or probes to populate the preview. Supply
@@ -451,11 +456,17 @@ document before its content is confirmed.
 An already-requested [returning audit](#return-to-an-audit) resumes directly;
 the completion pause below is for a new shared flow.
 
-For a retained expansion lifecycle, complete the required shared recovery and
-Ethos confirmation, then follow
-[expansion continuation](conversations/expansion.md) for its saved entry decision
-instead of the confirmed-response instructions below. End the turn at that
-decision.
+For improvement with an already-selected path, persist successful Ethos
+confirmation using `confirm-ethos`, then continue the selected authoring flow
+to its actual next decision in the same turn. Preserve applicable shared
+answers, selected audit improvements, and pending work; do not insert a generic
+continuation question or repeat the path choice. Use
+[expansion continuation](conversations/expansion.md) for a saved unresolved
+expansion entry decision after onboarding. Source selection, scope and design
+reviews, validation, and execution authorization remain required by their
+owning workflows. No path choice authorizes task construction or agent runs.
+End this shared step at that next decision; the remaining completion-pause
+instructions below apply to flows still awaiting continuation.
 
 After the saved `ETHOS.md` has been validated and its content reviewed and
 confirmed, persist completion using `confirm-ethos`. A draft approval or file
@@ -568,12 +579,13 @@ records for resolution; do not replace them with fresh success state.
 For [audit continuation](#return-to-an-audit), use the bounded entry lookup and
 reuse procedure above. When other prerequisite work must resume, complete and save the state-only pass before
 reading target artifacts. Include its completed findings in the final `results`
-response. When no new pass is needed, render `resume` for unfinished shared steps,
-`audit_resume` for downstream audit checkpoints, or
-[expansion continuation](conversations/expansion.md) for a saved expansion entry,
-from normally reconciled
+response. When no new pass is needed, render `resume` for unfinished shared steps
+or `audit_resume` for downstream audit checkpoints, from normally reconciled
 state to present the pending question or earliest unfinished,
-non-deferred step; never regenerate the welcome or readiness question. A goal
+non-deferred step; never regenerate the welcome or readiness question. A new
+general improvement request after a prior journey uses the same stateless path
+choice as first-time entry when no path or pending decision already applies;
+follow the [expansion handoff](../SKILL.md#expansion-handoff). A goal
 change reuses applicable common decisions. Switching between audit and authoring
 reopens runtime, Python tooling, environment, service/data, execution access, and
 flow-specific skill checks; previous sources remain available for reassessment.
