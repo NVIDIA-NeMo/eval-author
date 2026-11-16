@@ -88,6 +88,20 @@ validator's reason; its warnings are kept. A changed digest is
 A valid result is structure only: it does not show the content was confirmed,
 is current, or states adequate intent.
 
+## Harbor task layout labels
+
+`layout` is `{"task": <task directory relative to --root>}`. The measurement
+labels every file under that directory from the Harbor layout: `instruction.md`
+and `environment/` are `public`, `tests/` and `solution/` are `private`,
+`task.toml` is `configuration`, and anything else is `unlabeled`. It records each
+file's digest and never follows symlinks; a symlink stays `unresolved`. A
+directory without `task.toml` and `instruction.md` is `layout.not_harbor`
+(unknown): tell the user the [required task format](../../eval-author/references/task-format.md)
+instead of labeling it by hand. A Dockerfile or Compose file under `environment/`
+that names `tests` or `solution` is `layout.private_path_in_environment`
+(unknown), a candidate for review. The labels describe the layout, not a tested
+runtime boundary or whether a public file contains an answer.
+
 ## Construction authority references
 
 `authority` is `{"plan_artifact_id": <id>}` naming one selected construction plan
