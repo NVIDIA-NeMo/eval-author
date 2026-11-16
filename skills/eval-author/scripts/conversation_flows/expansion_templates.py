@@ -10,6 +10,6 @@ SUPPORT = (
 )
 LIMIT = (
     "I can also explain and plan other audit recommendations. "
-    "Implementing revisions to existing cases or graders is not yet implemented. "
+    "Implementing revisions to existing cases or graders inside Eval Author is not yet implemented. "
     "We still need to agree scope before creating tasks or running your agent."
 )
