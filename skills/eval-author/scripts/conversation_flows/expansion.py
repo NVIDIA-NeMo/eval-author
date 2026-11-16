@@ -8,7 +8,6 @@ import expansion_state
 import journey_state
 from conversation_formatting import literal, mapping
 
-from . import expansion_templates as copy
 from . import onboarding
 
 JOURNEYS = ("expand",)
@@ -37,7 +36,6 @@ def render(payload: dict) -> str:
         raise ValueError("Resolve shared prerequisites and saved blockers before expansion continuation")
     if state["pending_question"] != progress["pending_question"]:
         raise ValueError("Render only the saved unresolved expansion question")
-    parts = [copy.INTRO]
-    parts.extend([copy.LIMIT, shared.NEXT_STEPS, onboarding.checklist("expand", state)])
+    parts = [shared.NEXT_STEPS, onboarding.checklist("expand", state)]
     parts.append(literal(progress["pending_question"], "expansion question"))
     return "\n\n".join(parts) + "\n"

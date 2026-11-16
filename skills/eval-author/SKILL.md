@@ -199,7 +199,7 @@ continue the appropriate flow without asking the user to select it again.
 
 When `scopes.expand.audit_handoff` is present, resume the audit's
 [selected improvement handoff](../eval-author-audit/references/coverage-report.md#selected-improvement-handoff-and-follow-through)
-before choosing a new source or repeating settled audit decisions.
+through [selected audit planning](references/conversations/expansion.md#selected-audit-improvements).
 
 An expansion request does not imply an audit. Carry supplied suite context,
 requested additions, confirmed Ethos, prerequisites, and pending decisions into

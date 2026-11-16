@@ -11,6 +11,25 @@ For an unselected improvement path, use the core's
 [expansion entry](../../SKILL.md#expansion-handoff) before shared checks;
 continuation retains an already-selected path and its unresolved decision.
 
+## Selected audit improvements
+
+The audit handoff already identifies the recommendations the user selected.
+Continue directly at [task-create Step 1](../../../eval-author-task-create/SKILL.md#step-1-propose-dataset-improvements),
+using the originating report and retained decisions. Present concrete proposals
+for those recommendations and explain implementation support alongside each
+affected proposal. Ask only the next unresolved question about the selected work;
+reuse existing scope agreement and execution authorization where applicable.
+Do not ask the user to select improvements again or insert a generic scope or
+readiness pause before developing the proposals.
+
+`expansion_continue` presents a saved unresolved entry question; it is not a
+prerequisite to Step 1 and does not render its proposal response.
+Use it only when an unanswered entry input prevents the selected planning from
+proceeding. If a retained entry question repeats the audit's settled selection,
+continue proposal work and replace that question with the actual unresolved
+decision through the revision-checked update below. Preserve the lifecycle and
+update its question and the top-level `pending_question` together.
+
 ## State authority
 
 Reuse the normal reconciled state from `journey_state.py show`, never
@@ -28,8 +47,8 @@ context that requires it. Save the record and the same top-level
 Choose that question using the core's [expansion handoff](../../SKILL.md#expansion-handoff)
 and the selected authoring flow's eligibility rules. Retain unsupported selected
 improvements as context and explain their implementation limit; do not frame
-them as available construction choices. The renderer's supported options and
-limits live in the linked template module below.
+them as available construction choices. Explain limits only when relevant to
+the selected work; do not claim construction scope is pending when it is agreed.
 Loading legacy scope text does not infer a lifecycle or approval. Introducing a
 structured lifecycle retains that text as `legacy_context`.
 
@@ -49,8 +68,8 @@ it does not inspect tasks, source traces, or native receipts.
 After saving, reload normal state and pass the complete `state`, exact
 `revision`, and `facts.expansion_observations` from the same `show` result.
 `expansion_state.observe` obtains current Ethos content outside rendering;
-`derive` checks supplied observations without I/O. Fixed copy lives only in
-[expansion_templates.py](../../scripts/conversation_flows/expansion_templates.py).
+`derive` checks supplied observations without I/O. The renderer shows the shared
+checklist and saved question without a generic selection or scope preamble.
 
 Render and present the complete response unchanged. Wrong revisions, missing
 observations, mismatched pending questions, active blockers, and changed context

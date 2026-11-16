@@ -46,7 +46,9 @@ def start(modules, repo, *, handoff=False):
         audit.retain_handoff({"scopes": {}}, {"scopes": {"audit": {"lifecycle": lifecycle}, "expand": scope}})
     saved["scopes"]["expand"] = scope
     state.save(repo, saved)
-    value = expansion.new_record(saved, question="Which supported improvement should we plan?", source="User request")
+    value = expansion.new_record(
+        saved, question="Should the refund task cover both full and partial refunds?", source="User request"
+    )
     return state.update(
         repo,
         {"scopes": {"expand": {"lifecycle": value}}, "pending_question": value["pending"]["question"]},
