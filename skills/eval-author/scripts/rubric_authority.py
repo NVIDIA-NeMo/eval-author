@@ -9,6 +9,7 @@ import hashlib
 import os
 import re
 from pathlib import Path, PurePosixPath
+from typing import TypedDict
 
 from eval_author_shared.task_evidence import loads
 from rubric_identity import diagnostic, finish, local_file, read_selected, resolve_pointer, text
@@ -30,6 +31,14 @@ STATUS = {
     "changed": ("authority.reference_changed", "fail"),
     "broken": ("authority.reference_broken", "fail"),
 }
+
+
+class AuthorityCounts(TypedDict):
+    requirements: int
+    checks: int
+    mapped: int
+    by_basis: dict[str, int]
+    by_status: dict[str, int]
 
 
 def _visible(heading):
@@ -245,13 +254,14 @@ def check_authority(root, artifacts, selected):
         if not mapped:
             diagnostics.append(diagnostic("authority.requirement_unmapped", row["id"], "unknown"))
     rows = result["requirements"]
-    result["counts"] = {
+    counts: AuthorityCounts = {
         "requirements": len(rows),
         "checks": len(checks),
         "mapped": sum(bool(row["checks"]) for row in rows),
         "by_basis": {basis: sum(row["basis"] == basis for row in rows) for basis in sorted(BASES)},
         "by_status": {state: sum(row["status"] == state for row in rows) for state in STATUS},
     }
+    result["counts"] = counts
     return _done(result, diagnostics)
 
 
