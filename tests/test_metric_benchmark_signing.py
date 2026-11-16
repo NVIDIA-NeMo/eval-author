@@ -1,6 +1,8 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
+import json
+import os
 import re
 import shutil
 import subprocess
@@ -177,3 +179,60 @@ def test_directory_pin_error_without_git_still_reports_digests(tmp_path):
         verify_input(tmp_path, expected)
     assert expected in str(error.value)
     assert input_digest(tmp_path) in str(error.value)
+
+
+@pytest.mark.parametrize("failure", [FileNotFoundError("git"), subprocess.TimeoutExpired("git", 10)])
+def test_directory_pin_error_survives_git_failure(tmp_path, monkeypatch, failure):
+    from metric_benchmark import io
+
+    source = tmp_path / "source.py"
+    source.write_text("pass\n")
+    expected = io.input_digest(tmp_path)
+    source.write_text("changed\n")
+    actual = io.input_digest(tmp_path)
+
+    def unavailable(*args, **kwargs):
+        raise failure
+
+    monkeypatch.setattr(io.subprocess, "run", unavailable)
+    with pytest.raises(ValueError, match="Git ignore information unavailable") as error:
+        io.verify_input(tmp_path, expected)
+    assert expected in str(error.value) and actual in str(error.value)
+
+
+def test_directory_pin_diagnostics_do_not_reread_file_contents(tmp_path, monkeypatch):
+    from metric_benchmark import io
+
+    source = tmp_path / "source.py"
+    source.write_text("pass\n")
+    expected = io.input_digest(tmp_path)
+    source.write_text("changed\n")
+    actual = io.input_digest(tmp_path)
+    digest_file = io.digest_file
+
+    def read_once(path):
+        digest = digest_file(path)
+        path.unlink()
+        return digest
+
+    monkeypatch.setattr(io, "digest_file", read_once)
+    with pytest.raises(ValueError, match="input digest differs") as error:
+        io.verify_input(tmp_path, expected)
+    assert expected in str(error.value) and actual in str(error.value)
+    assert "no files in directory" not in str(error.value)
+
+
+@pytest.mark.skipif(os.name == "nt", reason="Windows filenames cannot contain carriage returns")
+def test_directory_pin_error_preserves_ignored_filename(tmp_path):
+    from metric_benchmark.io import input_digest, verify_input
+
+    subprocess.run(["git", "init", "-q", str(tmp_path)], check=True)
+    (tmp_path / ".gitignore").write_text("*.pyc\n")
+    source = tmp_path / "source"
+    source.mkdir()
+    expected = input_digest(source)
+    name = "adapter\rname.pyc"
+    (source / name).write_bytes(b"generated")
+    with pytest.raises(ValueError) as error:
+        verify_input(source, expected)
+    assert json.dumps([name]) in str(error.value)
