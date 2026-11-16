@@ -48,7 +48,13 @@ def test_recorded_evidence_preserves_existing_measurements(tmp_path):
     fixtures = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(fixtures)
     scorer = fixtures.module()
-    selection = fixtures.packet(tmp_path, scorer, "DISC-02-B", fixtures.facts_for("DISC-02-B", 1), synthetic=False)
+    selection = fixtures.packet(
+        tmp_path,
+        scorer,
+        "provenance.observed-configuration",
+        fixtures.facts_for("provenance.observed-configuration", 1),
+        synthetic=False,
+    )
     selection.update(declared_config={"model": "a"}, observed_config={"model": "b"})
     reports = []
     for include in (False, True):
@@ -65,9 +71,9 @@ def test_recorded_evidence_preserves_existing_measurements(tmp_path):
         )
         assert result.returncode == 1
         reports.append(json.loads(result.stdout))
-    before, after = [report["items"]["DISC-02-B"] for report in reports]
+    before, after = [report["items"]["provenance.observed-configuration"] for report in reports]
     assert after == before
-    assert reports[1]["recorded_criterion_evidence"]["DISC-02-B"]["score"] is None
+    assert reports[1]["recorded_criterion_evidence"]["provenance.observed-configuration"]["score"] is None
 
 
 PANEL_RUNS = pytest.StashKey[tuple]()
@@ -156,6 +162,41 @@ def test_cli_root_alias_preserves_complete_assessment(tmp_path, monkeypatch):
     assert reports[0] == reports[1]
 
 
+def test_cli_preserves_canonical_criterion_and_check_order(tmp_path):
+    request = tmp_path / "selection.json"
+    request.write_text("{}")
+    command = [sys.executable, str(CLI), "--root", str(tmp_path), "--selection", str(request)]
+    result = subprocess.run(command, capture_output=True, text=True, timeout=30)
+    assert result.returncode == 1
+    assert result.stderr == ""
+    report = json.loads(result.stdout)
+    definitions = json.loads((CLI.parent.parent / "references/artifact-configuration-provenance.json").read_text())
+    expected = [item["id"] for item in definitions["items"]]
+    assert expected != sorted(expected)
+    assert list(report["items"]) == expected
+    for definition in definitions["items"]:
+        row = report["items"][definition["id"]]
+        assert row["item_id"] == definition["id"]
+        assert row["rubric_version"] == definitions["rubric_version"]
+        assert [check["check_id"] for check in row["check_results"]] == [check["id"] for check in definition["checks"]]
+
+    retained = tmp_path / "report.json"
+    for sort_keys in (False, True):
+        retained.write_text(json.dumps(report, sort_keys=sort_keys))
+        replay = subprocess.run(
+            [*command, "--verify-existing", str(retained)], capture_output=True, text=True, timeout=30
+        )
+        assert replay.returncode == 1
+        assert replay.stderr == ""
+        assert replay.stdout == result.stdout
+    report["schema"] = "rubric-measurements-v2"
+    retained.write_text(json.dumps(report))
+    replay = subprocess.run([*command, "--verify-existing", str(retained)], capture_output=True, text=True, timeout=30)
+    assert replay.returncode == 2
+    assert json.loads(replay.stdout)["schema"] == "rubric-measurements-v3"
+    assert json.loads(replay.stdout)["code"] == "selection.invalid"
+
+
 def test_measurement_cli_emits_unknowns_without_certifying_preflight(tmp_path):
     assert CLI.is_file(), "Rubric measurement integration is not implemented"
     request = tmp_path / "selection.json"
@@ -176,7 +217,7 @@ def test_measurement_cli_emits_unknowns_without_certifying_preflight(tmp_path):
     )
     assert result.returncode == 1
     report = json.loads(result.stdout)
-    assert report["schema"] == "rubric-measurements-v2"
+    assert report["schema"] == "rubric-measurements-v3"
     assert report["preflight_success"] is False
     assert all(row["score"] is None for row in report["items"].values())
     assert not any(key.startswith("ID-") for key in report["items"])
@@ -203,7 +244,7 @@ def test_cli_rejects_nonfinite_values_anywhere_without_traceback(tmp_path, paylo
     assert result.returncode == 2
     assert result.stderr == ""
     assert json.loads(result.stdout) == {
-        "schema": "rubric-measurements-v2",
+        "schema": "rubric-measurements-v3",
         "status": "invalid",
         "code": "selection.invalid",
         "preflight_success": False,
@@ -221,6 +262,22 @@ def test_cli_sanitizes_output_serialization_failure(tmp_path, monkeypatch, capsy
     output = capsys.readouterr()
     assert output.err == ""
     assert json.loads(output.out)["code"] == "selection.invalid"
+
+
+@pytest.mark.parametrize("contract", ["version", "order"])
+def test_panel_cli_preserves_canonical_report_contract(rubric_panel, contract):
+    if contract == "version":
+        assert rubric_panel["schema"] == "rubric-mutation-panel-v4"
+        return
+    definitions = json.loads((CLI.parent.parent / "references/artifact-configuration-provenance.json").read_text())
+    expected = [item["id"] for item in definitions["items"]]
+    for case in rubric_panel["assessments"] + rubric_panel["evidence_cases"]:
+        assert list(case["observed"]["items"]) == expected
+        for definition in definitions["items"]:
+            row = case["observed"]["items"][definition["id"]]
+            assert [check["check_id"] for check in row["check_results"]] == [
+                check["id"] for check in definition["checks"]
+            ]
 
 
 def test_mutation_panel_matches_independent_expectations(rubric_panel):
@@ -254,8 +311,17 @@ def test_demo_reports_canonical_outcomes_through_actual_cli(rubric_panel):
         "confirmed-missing": (0, 2, 2),
         "partial": (1, 1, 1),
     }
-    supported = ("DISC-01-A", "DISC-01-B", "DISC-01-C")
-    unsupported = {"DISC-02-A", "DISC-02-B", "DISC-03-A", "AUD-02", "ENV-01", "ENV-02-A", "ENV-03", "CREATE-07"}
+    supported = ("provenance.task-artifact-access", "provenance.grading-path", "provenance.grading-dependency-access")
+    unsupported = {
+        "provenance.declared-configuration",
+        "provenance.observed-configuration",
+        "provenance.runtime-route",
+        "provenance.comparison-fairness",
+        "provenance.solver-tool-access",
+        "provenance.dependency-substitution",
+        "provenance.external-state",
+        "provenance.evidence-revision-consistency",
+    }
     cases = {row["id"]: row for row in report["assessments"]}
     assert cases.keys() == expected.keys()
     assert report["counts"] == {"cases": 14, "assessments": len(expected), "evidence_cases": 8}
@@ -285,7 +351,7 @@ def test_demo_reports_canonical_outcomes_through_actual_cli(rubric_panel):
         case = cases[ident]
         observed = case["observed"]
         items = observed["items"]
-        assert observed["schema"] == "rubric-measurements-v2"
+        assert observed["schema"] == "rubric-measurements-v3"
         assert tuple(items[key]["score"] for key in supported) == scores
         assert set(items) == set(supported) | unsupported
         assert case["matches_expectations"] is True
@@ -315,9 +381,9 @@ def test_demo_text_summary_is_concise_and_keeps_limits(rubric_panel, monkeypatch
 
     result = subprocess.CompletedProcess([], 0, stdout=summary(rubric_panel))
     assert result.stdout.startswith("Rubric handcrafted assessment demo:")
-    assert "DISC-01-A" in result.stdout
-    assert "DISC-01-B" in result.stdout
-    assert "DISC-01-C" in result.stdout
+    assert "provenance.task-artifact-access" in result.stdout
+    assert "provenance.grading-path" in result.stdout
+    assert "provenance.grading-dependency-access" in result.stdout
     if rubric_panel["status"] == "passed":
         assert "weak-route defect, not demonstrated exploitation" in result.stdout
     else:
@@ -446,7 +512,7 @@ def test_declared_unavailable_task_is_not_a_confirmed_zero(tmp_path, monkeypatch
         text=True,
     )
     assert result.returncode == 1
-    row = json.loads(result.stdout)["items"]["DISC-01-A"]
+    row = json.loads(result.stdout)["items"]["provenance.task-artifact-access"]
     assert row["score"] is None
     assert row["status"] == "NOT_ASSESSED"
     assert row["legacy_measurements"] == {"required": 1, "accessible": 0, "missing": 0, "denied": 0, "unresolved": 1}

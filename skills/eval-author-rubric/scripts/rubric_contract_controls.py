@@ -22,9 +22,10 @@ manifest are accepted. Whole-source frozen hashes, not substring/regex matches
 or self-resealed caller hashes, admit the two reviewed scorer shapes. The
 Dockerfile's ENTIRE COPY inventory and public instruction are frozen too.
 
-Return selected CREATE-03/04/05-A rows. Only the planted hidden summary yields
-CREATE-04=0/E1; the clean neighbor and other criteria remain NOT_ASSESSED. This
-is finite static source inspection, not a general entailment analyzer, native
+Return the three selected task-contract rows. Only the planted hidden summary
+yields task-contract.discoverable-requirements=0/E1; the clean neighbor and
+other criteria remain NOT_ASSESSED. This is finite static source inspection,
+not a general entailment analyzer, native
 access test, authenticated human review, or measured model judgment. The image
 is not executed/inspected; this proves the selected recipe's declared task
 surface, not the contents/behavior of a deployed container. Unsupported,
@@ -38,6 +39,7 @@ import csv
 import hashlib
 import io
 import json
+from copy import deepcopy
 from decimal import Decimal
 from pathlib import Path
 
@@ -58,6 +60,7 @@ SCORERS = {
     "9c1bc98c7afff989524c0a6268ac99a7d7a5a76bfd95632d9ecd44426efa3cf7": "clean-neighbor",
 }
 REFERENCE = Path(__file__).resolve().parents[1] / "references/task-contract-authority.json"
+REVIEWED_DEFINITIONS_DIGEST = "895ac92d8d5771db2d987facb75a01bc1c34f75154b4b4df67a36eeca1fe320a"
 
 
 def _digest(data):
@@ -147,6 +150,8 @@ def assess_contract_controls(root, selection):
     reference_raw, reason = read_selected(REFERENCE.parent, REFERENCE.name)
     if reason or reference_raw is None or _digest(reference_raw) != implementation["definitions"]:
         raise ValueError("contract definitions changed")
+    if implementation["definitions"] != REVIEWED_DEFINITIONS_DIGEST:
+        raise ValueError("unreviewed contract definitions")
     definitions = loads(reference_raw)["items"]
 
     # These AST operations are valid ONLY after whole shell+Python source admission.
@@ -261,18 +266,18 @@ def assess_contract_controls(root, selection):
     rows = {}
     for definition in definitions:
         ident = definition["id"]
-        scored = ident == "CREATE-04" and planted
+        scored = ident == "task-contract.discoverable-requirements" and planted
         gaps = [
             "No native solver-scope access or blind discovery probe was run.",
             "No human adjudication or model judgment was performed.",
         ]
-        if ident == "CREATE-03":
+        if ident == "task-contract.clear-contract":
             gaps.append(
-                "Independent contract interpretations and boundary outcomes are unassessed; hidden-summary evidence is not an automatic CREATE-03 score."
+                "Independent contract interpretations and boundary outcomes are unassessed; hidden-summary evidence is not an automatic task-contract.clear-contract score."
             )
-        elif ident == "CREATE-05-A":
+        elif ident == "task-contract.scoring-authority":
             gaps.append(
-                "Correctness and scoring semantics require separate authority review; no automatic CREATE-05-A score."
+                "Correctness and scoring semantics require separate authority review; no automatic task-contract.scoring-authority score."
             )
         elif not planted:
             gaps.append(
@@ -280,10 +285,11 @@ def assess_contract_controls(root, selection):
             )
         checks = []
         for check in definition["checks"]:
-            deterministic = ident == "CREATE-04" and check["method"] == "deterministic"
+            deterministic = ident == "task-contract.discoverable-requirements" and check["method"] == "deterministic"
             checks.append(
                 {
                     "check_id": check["id"],
+                    "source_id": check["source_id"],
                     "method": check["method"],
                     "outcome": "PASS" if deterministic else "NOT_RUN",
                     "evidence_refs": list(refs.values()) if deterministic else [],
@@ -294,6 +300,7 @@ def assess_contract_controls(root, selection):
             )
         rows[ident] = {
             "item_id": ident,
+            "source": deepcopy(definition["source"]),
             "pillar": "validity",
             "status": "ASSESSED" if scored else "NOT_ASSESSED",
             "assessment_state": "ASSESSED" if scored else "NOT_ASSESSED",

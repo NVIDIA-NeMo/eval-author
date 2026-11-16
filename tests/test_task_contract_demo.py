@@ -13,7 +13,11 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 CLI = ROOT / "tools/run_task_contract_demo.py"
-CRITERIA = ["CREATE-03", "CREATE-04", "CREATE-05-A"]
+CRITERIA = [
+    "task-contract.clear-contract",
+    "task-contract.discoverable-requirements",
+    "task-contract.scoring-authority",
+]
 
 
 def run_demo(output):
@@ -32,7 +36,7 @@ def test_cli_retains_bounded_source_scores_separate_from_static_crosswalk(tmp_pa
     assert result.returncode == 0, result.stderr
     summary = json.loads(result.stdout)
     assert summary == json.loads((output / "panel.json").read_text())
-    assert summary["schema"] == "task-contract-demo-v1"
+    assert summary["schema"] == "task-contract-demo-v2"
     assert summary["native_execution"] is False
     assert summary["model_execution"] is False
     assert summary["human_adjudication"] is False
@@ -46,8 +50,8 @@ def test_cli_retains_bounded_source_scores_separate_from_static_crosswalk(tmp_pa
         scores = dict.fromkeys(CRITERIA)
         strengths = dict.fromkeys(CRITERIA)
         if case["id"] == "planted-summary":
-            scores["CREATE-04"] = 0
-            strengths["CREATE-04"] = "E1"
+            scores["task-contract.discoverable-requirements"] = 0
+            strengths["task-contract.discoverable-requirements"] = "E1"
         assert case["rubric_scores"] == scores
         assert case["emitted_criterion_ids"] == CRITERIA
         assert case["reviewer_kind"] == "agent"
@@ -136,6 +140,11 @@ def test_ethos_variants_consume_real_measure_reports_and_bound_inputs(tmp_path):
     assert cases["ethos-stale"]["selected_digest"] != cases["ethos-stale"]["observed"]["digest"]
 
 
+def test_demo_uses_semantic_task_contract_identities():
+    demo = runpy.run_path(str(CLI))
+    assert list(demo["CRITERIA"]) == CRITERIA
+
+
 def test_structural_inspection_reads_summary_values_instead_of_echoing_expectations():
     demo = runpy.run_path(str(CLI))
     task = ROOT / "skills/eval-author-audit/evals/files/tasks/order-total"
@@ -154,8 +163,13 @@ def test_markdown_distinguishes_emitted_scores_from_authored_crosswalk(tmp_path)
     assert "frozen supported source shapes only" in panel["scope"]
     markdown = (output / "report.md").read_text()
     assert "Static crosswalks are authored, not emitted rubric scores" in markdown
-    assert "CREATE-04=0/E1" in markdown
-    assert "CREATE-03=null; CREATE-04=null; CREATE-05-A=null" in markdown
+    assert "Discoverable grading requirements=0/E1" in markdown
+    assert (
+        "Clear task contract=null; Discoverable grading requirements=null; Correctness and scoring authority=null"
+        in markdown
+    )
+    for criterion in CRITERIA:
+        assert f"`{criterion}`" in markdown
     assert "expected-vs-observed match=True" in markdown
     assert "not human-approved" in markdown
     assert "or emitted task-contract rubric score" not in markdown

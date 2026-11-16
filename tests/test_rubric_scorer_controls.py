@@ -537,7 +537,7 @@ def test_fixture_controls_reach_canonical_scores_through_real_cli(tmp_path):
         assert {c["method"] for c in item["check_results"]} == {"review", "probe", "deterministic"}
         assert all("check_id" not in c for c in item["check_results"])
         assert item["remaining_gaps"]
-        assert report["items"]["DISC-01-B"]["score"] == 2
+        assert report["items"]["provenance.grading-path"]["score"] == 2
         assert all(report["items"][ident]["score"] is None for ident in ("AC-01", "AC-04"))
         assert report["anti_cheat_scores"] == {
             "AC-01": None,

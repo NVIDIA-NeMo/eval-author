@@ -55,6 +55,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+from copy import deepcopy
 from pathlib import Path
 from typing import Any, TypedDict
 
@@ -68,7 +69,7 @@ class FactPolicy(TypedDict):
 
 
 FACT_POLICIES: dict[str, dict[str, FactPolicy]] = {
-    "DISC-01-A": {
+    "provenance.task-artifact-access": {
         "task_artifacts": {
             "fields": {
                 "id": "text",
@@ -88,7 +89,7 @@ def _policy(description: str, **fields: tuple[str, ...] | str) -> FactPolicy:
 
 FACT_POLICIES.update(
     {
-        "DISC-01-B": {
+        "provenance.grading-path": {
             "grading_routes": _policy(
                 "Declared versus selected scorer and explicit branch/configuration identity.",
                 declared_scorer="text",
@@ -97,7 +98,7 @@ FACT_POLICIES.update(
                 branch=("resolved", "ambiguous", "omitted"),
             )
         },
-        "DISC-01-C": {
+        "provenance.grading-dependency-access": {
             "grading_dependencies": _policy(
                 "Required scorer dependency access and reference-completeness review.",
                 access=("accessible", "missing", "denied", "unresolved"),
@@ -106,7 +107,7 @@ FACT_POLICIES.update(
                 reference_review=("resolved", "unresolved"),
             )
         },
-        "DISC-02-A": {
+        "provenance.declared-configuration": {
             "configuration_fields": _policy(
                 "Per-field source, value, reported identity, unavailable reason and claim limitation.",
                 value="nullable_text",
@@ -116,7 +117,7 @@ FACT_POLICIES.update(
                 reported_value="nullable_text",
             )
         },
-        "DISC-02-B": {
+        "provenance.observed-configuration": {
             "run_settings": _policy(
                 "Declared/observed field pairs on an identified retained run, with difference disposition.",
                 declared="text",
@@ -125,7 +126,7 @@ FACT_POLICIES.update(
                 disposition=("agrees", "justified", "unresolved", "invalidates"),
             )
         },
-        "DISC-03-A": {
+        "provenance.runtime-route": {
             "provider_validation": _policy(
                 "Provider manifest validation and adapter compatibility are distinct outcomes.",
                 provider="text",
@@ -135,7 +136,7 @@ FACT_POLICIES.update(
                 adapter=("compatible", "incompatible", "unresolved"),
             )
         },
-        "AUD-02": {
+        "provenance.comparison-fairness": {
             "setup_differences": _policy(
                 "Each paired configuration difference, rationale, adjudication and demonstrated advantage.",
                 left="text",
@@ -145,7 +146,7 @@ FACT_POLICIES.update(
                 advantage=("none", "demonstrated", "unknown"),
             )
         },
-        "ENV-01": {
+        "provenance.solver-tool-access": {
             "tool_probes": _policy(
                 "Required action with actual solver identity and expected/actual call, schema, reset or error outcome.",
                 action="text",
@@ -156,7 +157,7 @@ FACT_POLICIES.update(
                 execution=("completed", "partial", "not_run", "error"),
             )
         },
-        "ENV-02-A": {
+        "provenance.dependency-substitution": {
             "components": _policy(
                 "Required component availability, real/substitute form, observed and approved revisions.",
                 form=("real", "substitute"),
@@ -166,7 +167,7 @@ FACT_POLICIES.update(
                 availability=("available", "missing", "partly_reconciled", "unknown"),
             )
         },
-        "ENV-03": {
+        "provenance.external-state": {
             "external_state": _policy(
                 "Material external-state identities, pin/live policy, observed drift and outcome relation.",
                 captured_identity="nullable_text",
@@ -176,7 +177,7 @@ FACT_POLICIES.update(
                 outcome_relation=("interpretable", "invalidated", "unknown"),
             )
         },
-        "CREATE-07": {
+        "provenance.evidence-revision-consistency": {
             "result_revisions": _policy(
                 "Result/current identity pairs, material-change classification, reuse disposition and lineage.",
                 recorded_revision="nullable_text",
@@ -186,7 +187,7 @@ FACT_POLICIES.update(
                 lineage="nullable_text",
             )
         },
-        "CREATE-03": {
+        "task-contract.clear-contract": {
             "contract_requirements": _policy(
                 "Public versus scorer requirements with interpretation source and ambiguity disposition.",
                 public_requirement="nullable_text",
@@ -195,7 +196,7 @@ FACT_POLICIES.update(
                 resolution=("resolved", "ambiguous", "prevents_grading"),
             )
         },
-        "CREATE-04": {
+        "task-contract.discoverable-requirements": {
             "scored_conditions": _policy(
                 "Full declared scored-condition crosswalk with authority and solver access.",
                 condition="text",
@@ -204,7 +205,7 @@ FACT_POLICIES.update(
                 mapping=("supported", "disputed", "unmapped", "hidden"),
             )
         },
-        "CREATE-05-A": {
+        "task-contract.scoring-authority": {
             "scoring_authorities": _policy(
                 "Expected and authoritative results, obligation and semantic dispute disposition.",
                 expected="text",
@@ -262,20 +263,23 @@ FACT_POLICIES.update(
 )
 
 ROBUSTNESS_POLICIES = {
-    "DISC-01-A": ("inventory_reconstruction", ("inventory",)),
-    "DISC-01-B": ("route_reconstruction", ("selection",)),
-    "DISC-01-C": ("dependency_reconstruction", ("coverage", "access")),
-    "DISC-02-A": ("manifest_reconstruction", ("manifest", "limitations")),
-    "DISC-02-B": ("configuration_repeat", ("configuration", "control")),
-    "DISC-03-A": ("compatibility_controls", ("clean_setup", "invalid_manifest")),
-    "AUD-02": ("matched_sensitivity", ("matched_setup", "sensitivity")),
-    "ENV-01": ("clean_access_controls", ("reset", "error", "boundary")),
-    "ENV-02-A": ("provisioning_reconciliation", ("provisioning", "approval")),
-    "ENV-03": ("replay_drift", ("replay", "deliberate_drift")),
-    "CREATE-07": ("change_injection", ("changed_invalidated", "unchanged_preserved", "lineage_preserved")),
-    "CREATE-03": ("boundary_solutions", ("independent_solution", "valid_boundary")),
-    "CREATE-04": ("blind_discovery", ("blind_discovery", "solver_access")),
-    "CREATE-05-A": ("authority_corroboration", ("reference", "scoring_contract")),
+    "provenance.task-artifact-access": ("inventory_reconstruction", ("inventory",)),
+    "provenance.grading-path": ("route_reconstruction", ("selection",)),
+    "provenance.grading-dependency-access": ("dependency_reconstruction", ("coverage", "access")),
+    "provenance.declared-configuration": ("manifest_reconstruction", ("manifest", "limitations")),
+    "provenance.observed-configuration": ("configuration_repeat", ("configuration", "control")),
+    "provenance.runtime-route": ("compatibility_controls", ("clean_setup", "invalid_manifest")),
+    "provenance.comparison-fairness": ("matched_sensitivity", ("matched_setup", "sensitivity")),
+    "provenance.solver-tool-access": ("clean_access_controls", ("reset", "error", "boundary")),
+    "provenance.dependency-substitution": ("provisioning_reconciliation", ("provisioning", "approval")),
+    "provenance.external-state": ("replay_drift", ("replay", "deliberate_drift")),
+    "provenance.evidence-revision-consistency": (
+        "change_injection",
+        ("changed_invalidated", "unchanged_preserved", "lineage_preserved"),
+    ),
+    "task-contract.clear-contract": ("boundary_solutions", ("independent_solution", "valid_boundary")),
+    "task-contract.discoverable-requirements": ("blind_discovery", ("blind_discovery", "solver_access")),
+    "task-contract.scoring-authority": ("authority_corroboration", ("reference", "scoring_contract")),
     "AC-01": ("heldout_access", ("independent_path", "heldout", "permitted_neighbor")),
     "AC-02": ("heldout_credit", ("heldout_attack", "valid_alternative")),
     "AC-03": ("consumer_boundary", ("invalid_rejection", "valid_acceptance")),
@@ -283,55 +287,55 @@ ROBUSTNESS_POLICIES = {
 }
 # Role-specific outcome enums, not arbitrary caller-chosen equality assertions.
 ROBUSTNESS_OUTCOMES: dict[str, dict[str, tuple[str, str]]] = {
-    "DISC-01-A": {"inventory": ("inventory_reconstructed", "inventory_incomplete")},
-    "DISC-01-B": {"selection": ("route_reconstructed", "route_mismatch")},
-    "DISC-01-C": {
+    "provenance.task-artifact-access": {"inventory": ("inventory_reconstructed", "inventory_incomplete")},
+    "provenance.grading-path": {"selection": ("route_reconstructed", "route_mismatch")},
+    "provenance.grading-dependency-access": {
         "coverage": ("dependencies_complete", "dependencies_incomplete"),
         "access": ("dependencies_accessible", "dependencies_inaccessible"),
     },
-    "DISC-02-A": {
+    "provenance.declared-configuration": {
         "manifest": ("manifest_reconstructed", "manifest_mismatch"),
         "limitations": ("limitations_preserved", "limitations_omitted"),
     },
-    "DISC-02-B": {
+    "provenance.observed-configuration": {
         "configuration": ("configuration_reproduced", "configuration_mismatch"),
         "control": ("configuration_control_agrees", "configuration_control_differs"),
     },
-    "DISC-03-A": {
+    "provenance.runtime-route": {
         "clean_setup": ("clean_setup_accepted", "clean_setup_failed"),
         "invalid_manifest": ("invalid_manifest_rejected", "invalid_manifest_accepted"),
     },
-    "AUD-02": {
+    "provenance.comparison-fairness": {
         "matched_setup": ("matched_setup_comparable", "matched_setup_incomparable"),
         "sensitivity": ("sensitivity_bounded", "sensitivity_unbounded"),
     },
-    "ENV-01": {
+    "provenance.solver-tool-access": {
         "reset": ("reset_preserved_access", "reset_broke_access"),
         "error": ("error_contract_preserved", "error_contract_violated"),
         "boundary": ("access_boundary_preserved", "access_boundary_violated"),
     },
-    "ENV-02-A": {
+    "provenance.dependency-substitution": {
         "provisioning": ("provisioning_reconciled", "provisioning_mismatch"),
         "approval": ("substitutions_authorized", "substitutions_unauthorized"),
     },
-    "ENV-03": {
+    "provenance.external-state": {
         "replay": ("replay_interpretable", "replay_uninterpretable"),
         "deliberate_drift": ("drift_detected", "drift_missed"),
     },
-    "CREATE-07": {
+    "provenance.evidence-revision-consistency": {
         "changed_invalidated": ("changed_result_invalidated", "changed_result_reused"),
         "unchanged_preserved": ("unchanged_result_preserved", "unchanged_result_lost"),
         "lineage_preserved": ("lineage_preserved", "lineage_lost"),
     },
-    "CREATE-03": {
+    "task-contract.clear-contract": {
         "independent_solution": ("public_solution_accepted", "public_solution_rejected"),
         "valid_boundary": ("valid_boundary_accepted", "valid_boundary_rejected"),
     },
-    "CREATE-04": {
+    "task-contract.discoverable-requirements": {
         "blind_discovery": ("conditions_discovered", "conditions_undiscoverable"),
         "solver_access": ("authority_accessible", "authority_inaccessible"),
     },
-    "CREATE-05-A": {
+    "task-contract.scoring-authority": {
         "reference": ("reference_agrees", "reference_contradicts"),
         "scoring_contract": ("scoring_contract_agrees", "scoring_contract_contradicts"),
     },
@@ -437,6 +441,7 @@ def _empty_rows() -> dict[str, dict[str, Any]]:
     return {
         ident: {
             "item_id": ident,
+            **({"source": deepcopy(definition["source"])} if "source" in definition else {}),
             "selected": False,
             "assessment_scope": None,
             "assessment_state": "NOT_ASSESSED",
@@ -447,7 +452,12 @@ def _empty_rows() -> dict[str, dict[str, Any]]:
             "evidence_strength": None,
             "evidence_refs": [],
             "check_results": [
-                {"check_id": check["id"], "outcome": "NOT_ASSESSED", "method": check["method"]}
+                {
+                    "check_id": check["id"],
+                    **({"source_id": check["source_id"]} if "source_id" in check else {}),
+                    "outcome": "NOT_ASSESSED",
+                    "method": check["method"],
+                }
                 for check in definition["checks"]
             ],
             "remaining_gaps": ["No source-bound criterion evidence selected."],
@@ -566,22 +576,22 @@ def _derive(ident: str, facts: dict[str, Any]) -> int | None:
         return None
     for r in inventory:
         contradictory = (
-            ident == "DISC-02-B"
+            ident == "provenance.observed-configuration"
             and r["disposition"] == "agrees"
             and r["declared"] != r["observed"]
-            or ident == "CREATE-07"
+            or ident == "provenance.evidence-revision-consistency"
             and r["change"] == "unchanged"
             and r["recorded_revision"] != r["current_revision"]
             or ident == "AC-01"
             and r["exposure"] == "unintended"
             and r["solver_read"] != "readable"
-            or ident == "ENV-02-A"
+            or ident == "provenance.dependency-substitution"
             and r["form"] == "real"
             and (r["authorization"] != "not_required" or r["approved_revision"] is not None)
         )
         if contradictory:
             raise ValueError("contradictory source observations")
-    if ident in ("DISC-01-A", "DISC-01-C"):
+    if ident in ("provenance.task-artifact-access", "provenance.grading-dependency-access"):
         if any(r["access"] in ("missing", "denied") and r["inspection_effect"] == "blocks" for r in inventory):
             return 0
         if all(
@@ -591,7 +601,7 @@ def _derive(ident: str, facts: dict[str, Any]) -> int | None:
             return 2
         if any(r["access"] == "accessible" for r in inventory):
             return 1
-    elif ident == "DISC-01-B":
+    elif ident == "provenance.grading-path":
         if any(
             r["selected_scorer"] and r["declared_scorer"] != r["selected_scorer"] or r["branch"] == "omitted"
             for r in inventory
@@ -601,7 +611,7 @@ def _derive(ident: str, facts: dict[str, Any]) -> int | None:
             return 2
         if any(r["selected_scorer"] for r in inventory):
             return 1
-    elif ident == "DISC-02-A":
+    elif ident == "provenance.declared-configuration":
         if any(r["value"] != r["reported_value"] and r["claim_limit"] == "uninterpretable" for r in inventory):
             return 0
         if all(
@@ -612,7 +622,7 @@ def _derive(ident: str, facts: dict[str, Any]) -> int | None:
             return 2
         if any(r["value"] is not None for r in inventory):
             return 1
-    elif ident == "DISC-02-B":
+    elif ident == "provenance.observed-configuration":
         if not any(r["run_identity"] for r in inventory):
             return None
         if any(
@@ -629,7 +639,7 @@ def _derive(ident: str, facts: dict[str, Any]) -> int | None:
             return 2
         if any(r["run_identity"] and r["observed"] is not None for r in inventory):
             return 1
-    elif ident == "DISC-03-A":
+    elif ident == "provenance.runtime-route":
         if any(r["validation"] == "incompatible" or r["adapter"] == "incompatible" for r in inventory):
             return 0
         if all(
@@ -638,7 +648,7 @@ def _derive(ident: str, facts: dict[str, Any]) -> int | None:
             return 2
         if any(r["validation"] == "accepted" for r in inventory):
             return 1
-    elif ident == "AUD-02":
+    elif ident == "provenance.comparison-fairness":
         if any(
             r["left"] != r["right"] and r["disposition"] == "unjustified" and r["advantage"] == "demonstrated"
             for r in inventory
@@ -648,7 +658,7 @@ def _derive(ident: str, facts: dict[str, Any]) -> int | None:
             return 2
         if any(r["disposition"] in ("disputed", "unjustified") for r in inventory):
             return 1
-    elif ident == "ENV-01":
+    elif ident == "provenance.solver-tool-access":
         reached = [
             r for r in inventory if r["solver_identity"] and r["execution"] == "completed" and r["actual"] is not None
         ]
@@ -658,7 +668,7 @@ def _derive(ident: str, facts: dict[str, Any]) -> int | None:
             return 2
         if reached or any(r["execution"] == "partial" and r["actual"] == r["expected"] for r in inventory):
             return 1
-    elif ident == "ENV-02-A":
+    elif ident == "provenance.dependency-substitution":
         if any(
             r["availability"] == "missing" or (r["form"] == "substitute" and r["authorization"] == "unapproved")
             for r in inventory
@@ -676,7 +686,7 @@ def _derive(ident: str, facts: dict[str, Any]) -> int | None:
             return 2
         if any(r["observed_revision"] and r["availability"] != "unknown" for r in inventory):
             return 1
-    elif ident == "ENV-03":
+    elif ident == "provenance.external-state":
         if any(r["observation"] == "drifted" and r["outcome_relation"] == "invalidated" for r in inventory):
             return 0
         if all(
@@ -689,7 +699,7 @@ def _derive(ident: str, facts: dict[str, Any]) -> int | None:
             return 2
         if any(r["captured_identity"] for r in inventory):
             return 1
-    elif ident == "CREATE-07":
+    elif ident == "provenance.evidence-revision-consistency":
         if any(
             r["recorded_revision"] != r["current_revision"]
             and r["change"] == "material"
@@ -710,7 +720,7 @@ def _derive(ident: str, facts: dict[str, Any]) -> int | None:
             return 2
         if any(r["recorded_revision"] for r in inventory):
             return 1
-    elif ident == "CREATE-03":
+    elif ident == "task-contract.clear-contract":
         if any(
             r["public_requirement"] != r["scorer_requirement"] and r["resolution"] == "prevents_grading"
             for r in inventory
@@ -723,7 +733,7 @@ def _derive(ident: str, facts: dict[str, Any]) -> int | None:
             return 2
         if any(r["resolution"] == "ambiguous" for r in inventory):
             return 1
-    elif ident == "CREATE-04":
+    elif ident == "task-contract.discoverable-requirements":
         if any(r["mapping"] == "hidden" and r["solver_access"] == "denied" for r in inventory):
             return 0
         if all(
@@ -732,7 +742,7 @@ def _derive(ident: str, facts: dict[str, Any]) -> int | None:
             return 2
         if any(r["mapping"] in ("disputed", "unmapped") for r in inventory):
             return 1
-    elif ident == "CREATE-05-A":
+    elif ident == "task-contract.scoring-authority":
         if any(r["authoritative"] is not None and r["expected"] != r["authoritative"] for r in inventory):
             return 0
         if all(r["authoritative"] and r["semantics"] == "resolved" for r in inventory):
@@ -944,7 +954,10 @@ def assess_evidence(root: Path, selection: dict[str, Any]) -> dict[str, dict[str
                 r["observed"] == ROBUSTNESS_OUTCOMES[ident][r["role"]][0]
                 and r["execution"] == "completed"
                 and r["scope"] == "same-task-revision"
-                and (ident in ("AUD-02", "CREATE-07") or r["original_actor"] != r["corroborating_actor"])
+                and (
+                    ident in ("provenance.comparison-fairness", "provenance.evidence-revision-consistency")
+                    or r["original_actor"] != r["corroborating_actor"]
+                )
                 for r in controls
             )
         ):

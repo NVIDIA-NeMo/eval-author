@@ -167,7 +167,7 @@ def measure(root, selection, ethos_validator=None):
     return {
         **({"criterion_demonstration": demonstration} if demonstration else {}),
         **({"recorded_criterion_evidence": recorded} if recorded else {}),
-        "schema": "rubric-measurements-v2",
+        "schema": "rubric-measurements-v3",
         "experimental": True,
         "scope": "explicit-local-selection",
         "preflight_success": False,
@@ -190,17 +190,22 @@ def main(argv=None):
     args = parser.parse_args(argv)
     try:
         report = measure(args.root.absolute(), loads(args.selection.read_text()), args.ethos_validator)
-        output = json.dumps(report, sort_keys=True, indent=2, allow_nan=False)
+        output = json.dumps(report, indent=2, allow_nan=False)
         if args.verify_existing:
             root = args.root.absolute()
             data, reason = read_selected(root, args.verify_existing.absolute().relative_to(root).as_posix())
-            if reason or data is None or json.dumps(loads(data), sort_keys=True, indent=2, allow_nan=False) != output:
+            if (
+                reason
+                or data is None
+                or json.dumps(loads(data), sort_keys=True, allow_nan=False)
+                != json.dumps(report, sort_keys=True, allow_nan=False)
+            ):
                 raise ValueError("retained report disagrees with current evidence")
     except (OSError, ValueError, TypeError, KeyError):
         print(
             json.dumps(
                 {
-                    "schema": "rubric-measurements-v2",
+                    "schema": "rubric-measurements-v3",
                     "status": "invalid",
                     "code": "selection.invalid",
                     "preflight_success": False,

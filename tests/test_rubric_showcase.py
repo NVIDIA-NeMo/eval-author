@@ -80,16 +80,25 @@ def test_source_bound_contract_rows_are_validated(showcase_output):
         assert actual["score"] == expected
     for row in summary["task_contract"]["assessments"]:
         report = module.read(showcase_output / row["evidence"])
-        assert row["items"] == {key: report["items"][key] for key in ("CREATE-03", "CREATE-04", "CREATE-05-A")}
-        assert row["items"]["CREATE-04"]["score"] == (0 if row["id"] == "planted-summary" else None)
+        assert row["items"] == {
+            key: report["items"][key]
+            for key in (
+                "task-contract.clear-contract",
+                "task-contract.discoverable-requirements",
+                "task-contract.scoring-authority",
+            )
+        }
+        assert row["items"]["task-contract.discoverable-requirements"]["score"] == (
+            0 if row["id"] == "planted-summary" else None
+        )
 
 
 @pytest.mark.parametrize(
     "relative,criterion",
     [
         ("scorer/rubric-baseline.json", "AC-03"),
-        ("task-contract/planted-summary/measure-report.json", "CREATE-04"),
-        ("task-contract/clean-neighbor/measure-report.json", "CREATE-04"),
+        ("task-contract/planted-summary/measure-report.json", "task-contract.discoverable-requirements"),
+        ("task-contract/clean-neighbor/measure-report.json", "task-contract.discoverable-requirements"),
     ],
 )
 @pytest.mark.parametrize("mutation", ["remove-row", "remove-score", "alter-score"])
@@ -198,10 +207,29 @@ def test_showcase_cli_reads_emitted_scores_and_keeps_boundaries(showcase_output)
     assert "integrity/anchor-3/rubric.stdout.json" in page
     assert summary["identity"]["status"] == "passed"
     assert summary["provenance"]["matched"] == summary["provenance"]["cases"] == 16
-    assert {"AC-01", "AC-02", "AC-03", "AC-04", "CREATE-03", "CREATE-04", "CREATE-05-A"} <= {
-        row["id"] for row in summary["criterion_inventory"]
-    }
+    assert {
+        "AC-01",
+        "AC-02",
+        "AC-03",
+        "AC-04",
+        "task-contract.clear-contract",
+        "task-contract.discoverable-requirements",
+        "task-contract.scoring-authority",
+    } <= {row["id"] for row in summary["criterion_inventory"]}
+    assert summary["schema"] == "rubric-showcase-v2"
     assert all("score" not in row for row in summary["criterion_inventory"])
+    canonical = {}
+    for name in ("artifact-configuration-provenance", "task-contract-authority"):
+        document = json.loads((ROOT / f"skills/eval-author-rubric/references/{name}.json").read_text())
+        canonical.update({row["id"]: row for row in document["items"]})
+    for row in summary["criterion_inventory"]:
+        assert row["title"] in page
+        assert row["id"] in page
+        if row["id"] in canonical:
+            assert row["title"] == canonical[row["id"]]["title"]
+            assert row["source"] == canonical[row["id"]]["source"]
+    assert "<th>Task artifact access</th>" in page
+    assert "<th>Discoverable grading requirements</th>" in page
     assert "identity/panel.json" in page
     assert "provenance/panel.json" in page
     assert summary["task_contract"]["matched"] == summary["task_contract"]["cases"] == 7
@@ -228,7 +256,11 @@ def test_validation_rejects_missing_integrity_group(showcase_output, tmp_path):
     shutil.copytree(showcase_output, output)
     path = output / "integrity/anchor-3/rubric.stdout.json"
     report = json.loads(path.read_text())
-    check = next(row for row in report["items"]["CREATE-07"]["check_results"] if row["id"] == "CREATE-07-C01")
+    check = next(
+        row
+        for row in report["items"]["provenance.evidence-revision-consistency"]["check_results"]
+        if row["id"] == "provenance.evidence-revision-consistency.deterministic-1"
+    )
     check["group_scores"] = []
     path.write_text(json.dumps(report))
     with pytest.raises(ValueError, match="integrity"):
@@ -348,7 +380,7 @@ def test_semantic_repeat_rejects_changed_case(showcase_output, tmp_path):
     shutil.copytree(showcase_output, output)
     path = output / "fresh-replay/identity/panel.json"
     report = json.loads(path.read_text())
-    report["assessments"][0]["observed"]["items"]["DISC-01-A"]["score"] = 3
+    report["assessments"][0]["observed"]["items"]["provenance.task-artifact-access"]["score"] = 3
     path.write_text(json.dumps(report))
     with pytest.raises(ValueError, match="fresh-root semantic mismatch: identity"):
         showcase_module().compare_runs(output)

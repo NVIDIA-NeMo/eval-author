@@ -79,17 +79,29 @@ def test_measure_cli_emits_bounded_contract_scores(tmp_path):
     )
     assert result.returncode == 1
     report = json.loads(result.stdout)
-    assert report["items"]["CREATE-04"]["score"] == 0
-    assert report["items"]["CREATE-04"]["evidence_strength"] == "E1"
-    assert report["items"]["CREATE-03"]["score"] is None
+    assert report["items"]["task-contract.discoverable-requirements"]["score"] == 0
+    assert report["items"]["task-contract.discoverable-requirements"]["evidence_strength"] == "E1"
+    assert report["items"]["task-contract.clear-contract"]["score"] is None
     assert "criterion_demonstration" not in report
+    definitions = json.loads(module().REFERENCE.read_bytes())["items"]
+    for definition in definitions:
+        row = report["items"][definition["id"]]
+        assert row["source"] == definition["source"]
+        assert "skill_id" not in row
+        assert [(check["check_id"], check["source_id"]) for check in row["check_results"]] == [
+            (check["id"], check["source_id"]) for check in definition["checks"]
+        ]
 
 
 def test_planted_hidden_summary_is_real_source_bound_zero(tmp_path):
     selection = packet(tmp_path)
     rows = module().assess_contract_controls(tmp_path, selection)
-    assert set(rows) == {"CREATE-03", "CREATE-04", "CREATE-05-A"}
-    row = rows["CREATE-04"]
+    assert set(rows) == {
+        "task-contract.clear-contract",
+        "task-contract.discoverable-requirements",
+        "task-contract.scoring-authority",
+    }
+    row = rows["task-contract.discoverable-requirements"]
     assert (row["status"], row["score"], row["evidence_strength"]) == ("ASSESSED", 0, "E1")
     assert row["assessment_scope"] == "bounded-source-inspection"
     assert row["source_inspection"]["hidden_requirement"] == "summary-output-and-value"
@@ -107,17 +119,26 @@ def test_planted_hidden_summary_is_real_source_bound_zero(tmp_path):
         raw = (tmp_path / ref["path"]).read_bytes()
         assert hashlib.sha256(raw).hexdigest() == ref["digest"]
         assert "\n".join(raw.decode().splitlines()[ref["start_line"] - 1 : ref["end_line"]]) == ref["quote"]
-    for ident in ("CREATE-03", "CREATE-05-A"):
+    for ident in ("task-contract.clear-contract", "task-contract.scoring-authority"):
         assert rows[ident]["score"] is None
         assert rows[ident]["status"] == "NOT_ASSESSED"
         assert rows[ident]["remaining_gaps"]
     assert all(row["check_results"] for row in rows.values())
+    definitions = json.loads(module().REFERENCE.read_bytes())["items"]
+    for definition in definitions:
+        row = rows[definition["id"]]
+        assert row["source"] == definition["source"]
+        assert "skill_id" not in row
+        assert row["canonical_scoring"] == definition["scoring"]
+        assert [(check["check_id"], check["source_id"]) for check in row["check_results"]] == [
+            (check["id"], check["source_id"]) for check in definition["checks"]
+        ]
 
 
 def test_clean_neighbor_is_unknown_not_a_clean_bill_of_health(tmp_path):
     rows = module().assess_contract_controls(tmp_path, packet(tmp_path, clean=True))
     assert all(row["score"] is None and row["status"] == "NOT_ASSESSED" for row in rows.values())
-    inspection = rows["CREATE-04"]["source_inspection"]
+    inspection = rows["task-contract.discoverable-requirements"]["source_inspection"]
     assert inspection["condition_count"] == 3
     assert inspection["hidden_requirement"] is None
     assert inspection["summary_expected"] is None
@@ -254,13 +275,25 @@ def test_unknown_selector_keys_are_rejected(tmp_path):
         module().assess_contract_controls(tmp_path, selection)
 
 
+def test_unreviewed_definition_change_fails_closed(tmp_path, monkeypatch):
+    adapter = module()
+    selection = packet(tmp_path)
+    definition = json.loads(adapter.REFERENCE.read_bytes())
+    definition["items"][1]["scoring"]["0"] = "Unreviewed scoring policy"
+    changed = tmp_path / "changed-definitions.json"
+    changed.write_text(json.dumps(definition))
+    monkeypatch.setattr(adapter, "REFERENCE", changed)
+    with pytest.raises(ValueError, match="unreviewed contract definitions"):
+        adapter.assess_contract_controls(tmp_path, selection)
+
+
 def test_unselected_adapter_emits_no_rows(tmp_path):
     assert module().assess_contract_controls(tmp_path, {}) == {}
 
 
 def test_no_claim_of_scoring_authority_check_completion(tmp_path):
     rows = module().assess_contract_controls(tmp_path, packet(tmp_path))
-    assert all(check["outcome"] == "NOT_RUN" for check in rows["CREATE-05-A"]["check_results"])
+    assert all(check["outcome"] == "NOT_RUN" for check in rows["task-contract.scoring-authority"]["check_results"])
 
 
 def test_late_source_change_prevents_returning_score(tmp_path, monkeypatch):
@@ -306,7 +339,7 @@ def test_flat_retained_demo_layout_is_supported(tmp_path):
             old.rename(new)
             record["path"] = new.name
             record["evidence"][0]["path"] = new.name
-    row = module().assess_contract_controls(tmp_path, selection)["CREATE-04"]
+    row = module().assess_contract_controls(tmp_path, selection)["task-contract.discoverable-requirements"]
     assert row["score"] == 0
     assert row["source_inspection"]["binding"]["sources"]["dockerfile_id"]["path"] == "Dockerfile"
 
@@ -314,7 +347,7 @@ def test_flat_retained_demo_layout_is_supported(tmp_path):
 def test_implementation_and_source_identity_are_both_bound(tmp_path):
     selection = packet(tmp_path)
     adapter = module()
-    row = adapter.assess_contract_controls(tmp_path, selection)["CREATE-04"]
+    row = adapter.assess_contract_controls(tmp_path, selection)["task-contract.discoverable-requirements"]
     binding = row["source_inspection"]["binding"]
     assert binding["implementation"]["adapter"] == hashlib.sha256(SCRIPT.read_bytes()).hexdigest()
     assert set(binding["implementation"]) == {"adapter", "reader", "json_loader", "definitions"}

@@ -52,6 +52,9 @@ def collect(output):
 
 
 def summarize_reports(output: Path) -> dict:
+    from run_criterion_scoring_demo import canonical_definitions
+
+    definitions = canonical_definitions()
     identity = read(output / "identity/panel.json")
     provenance = read(output / "provenance/panel.json")
     task_contract = read(output / "task-contract/panel.json")
@@ -64,13 +67,25 @@ def summarize_reports(output: Path) -> dict:
         for item in read(references / f"{name}.json")["items"]:
             inventory.append({"id": item["id"], "area": name})
     inventory.extend({"id": f"AC-0{number}", "area": "anti-cheat"} for number in range(1, 5))
-    demonstrated = {"DISC-01-A", "DISC-01-B", "DISC-01-C", "AC-02", "AC-03", "CREATE-04"}
+    for item in inventory:
+        definition = definitions[item["id"]]
+        item["title"] = definition["title"]
+        if "source" in definition:
+            item["source"] = definition["source"]
+    demonstrated = {
+        "provenance.task-artifact-access",
+        "provenance.grading-path",
+        "provenance.grading-dependency-access",
+        "AC-02",
+        "AC-03",
+        "task-contract.discoverable-requirements",
+    }
     for item in inventory:
         item["demonstration_status"] = (
             "Source-bound canonical score demonstrated"
             if item["id"] in demonstrated
             else "Integrity groups only; canonical Unassessed"
-            if item["id"] == "CREATE-07"
+            if item["id"] == "provenance.evidence-revision-consistency"
             else "No source-bound canonical score demonstrated"
         )
         item["scoring_rule_status"] = "Synthetic 0/1/2/3/missing demonstrated"
@@ -114,8 +129,12 @@ def summarize_reports(output: Path) -> dict:
     anchors = []
     for case in integrity["cases"][:4]:
         report = read(output / "integrity" / case["evidence"]["report"])
-        criterion = report["items"]["CREATE-07"]
-        check = next(row for row in criterion["check_results"] if row["id"] == "CREATE-07-C01")
+        criterion = report["items"]["provenance.evidence-revision-consistency"]
+        check = next(
+            row
+            for row in criterion["check_results"]
+            if row["id"] == "provenance.evidence-revision-consistency.deterministic-1"
+        )
         group = next(row for row in check["group_scores"] if row["id"] == "receipt_consistency")
         anchors.append(
             {
@@ -128,7 +147,7 @@ def summarize_reports(output: Path) -> dict:
             }
         )
     return {
-        "schema": "rubric-showcase-v1",
+        "schema": "rubric-showcase-v2",
         "native_execution": False,
         "workflow_acceptance": False,
         "aggregate_score": None,
@@ -160,7 +179,11 @@ def summarize_reports(output: Path) -> dict:
                     "id": row["id"],
                     "items": {
                         key: read(output / "task-contract" / row["report"])["items"][key]
-                        for key in ("CREATE-03", "CREATE-04", "CREATE-05-A")
+                        for key in (
+                            "task-contract.clear-contract",
+                            "task-contract.discoverable-requirements",
+                            "task-contract.scoring-authority",
+                        )
                     },
                     "evidence": "task-contract/" + row["report"],
                 }
@@ -210,7 +233,9 @@ def validate_reports(output: Path) -> None:
             {"score": score, "passed": passed, "failed": 4 - passed, "unknown": 0, "excluded": 0},
             "integrity anchor",
         )
-        require_equal(report["items"]["CREATE-07"]["score"], None, "integrity canonical score")
+        require_equal(
+            report["items"]["provenance.evidence-revision-consistency"]["score"], None, "integrity canonical score"
+        )
         require_equal(
             observed["required_group"],
             {
@@ -328,7 +353,11 @@ def validate_source_bound_scores(output: Path) -> None:
     for row in contract["cases"]:
         report = read(output / "task-contract" / row["report"])
         require_equal(row["matched"], True, "task contract match")
-        criteria = ("CREATE-03", "CREATE-04", "CREATE-05-A")
+        criteria = (
+            "task-contract.clear-contract",
+            "task-contract.discoverable-requirements",
+            "task-contract.scoring-authority",
+        )
         expected = dict.fromkeys(criteria)
         require_equal(
             row["observed"]["rubric_scores"] if row["kind"] == "task_contract" else row["rubric_scores"],
@@ -342,13 +371,13 @@ def validate_source_bound_scores(output: Path) -> None:
             require_equal(report["measurements"]["ethos"], row["observed"], "task contract ethos report")
         else:
             if row["id"] == "planted-summary":
-                expected["CREATE-04"] = 0
+                expected["task-contract.discoverable-requirements"] = 0
             emitted = {key: report["items"][key]["score"] for key in criteria}
             require_equal(emitted, expected, "task contract emitted score")
             require_equal(row["rubric_scores"], emitted, "task contract score projection")
             require_equal(row["emitted_criterion_ids"], list(criteria), "task contract emitted criteria")
             require_equal(
-                report["items"]["CREATE-04"]["evidence_strength"],
+                report["items"]["task-contract.discoverable-requirements"]["evidence_strength"],
                 "E1" if row["id"] == "planted-summary" else None,
                 "task contract evidence",
             )
@@ -418,6 +447,14 @@ def render(summary, panel):
     def score(value):
         return "Unassessed" if value is None else str(value)
 
+    labels = {row["id"]: row["title"] for row in summary["criterion_inventory"]}
+
+    def label(ident: str) -> str:
+        return esc(labels[ident])
+
+    def criterion(ident: str) -> str:
+        return f"{label(ident)}<br><code>{esc(ident)}</code>"
+
     scorer = summary["scorer"]
     compare = "".join(
         f"<tr><td>{arm.capitalize()}</td><td>{score(scorer[arm]['score'])}/{esc(scorer[arm]['evidence_strength'])}</td>"
@@ -448,12 +485,19 @@ def render(summary, panel):
     )
     identity_rows = "".join(
         f"<tr><td>{esc(row['id'])}</td>"
-        + "".join(f"<td>{score(row['scores'][key])}</td>" for key in ("DISC-01-A", "DISC-01-B", "DISC-01-C"))
+        + "".join(
+            f"<td>{score(row['scores'][key])}</td>"
+            for key in (
+                "provenance.task-artifact-access",
+                "provenance.grading-path",
+                "provenance.grading-dependency-access",
+            )
+        )
         + "</tr>"
         for row in summary["identity"]["assessments"]
     )
     inventory_rows = "".join(
-        f"<tr><td>{esc(row['id'])}</td><td>{esc(row['area'])}</td>"
+        f"<tr><td>{criterion(row['id'])}</td><td>{esc(row['area'])}</td>"
         f"<td>{esc(row['demonstration_status'])}; {esc(row['scoring_rule_status'])}</td></tr>"
         for row in summary["criterion_inventory"]
     )
@@ -465,15 +509,22 @@ def render(summary, panel):
     )
     contract_rows = "".join(
         f"<tr><td>{esc(row['id'])}</td>"
-        + "".join(f"<td>{score(row['items'][key]['score'])}</td>" for key in ("CREATE-03", "CREATE-04", "CREATE-05-A"))
-        + f"<td>{esc(row['items']['CREATE-04']['evidence_strength'] or 'Unassessed')}</td>"
+        + "".join(
+            f"<td>{score(row['items'][key]['score'])}</td>"
+            for key in (
+                "task-contract.clear-contract",
+                "task-contract.discoverable-requirements",
+                "task-contract.scoring-authority",
+            )
+        )
+        + f"<td>{esc(row['items']['task-contract.discoverable-requirements']['evidence_strength'] or 'Unassessed')}</td>"
         + f'<td><a href="{esc(row["evidence"])}">Emitted criteria</a></td></tr>'
         for row in summary["task_contract"]["assessments"]
     )
     demo = summary["criterion_demonstration"]
     variants = ("score-0", "score-1", "score-2", "score-3", "missing")
     matrix = "".join(
-        f"<tr><td>{esc(item['id'])}</td>"
+        f"<tr><td>{criterion(item['id'])}</td>"
         + "".join(
             f'<td><a href="criterion-scoring/run-a/{variant}/measure-report.json">'
             f"{score(demo['results'][variant][item['id']])}</a></td>"
@@ -482,7 +533,7 @@ def render(summary, panel):
         + "</tr>"
         for item in summary["criterion_inventory"]
     )
-    production_gaps = ", ".join(esc(ident) for ident in summary["production_gaps"])
+    production_gaps = ", ".join(label(ident) for ident in summary["production_gaps"])
     gaps = "".join(f"<li>{esc(gap)}</li>" for gap in scorer["reviewed"]["remaining_gaps"])
     return f"""<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Rubric demo: scorer quality and evidence integrity</title>
@@ -502,16 +553,16 @@ h1{{font-size:30px;line-height:1.2}}h2{{margin-top:36px;font-size:22px}}a{{color
 <p>The baseline accepts a solver-authored success claim. The actual local control emits AC-03 = 0/E2; the reviewed arm remains Unassessed. This shares the refund-solver-authored-success finding with AC-02, so it is not a second independent exploit. Rejecting this one shortcut does not prove a complete receipt trust boundary.</p>
 <table><thead><tr><th>Arm</th><th>AC-03</th><th>Evidence strength</th><th>Evidence</th></tr></thead><tbody>{authenticity_rows}</tbody></table>
 <h2>2. Integrity group: receipt_consistency</h2>
-<p>These are separate 0–3 group scores emitted under CREATE-07-C01. They do not score the whole CREATE-07 criterion. Required verification remains Unassessed because native freshness is unknown.</p>
-<div class="scroll"><table><thead><tr><th>Case</th><th>Expected group</th><th>Observed group</th><th>Pass / fail / unknown / excluded</th><th>Canonical CREATE-07</th><th>Evidence</th></tr></thead><tbody>{anchors}</tbody></table></div>
+<p>These are separate 0–3 group scores emitted under the deterministic receipt-consistency check (<code>provenance.evidence-revision-consistency.deterministic-1</code>). They do not score the whole Evidence revision consistency criterion. Required verification remains Unassessed because native freshness is unknown.</p>
+<div class="scroll"><table><thead><tr><th>Case</th><th>Expected group</th><th>Observed group</th><th>Pass / fail / unknown / excluded</th><th>Canonical evidence revision consistency</th><th>Evidence</th></tr></thead><tbody>{anchors}</tbody></table></div>
 <p><a href="integrity/report.md">Missing/stale evidence, acceptance claims and retry cases</a>: missing or stale evidence stays Unassessed. Acceptance examples are helper projections from partial claims, not saved-envelope workflow acceptance. Retry candidates remain unscored. Fresh-directory normalized integrity replay: {summary["integrity"]["fresh_replay_equal"]}.</p>
 <h2>3. Identity and provenance</h2>
-<p>The selected task, declared scorer route and dependency inventory have their own canonical scores. A wrong route lowers DISC-01-B to 0. An unresolved route remains Unassessed. A confirmed missing task lowers DISC-01-A to 0. These identity results do not prove scorer correctness.</p>
-<div class="scroll"><table><thead><tr><th>Mutation</th><th>DISC-01-A</th><th>DISC-01-B</th><th>DISC-01-C</th></tr></thead><tbody>{identity_rows}</tbody></table></div>
+<p>The selected task, declared scorer route and dependency inventory have their own canonical scores. A wrong route lowers Grading-path identification to 0. An unresolved route remains Unassessed. A confirmed missing task lowers Task artifact access to 0. These identity results do not prove scorer correctness.</p>
+<div class="scroll"><table><thead><tr><th>Mutation</th><th>{label("provenance.task-artifact-access")}</th><th>{label("provenance.grading-path")}</th><th>{label("provenance.grading-dependency-access")}</th></tr></thead><tbody>{identity_rows}</tbody></table></div>
 <p><a href="identity/panel.json">Identity assessment and source/configuration diagnostics</a>. The provenance panel matches {summary["provenance"]["matched"]}/{summary["provenance"]["cases"]} cases through the actual CLI, including changed selected bytes, broken links, configuration binding, stale dependencies and retained-text reconstruction. <a href="provenance/panel.json">Provenance evidence and individual report links</a>.</p>
 <h2>4. Task contract and scoring authority</h2>
-<p>The order-total task asks for total.txt. Its planted scorer also requires summary.json. The retained static crosswalk cites the instruction, scorer and input data. A clean neighbor removes that hidden condition. The real CLI emits CREATE-04 = 0/E1 for the planted hidden condition, bound to the supported fixture source bytes. The clean neighbor stays Unassessed: removing one defect does not establish a positive anchor. CREATE-03 and CREATE-05-A remain Unassessed. No human adjudication is supplied.</p>
-<table><thead><tr><th>Source case</th><th>CREATE-03</th><th>CREATE-04</th><th>CREATE-05-A</th><th>CREATE-04 evidence strength</th><th>Evidence</th></tr></thead><tbody>{contract_rows}</tbody></table>
+<p>The order-total task asks for total.txt. Its planted scorer also requires summary.json. The retained static crosswalk cites the instruction, scorer and input data. A clean neighbor removes that hidden condition. The real CLI emits Discoverable grading requirements = 0/E1 for the planted hidden condition, bound to the supported fixture source bytes. The clean neighbor stays Unassessed: removing one defect does not establish a positive anchor. Clear task contract and Correctness and scoring authority remain Unassessed. No human adjudication is supplied.</p>
+<table><thead><tr><th>Source case</th><th>{label("task-contract.clear-contract")}</th><th>{label("task-contract.discoverable-requirements")}</th><th>{label("task-contract.scoring-authority")}</th><th>Discoverability evidence strength</th><th>Evidence</th></tr></thead><tbody>{contract_rows}</tbody></table>
 <p><a href="task-contract/report.md">Condition crosswalk and expected-versus-observed inspection</a>. {summary["task_contract"]["matched"]}/{summary["task_contract"]["cases"]} task-contract and Ethos scenarios match their expectations. These are authored static inspections and real structure checks, not a measured model-judgment result.</p>
 <div class="scroll"><table><thead><tr><th>Ethos case</th><th>Measurement status</th><th>Structure valid</th><th>Evidence</th></tr></thead><tbody>{ethos_rows}</tbody></table></div>
 <p>A structurally valid but changed Ethos still fails its digest binding. An unavailable validator leaves the result unknown. Valid structure does not establish confirmed owner intent.</p>

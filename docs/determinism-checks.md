@@ -52,7 +52,7 @@ It does not turn partial acceptance claims into complete workflow acceptance.
 The criterion-rule panel exercises 0, 1, 2, 3 and missing-evidence cases for all
 18 populated criteria. These are labeled synthetic examples in the separate
 `criterion_demonstration` field, not measured task scores. The real fixture panels
-emit DISC-01-A/B/C, AC-02, AC-03's forged-success defect and CREATE-04's hidden
+emit provenance.task-artifact-access/B/C, AC-02, AC-03's forged-success defect and task-contract.discoverable-requirements's hidden
 requirement. Remaining real-task scores still need criterion-specific evidence
 adapters, scoped human adjudication, native probes or independent corroboration.
 The coverage and diversity pillars remain unimplemented.
@@ -73,9 +73,9 @@ retained data against current rules; its hashes are not authenticated attestatio
 
 ## Rubric identity measurements
 
-The experimental rubric demo assesses source-bound task access (`DISC-01-A`),
-explicit grading-path identification (`DISC-01-B`), and grading-dependency access
-with a retained completeness review (`DISC-01-C`). Raw identity, route,
+The experimental rubric demo assesses source-bound task access (`provenance.task-artifact-access`),
+explicit grading-path identification (`provenance.grading-path`), and grading-dependency access
+with a retained completeness review (`provenance.grading-dependency-access`). Raw identity, route,
 configuration, relationship, and approval measurements remain separate from
 canonical criterion scores. See the
 [rubric measurement contract](../skills/eval-author-rubric/references/identity.md)
@@ -88,7 +88,7 @@ uv run --locked python tools/run_rubric_measurements.py --format text
 uv run --locked python tools/run_rubric_measurements.py
 ```
 
-The default output is `rubric-mutation-panel-v3` JSON. It contains 14 raw-measurement
+The default output is `rubric-mutation-panel-v4` JSON. It contains 14 raw-measurement
 regressions, five canonical score variants, and eight source configuration and
 freshness variants in `evidence_cases`. Both
 assessment panels invoke the actual measurement CLI without mocking helper outputs.
@@ -104,7 +104,7 @@ case IDs and omits success claims when any case mismatches. Correctly detecting 
 planted defect does not cause a nonzero exit.
 It also checks that CLI assessment leaves the selected input bytes unchanged.
 
-| Variant | DISC-01-A | DISC-01-B | DISC-01-C |
+| Variant | provenance.task-artifact-access | provenance.grading-path | provenance.grading-dependency-access |
 | --- | --- | --- | --- |
 | Valid declared inventory | 2 | 2 | 2 |
 | Wrong scorer | 2 | 0 | 2 |
@@ -225,7 +225,7 @@ python skills/eval-author-rubric/scripts/measure.py \
   --root /path/to/package --selection /path/to/private-selection.json
 ```
 
-It emits `rubric-measurements-v2` JSON without modifying workflow state. Exit 1
+It emits `rubric-measurements-v3` JSON without modifying workflow state. Exit 1
 means failed/unknown raw predicates or comparisons still requiring review. Exit 2
 means invalid input. Exit 0 does not mean every canonical item is assessed or that
 native preflight passed. Configuration acceptability remains unassessed.

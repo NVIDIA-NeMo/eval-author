@@ -34,7 +34,11 @@ def test_demo_rejects_mutated_actual_rubric_groups(tmp_path, monkeypatch, mutati
 
     def mutate(root, name, argv):
         completed, report = real_command(root, name, argv)
-        check = next(row for row in report["items"]["CREATE-07"]["check_results"] if row["id"] == "CREATE-07-C01")
+        check = next(
+            row
+            for row in report["items"]["provenance.evidence-revision-consistency"]["check_results"]
+            if row["id"] == "provenance.evidence-revision-consistency.deterministic-1"
+        )
         if mutation == "missing-group":
             check.pop("group_scores")
         elif mutation == "tampered-score":
@@ -128,7 +132,11 @@ def test_real_receipts_and_cli_produce_all_four_score_anchors(tmp_path):
         measured = report["measurements"]["native"]["receipt_integrity"]
         assert measured["eligible_claims"] == 4
         assert measured["contradictions"] == case["observed"]["failed"]
-        check = next(row for row in report["items"]["CREATE-07"]["check_results"] if row["id"] == "CREATE-07-C01")
+        check = next(
+            row
+            for row in report["items"]["provenance.evidence-revision-consistency"]["check_results"]
+            if row["id"] == "provenance.evidence-revision-consistency.deterministic-1"
+        )
         assert case["observed"]["group_scores"] == check["group_scores"]
         assert case["observed"]["score"] == next(
             row["score"] for row in check["group_scores"] if row["id"] == "receipt_consistency"

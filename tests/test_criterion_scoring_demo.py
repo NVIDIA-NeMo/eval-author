@@ -16,20 +16,20 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "tools/run_criterion_scoring_demo.py"
 IDS = {
-    "DISC-01-A",
-    "DISC-01-B",
-    "DISC-01-C",
-    "DISC-02-A",
-    "DISC-02-B",
-    "DISC-03-A",
-    "AUD-02",
-    "ENV-01",
-    "ENV-02-A",
-    "ENV-03",
-    "CREATE-07",
-    "CREATE-03",
-    "CREATE-04",
-    "CREATE-05-A",
+    "provenance.task-artifact-access",
+    "provenance.grading-path",
+    "provenance.grading-dependency-access",
+    "provenance.declared-configuration",
+    "provenance.observed-configuration",
+    "provenance.runtime-route",
+    "provenance.comparison-fairness",
+    "provenance.solver-tool-access",
+    "provenance.dependency-substitution",
+    "provenance.external-state",
+    "provenance.evidence-revision-consistency",
+    "task-contract.clear-contract",
+    "task-contract.discoverable-requirements",
+    "task-contract.scoring-authority",
     "AC-01",
     "AC-02",
     "AC-03",
@@ -53,7 +53,7 @@ def test_all_eighteen_anchor_vectors_are_actual_cli_reports(tmp_path: Path) -> N
     result = invoke("--output", str(output))
     assert result.returncode == 0, result.stdout + result.stderr
     summary = json.loads((output / "summary.json").read_text())
-    assert summary["schema"] == "criterion-scoring-demo-v1"
+    assert summary["schema"] == "criterion-scoring-demo-v2"
     assert summary["semantic_results_equal"] is True
     assert summary["task_qualification"] is False
     assert summary["native_execution"] == summary["human_review"] == "NOT_RUN"
@@ -64,7 +64,7 @@ def test_all_eighteen_anchor_vectors_are_actual_cli_reports(tmp_path: Path) -> N
             directory = output / run / vector
             report = json.loads((directory / "measure-report.json").read_text())
             baseline = json.loads((directory / "baseline-report.json").read_text())
-            assert report["schema"] == "rubric-measurements-v2"
+            assert report["schema"] == "rubric-measurements-v3"
             rows = report["criterion_demonstration"]
             assert set(rows) == IDS
             assert report["items"] == baseline["items"]

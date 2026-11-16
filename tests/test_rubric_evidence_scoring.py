@@ -30,11 +30,97 @@ def test_all_eighteen_definitions_preserve_canonical_anchors(tmp_path):
     for name in ("artifact-configuration-provenance", "task-contract-authority"):
         source = json.loads((SCRIPT.parents[1] / f"references/{name}.json").read_text())
         for item in source["items"]:
-            assert definitions[item["id"]]["scoring"] == item["scoring"]
+            assert definitions[item["id"]] == item
+    assert set(scorer.FACT_POLICIES) == set(definitions)
+    assert set(scorer.ROBUSTNESS_POLICIES) == set(definitions)
+    assert set(scorer.ROBUSTNESS_OUTCOMES) == set(definitions)
     rows = scorer.assess_evidence(tmp_path, {})
     assert set(rows) == set(definitions)
     assert all(row["status"] == "NOT_ASSESSED" and row["score"] is None for row in rows.values())
     assert all(row["check_results"] and row["remaining_gaps"] for row in rows.values())
+
+
+# Frozen source metadata and ordered method suffixes from the reviewed ID map.
+MIGRATED_DEFINITIONS = [
+    (
+        {"id": "DISC-01-A", "skill_id": "discover"},
+        "provenance.task-artifact-access",
+        "deterministic-1,deterministic-2,human-review",
+    ),
+    (
+        {"id": "DISC-01-B", "skill_id": "discover"},
+        "provenance.grading-path",
+        "deterministic-1,deterministic-2,human-review-1,llm-judge,human-review-2",
+    ),
+    (
+        {"id": "DISC-01-C", "skill_id": "discover"},
+        "provenance.grading-dependency-access",
+        "deterministic-1,deterministic-2,human-review-1,human-review-2",
+    ),
+    (
+        {"id": "DISC-02-A", "skill_id": "discover"},
+        "provenance.declared-configuration",
+        "deterministic-1,deterministic-2,human-review-1,human-review-2",
+    ),
+    (
+        {"id": "DISC-02-B", "skill_id": "discover"},
+        "provenance.observed-configuration",
+        "deterministic-1,deterministic-2,probe",
+    ),
+    ({"id": "DISC-03-A", "skill_id": "discover"}, "provenance.runtime-route", "deterministic-1,deterministic-2,probe"),
+    ({"id": "AUD-02", "skill_id": "audit"}, "provenance.comparison-fairness", "deterministic,human-review,probe"),
+    ({"id": "ENV-01", "skill_id": "environment"}, "provenance.solver-tool-access", "human-review,deterministic,probe"),
+    (
+        {"id": "ENV-02-A", "skill_id": "environment"},
+        "provenance.dependency-substitution",
+        "deterministic-1,human-review,deterministic-2",
+    ),
+    ({"id": "ENV-03", "skill_id": "environment"}, "provenance.external-state", "deterministic,human-review,probe"),
+    (
+        {"id": "CREATE-07", "skill_id": "first_eval_create"},
+        "provenance.evidence-revision-consistency",
+        "deterministic-1,deterministic-2,deterministic-3,deterministic-4",
+    ),
+    (
+        {"id": "CREATE-03", "skill_id": "first_eval_create"},
+        "task-contract.clear-contract",
+        "llm-judge,human-review,probe",
+    ),
+    (
+        {"id": "CREATE-04", "skill_id": "first_eval_create"},
+        "task-contract.discoverable-requirements",
+        "llm-judge,deterministic,probe",
+    ),
+    (
+        {"id": "CREATE-05-A", "skill_id": "first_eval_create"},
+        "task-contract.scoring-authority",
+        "human-review,llm-judge,deterministic",
+    ),
+]
+
+
+def test_exact_identifier_mapping_preserves_source_metadata(tmp_path):
+    scorer = module()
+    definitions = scorer.canonical_definitions()
+    rows = scorer.assess_evidence(tmp_path, {})
+    mapped_count = 0
+    for source, ident, suffixes in MIGRATED_DEFINITIONS:
+        definition = definitions[ident]
+        assert definition["source"] == source
+        assert rows[ident]["source"] == source
+        assert [check["source_id"] for check in rows[ident]["check_results"]] == [
+            check["source_id"] for check in definition["checks"]
+        ]
+        assert "skill_id" not in definition
+        assert source["id"] not in definitions
+        expected_checks = [ident + "." + suffix for suffix in suffixes.split(",")]
+        assert [check["id"] for check in definition["checks"]] == expected_checks
+        assert [check["source_id"] for check in definition["checks"]] == [
+            source["id"] + f"-C{index:02}" for index in range(1, len(expected_checks) + 1)
+        ]
+        assert [check["check_id"] for check in rows[ident]["check_results"]] == expected_checks
+        mapped_count += 1 + len(expected_checks)
+    assert mapped_count == 61
 
 
 def add_artifact(root, selection, ident, document, role="evidence"):
@@ -103,11 +189,12 @@ def packet(root, scorer, item_id, facts, *, synthetic=True, kind="agent"):
 
 
 @pytest.mark.parametrize("synthetic", [True, False])
-def test_measure_cli_separates_demonstration_from_task_scores(tmp_path, synthetic):
+@pytest.mark.parametrize("ident", [row[1] for row in MIGRATED_DEFINITIONS] + ["AC-01", "AC-02", "AC-03", "AC-04"])
+def test_measure_cli_separates_demonstration_from_task_scores(tmp_path, synthetic, ident):
     import subprocess
 
     scorer = module()
-    selection = packet(tmp_path, scorer, "CREATE-04", facts_for("CREATE-04", 0), synthetic=synthetic)
+    selection = packet(tmp_path, scorer, ident, facts_for(ident, 0), synthetic=synthetic)
     request = tmp_path / "selection.json"
     request.write_text(json.dumps(selection))
     result = subprocess.run(
@@ -119,12 +206,22 @@ def test_measure_cli_separates_demonstration_from_task_scores(tmp_path, syntheti
     assert result.returncode == 1
     report = json.loads(result.stdout)
     if synthetic:
-        assert report["criterion_demonstration"]["CREATE-04"]["score"] == 0
-        assert "CREATE-04" not in report["items"]
+        row = report["criterion_demonstration"][ident]
+        assert row["score"] == 0
+        assert ident not in report["items"] or report["items"][ident]["score"] is None
     else:
         assert "criterion_demonstration" not in report
-        assert report["items"]["CREATE-04"]["score"] is None
-        assert report["items"]["CREATE-04"]["evidence_strength"] == "E0"
+        row = report["recorded_criterion_evidence"][ident]
+        assert report["items"][ident]["score"] is None
+        assert row["evidence_strength"] == "E0"
+    definition = scorer.canonical_definitions()[ident]
+    if "source" in definition:
+        assert row["source"] == definition["source"]
+        assert "skill_id" not in row
+        assert [check["source_id"] for check in row["check_results"]] == [
+            check["source_id"] for check in definition["checks"]
+        ]
+    assert [check["check_id"] for check in row["check_results"]] == [check["id"] for check in definition["checks"]]
     assert report["preflight_success"] is False
 
 
@@ -132,7 +229,9 @@ def test_measure_cli_separates_demonstration_from_task_scores(tmp_path, syntheti
 @pytest.mark.parametrize("access", ["denied", "missing", "unresolved"])
 def test_selection_wide_alias_restrictions_precede_reads(tmp_path, monkeypatch, target, access):
     scorer = module()
-    selection = packet(tmp_path, scorer, "DISC-01-A", facts_for("DISC-01-A", 2))
+    selection = packet(
+        tmp_path, scorer, "provenance.task-artifact-access", facts_for("provenance.task-artifact-access", 2)
+    )
     record = next(r for r in selection["artifacts"] if r["id"] == target)
     selection["artifacts"].append({**record, "id": "restricted-alias", "access": access})
     original = scorer.read_selected
@@ -153,7 +252,7 @@ def test_source_bound_access_rows_have_explicit_demo_scope(tmp_path):
     selection = packet(
         tmp_path,
         scorer,
-        "DISC-01-A",
+        "provenance.task-artifact-access",
         {
             "task_artifacts": [
                 {"id": "instructions", "access": "accessible", "revision": "v1", "inspection_effect": "none"},
@@ -161,7 +260,7 @@ def test_source_bound_access_rows_have_explicit_demo_scope(tmp_path):
             ]
         },
     )
-    row = scorer.assess_evidence(tmp_path, selection)["DISC-01-A"]
+    row = scorer.assess_evidence(tmp_path, selection)["provenance.task-artifact-access"]
     assert row["score"] == 0
     assert row["assessment_scope"] == "synthetic-scoring-demonstration"
     assert row["evidence_strength"] == "E1"
@@ -170,24 +269,28 @@ def test_source_bound_access_rows_have_explicit_demo_scope(tmp_path):
     assert row["fact_results"][0]["basis"] == "recorded_judgment"
     assert row["reviewer_authenticated"] is False
     assert row["native_execution_verified"] is False
-    assert all(r["score"] is None for k, r in scorer.assess_evidence(tmp_path, selection).items() if k != "DISC-01-A")
+    assert all(
+        r["score"] is None
+        for k, r in scorer.assess_evidence(tmp_path, selection).items()
+        if k != "provenance.task-artifact-access"
+    )
 
 
 # Literal source-row vectors, deliberately not generated from production policy.
 VECTORS = {
-    "DISC-01-A": (
+    "provenance.task-artifact-access": (
         "task_artifacts",
         {"id": "a", "access": "accessible", "revision": "v1", "inspection_effect": "none"},
         {"access": "missing", "inspection_effect": "blocks"},
         {"revision": None},
     ),
-    "DISC-01-B": (
+    "provenance.grading-path": (
         "grading_routes",
         {"id": "a", "declared_scorer": "s", "selected_scorer": "s", "configuration": "v1", "branch": "resolved"},
         {"selected_scorer": "other"},
         {"branch": "ambiguous"},
     ),
-    "DISC-01-C": (
+    "provenance.grading-dependency-access": (
         "grading_dependencies",
         {
             "id": "a",
@@ -199,7 +302,7 @@ VECTORS = {
         {"access": "denied", "inspection_effect": "blocks"},
         {"reference_review": "unresolved"},
     ),
-    "DISC-02-A": (
+    "provenance.declared-configuration": (
         "configuration_fields",
         {
             "id": "model",
@@ -212,13 +315,13 @@ VECTORS = {
         {"reported_value": "wrong", "claim_limit": "uninterpretable"},
         {"source_identity": None},
     ),
-    "DISC-02-B": (
+    "provenance.observed-configuration": (
         "run_settings",
         {"id": "model", "declared": "m1", "observed": "m1", "run_identity": "run1", "disposition": "agrees"},
         {"observed": "m2", "disposition": "invalidates"},
         {"observed": None, "disposition": "unresolved"},
     ),
-    "DISC-03-A": (
+    "provenance.runtime-route": (
         "provider_validation",
         {
             "id": "route",
@@ -231,7 +334,7 @@ VECTORS = {
         {"validation": "incompatible"},
         {"adapter": "unresolved"},
     ),
-    "AUD-02": (
+    "provenance.comparison-fairness": (
         "setup_differences",
         {
             "id": "budget",
@@ -244,7 +347,7 @@ VECTORS = {
         {"disposition": "unjustified", "advantage": "demonstrated"},
         {"disposition": "disputed"},
     ),
-    "ENV-01": (
+    "provenance.solver-tool-access": (
         "tool_probes",
         {
             "id": "read",
@@ -258,7 +361,7 @@ VECTORS = {
         {"actual": "denied"},
         {"probe": "schema", "execution": "partial"},
     ),
-    "ENV-02-A": (
+    "provenance.dependency-substitution": (
         "components",
         {
             "id": "tool",
@@ -271,7 +374,7 @@ VECTORS = {
         {"availability": "missing"},
         {"availability": "partly_reconciled"},
     ),
-    "ENV-03": (
+    "provenance.external-state": (
         "external_state",
         {
             "id": "dataset",
@@ -284,7 +387,7 @@ VECTORS = {
         {"observation": "drifted", "outcome_relation": "invalidated"},
         {"captured_identity": None, "observation": "capture_gap"},
     ),
-    "CREATE-07": (
+    "provenance.evidence-revision-consistency": (
         "result_revisions",
         {
             "id": "result",
@@ -297,7 +400,7 @@ VECTORS = {
         {"current_revision": "v2", "change": "material", "disposition": "combined"},
         {"current_revision": "v2", "change": "material", "disposition": "stale"},
     ),
-    "CREATE-03": (
+    "task-contract.clear-contract": (
         "contract_requirements",
         {
             "id": "format",
@@ -309,7 +412,7 @@ VECTORS = {
         {"scorer_requirement": "CSV", "resolution": "prevents_grading"},
         {"resolution": "ambiguous"},
     ),
-    "CREATE-04": (
+    "task-contract.discoverable-requirements": (
         "scored_conditions",
         {
             "id": "format",
@@ -321,7 +424,7 @@ VECTORS = {
         {"authority": None, "solver_access": "denied", "mapping": "hidden"},
         {"mapping": "disputed"},
     ),
-    "CREATE-05-A": (
+    "task-contract.scoring-authority": (
         "scoring_authorities",
         {
             "id": "answer",
@@ -395,7 +498,11 @@ def facts_for(ident, variant):
     name, base, defect, partial = VECTORS[ident]
     row = {**base, **({0: defect, 1: partial}.get(variant, {}))}
     rows = [row]
-    if variant == 1 and ident in ("DISC-02-B", "ENV-03", "CREATE-05-A"):
+    if variant == 1 and ident in (
+        "provenance.observed-configuration",
+        "provenance.external-state",
+        "task-contract.scoring-authority",
+    ):
         rows.append({**base, "id": "established-neighbor"})
     if ident == "AC-02":
         rows.extend(
@@ -437,20 +544,20 @@ def test_missing_inventory_is_unknown_not_a_defect(tmp_path, ident):
 
 
 ROBUSTNESS = {
-    "DISC-01-A": "inventory_reconstruction",
-    "DISC-01-B": "route_reconstruction",
-    "DISC-01-C": "dependency_reconstruction",
-    "DISC-02-A": "manifest_reconstruction",
-    "DISC-02-B": "configuration_repeat",
-    "DISC-03-A": "compatibility_controls",
-    "AUD-02": "matched_sensitivity",
-    "ENV-01": "clean_access_controls",
-    "ENV-02-A": "provisioning_reconciliation",
-    "ENV-03": "replay_drift",
-    "CREATE-07": "change_injection",
-    "CREATE-03": "boundary_solutions",
-    "CREATE-04": "blind_discovery",
-    "CREATE-05-A": "authority_corroboration",
+    "provenance.task-artifact-access": "inventory_reconstruction",
+    "provenance.grading-path": "route_reconstruction",
+    "provenance.grading-dependency-access": "dependency_reconstruction",
+    "provenance.declared-configuration": "manifest_reconstruction",
+    "provenance.observed-configuration": "configuration_repeat",
+    "provenance.runtime-route": "compatibility_controls",
+    "provenance.comparison-fairness": "matched_sensitivity",
+    "provenance.solver-tool-access": "clean_access_controls",
+    "provenance.dependency-substitution": "provisioning_reconciliation",
+    "provenance.external-state": "replay_drift",
+    "provenance.evidence-revision-consistency": "change_injection",
+    "task-contract.clear-contract": "boundary_solutions",
+    "task-contract.discoverable-requirements": "blind_discovery",
+    "task-contract.scoring-authority": "authority_corroboration",
     "AC-01": "heldout_access",
     "AC-02": "heldout_credit",
     "AC-03": "consumer_boundary",
@@ -461,40 +568,48 @@ ROBUSTNESS = {
 def robustness_for(ident):
     # All requested control roles must be present, not merely one green receipt.
     roles = {
-        "DISC-01-A": ["inventory"],
-        "DISC-01-B": ["selection"],
-        "DISC-01-C": ["coverage", "access"],
-        "DISC-02-A": ["manifest", "limitations"],
-        "DISC-02-B": ["configuration", "control"],
-        "DISC-03-A": ["clean_setup", "invalid_manifest"],
-        "AUD-02": ["matched_setup", "sensitivity"],
-        "ENV-01": ["reset", "error", "boundary"],
-        "ENV-02-A": ["provisioning", "approval"],
-        "ENV-03": ["replay", "deliberate_drift"],
-        "CREATE-07": ["changed_invalidated", "unchanged_preserved", "lineage_preserved"],
-        "CREATE-03": ["independent_solution", "valid_boundary"],
-        "CREATE-04": ["blind_discovery", "solver_access"],
-        "CREATE-05-A": ["reference", "scoring_contract"],
+        "provenance.task-artifact-access": ["inventory"],
+        "provenance.grading-path": ["selection"],
+        "provenance.grading-dependency-access": ["coverage", "access"],
+        "provenance.declared-configuration": ["manifest", "limitations"],
+        "provenance.observed-configuration": ["configuration", "control"],
+        "provenance.runtime-route": ["clean_setup", "invalid_manifest"],
+        "provenance.comparison-fairness": ["matched_setup", "sensitivity"],
+        "provenance.solver-tool-access": ["reset", "error", "boundary"],
+        "provenance.dependency-substitution": ["provisioning", "approval"],
+        "provenance.external-state": ["replay", "deliberate_drift"],
+        "provenance.evidence-revision-consistency": ["changed_invalidated", "unchanged_preserved", "lineage_preserved"],
+        "task-contract.clear-contract": ["independent_solution", "valid_boundary"],
+        "task-contract.discoverable-requirements": ["blind_discovery", "solver_access"],
+        "task-contract.scoring-authority": ["reference", "scoring_contract"],
         "AC-01": ["independent_path", "heldout", "permitted_neighbor"],
         "AC-02": ["heldout_attack", "valid_alternative"],
         "AC-03": ["invalid_rejection", "valid_acceptance"],
         "AC-04": ["order", "session"],
     }[ident]
     outcomes = {
-        "DISC-01-A": ["inventory_reconstructed"],
-        "DISC-01-B": ["route_reconstructed"],
-        "DISC-01-C": ["dependencies_complete", "dependencies_accessible"],
-        "DISC-02-A": ["manifest_reconstructed", "limitations_preserved"],
-        "DISC-02-B": ["configuration_reproduced", "configuration_control_agrees"],
-        "DISC-03-A": ["clean_setup_accepted", "invalid_manifest_rejected"],
-        "AUD-02": ["matched_setup_comparable", "sensitivity_bounded"],
-        "ENV-01": ["reset_preserved_access", "error_contract_preserved", "access_boundary_preserved"],
-        "ENV-02-A": ["provisioning_reconciled", "substitutions_authorized"],
-        "ENV-03": ["replay_interpretable", "drift_detected"],
-        "CREATE-07": ["changed_result_invalidated", "unchanged_result_preserved", "lineage_preserved"],
-        "CREATE-03": ["public_solution_accepted", "valid_boundary_accepted"],
-        "CREATE-04": ["conditions_discovered", "authority_accessible"],
-        "CREATE-05-A": ["reference_agrees", "scoring_contract_agrees"],
+        "provenance.task-artifact-access": ["inventory_reconstructed"],
+        "provenance.grading-path": ["route_reconstructed"],
+        "provenance.grading-dependency-access": ["dependencies_complete", "dependencies_accessible"],
+        "provenance.declared-configuration": ["manifest_reconstructed", "limitations_preserved"],
+        "provenance.observed-configuration": ["configuration_reproduced", "configuration_control_agrees"],
+        "provenance.runtime-route": ["clean_setup_accepted", "invalid_manifest_rejected"],
+        "provenance.comparison-fairness": ["matched_setup_comparable", "sensitivity_bounded"],
+        "provenance.solver-tool-access": [
+            "reset_preserved_access",
+            "error_contract_preserved",
+            "access_boundary_preserved",
+        ],
+        "provenance.dependency-substitution": ["provisioning_reconciled", "substitutions_authorized"],
+        "provenance.external-state": ["replay_interpretable", "drift_detected"],
+        "provenance.evidence-revision-consistency": [
+            "changed_result_invalidated",
+            "unchanged_result_preserved",
+            "lineage_preserved",
+        ],
+        "task-contract.clear-contract": ["public_solution_accepted", "valid_boundary_accepted"],
+        "task-contract.discoverable-requirements": ["conditions_discovered", "authority_accessible"],
+        "task-contract.scoring-authority": ["reference_agrees", "scoring_contract_agrees"],
         "AC-01": ["protected_read_denied", "heldout_read_denied", "permitted_read_allowed"],
         "AC-02": ["forbidden_credit_withheld", "valid_alternative_credited"],
         "AC-03": ["invalid_receipt_rejected", "valid_receipt_credited"],
@@ -608,7 +723,9 @@ def test_same_actor_is_not_independent_even_in_demo(tmp_path, ident):
     for row in next(iter(robust.values())):
         row["corroborating_actor"] = row["original_actor"]
     selection = packet(tmp_path, scorer, ident, {**facts_for(ident, 2), **robust})
-    assert scorer.assess_evidence(tmp_path, selection)[ident]["score"] == (3 if ident in ("AUD-02", "CREATE-07") else 2)
+    assert scorer.assess_evidence(tmp_path, selection)[ident]["score"] == (
+        3 if ident in ("provenance.comparison-fairness", "provenance.evidence-revision-consistency") else 2
+    )
 
 
 def rewrite(root, selection, ident, mutate):
@@ -649,7 +766,7 @@ def rewrite(root, selection, ident, mutate):
 )
 def test_invalid_or_unbound_evidence_is_rejected(tmp_path, mutation):
     scorer = module()
-    selection = packet(tmp_path, scorer, "DISC-01-B", facts_for("DISC-01-B", 2))
+    selection = packet(tmp_path, scorer, "provenance.grading-path", facts_for("provenance.grading-path", 2))
     field = "grading_routes"
     if mutation == "packet_score":
         rewrite(tmp_path, selection, "packet", lambda d: d["items"][0].update(score=3))
@@ -708,9 +825,9 @@ def test_invalid_or_unbound_evidence_is_rejected(tmp_path, mutation):
             tmp_path, selection, "packet", lambda d: d["items"][0]["facts"][field]["source"].update(pointer="/copy")
         )
     elif mutation == "contradiction":
-        bad = facts_for("DISC-01-B", 2)
+        bad = facts_for("provenance.grading-path", 2)
         bad[field].append({**bad[field][0], "selected_scorer": "different"})
-        selection = packet(tmp_path, scorer, "DISC-01-B", bad)
+        selection = packet(tmp_path, scorer, "provenance.grading-path", bad)
     with pytest.raises(ValueError):
         scorer.assess_evidence(tmp_path, selection)
 
@@ -733,7 +850,9 @@ def test_recorded_authorship_does_not_authenticate_or_grant_real_scores(tmp_path
 @pytest.mark.parametrize("mutation", ["symlink", "parent_symlink", "oversize", "digest", "duplicate_json", "nan"])
 def test_source_reader_fails_closed(tmp_path, mutation):
     scorer = module()
-    selection = packet(tmp_path, scorer, "DISC-01-A", facts_for("DISC-01-A", 2))
+    selection = packet(
+        tmp_path, scorer, "provenance.task-artifact-access", facts_for("provenance.task-artifact-access", 2)
+    )
     source = tmp_path / "facts.json"
     record = next(r for r in selection["artifacts"] if r["id"] == "facts")
     if mutation == "symlink":
@@ -760,25 +879,29 @@ def test_source_reader_fails_closed(tmp_path, mutation):
 @pytest.mark.parametrize("with_neighbor", [False, True])
 def test_justified_setting_without_observation_stays_unknown(tmp_path, with_neighbor):
     scorer = module()
-    facts = facts_for("DISC-02-B", 2)
+    facts = facts_for("provenance.observed-configuration", 2)
     rows = facts["run_settings"]
     if with_neighbor:
         rows.append({**rows[0], "id": "observed-neighbor"})
     rows[0].update(observed=None, disposition="justified")
-    selection = packet(tmp_path, scorer, "DISC-02-B", facts)
-    assert scorer.assess_evidence(tmp_path, selection)["DISC-02-B"]["score"] == (1 if with_neighbor else None)
+    selection = packet(tmp_path, scorer, "provenance.observed-configuration", facts)
+    assert scorer.assess_evidence(tmp_path, selection)["provenance.observed-configuration"]["score"] == (
+        1 if with_neighbor else None
+    )
 
 
 @pytest.mark.parametrize("with_neighbor", [False, True])
 def test_completed_probe_without_actual_outcome_stays_unknown(tmp_path, with_neighbor):
     scorer = module()
-    facts = facts_for("ENV-01", 2)
+    facts = facts_for("provenance.solver-tool-access", 2)
     rows = facts["tool_probes"]
     if with_neighbor:
         rows.append({**rows[0], "id": "observed-neighbor"})
     rows[0]["actual"] = None
-    selection = packet(tmp_path, scorer, "ENV-01", facts)
-    assert scorer.assess_evidence(tmp_path, selection)["ENV-01"]["score"] == (1 if with_neighbor else None)
+    selection = packet(tmp_path, scorer, "provenance.solver-tool-access", facts)
+    assert scorer.assess_evidence(tmp_path, selection)["provenance.solver-tool-access"]["score"] == (
+        1 if with_neighbor else None
+    )
 
 
 @pytest.mark.parametrize(
@@ -802,21 +925,23 @@ def test_reset_defect_requires_observed_state_or_paired_credit(tmp_path, patch):
 @pytest.mark.parametrize("semantics", ["resolved", "disputed", "contradicted"])
 def test_authority_mismatch_is_derived_not_overridden_by_semantics(tmp_path, semantics):
     scorer = module()
-    facts = facts_for("CREATE-05-A", 2)
+    facts = facts_for("task-contract.scoring-authority", 2)
     facts["scoring_authorities"][0].update(authoritative="43", semantics=semantics)
-    selection = packet(tmp_path, scorer, "CREATE-05-A", facts)
-    assert scorer.assess_evidence(tmp_path, selection)["CREATE-05-A"]["score"] == 0
+    selection = packet(tmp_path, scorer, "task-contract.scoring-authority", facts)
+    assert scorer.assess_evidence(tmp_path, selection)["task-contract.scoring-authority"]["score"] == 0
 
 
 def test_private_hidden_authority_is_a_defect_even_when_identified(tmp_path):
     scorer = module()
-    facts = facts_for("CREATE-04", 2)
+    facts = facts_for("task-contract.discoverable-requirements", 2)
     facts["scored_conditions"][0].update(authority="private-grader-rule", solver_access="denied", mapping="hidden")
-    selection = packet(tmp_path, scorer, "CREATE-04", facts)
-    assert scorer.assess_evidence(tmp_path, selection)["CREATE-04"]["score"] == 0
+    selection = packet(tmp_path, scorer, "task-contract.discoverable-requirements", facts)
+    assert scorer.assess_evidence(tmp_path, selection)["task-contract.discoverable-requirements"]["score"] == 0
 
 
-@pytest.mark.parametrize("ident", ["DISC-02-B", "ENV-03", "CREATE-05-A"])
+@pytest.mark.parametrize(
+    "ident", ["provenance.observed-configuration", "provenance.external-state", "task-contract.scoring-authority"]
+)
 def test_partial_requires_some_established_scope_not_just_an_asserted_gap(tmp_path, ident):
     scorer = module()
     name, base, _, partial = VECTORS[ident]
@@ -826,7 +951,9 @@ def test_partial_requires_some_established_scope_not_just_an_asserted_gap(tmp_pa
 
 def test_fact_read_is_revalidated_after_projection(tmp_path, monkeypatch):
     scorer = module()
-    selection = packet(tmp_path, scorer, "DISC-01-A", facts_for("DISC-01-A", 2))
+    selection = packet(
+        tmp_path, scorer, "provenance.task-artifact-access", facts_for("provenance.task-artifact-access", 2)
+    )
     original = scorer._derive
 
     def change_after_read(ident, facts):
@@ -856,7 +983,7 @@ def test_definition_binding_includes_supplemental_evidence_floors(tmp_path, monk
 @pytest.mark.parametrize("bad", [True, 1, "human=true", ["not-a-row"], {"score": 3}])
 def test_fact_inventory_rejects_booleans_scalars_and_verdict_objects(tmp_path, bad):
     scorer = module()
-    selection = packet(tmp_path, scorer, "CREATE-03", {"contract_requirements": bad})
+    selection = packet(tmp_path, scorer, "task-contract.clear-contract", {"contract_requirements": bad})
     with pytest.raises(ValueError):
         scorer.assess_evidence(tmp_path, selection)
 
@@ -865,11 +992,11 @@ def test_zero_and_partial_merit_do_not_change_evidence_strength(tmp_path):
     scorer = module()
     strengths = []
     for score in (0, 1, 2, 3):
-        facts = facts_for("CREATE-03", min(score, 2))
+        facts = facts_for("task-contract.clear-contract", min(score, 2))
         if score == 3:
-            facts.update(robustness_for("CREATE-03"))
-        selection = packet(tmp_path, scorer, "CREATE-03", facts)
-        result = scorer.assess_evidence(tmp_path, selection)["CREATE-03"]
+            facts.update(robustness_for("task-contract.clear-contract"))
+        selection = packet(tmp_path, scorer, "task-contract.clear-contract", facts)
+        result = scorer.assess_evidence(tmp_path, selection)["task-contract.clear-contract"]
         strengths.append(result["evidence_strength"])
     assert strengths == ["E1"] * 4
 
@@ -877,10 +1004,13 @@ def test_zero_and_partial_merit_do_not_change_evidence_strength(tmp_path):
 @pytest.mark.parametrize(
     "ident,patch",
     [
-        ("DISC-02-B", {"observed": "different", "disposition": "agrees"}),
-        ("CREATE-07", {"current_revision": "other", "change": "unchanged"}),
+        ("provenance.observed-configuration", {"observed": "different", "disposition": "agrees"}),
+        ("provenance.evidence-revision-consistency", {"current_revision": "other", "change": "unchanged"}),
         ("AC-01", {"solver_read": "denied", "exposure": "unintended"}),
-        ("ENV-02-A", {"form": "real", "authorization": "approved", "approved_revision": "v1"}),
+        (
+            "provenance.dependency-substitution",
+            {"form": "real", "authorization": "approved", "approved_revision": "v1"},
+        ),
     ],
 )
 def test_internally_contradictory_observations_are_rejected(tmp_path, ident, patch):

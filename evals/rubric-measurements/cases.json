@@ -32,27 +32,27 @@
     {"id":"missing-decision","mutation":"missing-decision","measurement":"approvals","status":"fail","codes":["approvals.decision_missing"]}
   ],
   "check_outcomes": {
-    "DISC-01-A-C01": "PASS", "DISC-01-A-C02": "PASS", "DISC-01-A-C03": "NOT_RUN",
-    "DISC-01-B-C01": "PASS", "DISC-01-B-C02": "BLOCKED", "DISC-01-B-C03": "NOT_RUN", "DISC-01-B-C04": "NOT_RUN", "DISC-01-B-C05": "NOT_RUN",
-    "DISC-01-C-C01": "PASS", "DISC-01-C-C02": "PASS", "DISC-01-C-C03": "NOT_RUN", "DISC-01-C-C04": "NOT_RUN",
-    "DISC-02-A-C01": "BLOCKED", "DISC-02-A-C02": "PARTIAL", "DISC-02-A-C03": "NOT_RUN", "DISC-02-A-C04": "NOT_RUN",
-    "DISC-02-B-C01": "PARTIAL", "DISC-02-B-C02": "PARTIAL", "DISC-02-B-C03": "NOT_RUN",
-    "DISC-03-A-C01": "BLOCKED", "DISC-03-A-C02": "BLOCKED", "DISC-03-A-C03": "NOT_RUN",
-    "AUD-02-C01": "PARTIAL", "AUD-02-C02": "NOT_RUN", "AUD-02-C03": "NOT_RUN",
-    "ENV-01-C01": "NOT_RUN", "ENV-01-C02": "BLOCKED", "ENV-01-C03": "NOT_RUN",
-    "ENV-02-A-C01": "PARTIAL", "ENV-02-A-C02": "NOT_RUN", "ENV-02-A-C03": "PARTIAL",
-    "ENV-03-C01": "PARTIAL", "ENV-03-C02": "NOT_RUN", "ENV-03-C03": "NOT_RUN",
-    "CREATE-07-C01": "PARTIAL", "CREATE-07-C02": "PARTIAL", "CREATE-07-C03": "BLOCKED", "CREATE-07-C04": "BLOCKED"
+    "provenance.task-artifact-access.deterministic-1": "PASS", "provenance.task-artifact-access.deterministic-2": "PASS", "provenance.task-artifact-access.human-review": "NOT_RUN",
+    "provenance.grading-path.deterministic-1": "PASS", "provenance.grading-path.deterministic-2": "BLOCKED", "provenance.grading-path.human-review-1": "NOT_RUN", "provenance.grading-path.llm-judge": "NOT_RUN", "provenance.grading-path.human-review-2": "NOT_RUN",
+    "provenance.grading-dependency-access.deterministic-1": "PASS", "provenance.grading-dependency-access.deterministic-2": "PASS", "provenance.grading-dependency-access.human-review-1": "NOT_RUN", "provenance.grading-dependency-access.human-review-2": "NOT_RUN",
+    "provenance.declared-configuration.deterministic-1": "BLOCKED", "provenance.declared-configuration.deterministic-2": "PARTIAL", "provenance.declared-configuration.human-review-1": "NOT_RUN", "provenance.declared-configuration.human-review-2": "NOT_RUN",
+    "provenance.observed-configuration.deterministic-1": "PARTIAL", "provenance.observed-configuration.deterministic-2": "PARTIAL", "provenance.observed-configuration.probe": "NOT_RUN",
+    "provenance.runtime-route.deterministic-1": "BLOCKED", "provenance.runtime-route.deterministic-2": "BLOCKED", "provenance.runtime-route.probe": "NOT_RUN",
+    "provenance.comparison-fairness.deterministic": "PARTIAL", "provenance.comparison-fairness.human-review": "NOT_RUN", "provenance.comparison-fairness.probe": "NOT_RUN",
+    "provenance.solver-tool-access.human-review": "NOT_RUN", "provenance.solver-tool-access.deterministic": "BLOCKED", "provenance.solver-tool-access.probe": "NOT_RUN",
+    "provenance.dependency-substitution.deterministic-1": "PARTIAL", "provenance.dependency-substitution.human-review": "NOT_RUN", "provenance.dependency-substitution.deterministic-2": "PARTIAL",
+    "provenance.external-state.deterministic": "PARTIAL", "provenance.external-state.human-review": "NOT_RUN", "provenance.external-state.probe": "NOT_RUN",
+    "provenance.evidence-revision-consistency.deterministic-1": "PARTIAL", "provenance.evidence-revision-consistency.deterministic-2": "PARTIAL", "provenance.evidence-revision-consistency.deterministic-3": "BLOCKED", "provenance.evidence-revision-consistency.deterministic-4": "BLOCKED"
   },
   "check_overrides": {
-    "wrong-scorer": {"DISC-01-B-C01": "FAIL"},
-    "ambiguous-route": {"DISC-01-B-C01": "PARTIAL"},
-    "confirmed-missing": {"DISC-01-A-C02": "FAIL"},
-    "partial": {"DISC-01-B-C01": "PARTIAL", "DISC-01-C-C01": "PARTIAL", "DISC-01-C-C02": "PARTIAL"}
+    "wrong-scorer": {"provenance.grading-path.deterministic-1": "FAIL"},
+    "ambiguous-route": {"provenance.grading-path.deterministic-1": "PARTIAL"},
+    "confirmed-missing": {"provenance.task-artifact-access.deterministic-2": "FAIL"},
+    "partial": {"provenance.grading-path.deterministic-1": "PARTIAL", "provenance.grading-dependency-access.deterministic-1": "PARTIAL", "provenance.grading-dependency-access.deterministic-2": "PARTIAL"}
   },
   "evidence_check_overrides": {
-    "sourced_config": {"DISC-02-A-C01": "PARTIAL"},
-    "freshness": {"CREATE-07-C04": "PARTIAL"}
+    "sourced_config": {"provenance.declared-configuration.deterministic-1": "PARTIAL"},
+    "freshness": {"provenance.evidence-revision-consistency.deterministic-4": "PARTIAL"}
   },
   "evidence_cases": [
     {
@@ -99,15 +99,15 @@
       "measurement": "freshness", "status": "unknown", "codes": ["freshness.unresolved"], "affected_status": "unresolved", "changed_dependencies": ["ethos"]
     }
   ],
-  "not_assessed": ["DISC-02-A", "DISC-02-B", "DISC-03-A", "AUD-02", "ENV-01", "ENV-02-A", "ENV-03", "CREATE-07"],
+  "not_assessed": ["provenance.declared-configuration", "provenance.observed-configuration", "provenance.runtime-route", "provenance.comparison-fairness", "provenance.solver-tool-access", "provenance.dependency-substitution", "provenance.external-state", "provenance.evidence-revision-consistency"],
   "assessments": [
     {
       "id": "valid", "mutation": null, "cli_exit_code": 0,
       "description": "Readable source-bound inventories, explicit strict route, and retained non-independent completeness review.",
       "items": {
-        "DISC-01-A": {"score": 2, "status": "ASSESSED", "evidence_strength": "E2"},
-        "DISC-01-B": {"score": 2, "status": "ASSESSED", "evidence_strength": "E2"},
-        "DISC-01-C": {"score": 2, "status": "ASSESSED", "evidence_strength": "E2"}
+        "provenance.task-artifact-access": {"score": 2, "status": "ASSESSED", "evidence_strength": "E2"},
+        "provenance.grading-path": {"score": 2, "status": "ASSESSED", "evidence_strength": "E2"},
+        "provenance.grading-dependency-access": {"score": 2, "status": "ASSESSED", "evidence_strength": "E2"}
       },
       "diagnostics": {"identity": [], "route": []}
     },
@@ -115,9 +115,9 @@
       "id": "wrong-scorer", "mutation": "wrong-scorer", "cli_exit_code": 1,
       "description": "Dispatch selects the weak claimed-success route instead of the intended scorer: a weak-route defect, not demonstrated exploitation.",
       "items": {
-        "DISC-01-A": {"score": 2, "status": "ASSESSED", "evidence_strength": "E2"},
-        "DISC-01-B": {"score": 0, "status": "ASSESSED", "evidence_strength": "E2"},
-        "DISC-01-C": {"score": 2, "status": "ASSESSED", "evidence_strength": "E2"}
+        "provenance.task-artifact-access": {"score": 2, "status": "ASSESSED", "evidence_strength": "E2"},
+        "provenance.grading-path": {"score": 0, "status": "ASSESSED", "evidence_strength": "E2"},
+        "provenance.grading-dependency-access": {"score": 2, "status": "ASSESSED", "evidence_strength": "E2"}
       },
       "diagnostics": {"identity": [], "route": ["route.scorer_mismatch"]}
     },
@@ -125,9 +125,9 @@
       "id": "ambiguous-route", "mutation": "ambiguous-route", "cli_exit_code": 1,
       "description": "The selector is absent; no scorer is guessed. Inventoried known grading branches remain readable.",
       "items": {
-        "DISC-01-A": {"score": 2, "status": "ASSESSED", "evidence_strength": "E2"},
-        "DISC-01-B": {"score": null, "status": "NOT_ASSESSED", "evidence_strength": "E0"},
-        "DISC-01-C": {"score": 2, "status": "ASSESSED", "evidence_strength": "E2"}
+        "provenance.task-artifact-access": {"score": 2, "status": "ASSESSED", "evidence_strength": "E2"},
+        "provenance.grading-path": {"score": null, "status": "NOT_ASSESSED", "evidence_strength": "E0"},
+        "provenance.grading-dependency-access": {"score": 2, "status": "ASSESSED", "evidence_strength": "E2"}
       },
       "diagnostics": {"identity": [], "route": ["route.dynamic_unresolved"]}
     },
@@ -135,9 +135,9 @@
       "id": "confirmed-missing", "mutation": "confirmed-missing", "cli_exit_code": 1,
       "description": "The selected task file is deleted after identity capture; an actual read confirms it is missing, unlike a missing-access declaration.",
       "items": {
-        "DISC-01-A": {"score": 0, "status": "ASSESSED", "evidence_strength": "E2"},
-        "DISC-01-B": {"score": 2, "status": "ASSESSED", "evidence_strength": "E2"},
-        "DISC-01-C": {"score": 2, "status": "ASSESSED", "evidence_strength": "E2"}
+        "provenance.task-artifact-access": {"score": 0, "status": "ASSESSED", "evidence_strength": "E2"},
+        "provenance.grading-path": {"score": 2, "status": "ASSESSED", "evidence_strength": "E2"},
+        "provenance.grading-dependency-access": {"score": 2, "status": "ASSESSED", "evidence_strength": "E2"}
       },
       "diagnostics": {"identity": ["identity.artifact_missing"], "route": []}
     },
@@ -145,9 +145,9 @@
       "id": "partial", "mutation": "partial", "cli_exit_code": 1,
       "description": "A readable task has an unresolved material input reference; the identified scorer has a declared but unresolved dependency. The retained review preserves both limits.",
       "items": {
-        "DISC-01-A": {"score": 1, "status": "ASSESSED", "evidence_strength": "E2"},
-        "DISC-01-B": {"score": 1, "status": "ASSESSED", "evidence_strength": "E2"},
-        "DISC-01-C": {"score": 1, "status": "ASSESSED", "evidence_strength": "E2"}
+        "provenance.task-artifact-access": {"score": 1, "status": "ASSESSED", "evidence_strength": "E2"},
+        "provenance.grading-path": {"score": 1, "status": "ASSESSED", "evidence_strength": "E2"},
+        "provenance.grading-dependency-access": {"score": 1, "status": "ASSESSED", "evidence_strength": "E2"}
       },
       "diagnostics": {"identity": [], "route": ["route.dependency_missing"]}
     }

@@ -28,19 +28,19 @@ from rubric_evidence_scoring import canonical_definitions, definitions_digest, v
 
 # Authored synthetic observations, independent of scorer predicates and tests.
 VECTORS = {
-    "DISC-01-A": (
+    "provenance.task-artifact-access": (
         "task_artifacts",
         {"id": "a", "access": "accessible", "revision": "v1", "inspection_effect": "none"},
         {"access": "missing", "inspection_effect": "blocks"},
         {"revision": None},
     ),
-    "DISC-01-B": (
+    "provenance.grading-path": (
         "grading_routes",
         {"id": "a", "declared_scorer": "s", "selected_scorer": "s", "configuration": "v1", "branch": "resolved"},
         {"selected_scorer": "other"},
         {"branch": "ambiguous"},
     ),
-    "DISC-01-C": (
+    "provenance.grading-dependency-access": (
         "grading_dependencies",
         {
             "id": "a",
@@ -52,7 +52,7 @@ VECTORS = {
         {"access": "denied", "inspection_effect": "blocks"},
         {"reference_review": "unresolved"},
     ),
-    "DISC-02-A": (
+    "provenance.declared-configuration": (
         "configuration_fields",
         {
             "id": "model",
@@ -65,13 +65,13 @@ VECTORS = {
         {"reported_value": "wrong", "claim_limit": "uninterpretable"},
         {"source_identity": None},
     ),
-    "DISC-02-B": (
+    "provenance.observed-configuration": (
         "run_settings",
         {"id": "model", "declared": "m1", "observed": "m1", "run_identity": "run1", "disposition": "agrees"},
         {"observed": "m2", "disposition": "invalidates"},
         {"observed": None, "disposition": "unresolved"},
     ),
-    "DISC-03-A": (
+    "provenance.runtime-route": (
         "provider_validation",
         {
             "id": "route",
@@ -84,7 +84,7 @@ VECTORS = {
         {"validation": "incompatible"},
         {"adapter": "unresolved"},
     ),
-    "AUD-02": (
+    "provenance.comparison-fairness": (
         "setup_differences",
         {
             "id": "budget",
@@ -97,7 +97,7 @@ VECTORS = {
         {"disposition": "unjustified", "advantage": "demonstrated"},
         {"disposition": "disputed"},
     ),
-    "ENV-01": (
+    "provenance.solver-tool-access": (
         "tool_probes",
         {
             "id": "read",
@@ -111,7 +111,7 @@ VECTORS = {
         {"actual": "denied"},
         {"probe": "schema", "execution": "partial"},
     ),
-    "ENV-02-A": (
+    "provenance.dependency-substitution": (
         "components",
         {
             "id": "tool",
@@ -124,7 +124,7 @@ VECTORS = {
         {"availability": "missing"},
         {"availability": "partly_reconciled"},
     ),
-    "ENV-03": (
+    "provenance.external-state": (
         "external_state",
         {
             "id": "dataset",
@@ -137,7 +137,7 @@ VECTORS = {
         {"observation": "drifted", "outcome_relation": "invalidated"},
         {"captured_identity": None, "observation": "capture_gap"},
     ),
-    "CREATE-07": (
+    "provenance.evidence-revision-consistency": (
         "result_revisions",
         {
             "id": "result",
@@ -150,7 +150,7 @@ VECTORS = {
         {"current_revision": "v2", "change": "material", "disposition": "combined"},
         {"current_revision": "v2", "change": "material", "disposition": "stale"},
     ),
-    "CREATE-03": (
+    "task-contract.clear-contract": (
         "contract_requirements",
         {
             "id": "format",
@@ -162,7 +162,7 @@ VECTORS = {
         {"scorer_requirement": "CSV", "resolution": "prevents_grading"},
         {"resolution": "ambiguous"},
     ),
-    "CREATE-04": (
+    "task-contract.discoverable-requirements": (
         "scored_conditions",
         {
             "id": "format",
@@ -174,7 +174,7 @@ VECTORS = {
         {"authority": None, "solver_access": "denied", "mapping": "hidden"},
         {"mapping": "disputed"},
     ),
-    "CREATE-05-A": (
+    "task-contract.scoring-authority": (
         "scoring_authorities",
         {
             "id": "answer",
@@ -248,7 +248,11 @@ def facts_for(ident: str, variant: int) -> dict[str, Any]:
     name, base, defect, partial = VECTORS[ident]
     row = {**base, **({0: defect, 1: partial}.get(variant, {}))}
     rows = [row]
-    if variant == 1 and ident in ("DISC-02-B", "ENV-03", "CREATE-05-A"):
+    if variant == 1 and ident in (
+        "provenance.observed-configuration",
+        "provenance.external-state",
+        "task-contract.scoring-authority",
+    ):
         rows.append({**base, "id": "established-neighbor"})
     if ident == "AC-02":
         rows.extend(
@@ -272,20 +276,20 @@ def facts_for(ident: str, variant: int) -> dict[str, Any]:
 
 
 ROBUSTNESS = {
-    "DISC-01-A": "inventory_reconstruction",
-    "DISC-01-B": "route_reconstruction",
-    "DISC-01-C": "dependency_reconstruction",
-    "DISC-02-A": "manifest_reconstruction",
-    "DISC-02-B": "configuration_repeat",
-    "DISC-03-A": "compatibility_controls",
-    "AUD-02": "matched_sensitivity",
-    "ENV-01": "clean_access_controls",
-    "ENV-02-A": "provisioning_reconciliation",
-    "ENV-03": "replay_drift",
-    "CREATE-07": "change_injection",
-    "CREATE-03": "boundary_solutions",
-    "CREATE-04": "blind_discovery",
-    "CREATE-05-A": "authority_corroboration",
+    "provenance.task-artifact-access": "inventory_reconstruction",
+    "provenance.grading-path": "route_reconstruction",
+    "provenance.grading-dependency-access": "dependency_reconstruction",
+    "provenance.declared-configuration": "manifest_reconstruction",
+    "provenance.observed-configuration": "configuration_repeat",
+    "provenance.runtime-route": "compatibility_controls",
+    "provenance.comparison-fairness": "matched_sensitivity",
+    "provenance.solver-tool-access": "clean_access_controls",
+    "provenance.dependency-substitution": "provisioning_reconciliation",
+    "provenance.external-state": "replay_drift",
+    "provenance.evidence-revision-consistency": "change_injection",
+    "task-contract.clear-contract": "boundary_solutions",
+    "task-contract.discoverable-requirements": "blind_discovery",
+    "task-contract.scoring-authority": "authority_corroboration",
     "AC-01": "heldout_access",
     "AC-02": "heldout_credit",
     "AC-03": "consumer_boundary",
@@ -296,40 +300,48 @@ ROBUSTNESS = {
 def robustness_for(ident: str) -> dict[str, Any]:
     # All requested control roles must be present, not merely one green receipt.
     roles = {
-        "DISC-01-A": ["inventory"],
-        "DISC-01-B": ["selection"],
-        "DISC-01-C": ["coverage", "access"],
-        "DISC-02-A": ["manifest", "limitations"],
-        "DISC-02-B": ["configuration", "control"],
-        "DISC-03-A": ["clean_setup", "invalid_manifest"],
-        "AUD-02": ["matched_setup", "sensitivity"],
-        "ENV-01": ["reset", "error", "boundary"],
-        "ENV-02-A": ["provisioning", "approval"],
-        "ENV-03": ["replay", "deliberate_drift"],
-        "CREATE-07": ["changed_invalidated", "unchanged_preserved", "lineage_preserved"],
-        "CREATE-03": ["independent_solution", "valid_boundary"],
-        "CREATE-04": ["blind_discovery", "solver_access"],
-        "CREATE-05-A": ["reference", "scoring_contract"],
+        "provenance.task-artifact-access": ["inventory"],
+        "provenance.grading-path": ["selection"],
+        "provenance.grading-dependency-access": ["coverage", "access"],
+        "provenance.declared-configuration": ["manifest", "limitations"],
+        "provenance.observed-configuration": ["configuration", "control"],
+        "provenance.runtime-route": ["clean_setup", "invalid_manifest"],
+        "provenance.comparison-fairness": ["matched_setup", "sensitivity"],
+        "provenance.solver-tool-access": ["reset", "error", "boundary"],
+        "provenance.dependency-substitution": ["provisioning", "approval"],
+        "provenance.external-state": ["replay", "deliberate_drift"],
+        "provenance.evidence-revision-consistency": ["changed_invalidated", "unchanged_preserved", "lineage_preserved"],
+        "task-contract.clear-contract": ["independent_solution", "valid_boundary"],
+        "task-contract.discoverable-requirements": ["blind_discovery", "solver_access"],
+        "task-contract.scoring-authority": ["reference", "scoring_contract"],
         "AC-01": ["independent_path", "heldout", "permitted_neighbor"],
         "AC-02": ["heldout_attack", "valid_alternative"],
         "AC-03": ["invalid_rejection", "valid_acceptance"],
         "AC-04": ["order", "session"],
     }[ident]
     outcomes = {
-        "DISC-01-A": ["inventory_reconstructed"],
-        "DISC-01-B": ["route_reconstructed"],
-        "DISC-01-C": ["dependencies_complete", "dependencies_accessible"],
-        "DISC-02-A": ["manifest_reconstructed", "limitations_preserved"],
-        "DISC-02-B": ["configuration_reproduced", "configuration_control_agrees"],
-        "DISC-03-A": ["clean_setup_accepted", "invalid_manifest_rejected"],
-        "AUD-02": ["matched_setup_comparable", "sensitivity_bounded"],
-        "ENV-01": ["reset_preserved_access", "error_contract_preserved", "access_boundary_preserved"],
-        "ENV-02-A": ["provisioning_reconciled", "substitutions_authorized"],
-        "ENV-03": ["replay_interpretable", "drift_detected"],
-        "CREATE-07": ["changed_result_invalidated", "unchanged_result_preserved", "lineage_preserved"],
-        "CREATE-03": ["public_solution_accepted", "valid_boundary_accepted"],
-        "CREATE-04": ["conditions_discovered", "authority_accessible"],
-        "CREATE-05-A": ["reference_agrees", "scoring_contract_agrees"],
+        "provenance.task-artifact-access": ["inventory_reconstructed"],
+        "provenance.grading-path": ["route_reconstructed"],
+        "provenance.grading-dependency-access": ["dependencies_complete", "dependencies_accessible"],
+        "provenance.declared-configuration": ["manifest_reconstructed", "limitations_preserved"],
+        "provenance.observed-configuration": ["configuration_reproduced", "configuration_control_agrees"],
+        "provenance.runtime-route": ["clean_setup_accepted", "invalid_manifest_rejected"],
+        "provenance.comparison-fairness": ["matched_setup_comparable", "sensitivity_bounded"],
+        "provenance.solver-tool-access": [
+            "reset_preserved_access",
+            "error_contract_preserved",
+            "access_boundary_preserved",
+        ],
+        "provenance.dependency-substitution": ["provisioning_reconciled", "substitutions_authorized"],
+        "provenance.external-state": ["replay_interpretable", "drift_detected"],
+        "provenance.evidence-revision-consistency": [
+            "changed_result_invalidated",
+            "unchanged_result_preserved",
+            "lineage_preserved",
+        ],
+        "task-contract.clear-contract": ["public_solution_accepted", "valid_boundary_accepted"],
+        "task-contract.discoverable-requirements": ["conditions_discovered", "authority_accessible"],
+        "task-contract.scoring-authority": ["reference_agrees", "scoring_contract_agrees"],
         "AC-01": ["protected_read_denied", "heldout_read_denied", "permitted_read_allowed"],
         "AC-02": ["forbidden_credit_withheld", "valid_alternative_credited"],
         "AC-03": ["invalid_receipt_rejected", "valid_receipt_credited"],
@@ -477,7 +489,7 @@ def measure(directory: Path, *, baseline: bool = False, verify: bool = False) ->
         },
     )
     report = json.loads(result.stdout)
-    if result.returncode not in (0, 1) or report.get("schema") != "rubric-measurements-v2":
+    if result.returncode not in (0, 1) or report.get("schema") != "rubric-measurements-v3":
         raise ValueError(f"measurement rejected evidence: {directory.name}/{log}")
     if not verify:
         write_json(directory / f"{prefix}-report.json", report)
@@ -583,7 +595,7 @@ def run(output: Path, *, verify: bool = False) -> dict[str, Any]:
     if projections[0] != projections[1]:
         raise ValueError("fresh output roots produced different semantic reports")
     summary = {
-        "schema": "criterion-scoring-demo-v1",
+        "schema": "criterion-scoring-demo-v2",
         "status": "passed",
         "assessment_scope": "synthetic-scoring-demonstration",
         "task_qualification": False,
@@ -627,7 +639,7 @@ def main() -> int:
         print(
             json.dumps(
                 {
-                    "schema": "criterion-scoring-demo-v1",
+                    "schema": "criterion-scoring-demo-v2",
                     "status": "invalid",
                     "reason": str(error),
                     "task_qualification": False,

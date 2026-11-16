@@ -21,7 +21,11 @@ ROOT = Path(__file__).resolve().parents[1]
 TASK = ROOT / "skills/eval-author-audit/evals/files/tasks/order-total"
 REFERENCE = ROOT / "skills/eval-author-rubric/references/task-contract-authority.json"
 MEASURE = ROOT / "skills/eval-author-rubric/scripts/measure.py"
-CRITERIA = ("CREATE-03", "CREATE-04", "CREATE-05-A")
+CRITERIA = (
+    "task-contract.clear-contract",
+    "task-contract.discoverable-requirements",
+    "task-contract.scoring-authority",
+)
 
 
 def digest(data):
@@ -71,7 +75,7 @@ def measure(output, directory, selection, validator=None):
     (directory / "measure.stdout.json").write_text(completed.stdout, encoding="utf-8")
     (directory / "measure.stderr.txt").write_text(completed.stderr, encoding="utf-8")
     report = json.loads(completed.stdout)
-    if completed.returncode not in (0, 1) or report.get("schema") != "rubric-measurements-v2":
+    if completed.returncode not in (0, 1) or report.get("schema") != "rubric-measurements-v3":
         raise ValueError("measurement failed; inspect retained measurement output")
     write_json(directory / "measure-report.json", report)
     return report, completed.returncode
@@ -222,7 +226,7 @@ def contract_case(output, ident, scorer, expected, sources):
         "semantic_notes": [
             "strip() permits outer whitespace; exact total string imposes two fractional digits",
             "OSError or ValueError leaves ok False; no native scorer or boundary solution was executed",
-            "No currency field exists in orders.csv; hidden summary condition is a CREATE-04 candidate, not automatically CREATE-03",
+            "No currency field exists in orders.csv; hidden summary condition is a task-contract.discoverable-requirements candidate, not automatically task-contract.clear-contract",
             "Clean neighbor removes only summary read and equality; not a human-approved scorer repair",
         ],
     }
@@ -252,8 +256,8 @@ def contract_case(output, ident, scorer, expected, sources):
     expected_scores = dict.fromkeys(CRITERIA)
     expected_strengths = dict.fromkeys(CRITERIA)
     if expected["summary_required"]:
-        expected_scores["CREATE-04"] = 0
-        expected_strengths["CREATE-04"] = "E1"
+        expected_scores["task-contract.discoverable-requirements"] = 0
+        expected_strengths["task-contract.discoverable-requirements"] = "E1"
     expected = {**expected, "rubric_scores": expected_scores, "evidence_strengths": expected_strengths}
     observed.update(rubric_scores=scores, evidence_strengths=strengths)
     return {
@@ -380,7 +384,7 @@ def collect(output):
     ]
     cases.extend(ethos_cases(output))
     panel = {
-        "schema": "task-contract-demo-v1",
+        "schema": "task-contract-demo-v2",
         "native_execution": False,
         "model_execution": False,
         "human_adjudication": False,
@@ -394,6 +398,7 @@ def collect(output):
             "separate authored static crosswalks, and emitted Ethos structure checks"
         ),
     }
+    titles = {item["id"]: item["title"] for item in canonical["items"]}
     write_json(output / "panel.json", panel)
     (output / "report.md").write_text(
         "# Task contract and Ethos local demonstration\n\n"
@@ -401,10 +406,13 @@ def collect(output):
         + ". No human adjudication, model, native or container execution.\n\n"
         + "Static crosswalks are authored, not emitted rubric scores. "
         + "The clean neighbor is not human-approved; null scores are not a clean bill of health.\n\n"
+        + "Criteria: "
+        + "; ".join(f"{item['title']} (`{item['id']}`)" for item in canonical["items"])
+        + ".\n\n"
         + "\n".join(
             f"- {case['id']}: expected-vs-observed match={case['matched']}; "
             + "; ".join(
-                f"{criterion}="
+                f"{titles[criterion]}="
                 + (
                     "null"
                     if case["rubric_scores"][criterion] is None
@@ -438,7 +446,7 @@ def main(argv=None):
         output.mkdir(mode=0o700, parents=True, exist_ok=False)
         panel = collect(output)
     except (OSError, ValueError, KeyError, StopIteration, subprocess.TimeoutExpired):
-        print(json.dumps({"schema": "task-contract-demo-v1", "status": "invalid", "code": "demo.failed"}))
+        print(json.dumps({"schema": "task-contract-demo-v2", "status": "invalid", "code": "demo.failed"}))
         return 2
     print(json.dumps(panel, indent=2, allow_nan=False))
     return 0 if panel["matched_count"] == panel["case_count"] else 1

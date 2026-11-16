@@ -51,9 +51,13 @@ def test_cli_scores_bound_status_claim_without_context_attribution(panel, claime
     assert native["receipt_integrity"]["unknown"] == 0
     rate = native["receipt_integrity"]["contradiction_rate"]
     assert rate == ((1.0 if expected == "contradiction" else 0.0) if eligible else None)
-    assert report["items"]["CREATE-07"]["score"] is None
+    assert report["items"]["provenance.evidence-revision-consistency"]["score"] is None
     assert "PRIVATE-" not in completed.stdout
-    check = next(row for row in report["items"]["CREATE-07"]["check_results"] if row["id"] == "CREATE-07-C01")
+    check = next(
+        row
+        for row in report["items"]["provenance.evidence-revision-consistency"]["check_results"]
+        if row["id"] == "provenance.evidence-revision-consistency.deterministic-1"
+    )
     predicate = next(row for row in check["predicate_results"] if row["id"] == "selected_receipt_status_consistent")
     assert predicate["outcome"] == {"contradiction": "FAIL", "consistent": "PASS"}.get(expected, "BLOCKED")
     assert check["outcome"] == "PARTIAL"
@@ -158,12 +162,16 @@ def test_real_recorder_to_cli_retains_contradiction_and_recovery(panel, monkeypa
     assert summary["eligible_claims"] == 2
     assert summary["contradictions"] == 1
     assert summary["contradiction_rate"] == 0.5
-    check = next(row for row in report["items"]["CREATE-07"]["check_results"] if row["id"] == "CREATE-07-C01")
+    check = next(
+        row
+        for row in report["items"]["provenance.evidence-revision-consistency"]["check_results"]
+        if row["id"] == "provenance.evidence-revision-consistency.deterministic-1"
+    )
     groups = {row["id"]: row for row in check["group_scores"]}
     assert groups["receipt_consistency"]["score"] == 1
     assert groups["receipt_consistency"]["passed"] == groups["receipt_consistency"]["failed"] == 1
     assert groups["required_verification"]["score"] is None
-    assert report["items"]["CREATE-07"]["score"] is None
+    assert report["items"]["provenance.evidence-revision-consistency"]["score"] is None
     assert summary["unknown"] == 0
     assert [row["integrity"]["status_claim"] for row in report["measurements"]["native"]["controls"]] == [
         "contradiction",
@@ -192,7 +200,11 @@ def test_wrong_task_result_cannot_supply_status_claim(panel, reward):
     assert native["receipt_integrity"]["contradictions"] == 0
     assert native["receipt_integrity"]["unknown"] == 1
     assert native["receipt_integrity"]["contradiction_rate"] is None
-    check = next(row for row in report["items"]["CREATE-07"]["check_results"] if row["id"] == "CREATE-07-C01")
+    check = next(
+        row
+        for row in report["items"]["provenance.evidence-revision-consistency"]["check_results"]
+        if row["id"] == "provenance.evidence-revision-consistency.deterministic-1"
+    )
     predicate = next(row for row in check["predicate_results"] if row["id"] == "selected_receipt_status_consistent")
     assert predicate["outcome"] == "BLOCKED"
 
@@ -217,7 +229,11 @@ def test_wrong_role_result_is_rejected_before_native_consumption(panel, monkeypa
     assert native["receipt_integrity"]["contradictions"] == 0
     assert native["receipt_integrity"]["unknown"] == 1
     assert native["receipt_integrity"]["contradiction_rate"] is None
-    check = next(row for row in report["items"]["CREATE-07"]["check_results"] if row["id"] == "CREATE-07-C01")
+    check = next(
+        row
+        for row in report["items"]["provenance.evidence-revision-consistency"]["check_results"]
+        if row["id"] == "provenance.evidence-revision-consistency.deterministic-1"
+    )
     predicate = next(row for row in check["predicate_results"] if row["id"] == "selected_receipt_status_consistent")
     assert predicate["outcome"] == "BLOCKED"
 
@@ -261,7 +277,11 @@ def test_contradiction_denominator_excludes_baseline_neighbor(panel):
     assert summary["selected_receipts"] == 2
     assert summary["eligible_claims"] == summary["contradictions"] == summary["excluded"] == 1
     assert summary["contradiction_rate"] == 1.0
-    check = next(row for row in report["items"]["CREATE-07"]["check_results"] if row["id"] == "CREATE-07-C01")
+    check = next(
+        row
+        for row in report["items"]["provenance.evidence-revision-consistency"]["check_results"]
+        if row["id"] == "provenance.evidence-revision-consistency.deterministic-1"
+    )
     counts = {row["name"]: row for row in check["measurements"] if row["unit"] == "selected receipt claims"}
     assert counts["contradictions"]["value"] == 1
     assert counts["contradictions"]["denominator"] == 1
@@ -289,7 +309,11 @@ def test_report_revalidates_integrity_instead_of_trusting_saved_counts(panel, mo
         selection,
         panel.tmp_path,
     )
-    check = next(row for row in rebuilt["CREATE-07"]["check_results"] if row["id"] == "CREATE-07-C01")
+    check = next(
+        row
+        for row in rebuilt["provenance.evidence-revision-consistency"]["check_results"]
+        if row["id"] == "provenance.evidence-revision-consistency.deterministic-1"
+    )
     assert not any(row["id"] == "selected_receipt_status_consistent" for row in check.get("predicate_results", []))
     assert "revalidation" in check["remaining_gap"]
     assert not check.get("group_scores")
@@ -417,7 +441,11 @@ def test_real_out_of_place_repair_keeps_counts_predicate_and_score_consistent(pa
     assert summary["eligible_claims"] == 3
     assert summary["excluded"] == 1
     assert summary["contradictions"] == summary["contradiction_rate"] == 0
-    check = next(row for row in report["items"]["CREATE-07"]["check_results"] if row["id"] == "CREATE-07-C01")
+    check = next(
+        row
+        for row in report["items"]["provenance.evidence-revision-consistency"]["check_results"]
+        if row["id"] == "provenance.evidence-revision-consistency.deterministic-1"
+    )
     predicate = next(row for row in check["predicate_results"] if row["id"] == "selected_receipt_status_consistent")
     group = next(row for row in check["group_scores"] if row["id"] == "receipt_consistency")
     assert predicate["outcome"] == "PASS"
@@ -576,11 +604,15 @@ def test_cli_unassessed_group_scores_do_not_become_zero(panel, kind):
     assert completed.returncode == 1
     assert completed.stderr == ""
     report = json.loads(completed.stdout)
-    check = next(row for row in report["items"]["CREATE-07"]["check_results"] if row["id"] == "CREATE-07-C01")
+    check = next(
+        row
+        for row in report["items"]["provenance.evidence-revision-consistency"]["check_results"]
+        if row["id"] == "provenance.evidence-revision-consistency.deterministic-1"
+    )
     receipt, required = check["group_scores"]
     assert receipt["score"] is required["score"] is None
     assert receipt["outcome"] == required["outcome"] == "unassessed"
     assert receipt["failed"] == required["failed"] == 0
     assert receipt["unknown"] == int(kind in {"missing", "malformed"})
     assert receipt["excluded"] == int(kind == "baseline")
-    assert report["items"]["CREATE-07"]["score"] is None
+    assert report["items"]["provenance.evidence-revision-consistency"]["score"] is None

@@ -105,10 +105,10 @@ accepts only the frozen supported order-total fixture and its clean scorer neigh
 Unknown or changed source shapes fail closed rather than receiving a generic
 semantic assessment.
 
-For the planted fixture, the CLI emits CREATE-04 = 0/E1: the supported public
+For the planted fixture, the CLI emits task-contract.discoverable-requirements = 0/E1: the supported public
 instruction and declared COPY inventory supply no authority for the scorer's
 `summary.json` requirement. This is bounded static source inspection, not native
-solver-access proof. CREATE-03 and CREATE-05-A remain unassessed. The clean neighbor
+solver-access proof. task-contract.clear-contract and task-contract.scoring-authority remain unassessed. The clean neighbor
 also remains unassessed because removing this condition does not establish every
 contract anchor or human adjudication.
 
@@ -148,7 +148,7 @@ relevant section in this exact shape (both sections may share one source):
 
 The relevant section must exactly match the selection's `required` and
 `unresolved_material`, including list order, with no extra section fields.
-A full DISC-01-C additionally requires a `review`-role artifact whose `source` is
+A full provenance.grading-dependency-access additionally requires a `review`-role artifact whose `source` is
 the inventory path and whose JSON object has exactly these fields:
 
 ```json
@@ -186,7 +186,7 @@ which grader ran. `executed_scorer` stays null. Arbitrary Python/shell import an
 provider-native dispatch adapters, and runtime selection attestation are not
 implemented. A declaration of dependency closure does not prove source completeness.
 
-For package preflight or full `DISC-01-B` credit, retain `dependencies` in the dispatch JSON or select
+For package preflight or full `provenance.grading-path` credit, retain `dependencies` in the dispatch JSON or select
 `route.dependency_source: {artifact_id, pointer}` naming a selected JSON graph.
 The caller's dependency map must exactly match the retained map. Require both
 `status: pass` and `bound_dependency: true`; caller-only legacy maps are unbound
@@ -304,7 +304,7 @@ trustworthy time, so `confirmed` stays 0. Use `task_pipeline.py
 check-acceptance --integrity` to test whether a saved claim relies on a
 superseded result.
 
-After source revalidation, `CREATE-07-C01` includes `selected_receipt_status_consistent`
+After source revalidation, `provenance.evidence-revision-consistency.deterministic-1` includes `selected_receipt_status_consistent`
 as a bounded predicate with outcome `PASS`, `FAIL`, or `BLOCKED`. Its canonical
 check remains `PARTIAL`, and this evidence alone leaves the criterion score null.
 `context_rot_score` stays null. Use the existing freshness checks for selected
@@ -454,7 +454,7 @@ bindings to avoid self-reference; all other selected artifacts remain required.
 Without this source mapping, raw approval comparisons establish only projected
 record consistency, not a retained decision. Existing audit checkpoints or journey
 acceptances without substitution scope and endpoints remain unresolved rather than
-being upgraded into substitution approvals. Canonical `ENV-02-A-C03` retains the
+being upgraded into substitution approvals. Canonical `provenance.dependency-substitution.deterministic-2` retains the
 source, scope, and freshness predicates separately from runtime adequacy and authority.
 
 Select `freshness` as an array of retained evidence entries. A source-bound entry

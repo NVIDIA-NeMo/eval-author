@@ -153,7 +153,11 @@ def command(root, name, argv):
 
 def receipt_score(report):
     # Read the actual rubric output; never substitute a locally recomputed score.
-    check = next(row for row in report["items"]["CREATE-07"]["check_results"] if row["id"] == "CREATE-07-C01")
+    check = next(
+        row
+        for row in report["items"]["provenance.evidence-revision-consistency"]["check_results"]
+        if row["id"] == "provenance.evidence-revision-consistency.deterministic-1"
+    )
     groups = check.get("group_scores", [])
     scored = next((row for row in groups if row["id"] == "receipt_consistency"), {})
     required = next((row for row in groups if row["id"] == "required_verification"), {})
@@ -166,7 +170,7 @@ def receipt_score(report):
         "required_freshness": sorted(row["freshness"] for row in verification["cases"]),
         "group_scopes": [row.get("scope") for row in groups],
         **{key: scored.get(key) for key in ("passed", "failed", "unknown", "excluded", "score", "outcome")},
-        "score_source": "CREATE-07-C01.group_scores.receipt_consistency",
+        "score_source": "provenance.evidence-revision-consistency.deterministic-1.group_scores.receipt_consistency",
         "group_scores": groups,
     }
 
