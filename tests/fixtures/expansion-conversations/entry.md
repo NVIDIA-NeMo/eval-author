@@ -3,8 +3,6 @@
 
 Let’s agree which supported improvements to make to your existing evaluations.
 
-I can add tasks for tools left uncovered by a measured audit, turn suitable recorded interactions into tasks, or add cases to a starter suite created with Eval Author.
-
 I can also explain and plan other audit recommendations. Implementing revisions to existing cases or graders inside Eval Author is not yet implemented. We still need to agree scope before creating tasks or running your agent.
 
 ### Next Steps

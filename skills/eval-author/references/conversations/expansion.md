@@ -7,6 +7,9 @@ Use the [shared rendering entry point](../../scripts/conversation_renderer.py)
 with `stage: expansion_continue` for the unresolved post-onboarding expansion
 entry decision. This slice does not approve scope, construct tasks, validate
 grading, or authorize execution. Only this implemented stage is registered.
+For an unselected improvement path, use the core's
+[expansion entry](../../SKILL.md#expansion-handoff) before shared checks;
+continuation retains an already-selected path and its unresolved decision.
 
 ## State authority
 
