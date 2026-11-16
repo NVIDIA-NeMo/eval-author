@@ -3,7 +3,9 @@
 
 Let’s agree which supported improvements to make to your existing evaluations.
 
-The requested changes still need scope agreement before construction or agent runs.
+I can add tasks for tools left uncovered by a measured audit, turn suitable recorded interactions into tasks, or add cases to a starter suite created with Eval Author.
+
+I can also explain and plan other audit recommendations. Implementing revisions to existing cases or graders requires separate work. We still need to agree scope before creating tasks or running your agent.
 
 ### Next Steps
 

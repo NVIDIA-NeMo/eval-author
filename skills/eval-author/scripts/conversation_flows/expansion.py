@@ -40,6 +40,6 @@ def render(payload: dict) -> str:
     parts = [copy.INTRO]
     if expansion_state.handoff_digest(state) is not None:
         parts.append(copy.HANDOFF)
-    parts.extend([copy.LIMIT, shared.NEXT_STEPS, onboarding.checklist("expand", state)])
+    parts.extend([copy.SUPPORT, copy.LIMIT, shared.NEXT_STEPS, onboarding.checklist("expand", state)])
     parts.append(literal(progress["pending_question"], "expansion question"))
     return "\n\n".join(parts) + "\n"
