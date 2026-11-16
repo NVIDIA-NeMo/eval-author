@@ -56,6 +56,8 @@ candidate admission, environment preparation, construction and native qualificat
 This source mode does not require an audit gap and does not claim coverage closure.
 Skip the audit selector and gap-only scaffold/acceptance steps; use the selected
 provider's native task initialization and the handoff's qualification procedure.
+For journey `expand`, [save and render the existing task scope](../eval-author/references/conversations/expansion.md#existing-scope-checkpoint)
+after applicable privacy/admission checks, reusing an already agreed answer.
 For an approved `user_sim` task, call [user-sim authoring](../eval-author-user-sim/SKILL.md) after native task initialization and environment proof, preserving its blockers and this flow's qualification rules.
 
 ## Purpose
@@ -252,20 +254,18 @@ that targets the dependent check. A declaration is not proof of necessity.
 
 Before generating task instructions, fixtures, or scaffolds, use the shared
 [coverage-planning checkpoint](../eval-author/references/coverage-planning.md).
+For journey `expand`, [save and render this same checkpoint](../eval-author/references/conversations/expansion.md#existing-scope-checkpoint)
+with `expansion_scope`; do not introduce another proposal or approval stage.
 Use the core's [provider-selection rule](../eval-author/SKILL.md#select-the-evaluation-provider)
 to resolve NeMo Gym or Harbor when mapping scope to execution counts. NeMo Gym repeats
 selected dataset rows, while Harbor repeats tasks. Keep estimates conditional
 if that choice remains open.
-Present the proposed priorities and breadth for review, including an option to
-start with a minimal pilot and expand. Reuse already agreed scope rather than
-asking again. Save the agreement in
-`.eval-author/.working/journey-state.json`: selected corpus and exclusions,
-priorities and cost constraints, distinct input-example counts per behavior,
-variations and difficulty, positive and negative scenarios, expected outcomes,
-and pilot or expansion status. Reflect the agreed scope in
-the selected recommendation in the Audit coverage report. Keep this planning record out of the agent-facing
-instruction file. Answer questions or complete scoped detours, then resume this
-checkpoint with the existing decisions intact.
+Present priorities and breadth for review, offering a minimal pilot and expansion.
+Reuse already agreed scope. Save the agreement in `.eval-author/.working/journey-state.json`
+with the shared coverage-planning fields, and reflect it in the selected
+recommendation in the Audit coverage report. Keep it out of agent-facing instructions.
+Answer questions or complete scoped detours, then resume this checkpoint with
+the existing decisions intact.
 
 Explain how the agreement maps to the selected tool gap. The deterministic
 pipeline creates one tool-gap draft at a time; repeated runs test closure on

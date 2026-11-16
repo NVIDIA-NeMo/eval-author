@@ -360,7 +360,11 @@ prerequisites; an audit is optional rather than an entry gate.
 
 Review retained and added tasks, distinct examples, grading, breadth, exclusions,
 and meaningful difficulty changes before generating additions. Record the actual
-scope agreement in `scopes.expand`. Apply the authoring, environment, construction,
+scope agreement with the [expansion scope checkpoint](../eval-author/references/conversations/expansion.md#saved-entry-and-scope-records)
+in `scopes.expand`. Include the current reviewed or accepted pattern among its
+bound sources, retain source selection and limits, and use its construction guard
+before generating each selected addition. Reuse an unchanged agreement without
+another planning document or approval pause. Apply the authoring, environment, construction,
 first-task review, validation, explicit selection, and evidence standards above
 without invoking the create-only `first_eval_*` stages. Reuse an already-approved
 first-task pattern where it remains applicable; reopen only affected review and

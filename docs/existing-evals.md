@@ -329,6 +329,27 @@ That support does not establish a general editor for every existing evaluation
 suite. For a selected audit recommendation, Eval Author identifies the applicable
 authoring path or explains that applying the change is not yet supported.
 
+### Agree on additions before construction
+
+For a general improvement request, Eval Author offers starter-suite expansion,
+an experimental task candidate from a recorded interaction, or an audit. A path
+already selected in your request or audit handoff carries forward. It reuses
+settled setup and intent, and asks for missing inputs.
+
+Before construction, you review a task table with the scenarios, expected
+outcomes, grading and validation approach, and unresolved inputs. Improvements
+that the selected workflow cannot implement stay visible as deferred work.
+The scope includes your selected tasks and distinct input examples, proposed
+agent attempts, and construction attempt, time, and cost limits. Repeated agent
+attempts do not add examples.
+
+You can approve construction, decline, or request changes. Declining retains
+the plan and limits. Resuming keeps the saved decision; changed sources or scope
+reopen the affected agreement before construction continues. Approving this
+scope does not authorize running your agent; execution requires its own review
+and permission. The audit-gap generator still creates one eligible measured
+tool-gap task at a time.
+
 For the complete workflows, see the [discovery](../skills/eval-author-discover/SKILL.md),
 [audit](../skills/eval-author-audit/SKILL.md), and
 [task-creation](../skills/eval-author-task-create/SKILL.md) skills.
