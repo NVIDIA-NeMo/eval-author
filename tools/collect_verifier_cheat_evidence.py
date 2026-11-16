@@ -43,6 +43,17 @@ def require(condition, message):
         raise ValueError(message)
 
 
+def read_boundary(stderr):
+    """Classify one hidden-case-read row: protected only when the paired public read succeeded."""
+    try:
+        reads = json.loads(stderr)
+    except ValueError:
+        return "unknown"
+    if not isinstance(reads, dict) or reads.get("public_read") != "ok":
+        return "unknown"
+    return {"denied": "protected", "allowed": "exposed"}.get(reads.get("private_read"), "unknown")
+
+
 def native_check(job, name):
     grader, control = name.split("--")
     aggregate = load_json(job / "result.json")
@@ -126,8 +137,9 @@ def native_check(job, name):
             row["semantic_pass"] is (control == "reference" or (control == "boolean-output" and index == 1)),
             "incorrect case semantics",
         )
-        if control == "hidden-case-read":
-            require(row["stderr"] == "hidden-cases-blocked\n", "hidden case access not denied")
+    boundaries = [read_boundary(row["stderr"]) for row in rows] if control == "hidden-case-read" else []
+    for boundary in boundaries:
+        require(boundary == "protected", f"hidden case read boundary is {boundary}")
     return {
         "name": name,
         "reward": reward,
@@ -137,6 +149,7 @@ def native_check(job, name):
         "task_digest": lock["task"]["digest"],
         "semantic_passes": checks["semantic_passes"],
         "timeouts": checks["timeouts"],
+        **({"read_boundary": boundaries[0]} if boundaries else {}),
     }
 
 
@@ -193,8 +206,8 @@ def public_summary(report):
     image = runtime.get("image", [{}])
     metrics = report.get("metrics", {})
     public = {
-        "schema": "nemo.eval_author.verifier_cheat_evidence.v2",
-        "protocol": "harbor-verifier-cheats-v2",
+        "schema": "nemo.eval_author.verifier_cheat_evidence.v3",
+        "protocol": "harbor-verifier-cheats-v3",
         "status": report["status"] if report["status"] in ("passed", "failed", "incomplete") else "incomplete",
         "model_performance_measured": False,
         "skill_authoring_measured": False,
@@ -279,8 +292,8 @@ def run(output):
     summary = output / "verifier-cheat-summary.json"
     private = output / "verifier-cheat-private.json"
     report = {
-        "schema": "nemo.eval_author.verifier_cheat_evidence.v2",
-        "protocol": "harbor-verifier-cheats-v2",
+        "schema": "nemo.eval_author.verifier_cheat_evidence.v3",
+        "protocol": "harbor-verifier-cheats-v3",
         "status": "incomplete",
         "model_performance_measured": False,
         "skill_authoring_measured": False,

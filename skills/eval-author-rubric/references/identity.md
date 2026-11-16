@@ -158,6 +158,28 @@ checked for siblings. Findings name tasks, never their content. Paraphrased
 duplicates, siblings with other kinds of shared origin, and model-training
 contamination are not checked.
 
+## Published sources the agent can reach
+
+`external` is `{"task": <task directory>}`. It reads `task.toml` and never fetches
+anything. The agent's network policy is the task's `[agent]` `network_mode` when
+set, otherwise the `[environment]` one, otherwise Harbor's default `public`;
+`allow_internet = false` means `no-network`. The task's origin comes from the
+same repository-and-commit lookup as the
+overlap check above.
+
+- `external.source_reachable` (fail): the origin is on a public code host
+  (`github.com`, `gitlab.com`, `bitbucket.org`, `huggingface.co`, `codeberg.org`)
+  and the agent's policy is `public` or an `allowlist` matching that host. The
+  repository's later commits may contain the fix.
+- `external.network_open` (unknown): the agent has `public` network but no
+  published origin was identified. Other published copies of the answer can't
+  be ruled out.
+
+A job config can add allowed hosts at run time; this check sees only the task.
+Use the cheating evaluation set's hidden-case read for the runtime read
+boundary: it counts as protected only when the private read is denied and its
+paired read of the agent's own workspace file succeeds.
+
 ## Construction authority references
 
 `authority` is `{"plan_artifact_id": <id>}` naming one selected construction plan

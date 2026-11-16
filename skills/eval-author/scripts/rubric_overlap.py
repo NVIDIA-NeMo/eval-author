@@ -63,7 +63,7 @@ def _metadata_origin(document: dict) -> tuple[str | None, str | None]:
     return repo, commit
 
 
-def _origin(root: Path, layout: dict) -> tuple[str | None, list[dict]]:
+def task_origin(root: Path, layout: dict) -> tuple[str | None, list[dict]]:
     """Return a repository-and-commit key from task metadata or the environment's git commands."""
     task = layout["task"]
     repo = commit = None
@@ -102,7 +102,7 @@ def _read_task(root: Path, split: str, task: str) -> tuple[_Task, list[dict]]:
         return entry, [diagnostic("overlap.instruction_unreadable", layout["task"], "unknown")]
     entry["instruction"] = hashlib.sha256(content.encode()).hexdigest()
     entry["normalized"] = hashlib.sha256(normalize(content).encode()).hexdigest()
-    entry["origin"], diagnostics = _origin(root, layout)
+    entry["origin"], diagnostics = task_origin(root, layout)
     return entry, diagnostics
 
 

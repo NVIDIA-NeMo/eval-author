@@ -14,6 +14,7 @@ from types import SimpleNamespace
 import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
+PROTECTED = '{"private_read": "denied", "public_read": "ok"}\n'
 
 
 def collector():
@@ -105,7 +106,7 @@ def unit_evidence(output):
                         "return_code": None if control == "hang" else 0,
                         "timed_out": control == "hang",
                         "semantic_pass": control == "reference" or (control == "boolean-output" and index == 1),
-                        "stderr": "hidden-cases-blocked\n" if control == "hidden-case-read" else "",
+                        "stderr": PROTECTED if control == "hidden-case-read" else "",
                     }
                     for index in range(3)
                 ],
@@ -242,8 +243,8 @@ def test_public_summary_is_an_allowlisted_projection():
     module = collector()
     sentinel = "/Users/private-person/secret-path arbitrary-private-error"
     report = {
-        "schema": "nemo.eval_author.verifier_cheat_evidence.v2",
-        "protocol": "harbor-verifier-cheats-v2",
+        "schema": "nemo.eval_author.verifier_cheat_evidence.v3",
+        "protocol": "harbor-verifier-cheats-v3",
         "status": "incomplete",
         "source_revision": "a" * 40,
         "inputs_clean": False,
@@ -434,3 +435,39 @@ def test_fixture_runtime_contract():
     assert config.verifier.network_mode and config.verifier.network_mode.value == "no-network"
     assert config.agent.timeout_sec is not None and config.agent.timeout_sec <= 30
     assert config.verifier.timeout_sec <= 30
+
+
+@pytest.mark.parametrize(
+    ("stderr", "boundary"),
+    [
+        (PROTECTED, "protected"),
+        ('{"private_read": "allowed", "public_read": "ok"}\n', "exposed"),
+        ('{"private_read": "denied", "public_read": "failed"}\n', "unknown"),
+        ('{"private_read": "error", "public_read": "ok"}\n', "unknown"),
+        ("hidden-cases-blocked\n", "unknown"),
+        ("", "unknown"),
+    ],
+)
+def test_read_boundary_needs_the_paired_public_read(stderr, boundary):
+    assert collector().read_boundary(stderr) == boundary
+
+
+def test_failed_public_read_is_not_a_passing_defense(tmp_path):
+    module = unit_evidence(tmp_path)
+    checks = next((tmp_path / "jobs" / "sound--hidden-case-read").glob("*/verifier/checks.json"))
+    data = json.loads(checks.read_text())
+    for row in data["rows"]:
+        row["stderr"] = '{"private_read": "denied", "public_read": "failed"}\n'
+    checks.write_text(json.dumps(data))
+
+    report = module.summarize(tmp_path, exit_code=0)
+
+    assert report["status"] == "incomplete"
+    assert "sound--hidden-case-read: hidden case read boundary is unknown" in report["errors"]
+
+
+def test_protected_read_boundary_is_reported(tmp_path):
+    report = unit_evidence(tmp_path).summarize(tmp_path, exit_code=0)
+
+    check = next(row for row in report["checks"] if row["name"] == "sound--hidden-case-read")
+    assert check["read_boundary"] == "protected"
