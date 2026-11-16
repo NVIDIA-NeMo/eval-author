@@ -11,7 +11,7 @@
 
 We’ll use your confirmed `ETHOS.md` to propose your first evaluation tasks. Existing traces can help us use realistic requests, but they aren’t required.
 
-Would you like to use existing traces, or start from `ETHOS.md`?
+Would you like to include existing traces when designing your first evaluations?
 
-- Start from ETHOS.md
-- Use existing traces
+- Continue without traces
+- Include existing traces
