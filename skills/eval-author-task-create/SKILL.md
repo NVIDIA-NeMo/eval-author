@@ -56,6 +56,8 @@ candidate admission, environment preparation, construction and native qualificat
 This source mode does not require an audit gap and does not claim coverage closure.
 Skip the audit selector and gap-only scaffold/acceptance steps; use the selected
 provider's native task initialization and the handoff's qualification procedure.
+For active expansion, use the [expansion scope checkpoint](../eval-author/references/conversations/expansion.md#saved-entry-and-scope-records)
+before construction. Preserve the trace handoff's scoped entry and privacy/admission gates.
 
 ## Purpose
 
@@ -250,22 +252,20 @@ input hashes and native check mappings, and bind it when preparing run evidence.
 Declare prerequisites only when they matter to the task; plan a bypass control
 that targets the dependent check. A declaration is not proof of necessity.
 
-Before generating task instructions, fixtures, or scaffolds, use the shared
-[coverage-planning checkpoint](../eval-author/references/coverage-planning.md).
-Use the core's [provider-selection rule](../eval-author/SKILL.md#select-the-evaluation-provider)
-to resolve NeMo Gym or Harbor when mapping scope to execution counts. NeMo Gym repeats
-selected dataset rows, while Harbor repeats tasks. Keep estimates conditional
-if that choice remains open.
-Present the proposed priorities and breadth for review, including an option to
-start with a minimal pilot and expand. Reuse already agreed scope rather than
-asking again. Save the agreement in
-`.eval-author/.working/journey-state.json`: selected corpus and exclusions,
-priorities and cost constraints, distinct input-example counts per behavior,
-variations and difficulty, positive and negative scenarios, expected outcomes,
-and pilot or expansion status. Reflect the agreed scope in
-the selected recommendation in the Audit coverage report. Keep this planning record out of the agent-facing
-instruction file. Answer questions or complete scoped detours, then resume this
-checkpoint with the existing decisions intact.
+Before generating task instructions, fixtures, or scaffolds, follow the shared
+[coverage-planning checkpoint](../eval-author/references/coverage-planning.md)
+for source selection, priorities, breadth, and a possible pilot. Resolve Gym or
+Harbor with the core's [provider-selection rule](../eval-author/SKILL.md#select-the-evaluation-provider).
+For Journey 3, save/render the [expansion scope checkpoint](../eval-author/references/conversations/expansion.md#saved-entry-and-scope-records)
+and use its per-task construction guard before these writes. Retain exact task
+and example selections, planned attempts, limits, and deferred recommendations.
+A failed guard pauses construction while retaining the plan and artifacts.
+Direct scoped creation without an expansion lifecycle keeps the shared planning
+agreement in journey state. Reuse settled scope without another approval.
+Apply [guarded report follow-through](../eval-author/references/conversations/expansion.md#report-follow-through) before refreshing the recommendation; keep the
+planning record out of agent-facing instructions. After questions or detours,
+resume with decisions intact. Repeats map to Gym dataset rows or Harbor tasks;
+keep estimates conditional until the provider is settled.
 
 Explain how the agreement maps to the selected tool gap. The deterministic
 pipeline creates one tool-gap draft at a time; repeated runs test closure on
@@ -493,7 +493,7 @@ referencing the verification and its retained evidence. Otherwise keep **Draft**
 Report native control rewards, both
 real-agent rewards, both run/trace paths, and the verify JSON. If either repeat
 misses the tool, revise the task and rerun both attempts.
-After acceptance, follow
+Apply [guarded handoff timing](../eval-author/references/conversations/expansion.md#report-follow-through) and
 [Keep task paths stable](../eval-author/SKILL.md#keep-task-paths-stable)
 when adding the task to the runnable suite. Acceptance changes status and explicit
 suite membership at the existing task path; it does not copy or move the task.
@@ -501,7 +501,7 @@ Finish and link the suite's review and rerun guide at handoff, including when
 execution is blocked. Preserve the actual agent settings in the full-suite and selected-item
 commands; link measured coverage reports separately from run instructions.
 
-At the handoff, reconcile agreed scope with delivered examples in
+At the [permitted report handoff](../eval-author/references/conversations/expansion.md#report-follow-through), reconcile agreed scope with delivered examples in
 the selected recommendation in the Audit coverage report, including partial or blocked
 work. Show planned and delivered distinct input counts per behavior, links to
 their tasks, and generated, validated, and actually executed examples separately.

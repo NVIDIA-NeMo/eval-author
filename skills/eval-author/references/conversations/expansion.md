@@ -1,186 +1,146 @@
 <!-- SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved. -->
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 
-# Expansion continuation
+# Expansion entry and scope
 
-Use the [shared rendering entry point](../../scripts/conversation_renderer.py)
-with `stage: expansion_continue` for the unresolved post-onboarding expansion
-entry decision. This slice does not approve scope, construct tasks, validate
-grading, or authorize execution. Only this implemented stage is registered.
-For an unselected improvement path, use the core's
-[expansion entry](../../SKILL.md#expansion-handoff) before shared checks;
-continuation retains an already-selected path and its unresolved decision.
+Use the [shared renderer](../../scripts/conversation_renderer.py) with
+`expansion_continue` for an unresolved entry question or `expansion_scope` for
+construction scope. Follow the [shared rendering contract](../conversation-rendering.md);
+fixed copy lives in [expansion_templates.py](../../scripts/conversation_flows/expansion_templates.py).
+Supply normal reconciled state, its exact revision, and the same view's
+`facts.expansion_observations`, then present the complete response unchanged.
+
+For a general request without a selected path or active decision, use the core's
+[expansion entry](../../SKILL.md#expansion-handoff). A selected path supplies
+direction and readiness; ask only for unresolved inputs.
 
 ## Selected audit improvements
 
-The audit already records the recommended changes, and its handoff identifies
-which ones the user selected. Reuse that report and the retained decisions;
-do not offer to prepare another proposal or repeat the recommendation pass.
+Consume `scopes.expand.audit_handoff` and its retained report, selection IDs,
+limits, and provenance without editing the handoff. The audit already supplies
+recommendations: do not offer another proposal pass. Additional planning uses
+task-create Step 1 only when explicitly requested.
 
-Check which selected changes have a supported authoring path. For an audit
-tool-gap addition, continue at [task-create Step 2](../../../eval-author-task-create/SKILL.md#step-2-select-one-actionable-gap),
-matching eligibility to the selected recommendation. Do not substitute an
-unselected gap. Resolve only missing construction details at the existing scope
-and design checkpoints, reusing applicable agreement and execution authorization.
-An explicit request for additional planning keeps that scope and may use
-task-create Step 1; selecting an audit recommendation does not request it.
+For selected additions, continue at [task-create Step 2](../../../eval-author-task-create/SKILL.md#step-2-select-one-actionable-gap).
+Each task must match an eligible measured tool gap and a selected `new_task`
+recommendation whose `items` include that tool. Reuse the selector's exact
+identity and paths. Missing evidence or an empty selector stays visible; do not
+substitute unselected gaps or relabel capability/failure-case recommendations.
 
-For repairs within an existing authoring flow, use the
-[repair and revalidation procedure](../task-validation.md#repair-and-retain).
-The audit handoff does not add a general workflow for editing existing suite
-cases or graders. Describe an unavailable implementation path as not yet supported, retaining the
-audit's recommendation without offering to write it again. Do not apply that
-limitation to supported authoring or repair work.
+Keep unsupported selected changes visibly deferred with their implementation
+limit. Applying arbitrary revisions to existing cases or graders is not yet
+supported; [repairs within existing authoring workflows](../task-validation.md#repair-and-retain)
+remain available. Findings acceptance and recommendation selection do not
+approve construction.
 
-`expansion_continue` presents a saved unresolved entry question; it is not a
-prerequisite to the selected authoring flow. Use it only when an unanswered
-entry input prevents that work from proceeding. If a retained entry question
-repeats the audit's settled selection, replace it with the actual unresolved
-decision through the revision-checked update below. Preserve the lifecycle and
-update its question and the top-level `pending_question` together.
+| Supported path | Existing workflow |
+| --- | --- |
+| `starter_suite` | [Starter expansion](../../../eval-author-first-eval/SKILL.md#starter-expansion), reusing the provider, source selection, and a current reviewed or accepted task pattern. No audit is required. |
+| `audit_tool_gap` | Task-create's measured selector. Agree eligible tasks together and construct them one at a time; retain remaining agreed tasks as pending and unsupported work as deferred. |
+| `recorded_interaction` | Task-create's experimental [trace-source mode](../../../eval-author-task-create/SKILL.md#trace-source-mode) and [trace handoff](../trace-input.md). Select the source before inspection and preserve privacy, access, admission, and qualification gates. No audit or full prerequisite/Ethos interview is added. |
 
-## Shared checkpoint contract
+## Saved entry and scope records
 
-Extend this flow at real decision boundaries using the following ownership and
-authority rules. Each owner delivers its lifecycle fields, transition gates,
-renderer and fixed-copy templates, fixtures, and resume tests together. The
-checkpoint names below describe responsibilities; they are not registered stage
-names or accepted lifecycle fields. Missing decisions or evidence remain
-renderable as unresolved, pending, or blocked work. The gates below control
-advancement and success claims, not whether an incomplete checkpoint can be shown.
+Use only `scopes.expand.lifecycle` in shared journey state. The existing
+`schema_version: 1` record stores an unresolved entry question, not a product
+version. Keep it resumable with `expansion_continue`; do not insert an extra
+pause for an already-selected path. Upgrading preserves that record in
+`scopes.expand.entry_history`, alongside retained legacy and sibling context.
 
-| Checkpoint | Owner | Owned state and advancement gates |
+Use `expansion_state.new_scope` for `schema_version: 2`. Its
+[validator](../../scripts/expansion_state.py) owns the exact record shape. Save
+the complete lifecycle through `journey_state.py update --expected-revision`
+from the latest normal `show`; lifecycle updates are not recursive patches.
+
+| Saved content | Required meaning |
+| --- | --- |
+| Request and path | Actual requested outcome and provenance, using a supported path above |
+| Task plan and selection | Scenario, expected outcome, grading, validation, stable example IDs, planned attempts, unresolved inputs, and applicable recommendation/tool IDs; preserve the exact selected subset |
+| Sources | Selected repository-relative files/task trees and current digests; bind the measured report for audit creation and the reviewed pattern for starter expansion |
+| Deferred work and exclusions | Every selected audit improvement remains selected or deferred with a reason; preserve corpus filters and exclusions |
+| Limits and pending inputs | Construction attempt/time/cost caps and their provenance; unresolved choices remain explicit |
+| Decisions | Current intent/handoff bindings, presentation receipt, actual user answer, and retained decision history |
+
+Apply [coverage planning](../coverage-planning.md) for example breadth, source
+selection, and counting units. Planned agent attempts repeat a Harbor task or
+selected Gym row and grant no execution permission. Construction attempts are
+separate, including the initial attempt and at most three repairs. A null
+time/cost cap means explicitly uncapped only after its limit questions are
+settled; preserve existing limits rather than silently replacing them.
+
+## Present and record the decision
+
+Save the proposed scope and actual pending question, reload, and render
+`expansion_scope`. After presenting it, save
+`presented: {digest: scope_digest(state), source: <actual presentation>}` in a
+revision-checked update. On the user's later answer, save
+`decision: {digest, kind, source}` for that exact scope; `kind` is `approved`,
+`declined`, or `revise`. Do not combine a new presentation and answer in one
+update or reuse request, audit selection, or presentation provenance as an answer.
+
+Approval requires supported selected tasks, current evidence/context, settled
+inputs/limits, and applicable prerequisites. Approval or decline clears both
+lifecycle `pending` and top-level `pending_question`; revision saves the actual
+next question in both. Decline retains the plan and limits. For revision, keep
+the old receipt, edit affected content, present the revised scope, and obtain
+its answer; replacement decisions are archived automatically. A changed scope
+cannot reuse its old approval, and a subset cannot silently replace the agreed set.
+
+Before generating each selected task's instructions, fixtures, or scaffolds,
+reload state and run:
+
+```bash
+python <core_dir>/scripts/journey_state.py --repo <repo> check-expansion-scope \
+  --task-id <selected-task-id> --expected-revision <latest-revision>
+```
+
+This read-only guard returns the current task, scope digest, limits, and owning
+workflow with `execution_authorized: false`. Pass that state to existing
+authoring without another planning document or unchanged scope question. A
+failed guard pauses dependent construction; it tracks neither spent attempts
+nor native validation. Trace source preparation/admission retain their separate
+[ordering and authority](../trace-input.md).
+
+## Report follow-through
+
+While audit-derived construction depends on its saved findings, keep the bound
+report/content and audited suite configuration unchanged. Retain interim choices
+and pending work in the existing expansion scope and conversation. Construct
+new tasks at stable paths and perform their required checks first; refreshing
+the report or editing audited membership between tasks would stale the next guard.
+
+When that construction scope finishes or the user ends it, use the audit's
+[existing report follow-through](../../../eval-author-audit/references/coverage-report.md#selected-improvement-handoff-and-follow-through)
+for delivered/pending work and historical-measurement limits. A report refresh
+preserves selection provenance but does not refresh construction approval;
+further work requires reconciliation of affected scope. Standalone proposal
+and report workflows keep their existing timing.
+
+## Reconciliation and resume
+
+`observe` delegates audit freshness/selection to its owner and tool eligibility
+to task-create; `derive` uses supplied observations without I/O. Missing or
+changed bound inputs block construction. Show the saved scope and affected
+inputs, then reconcile their bindings before obtaining a new answer. Preserve
+partial artifacts, decision history, unrelated scopes, and reusable evidence.
+
+Unchanged resume keeps selections, limits, answers, and the actual pending
+question across chats and journey switches. Approved/declined scopes restore no
+stale question. Shared [prerequisite/Ethos recovery](../shared-prerequisites.md)
+takes precedence in the full flow while retaining scope context; unchanged
+intent restores its applicable question. The recorded-interaction path keeps
+its narrower trace entry.
+
+## Checkpoint ownership
+
+| Checkpoint | Owner | Advancement authority |
 | --- | --- | --- |
-| Unresolved entry/path inputs and supported scope agreement | ASE-1425 | Retain the request or audit selection and resolve the supported creation path. Bind explicit scope agreement to the exact proposed task set; an audit selection alone cannot approve construction. Save decline or revision without approval. |
-| Creation/validation progress and blockers | ASE-1426 | Agreed scope permits construction. Current task artifacts and applicable native evidence establish validation. Preserve partial work and blockers; drafts and intended repairs do not establish validation. |
-| Generated-task review and execution settings/authorization | ASE-1427 | Present the complete agreed task set and its current validation for review. Require explicit task review and separate authorization bound to the exact task set, agent, and settings before execution. |
-| Execution progress, results, rerun, and continuation | ASE-1428 | Explicit execution authorization permits a run. Current actual-agent evidence bound to the selected tasks/settings establishes run status and results. Keep missing or partial results visible and require a new decision for changed run scope or settings. |
+| Entry and supported scope | ASE-1425 | Explicit agreement on current supported tasks and limits |
+| Creation and validation progress | ASE-1426 | Agreed scope, current task artifacts, and native evidence |
+| Task review and execution authorization | ASE-1427 | Separate review and permission for exact tasks, agent, and settings |
+| Execution, results, and continuation | ASE-1428 | Authorized actual-agent evidence |
 
-Reuse onboarding for shared prerequisite and Ethos recovery, and the audit
-workflow's retained handoff for selected recommendations and originating report
-context. Entry and scope agreement consume that selection without creating a
-second recommendation pass. These checkpoints orchestrate existing supported
-authoring workflows; they do not extend which cases or graders can be changed.
-
-All checkpoints use the existing state and rendering interfaces:
-
-| Interface | Responsibility |
-| --- | --- |
-| `expansion_state.record` / `validate` | Read and validate the versioned lifecycle under `scopes.expand.lifecycle`; preserve sibling scope fields and legacy context |
-| `expansion_state.observe` | Inspect only artifacts required by the implemented checkpoint, outside rendering, with bounded observations tied to repository and revision |
-| `expansion_state.derive` | Compute current progress, unresolved decisions, and evidence validity from supplied state and observations without I/O or mutation |
-| `expansion_state.transition` through `journey_state.update` | Validate a proposed transition against current context and the exact expected revision before saving a real user decision |
-| `conversation_renderer.render` | Dispatch a registered checkpoint and render its complete response from the reconciled snapshot, exact revision, and permitted facts |
-
-The entry record described below uses schema version 1. Schema version 2 adds
-construction scope state through `expansion_state.new_scope`, retaining a selected
-supported path, task and example identities, digest-bound sources, deferred work,
-unresolved inputs, and construction limits. Its presentation and user decision
-receipts bind to `scope_digest`; changing scope invalidates the agreement and
-replacement decisions retain history. Existing entry records remain resumable.
-Use `expansion_continue` only for entry records; structured construction scope
-records require a compatible scope renderer. Do not save a parallel checklist,
-introduce another state file, or register future-stage placeholders.
-
-`expansion_state.construction_guard` rechecks the saved revision, exact selected
-task, current sources, applicable prerequisites, measured audit-gap eligibility,
-and explicit current scope approval before returning construction inputs. Its
-read-only CLI is `journey_state.py --repo REPO check-expansion-scope --task-id ID
---expected-revision REV`. The result always has `execution_authorized: false`;
-construction approval does not authorize running the agent. Scope agreement
-cannot establish journey completion.
-
-## Cross-checkpoint invariants
-
-Keep audit selection, construction scope agreement, generated-task review, and
-execution authorization as separate decisions with their own source and content
-bindings. Saved questions and settled decisions survive resume. A renderer call,
-presentation fact, filename, routing handoff, or generic completion flag cannot
-create any of these decisions or establish evidence validity.
-
-Reconcile changes before presenting the next checkpoint. Retain the audit
-handoff, prior decisions as history, partial artifacts, and unaffected reusable
-work. Reopen only decisions and checks that depend on changed inputs:
-
-| Changed input | Required reconciliation in its owning workflow |
-| --- | --- |
-| Confirmed intent or selected audit handoff | Reconcile affected entry/scope decisions and their downstream bindings; retain the originating context for review |
-| Planned task set or construction scope | Reopen scope agreement and approvals bound to that set; retain reusable tasks and evidence for unchanged work |
-| Task or grader content | Recompute validation and reopen dependent task review, execution authorization, and run/result validity for the changed tasks |
-| Validation or run evidence | Recompute the statuses, reviews, and approvals that depend on that evidence; missing or stale evidence cannot remain current |
-| Agent or execution settings | Reopen execution authorization and dependent run/result bindings; retain task construction and validation that remain applicable |
-
-An approved subset cannot silently replace the complete agreed set. Record an
-explicit scope revision before treating a reduced set as the agreed work.
-Declining execution preserves validated tasks and their review without implying
-a run. Native validation controls do not count as actual-agent runs; a completed
-run does not establish passing results or measured audit-gap closure. Derive
-each claim from its applicable current evidence. The entry record always derives
-`complete: false`.
-
-Each stage extension must cover unchanged resume, approval/decline/revision,
-partial or blocked work, stale revisions without writes, and targeted
-invalidation. Keep fixture-backed byte-identical rendering checks separate from
-an end-to-end assistant demonstration: fixtures prove supplied-state rendering
-and gates, while a demonstration records the assistant's actual workflow choices.
-Neither establishes deterministic task generation or evaluation results.
-
-## State authority
-
-Reuse the normal reconciled state from `journey_state.py show`, never
-`--state-only`. Shared prerequisites and Ethos must be complete and active
-blockers resolved before this checkpoint. The expansion lifecycle is versioned
-under `scopes.expand.lifecycle`; existing audit handoff, legacy context, and
-other scope fields remain available alongside it. No additional state file is
-introduced.
-
-Saved intent questions block entry even if older state marks Ethos complete.
-Reopen `ethos.stage: review` through a revision-checked update, save the actual
-unresolved intent question and `next_handoff: ethos-orchestrate`, then use shared
-Ethos recovery. Retain the expansion lifecycle and audit handoff while those
-questions are resolved; confirming the unchanged document restores its entry.
-
-After inspecting the request and retained context, create the entry record with
-`expansion_state.new_record(state, question=..., source=...)`. The question is
-the actual unresolved entry decision, and its source identifies the request or
-context that requires it. Save the record and the same top-level
-`pending_question` through the existing revision-checked update interface.
-Choose that question using the core's [expansion handoff](../../SKILL.md#expansion-handoff)
-and the selected authoring flow's eligibility rules. Retain unsupported selected
-improvements as context and explain their implementation limit; do not frame
-them as available construction choices. Explain limits only when relevant to
-the selected work; do not claim construction scope is pending when it is agreed.
-Loading legacy scope text does not infer a lifecycle or approval. Introducing a
-structured lifecycle retains that text as `legacy_context`.
-
-The audit handoff leaves construction scope unconfirmed and marked for review.
-Preserve those flags during entry planning; they do not invalidate the entry
-record's Ethos and handoff bindings or establish scope agreement.
-
-The record binds confirmed Ethos content and the saved audit handoff. Consume
-the handoff supplied by the audit workflow; do not edit its selection from the
-expansion workflow. The binding identifies saved handoff context, not fresh
-audit measurements or report validity. Consult the originating audit records
-before relying on their findings. This checkpoint inspects only Ethos content;
-it does not inspect tasks, source traces, or native receipts.
-
-## Rendering and recovery
-
-After saving, reload normal state and pass the complete `state`, exact
-`revision`, and `facts.expansion_observations` from the same `show` result.
-`expansion_state.observe` obtains current Ethos content outside rendering;
-`derive` checks supplied observations without I/O. The renderer shows the shared
-checklist and saved question without a generic selection or scope preamble.
-
-Render and present the complete response unchanged. Wrong revisions, missing
-observations, mismatched pending questions, active blockers, and changed context
-reject continuation. Resolve shared blockers through onboarding. Reconcile a
-changed Ethos or handoff and save the relevant entry question with fresh
-bindings; do not manufacture a success state or render stale decisions.
-Unchanged entry decisions retain their question across normal resume and journey
-switches. Shared recovery questions take precedence while prerequisites or
-blockers remain unresolved. After recovery clears its question, normal state
-inspection restores the retained entry question only when its bindings are
-current; state-only inspection never performs that artifact reconciliation.
-Successful Ethos confirmation also restores a current entry question after an
-unchanged review when no active blockers remain.
+Only `expansion_continue` and `expansion_scope` are registered here. Scope
+derives `complete: false`; construction approval establishes no validation,
+agent execution, or completed journey. Follow the shared rendering contract
+when extending these checkpoints.

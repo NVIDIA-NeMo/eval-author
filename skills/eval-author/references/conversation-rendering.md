@@ -132,9 +132,11 @@ source selections, proposed-check approval, measurement progress, findings revie
 and optional next actions. Its `audit_` stages use reconciled audit state and
 observations, with the Audit coverage report as the single review document.
 
-[Expansion continuation](conversations/expansion.md) presents the saved unresolved
-post-onboarding entry decision using current intent and retained handoff bindings.
-Only `expansion_continue` is implemented; later workflow stages are not registered.
+[Expansion entry and scope](conversations/expansion.md) presents a saved unresolved
+entry decision with `expansion_continue`, or the proposed task table, limits, and
+explicit construction decision with `expansion_scope`. Both use current context
+and source observations. Later construction, validation, and execution stages
+remain owned by their respective follow-up workflows.
 
 [conversation_renderer.py](../scripts/conversation_renderer.py) dispatches through
 an explicit [journey/stage registry](../scripts/conversation_flows/__init__.py)

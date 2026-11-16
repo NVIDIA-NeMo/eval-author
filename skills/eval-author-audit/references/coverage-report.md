@@ -128,6 +128,9 @@ it does not claim validated grading, successful agent execution, or better
 coverage. Record those facts only when their own evidence exists. Do not add
 progress for unselected recommendations. Refresh the same report through the
 validator and renderer; a progress edit does not undo the originating selection.
+For an active digest-bound expansion, follow the receiving flow's
+[report follow-through boundary](../../eval-author/references/conversations/expansion.md#report-follow-through)
+before refreshing these bound files.
 
 Leave freshness checks unchanged. If task files changed, earlier measurements
 cannot establish current coverage. Explain that limitation and retain the

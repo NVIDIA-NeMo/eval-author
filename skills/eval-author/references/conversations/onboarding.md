@@ -266,6 +266,8 @@ When `scopes.expand.lifecycle` is present, use the
 [expansion continuation contract](expansion.md) after shared onboarding or
 recovery is complete. These onboarding stages remain available for unresolved
 prerequisites, Ethos, and active blockers.
+The saved `recorded_interaction` scope uses `expansion_scope` directly with its
+existing scoped trace entry; it does not enter these full onboarding stages.
 An already-selected improvement path goes directly to its actual downstream
 decision after Ethos confirmation under the
 [shared handoff](../shared-prerequisites.md#pause-after-ethos-confirmation),

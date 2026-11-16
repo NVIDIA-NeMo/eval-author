@@ -10,6 +10,11 @@ use the [Audit coverage report](../../eval-author-audit/references/coverage-repo
 A proposal is provisional until the user settles its open choices; it is not
 permission to generate or run evaluations.
 
+For Journey 3, the [expansion scope checkpoint](conversations/expansion.md#saved-entry-and-scope-records)
+owns the saved task table, exact selection, limits, and explicit construction
+decision. Apply this reference's source and breadth rules within that checkpoint;
+do not add a second scope approval or planning document.
+
 ## Select trace evidence before using it
 
 Traces are optional for first evals. The absence of evals does not establish the
