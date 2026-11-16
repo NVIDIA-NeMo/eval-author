@@ -4,6 +4,7 @@
 """Run our pinned evaluator with a bounded CI context-comparison allowance."""
 
 import json
+import re
 import sys
 from importlib import import_module
 from importlib.metadata import distribution
@@ -30,10 +31,23 @@ def main():
     for module in (intra_skill_validator, semantic_clustering):
         if getattr(module, "CONTENT_DEDUP_MAX_SCALAR_COMPARISONS", None) != 25_000_000:
             raise ValueError("upstream comparison contract changed; review the CI allowance")
-    # Keep all chunks, all pairs, thresholds, clustering, and findings unchanged.
+    chunker = import_module("skillevaluator.deduplication.utils.chunker")
+    original_spdx = import_module("skillevaluator.spdx").is_spdx_only_html_comment
+    if chunker.is_spdx_only_html_comment is not original_spdx:
+        raise ValueError("upstream SPDX contract changed; review the CI adapter")
+
+    def recognize_spdx(text):
+        if original_spdx(text):
+            return True
+        # v0.7.0 accepts one SPDX comment, but our header tool emits two.
+        match = re.fullmatch(r"\s*<!--([^<>]*?)-->\s*<!--([^<>]*?)-->\s*", text)
+        return bool(match and original_spdx(f"<!-- {match[1].strip()}\n{match[2].strip()} -->"))
+
+    # Keep all content chunks, all pairs, thresholds, clustering, and findings unchanged.
     # This guard still bounds work; the collector also enforces a five-minute timeout.
     for module in (intra_skill_validator, semantic_clustering):
         setattr(module, "CONTENT_DEDUP_MAX_SCALAR_COMPARISONS", CONTEXT_SCALAR_LIMIT)
+    setattr(chunker, "is_spdx_only_html_comment", recognize_spdx)
     import_module("skillevaluator.cli").cli()
 
 
