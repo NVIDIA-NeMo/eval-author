@@ -11,8 +11,8 @@ limitations before deciding what to change.
 
 Rubric selections use `rubric_scope` for source-backed inventories. Package demo
 observations use `retained_credit`, `retained_credit_controls`, and `coverage` to
-identify their consumers. The provenance panel uses `rubric-provenance-demo-v1`
-with `rubric-provenance-expectations-v1` expectations; the version remains 1.
+identify their consumers. The provenance panel uses `rubric-provenance-demo-v2`
+with `rubric-provenance-expectations-v1` expectations.
 Criterion IDs name their area, such as `provenance.grading-path` or
 `task-contract.scoring-authority`, and each check ID adds its method, such as
 `.deterministic-1` or `.llm-judge`. Result rows and check results keep the source
@@ -20,7 +20,9 @@ rubric's IDs in `source` and `source_id`; `skill_id` is no longer filled from th
 source rubric.
 Rubric definitions use `4.1-draft`, measurement reports use
 `rubric-measurements-v3`, and identity mutation panels use
-`rubric-mutation-panel-v4`. Reports preserve canonical criterion and check order.
+`rubric-mutation-panel-v4`. The overall showcase, criterion scoring demo and task
+contract demo use `rubric-showcase-v2`, `criterion-scoring-demo-v2` and
+`task-contract-demo-v2`. Reports preserve canonical criterion and check order.
 Update integrations to these current names and rebuild older demo outputs rather
 than relying on former field or schema names; no compatibility aliases are kept.
 Keep old source-bound receipts under their original identifiers instead of

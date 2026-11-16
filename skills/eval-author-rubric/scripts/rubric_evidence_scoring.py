@@ -626,7 +626,10 @@ def _derive(ident: str, facts: dict[str, Any]) -> int | None:
         if not any(r["run_identity"] for r in inventory):
             return None
         if any(
-            r["observed"] is not None and r["declared"] != r["observed"] and r["disposition"] == "invalidates"
+            r["run_identity"]
+            and r["observed"] is not None
+            and r["declared"] != r["observed"]
+            and r["disposition"] == "invalidates"
             for r in inventory
         ):
             return 0
@@ -782,7 +785,10 @@ def _derive(ident: str, facts: dict[str, Any]) -> int | None:
             return 1
     elif ident == "AC-03":
         reached = [r for r in inventory if r["health"] == "healthy" and r["reach"] == "reached"]
-        if any(r["receipt_kind"] != "current" and r["consumer"] == "credited" for r in reached):
+        if any(
+            (r["receipt_kind"] != "current" or r["native_validation"] == "invalid") and r["consumer"] == "credited"
+            for r in reached
+        ):
             return 0
         if (
             len(reached) == len(inventory)

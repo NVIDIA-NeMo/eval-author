@@ -164,6 +164,14 @@ def summarize_reports(output: Path) -> dict:
         "identity": {
             "status": identity["status"],
             "counts": identity["counts"],
+            "evidence_cases": [
+                {
+                    "id": row["id"],
+                    "measurement": row["expected"]["measurement"],
+                    "observation": row["observed"]["measurements"][row["expected"]["measurement"]],
+                }
+                for row in identity["evidence_cases"]
+            ],
             "assessments": [
                 {"id": row["id"], "scores": {key: value["score"] for key, value in row["observed"]["items"].items()}}
                 for row in identity["assessments"]
@@ -195,6 +203,9 @@ def summarize_reports(output: Path) -> dict:
                     "id": row["id"],
                     "status": row["observed"]["status"],
                     "valid": row["observed"]["valid"],
+                    "structure_usable": row["structure_usable"],
+                    "usable_authority": row["usable_authority"],
+                    "owner_confirmation": row["owner_confirmation"],
                     "report": "task-contract/" + row["report"],
                 }
                 for row in task_contract["cases"]
@@ -213,7 +224,7 @@ def require_equal(actual: object, expected: object, label: str) -> None:
 
 def validate_reports(output: Path) -> None:
     from run_criterion_scoring_demo import run as verify_scoring_demo
-    from run_verification_integrity_demo import receipt_score
+    from run_verification_integrity_demo import acceptance_score, receipt_score
 
     panel = read(output / "integrity/panel.json")
     expected_ids = [f"anchor-{score}" for score in range(4)] + [
@@ -253,11 +264,21 @@ def validate_reports(output: Path) -> None:
         require_equal(observed["group_scopes"], ["verification_integrity"] * 2, "integrity groups")
     for row in panel["cases"]:
         require_equal(row["matches_expectations"], True, "integrity case match")
-    for row, status in zip(panel["cases"][4:], ("unknown", "stale", "violation", "consistent"), strict=True):
+    for row, status, score in zip(
+        panel["cases"][4:], ("unknown", "stale", "violation", "consistent"), (None, None, 0, 3), strict=True
+    ):
         report = read(output / "integrity" / row["evidence"]["report"])
-        require_equal(report["acceptance_integrity"]["status"], status, "integrity partial claim")
-        require_equal(row["observed"]["acceptance_status"], status, "integrity claim projection")
+        observed = acceptance_score(report)
+        expected = {"acceptance_status": status, "score": score}
+        require_equal(observed, row["observed"], "integrity partial claim projection")
+        require_equal(row["expected"], expected, "integrity partial claim expectation")
+        require_equal({key: observed[key] for key in expected}, expected, "integrity partial claim")
         require_equal(row["workflow_acceptance"], False, "integrity workflow boundary")
+        require_equal(
+            row["default_acceptance"],
+            {"returncode": 1, "report": {"valid": False, "error": "invalid saved acceptance: 'before'"}},
+            "integrity default rejection",
+        )
         require_equal(
             read(output / "integrity" / row["evidence"]["default_report"]),
             row["default_acceptance"]["report"],
@@ -269,8 +290,13 @@ def validate_reports(output: Path) -> None:
     require_equal(panel["retry"]["score"], None, "integrity retry score")
     require_equal(panel["retry"]["matches_expectations"], True, "integrity retry match")
 
+    from run_rubric_measurements import canonical_checks, evidence_matches
+
     identity = read(output / "identity/panel.json")
     definitions = read(ROOT / "evals/rubric-measurements/cases.json")
+    canonical = read(ROOT / "skills/eval-author-rubric/references/artifact-configuration-provenance.json")
+    baseline_items = next(row["items"] for row in definitions["assessments"] if row["id"] == "valid")
+    require_equal(identity["schema"], "rubric-mutation-panel-v4", "identity panel schema")
     for name, source in (
         ("cases", "raw_measurements"),
         ("assessments", "assessments"),
@@ -279,12 +305,100 @@ def validate_reports(output: Path) -> None:
         rows = identity[name]
         require_equal([row["id"] for row in rows], [row["id"] for row in definitions[source]], "identity membership")
         require_equal(identity["counts"][name], len(rows), "identity count")
-        for row in rows:
+        for row, definition in zip(rows, definitions[source], strict=True):
             require_equal(row["matches_expectations"], True, "identity case match")
+            require_equal(row["expected"], definition, "identity case definition")
+            if name == "cases":
+                require_equal(row["measurement"], definition["measurement"], "identity raw measurement")
+                observation = row["observed"]
+                require_equal(observation["status"], definition["status"], "identity raw status")
+                require_equal(
+                    sorted({item["code"] for item in observation.get("diagnostics", [])}),
+                    definition["codes"],
+                    "identity raw diagnostics",
+                )
+                require_equal(
+                    observation.get("differences", []), definition.get("differences", []), "identity raw differences"
+                )
+            if name == "evidence_cases":
+                require_equal(row["expected"], definition, "identity evidence definition")
+                measurement = definition["measurement"]
+                observation = row["observed"]["measurements"][measurement]
+                require_equal(observation["status"], definition["status"], "identity evidence status")
+                require_equal(row["cli_exit_code"], definition["cli_exit_code"], "identity evidence exit")
+                if measurement in ("ethos", "authority"):
+                    require_equal(
+                        sorted({item["code"] for item in observation["diagnostics"]}),
+                        definition["codes"],
+                        "identity evidence diagnostics",
+                    )
+                    if measurement == "ethos":
+                        require_equal(observation["valid"], definition["valid"], "identity ethos validity")
+                    else:
+                        require_equal(
+                            [item["status"] for item in observation["requirements"]],
+                            definition["requirement_statuses"],
+                            "identity authority requirements",
+                        )
             if name != "cases":
-                for ident, fields in row["expected_items"].items():
+                expected_items = {
+                    **definition.get("items", baseline_items),
+                    **{key: {"score": None, "status": "NOT_ASSESSED"} for key in definitions["not_assessed"]},
+                }
+                expected_checks = {
+                    **definitions["check_outcomes"],
+                    **definitions["check_overrides"].get(definition["id"], {}),
+                    **definitions["evidence_check_overrides"].get(definition.get("measurement"), {}),
+                }
+                report = row["observed"]
+                require_equal(row["expected_items"], expected_items, "identity expected items")
+                require_equal(row["expected_checks"], expected_checks, "identity expected checks")
+                require_equal(row["cli_exit_code"], definition["cli_exit_code"], "identity CLI exit")
+                require_equal(canonical_checks(report, canonical, expected_checks), True, "identity canonical report")
+                for item_index, item_definition in enumerate(canonical["items"]):
+                    item = report["items"][item_definition["id"]]
+                    require_equal(item["source"], item_definition["source"], "identity criterion source")
+                    require_equal(item["item_id"], item_definition["id"], "identity criterion ID")
+                    for check_index, (check, check_definition) in enumerate(
+                        zip(item["check_results"], item_definition["checks"], strict=True)
+                    ):
+                        require_equal(
+                            {key: check[key] for key in check_definition}, check_definition, "identity check definition"
+                        )
+                        require_equal(check["source_ids"], item_definition["source_ids"], "identity check sources")
+                        require_equal(
+                            check["definition_ref"],
+                            f"artifact-configuration-provenance.json#/items/{item_index}/checks/{check_index}",
+                            "identity check reference",
+                        )
+                for ident, fields in expected_items.items():
                     for field, expected in fields.items():
-                        require_equal(row["observed"]["items"][ident][field], expected, "identity emitted score")
+                        require_equal(report["items"][ident][field], expected, "identity emitted score")
+                for measurement, codes in definition.get(
+                    "diagnostics", {"identity": [], "route": [], "approvals": []}
+                ).items():
+                    require_equal(
+                        sorted({item["code"] for item in report["measurements"][measurement].get("diagnostics", [])}),
+                        codes,
+                        "identity assessment diagnostics",
+                    )
+                if definition.get("measurement") == "sourced_config":
+                    # This owner branch checks retained metadata only. Temporary
+                    # identity inputs are absent: do not claim source-byte replay.
+                    require_equal(evidence_matches(report, definition, None, None), True, "identity sourced metadata")
+                    require_equal(
+                        sorted(report["measurements"]["sourced_config"]["fields"]),
+                        [
+                            "/agent",
+                            "/environment",
+                            "/provider",
+                            "/run",
+                            "/runtime_pins/harbor",
+                            "/task",
+                            "/tool_permissions",
+                        ],
+                        "identity sourced fields",
+                    )
     package = identity["package_acceptance"]
     require_equal(
         [row["id"] for row in package["cases"]],
@@ -365,11 +479,34 @@ def validate_source_bound_scores(output: Path) -> None:
             "task contract observed scores",
         )
         if row["kind"] == "ethos":
+            require_equal(row["structure_usable"], row["observed"]["status"] == "pass", "ethos structure")
+            require_equal(row["usable_authority"], False, "ethos authority boundary")
+            require_equal(
+                row["owner_confirmation"],
+                {
+                    "status": "NOT_RUN",
+                    "owner": "skills/eval-author/scripts/journey_state.py",
+                    "confirmed_digest": None,
+                    "confirmation_source": None,
+                },
+                "ethos owner confirmation",
+            )
             require_equal(row["rubric_scores"], expected, "task contract ethos unscored")
             require_equal(row["emitted_criterion_ids"], [], "task contract ethos criteria")
             require_equal([key for key in criteria if key in report["items"]], [], "ethos emitted rows")
             require_equal(report["measurements"]["ethos"], row["observed"], "task contract ethos report")
         else:
+            # Re-read the selected source closure with its owning static validator.
+            # It admits frozen source shapes and never executes retained task code.
+            sys.path.insert(0, str(ROOT / "skills/eval-author-rubric/scripts"))
+            sys.path.insert(0, str(ROOT / "skills/eval-author/scripts"))
+            from rubric_contract_controls import assess_contract_controls
+
+            directory = output / "task-contract" / row["id"]
+            source_rows = assess_contract_controls(directory, read(directory / "selection.json"))
+            require_equal(
+                {key: report["items"][key] for key in criteria}, source_rows, "task contract source-bound rows"
+            )
             if row["id"] == "planted-summary":
                 expected["task-contract.discoverable-requirements"] = 0
             emitted = {key: report["items"][key]["score"] for key in criteria}
@@ -480,8 +617,16 @@ def render(summary, panel):
         for row in summary["integrity"]["anchors"]
     )
     ethos_rows = "".join(
-        f'<tr><td>{esc(row["id"])}</td><td>{esc(row["status"])}</td><td>{esc(row["valid"])}</td><td><a href="{esc(row["report"])}">Evidence</a></td></tr>'
+        f"<tr><td>{esc(row['id'])}</td><td>{esc(row['status'])}</td><td>{esc(row['valid'])}</td>"
+        f'<td>Owner confirmation: {esc(row["owner_confirmation"]["status"])}</td><td><a href="{esc(row["report"])}">Evidence</a></td></tr>'
         for row in summary["task_contract"]["ethos"]
+    )
+    evidence_rows = "".join(
+        f"<tr><td>{esc(row['id'])}</td><td>{esc(row['measurement'])}</td>"
+        f"<td>{esc(row['observation']['status'])}</td>"
+        f"<td>{esc(', '.join(item['status'] for item in row['observation'].get('requirements', [])) if row['measurement'] == 'authority' else 'Structure valid: ' + str(row['observation']['valid']) if row['measurement'] == 'ethos' else 'See retained observation')}</td>"
+        f"<td>{esc(', '.join(item['code'] for item in row['observation'].get('diagnostics', [])) or 'None')}</td></tr>"
+        for row in summary["identity"]["evidence_cases"]
     )
     identity_rows = "".join(
         f"<tr><td>{esc(row['id'])}</td>"
@@ -561,11 +706,14 @@ h1{{font-size:30px;line-height:1.2}}h2{{margin-top:36px;font-size:22px}}a{{color
 <div class="scroll"><table><thead><tr><th>Mutation</th><th>{label("provenance.task-artifact-access")}</th><th>{label("provenance.grading-path")}</th><th>{label("provenance.grading-dependency-access")}</th></tr></thead><tbody>{identity_rows}</tbody></table></div>
 <p><a href="identity/panel.json">Identity assessment and source/configuration diagnostics</a>. The provenance panel matches {summary["provenance"]["matched"]}/{summary["provenance"]["cases"]} cases through the actual CLI, including changed selected bytes, broken links, configuration binding, stale dependencies and retained-text reconstruction. <a href="provenance/panel.json">Provenance evidence and individual report links</a>.</p>
 <h2>4. Task contract and scoring authority</h2>
+<h3>Selected-source evidence diagnostics</h3>
+<p>The identity panel includes {summary["identity"]["counts"]["evidence_cases"]} evidence cases. Authority locators resolve selected content, fail for a broken reference, or stay unknown for prose. An unaffected neighbor remains resolved. Resolution is not semantic correctness or authenticated owner approval; these checks add no canonical score.</p>
+<div class="scroll"><table><thead><tr><th>Case</th><th>Measurement</th><th>Status</th><th>Observed detail</th><th>Diagnostics</th></tr></thead><tbody>{evidence_rows}</tbody></table></div>
 <p>The order-total task asks for total.txt. Its planted scorer also requires summary.json. The retained static crosswalk cites the instruction, scorer and input data. A clean neighbor removes that hidden condition. The real CLI emits Discoverable grading requirements = 0/E1 for the planted hidden condition, bound to the supported fixture source bytes. The clean neighbor stays Unassessed: removing one defect does not establish a positive anchor. Clear task contract and Correctness and scoring authority remain Unassessed. No human adjudication is supplied.</p>
 <table><thead><tr><th>Source case</th><th>{label("task-contract.clear-contract")}</th><th>{label("task-contract.discoverable-requirements")}</th><th>{label("task-contract.scoring-authority")}</th><th>Discoverability evidence strength</th><th>Evidence</th></tr></thead><tbody>{contract_rows}</tbody></table>
 <p><a href="task-contract/report.md">Condition crosswalk and expected-versus-observed inspection</a>. {summary["task_contract"]["matched"]}/{summary["task_contract"]["cases"]} task-contract and Ethos scenarios match their expectations. These are authored static inspections and real structure checks, not a measured model-judgment result.</p>
-<div class="scroll"><table><thead><tr><th>Ethos case</th><th>Measurement status</th><th>Structure valid</th><th>Evidence</th></tr></thead><tbody>{ethos_rows}</tbody></table></div>
-<p>A structurally valid but changed Ethos still fails its digest binding. An unavailable validator leaves the result unknown. Valid structure does not establish confirmed owner intent.</p>
+<div class="scroll"><table><thead><tr><th>Ethos case</th><th>Measurement status</th><th>Structure valid</th><th>Owner confirmation</th><th>Evidence</th></tr></thead><tbody>{ethos_rows}</tbody></table></div>
+<p>A structurally valid but changed Ethos still fails its digest binding. An unavailable validator leaves the result unknown. Valid structure does not establish confirmed owner intent. The owning journey-state validator remains responsible for saved-byte confirmation and invalidation. No reviewed user turn is supplied here, so confirmation is NOT_RUN and no journey-state approval is fabricated.</p>
 <h2>5. Synthetic scoring-rule coverage</h2>
 <p>All {demo["criterion_count"]} criteria exercise 0, 1, 2, 3 and missing through the actual measurement CLI: {demo["vector_count_per_root"]} criterion vectors per root. These authored synthetic numbers do not qualify a task. They appear only in criterion_demonstration, never in real measured items. The source-bound scores above come from selected source inspection or executed local controls; this matrix instead tests how scoring rules respond to invented observations. Human review, native execution and independent corroboration were NOT_RUN.</p>
 <div class="scroll"><table><thead><tr><th>Criterion</th><th>0 anchor</th><th>1 anchor</th><th>2 anchor</th><th>3 anchor</th><th>Missing evidence</th></tr></thead><tbody>{matrix}</tbody></table></div>

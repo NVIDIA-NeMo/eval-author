@@ -40,6 +40,74 @@ def test_cli_rejects_unimplemented_nested_scope(tmp_path):
     assert json.loads(result.stdout)["code"] == "selection.invalid"
 
 
+@pytest.mark.parametrize("selected", [None, {}, {"plan_artifact": "construction"}, {"plan_artifact_id": []}])
+def test_cli_rejects_malformed_authority_selection(tmp_path, selected):
+    request = tmp_path / "selection.json"
+    request.write_text(json.dumps({"authority": selected}))
+    result = subprocess.run(
+        [sys.executable, "-B", str(CLI), "--root", str(tmp_path), "--selection", str(request)],
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    assert result.returncode == 2
+    assert result.stderr == ""
+    assert json.loads(result.stdout) == {
+        "schema": "rubric-measurements-v3",
+        "status": "invalid",
+        "code": "selection.invalid",
+        "preflight_success": False,
+    }
+
+
+@pytest.mark.parametrize(
+    "mutation,status,requirement_statuses,codes,exit_code",
+    [
+        ("authority-resolved", "pass", ["resolved", "resolved"], [], 0),
+        ("authority-broken-reference", "fail", ["broken", "resolved"], ["authority.reference_broken"], 1),
+        ("authority-prose", "unknown", ["prose", "resolved"], ["authority.reference_prose"], 1),
+        ("authority-malformed", "fail", [], ["authority.plan_malformed"], 1),
+    ],
+)
+def test_cli_consumes_authority_evidence(
+    tmp_path, monkeypatch, mutation, status, requirement_statuses, codes, exit_code
+):
+    monkeypatch.syspath_prepend(str(ROOT / "tools"))
+    from run_rubric_measurements import evidence_fixture, selected_file
+
+    selection = evidence_fixture(tmp_path, "authority-resolved" if mutation == "authority-malformed" else mutation)
+    if mutation == "authority-malformed":
+        selected_file(tmp_path, selection, "construction", "construction", b"{malformed")
+    request = tmp_path / "selection.json"
+    request.write_text(json.dumps(selection))
+    before = {path.name: path.read_bytes() for path in tmp_path.iterdir()}
+    result = subprocess.run(
+        [sys.executable, "-B", str(CLI), "--root", str(tmp_path), "--selection", str(request)],
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    assert result.returncode == exit_code, result.stdout + result.stderr
+    assert result.stderr == ""
+    report = json.loads(result.stdout)
+    assert report["schema"] == "rubric-measurements-v3"
+    assert report["preflight_success"] is False
+    assert report["anti_cheat_scores"] is None
+    assert "criterion_demonstration" not in report
+    assert "recorded_criterion_evidence" not in report
+    authority = report["measurements"]["authority"]
+    assert authority["status"] == status
+    assert [row["status"] for row in authority["requirements"]] == requirement_statuses
+    assert [row["code"] for row in authority["diagnostics"]] == codes
+    assert {path.name: path.read_bytes() for path in tmp_path.iterdir()} == before
+    definitions = json.loads((CLI.parent.parent / "references/artifact-configuration-provenance.json").read_text())
+    assert list(report["items"]) == [item["id"] for item in definitions["items"]]
+    for definition in definitions["items"]:
+        row = report["items"][definition["id"]]
+        assert row["rubric_version"] == definitions["rubric_version"] == "4.1-draft"
+        assert [check["check_id"] for check in row["check_results"]] == [check["id"] for check in definition["checks"]]
+
+
 def test_recorded_evidence_preserves_existing_measurements(tmp_path):
     import importlib.util
 
@@ -280,6 +348,28 @@ def test_panel_cli_preserves_canonical_report_contract(rubric_panel, contract):
             ]
 
 
+@pytest.mark.parametrize("mutation", ["schema", "rubric_version", "criterion_order", "check_order"])
+def test_panel_rejects_canonical_contract_drift(rubric_panel, monkeypatch, mutation):
+    from copy import deepcopy
+
+    monkeypatch.syspath_prepend(str(ROOT / "tools"))
+    from run_rubric_measurements import canonical_checks
+
+    report = deepcopy(rubric_panel["evidence_cases"][-1]["observed"])
+    definitions = json.loads((CLI.parent.parent / "references/artifact-configuration-provenance.json").read_text())
+    assert canonical_checks(report, definitions)
+    first = next(iter(report["items"].values()))
+    if mutation == "schema":
+        report["schema"] = "rubric-measurements-v2"
+    elif mutation == "rubric_version":
+        first["rubric_version"] = "4.0-draft"
+    elif mutation == "criterion_order":
+        report["items"] = dict(reversed(list(report["items"].items())))
+    else:
+        first["check_results"].reverse()
+    assert not canonical_checks(report, definitions)
+
+
 def test_mutation_panel_matches_independent_expectations(rubric_panel):
     report = rubric_panel
     assert report["status"] == "passed"
@@ -324,8 +414,8 @@ def test_demo_reports_canonical_outcomes_through_actual_cli(rubric_panel):
     }
     cases = {row["id"]: row for row in report["assessments"]}
     assert cases.keys() == expected.keys()
-    assert report["counts"] == {"cases": 14, "assessments": len(expected), "evidence_cases": 8}
-    assert len(report["evidence_cases"]) == 8
+    assert report["counts"] == {"cases": 14, "assessments": len(expected), "evidence_cases": 13}
+    assert len(report["evidence_cases"]) == 13
     assert {case["id"] for case in report["evidence_cases"]} == {
         "sourced-equal",
         "sourced-different",
@@ -335,6 +425,11 @@ def test_demo_reports_canonical_outcomes_through_actual_cli(rubric_panel):
         "material-scorer-change",
         "material-dependency-change",
         "unknown-ethos-change",
+        "ethos-valid",
+        "ethos-malformed",
+        "authority-resolved",
+        "authority-broken-reference",
+        "authority-prose",
     }
     assert all(case["matches_expectations"] for case in report["evidence_cases"])
     canonical = json.loads(

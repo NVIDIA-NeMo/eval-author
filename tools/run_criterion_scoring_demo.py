@@ -17,6 +17,7 @@ import os
 import shutil
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -25,6 +26,7 @@ SCRIPTS = ROOT / "skills/eval-author-rubric/scripts"
 sys.path.insert(0, str(ROOT / "skills/eval-author/scripts"))
 sys.path.insert(0, str(SCRIPTS))
 from rubric_evidence_scoring import canonical_definitions, definitions_digest, value_digest  # noqa: E402
+from rubric_identity import read_selected  # noqa: E402
 
 # Authored synthetic observations, independent of scorer predicates and tests.
 VECTORS = {
@@ -515,62 +517,100 @@ def validate_report(report: dict[str, Any], baseline: dict[str, Any], expected: 
             raise ValueError("unexpected synthetic anchor or evidence claim")
 
 
+REJECTION_CONTROLS = (
+    "digest-tamper",
+    "stale-definitions",
+    "stale-subject",
+    "promote-synthetic",
+    "missing-report-rows",
+    "alter-report-score",
+)
+CONTROL_FILES = (
+    "task.json",
+    "facts.json",
+    "packet.json",
+    "selection.json",
+    "baseline-selection.json",
+    "measure-report.json",
+    "baseline-report.json",
+)
+
+
+def mutate_control(directory: Path, name: str) -> None:
+    if name == "digest-tamper":
+        source = read_json(directory / "facts.json")
+        source["provenance"]["actor_id"] = "altered-actor"
+        write_json(directory / "facts.json", source)
+    elif name in ("stale-definitions", "stale-subject", "promote-synthetic"):
+        packet = read_json(directory / "packet.json")
+        if name == "stale-definitions":
+            packet["definitions_digest"] = "0" * 64
+        elif name == "stale-subject":
+            packet["subject"]["digest"] = "0" * 64
+        else:
+            packet["assessment_scope"] = "recorded-evidence-assessment"
+        write_json(directory / "packet.json", packet)
+        selection = read_json(directory / "selection.json")
+        record = next(row for row in selection["artifacts"] if row["id"] == "packet")
+        record["digest"] = hashlib.sha256((directory / "packet.json").read_bytes()).hexdigest()
+        record["evidence"][0]["digest"] = record["digest"]
+        write_json(directory / "selection.json", selection)
+    elif name in ("missing-report-rows", "alter-report-score"):
+        report = read_json(directory / "measure-report.json")
+        if name == "missing-report-rows":
+            del report["criterion_demonstration"]
+        else:
+            report["criterion_demonstration"]["AC-01"]["score"] = 2
+        write_json(directory / "measure-report.json", report)
+    else:
+        raise ValueError("unknown rejection control")
+
+
+def validate_control(directory: Path, expected: Path) -> None:
+    # These are fixed generated fixtures, not arbitrary equivalent JSON. Bound
+    # each no-follow read by the trusted bytes; never trust a retained manifest.
+    for filename in CONTROL_FILES:
+        wanted = (expected / filename).read_bytes()
+        actual, reason = read_selected(directory, filename, limit=len(wanted))
+        if reason or actual != wanted:
+            raise ValueError(f"rejection control fixture mismatch: {directory.name}/{filename}")
+
+
 def rejection_controls(output: Path, *, verify: bool) -> dict[str, str]:
     results = {}
-    names = (
-        "digest-tamper",
-        "stale-definitions",
-        "stale-subject",
-        "promote-synthetic",
-        "missing-report-rows",
-        "alter-report-score",
-    )
-    for name in names:
-        directory = output / "rejection-controls" / name
-        if not verify:
-            shutil.copytree(output / "run-a/score-3", directory)
-            packet = read_json(directory / "packet.json")
-            if name == "digest-tamper":
-                source = read_json(directory / "facts.json")
-                source["provenance"]["actor_id"] = "altered-actor"
-                write_json(directory / "facts.json", source)
-            elif name in ("stale-definitions", "stale-subject", "promote-synthetic"):
-                if name == "stale-definitions":
-                    packet["definitions_digest"] = "0" * 64
-                elif name == "stale-subject":
-                    packet["subject"]["digest"] = "0" * 64
+    with tempfile.TemporaryDirectory(prefix="criterion-controls-") as temporary:
+        trusted = Path(temporary) / "score-3"
+        prepare(trusted, 3)
+        measure(trusted)
+        measure(trusted, baseline=True)
+        for name in REJECTION_CONTROLS:
+            expected = Path(temporary) / name
+            shutil.copytree(trusted, expected)
+            mutate_control(expected, name)
+            directory = output / "rejection-controls" / name
+            if not verify:
+                shutil.copytree(output / "run-a/score-3", directory)
+                mutate_control(directory, name)
+            # An unrelated selection.invalid (including absent evidence) is not
+            # proof that the named mutation reached the measurement boundary.
+            validate_control(directory, expected)
+            modes = (True,) if name in ("missing-report-rows", "alter-report-score") else (False, True)
+            for replay in modes:
+                try:
+                    measure(directory, verify=replay)
+                except ValueError:
+                    prefix = "measure-verify" if replay else "measure"
+                    invocation = read_json(directory / f"{prefix}-invocation.json")
+                    report = read_json(directory / f"{prefix}.stdout.json")
+                    if (
+                        invocation["returncode"] != 2
+                        or report.get("code") != "selection.invalid"
+                        or report.get("preflight_success") is not False
+                    ):
+                        raise ValueError("rejection control did not fail at the measurement boundary") from None
                 else:
-                    packet["assessment_scope"] = "recorded-evidence-assessment"
-                write_json(directory / "packet.json", packet)
-                selection = read_json(directory / "selection.json")
-                record = next(row for row in selection["artifacts"] if row["id"] == "packet")
-                record["digest"] = hashlib.sha256((directory / "packet.json").read_bytes()).hexdigest()
-                record["evidence"][0]["digest"] = record["digest"]
-                write_json(directory / "selection.json", selection)
-            else:
-                report = read_json(directory / "measure-report.json")
-                if name == "missing-report-rows":
-                    del report["criterion_demonstration"]
-                else:
-                    report["criterion_demonstration"]["AC-01"]["score"] = 2
-                write_json(directory / "measure-report.json", report)
-        modes = (True,) if name in ("missing-report-rows", "alter-report-score") else (False, True)
-        for replay in modes:
-            try:
-                measure(directory, verify=replay)
-            except ValueError:
-                prefix = "measure-verify" if replay else "measure"
-                invocation = read_json(directory / f"{prefix}-invocation.json")
-                report = read_json(directory / f"{prefix}.stdout.json")
-                if (
-                    invocation["returncode"] != 2
-                    or report.get("code") != "selection.invalid"
-                    or report.get("preflight_success") is not False
-                ):
-                    raise ValueError("rejection control did not fail at the measurement boundary") from None
-            else:
-                raise ValueError(f"invalid evidence was accepted: {name}")
-        results[name] = "rejected"
+                    raise ValueError(f"invalid evidence was accepted: {name}")
+            results[name] = "rejected"
     return results
 
 

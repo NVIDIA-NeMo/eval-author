@@ -6,6 +6,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import runpy
 import shutil
 import subprocess
 import sys
@@ -105,6 +106,9 @@ def test_retained_stale_and_tamper_controls_are_rejected_by_measure_cli(tmp_path
         if name not in {"missing-report-rows", "alter-report-score"}:
             fresh = json.loads((directory / "measure-invocation.json").read_text())
             assert fresh["returncode"] == 2
+    verified = invoke("--verify-existing", str(output))
+    assert verified.returncode == 0, verified.stdout + verified.stderr
+    assert json.loads(verified.stdout)["rejection_controls"] == {name: "rejected" for name in expected}
 
 
 @pytest.fixture(scope="module")
@@ -151,6 +155,76 @@ def test_verify_existing_rejects_retained_mutations(tmp_path: Path, retained_dem
     assert result.returncode == 1
     assert json.loads(result.stdout)["status"] == "invalid"
     assert json.loads(result.stdout)["task_qualification"] is False
+
+
+@pytest.mark.parametrize("mutation", ["missing-report", "missing-selection", "wrong-mutation"])
+def test_verify_existing_requires_the_named_rejection_control(
+    tmp_path: Path, retained_demo: Path, mutation: str
+) -> None:
+    output = tmp_path / "modified-control"
+    shutil.copytree(retained_demo, output)
+    directory = output / "rejection-controls/digest-tamper"
+    if mutation == "missing-report":
+        (directory / "measure-report.json").unlink()
+    elif mutation == "missing-selection":
+        (directory / "selection.json").unlink()
+    else:
+        # A different, genuine selection.invalid must not stand in for digest tampering.
+        replacement = output / "rejection-controls/stale-subject"
+        for name in ("facts.json", "packet.json", "selection.json"):
+            shutil.copyfile(replacement / name, directory / name)
+    result = invoke("--verify-existing", str(output))
+    assert result.returncode == 1, result.stdout + result.stderr
+    assert json.loads(result.stdout)["status"] == "invalid"
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    ["report-symlink", "selection-symlink", "directory-symlink", "oversized", "task", "baseline", "extra-mutation"],
+)
+def test_rejection_fixture_validation_precedes_measurement(
+    tmp_path: Path, retained_demo: Path, mutation: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    with monkeypatch.context() as context:
+        context.setattr(sys, "path", sys.path.copy())
+        demo = runpy.run_path(str(SCRIPT))
+    output = tmp_path / "modified-control"
+    shutil.copytree(retained_demo, output)
+    directory = output / "rejection-controls/digest-tamper"
+    if mutation in {"report-symlink", "selection-symlink"}:
+        filename = "measure-report.json" if mutation == "report-symlink" else "selection.json"
+        path = directory / filename
+        target = tmp_path / filename
+        path.rename(target)
+        path.symlink_to(target)
+    elif mutation == "directory-symlink":
+        target = tmp_path / "linked-control"
+        directory.rename(target)
+        directory.symlink_to(target, target_is_directory=True)
+    elif mutation == "oversized":
+        with (directory / "measure-report.json").open("ab") as stream:
+            stream.truncate(100_000_000)
+    elif mutation == "task":
+        (directory / "task.json").write_text('{"requirements": ["different task"]}\n')
+    elif mutation == "baseline":
+        (directory / "baseline-selection.json").unlink()
+    else:
+        source = json.loads((directory / "facts.json").read_text())
+        source["provenance"]["activity"] = "unrelated-alteration"
+        (directory / "facts.json").write_text(json.dumps(source))
+    rejection_controls = demo["rejection_controls"]
+    real_measure = demo["measure"]
+    measured = []
+
+    def guarded_measure(path: Path, **kwargs: bool) -> dict:
+        measured.append(path)
+        assert not path.is_relative_to(output), "invalid retained control reached measurement"
+        return real_measure(path, **kwargs)
+
+    monkeypatch.setitem(rejection_controls.__globals__, "measure", guarded_measure)
+    with pytest.raises(ValueError, match="rejection control fixture mismatch"):
+        rejection_controls(output, verify=True)
+    assert measured, "trusted fixture must be generated independently of retained evidence"
 
 
 def test_existing_output_is_never_overwritten(retained_demo: Path) -> None:

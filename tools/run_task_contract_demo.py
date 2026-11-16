@@ -322,7 +322,16 @@ def ethos_cases(output):
                 "observed": observed,
                 "matched": expected == projection,
                 "selected_digest": selected_digest,
-                "usable_authority": observed["status"] == "pass",
+                "structure_usable": observed["status"] == "pass",
+                "usable_authority": False,
+                # This fixture has no reviewed user turn. Do not manufacture a
+                # journey-state confirmation or duplicate its owning validator.
+                "owner_confirmation": {
+                    "status": "NOT_RUN",
+                    "owner": "skills/eval-author/scripts/journey_state.py",
+                    "confirmed_digest": None,
+                    "confirmation_source": None,
+                },
                 "rubric_scores": dict.fromkeys(CRITERIA),
                 "emitted_criterion_ids": [criterion for criterion in CRITERIA if criterion in report["items"]],
                 "report": ident + "/measure-report.json",
@@ -406,6 +415,10 @@ def collect(output):
         + ". No human adjudication, model, native or container execution.\n\n"
         + "Static crosswalks are authored, not emitted rubric scores. "
         + "The clean neighbor is not human-approved; null scores are not a clean bill of health.\n\n"
+        + "Ethos structure uses the installed ethos-write validator. Owner confirmation: NOT_RUN. "
+        + "The owning skills/eval-author/scripts/journey_state.py validates saved-byte confirmation; "
+        + "no reviewed user turn is supplied, and no confirmation or journey-state approval is fabricated. "
+        + "Structure usability is not usable owner authority.\n\n"
         + "Criteria: "
         + "; ".join(f"{item['title']} (`{item['id']}`)" for item in canonical["items"])
         + ".\n\n"

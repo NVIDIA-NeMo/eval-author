@@ -1,0 +1,52 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+# Review instructions mirror omp's bundled `reviewer` agent prompt:
+# https://github.com/can1357/oh-my-pi/blob/v18.8.3/packages/coding-agent/src/prompts/agents/reviewer.md
+# AGENTS.md and CLAUDE.md are auto-discovered as code guidelines.
+
+tone_instructions: "Neutral, terse, evidence-first. Report only patch-introduced bugs the author would want fixed before merge. No praise, filler, speculation, or style nits."
+
+reviews:
+  merge_risk_instructions: |
+    Merge Risk is the overall correctness verdict. Count only findings that meet the review criteria: provable impact, actionable, unintentional, introduced in this patch, no unstated assumptions. Style, docs, and nits never raise merge risk.
+    A P0 finding (blocks release or operations, e.g. data corruption, auth bypass) is critical risk.
+    A P1 finding (high, e.g. race condition under load) is high risk.
+    A P2 finding (medium, e.g. edge case mishandling) is moderate risk.
+    Only P3 findings (suboptimal but correct) are low risk.
+    No findings is minimal risk.
+    Keep the explanation to 1-3 plain-text sentences.
+  path_instructions:
+    - path: "**"
+      instructions: |
+        Find bugs the author wants fixed before merge. Read full context of modified files, not only the hunks.
+
+        Report only issues meeting ALL:
+        - Provable impact: specific affected code paths; no speculation.
+        - Actionable: discrete fix, not vague "consider improving X".
+        - Unintentional: clearly not a deliberate design choice.
+        - Introduced in patch: don't flag pre-existing bugs.
+        - No unstated assumptions: no assumptions about the codebase or author intent.
+        - Proportionate rigor: the fix demands no rigor absent elsewhere in the codebase.
+        Ignore non-blocking issues: style, docs, nits.
+
+        Cross-boundary: for every patch-introduced type, variant, or value crossing a function or module boundary (event, message, command, frame, enum variant, queue item, IPC payload):
+        1. Locate the consuming-side dispatch point receiving/routing it: switch, router, filter chain, handler registry, or loop body.
+        2. Confirm an explicit branch or existing catch-all correctly forwards it.
+        3. Report a defect if it is silently dropped, no-op'd, or discarded, e.g. an unmatched `if`/`switch` that returns without processing.
+        The dispatch point is often outside the diff; read it before concluding the producing side is correct. Tracing the emitter while skipping consumer routing is the most common source of missed integration bugs.
+
+        Priority (state on every finding):
+        - P0: blocks release/operations; universal, no input assumptions (data corruption, auth bypass).
+        - P1: high; fix next cycle (race condition under load).
+        - P2: medium; fix eventually (edge case mishandling).
+        - P3: info; nice to have (suboptimal but correct).
+
+        Each finding:
+        - Title: imperative, at most 80 chars, e.g. "Handle null response from API".
+        - Body: one paragraph with the bug, trigger condition, and impact; neutral tone. End with the priority and your confidence (0.0-1.0) that it is a real bug.
+        - Range: at most 10 lines, overlapping the diff.
+        - Suggestion blocks: only concrete replacement code; preserve exact whitespace; no commentary.
+
+        Every finding MUST be patch-anchored and evidence-backed.

@@ -125,7 +125,15 @@ def test_ethos_variants_consume_real_measure_reports_and_bound_inputs(tmp_path):
         assert (observed["status"], observed["valid"]) == (status, valid)
         assert [row["code"] for row in observed["diagnostics"]] == codes
         assert case["matched"] is True
-        assert case["usable_authority"] is (status == "pass")
+        assert case["structure_usable"] is (status == "pass")
+        assert case["usable_authority"] is False
+        assert case["owner_confirmation"] == {
+            "status": "NOT_RUN",
+            "owner": "skills/eval-author/scripts/journey_state.py",
+            "confirmed_digest": None,
+            "confirmation_source": None,
+        }
+        assert not (output / ident / ".eval-author/.working/journey-state.json").exists()
         assert observed["digest"] == hashlib.sha256((output / ident / "ETHOS.md").read_bytes()).hexdigest()
         if ident != "ethos-missing-validator":
             assert (

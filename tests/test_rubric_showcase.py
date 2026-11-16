@@ -145,6 +145,28 @@ def test_demo_validation_rejects_resealed_mutations(showcase_output, tmp_path, m
         module.verify_existing(output)
 
 
+@pytest.mark.parametrize(
+    "source", ["test.sh", "instruction.md", "orders.csv", "Dockerfile", "task.toml", "contract.json"]
+)
+@pytest.mark.parametrize("mutation", ["delete", "change"])
+def test_source_bound_validation_requires_retained_sources(showcase_output, tmp_path, source, mutation):
+    import shutil
+
+    output = tmp_path / "lost-source"
+    shutil.copytree(showcase_output, output)
+    module = showcase_module()
+    path = output / "task-contract/planted-summary" / source
+    if mutation == "delete":
+        path.unlink()
+    else:
+        path.write_bytes(path.read_bytes() + b"\n")
+    (output / "showcase-hashes.json").write_text(json.dumps(module.retained_hashes(output)))
+    with pytest.raises(ValueError, match="contract"):
+        module.validate_source_bound_scores(output)
+    with pytest.raises(ValueError, match="contract"):
+        module.verify_existing(output)
+
+
 def test_semantic_projection_retains_full_demo_rows(showcase_output, tmp_path):
     import shutil
 
@@ -247,6 +269,39 @@ def showcase_module():
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
+
+
+@pytest.mark.parametrize("case", ["missing", "stale", "acceptance-contradiction", "acceptance-consistent-claim"])
+@pytest.mark.parametrize("mutation", ["required-verification", "findings", "projection", "expected", "default"])
+def test_partial_acceptance_requires_full_projection(showcase_output, tmp_path, case, mutation):
+    import shutil
+
+    output = tmp_path / "partial-acceptance"
+    shutil.copytree(showcase_output, output)
+    module = showcase_module()
+    panel_path = output / "integrity/panel.json"
+    panel = module.read(panel_path)
+    row = next(row for row in panel["cases"] if row["id"] == case)
+    path = output / "integrity" / row["evidence"]["report"]
+    report = module.read(path)
+    if mutation == "required-verification":
+        del report["acceptance_integrity"]["required_verification"]
+    elif mutation == "findings":
+        report["acceptance_integrity"]["findings"].append({"code": "invented"})
+    elif mutation == "projection":
+        row["observed"]["score"] = 2
+    elif mutation == "expected":
+        row["expected"]["score"] = 2
+    else:
+        row["default_acceptance"]["report"] = {"valid": True}
+        (output / "integrity" / row["evidence"]["default_report"]).write_text(json.dumps({"valid": True}))
+    path.write_text(json.dumps(report))
+    panel_path.write_text(json.dumps(panel))
+    (output / "showcase-hashes.json").write_text(json.dumps(module.retained_hashes(output)))
+    with pytest.raises((ValueError, KeyError)):
+        module.validate_reports(output)
+    with pytest.raises((ValueError, KeyError)):
+        module.verify_existing(output)
 
 
 def test_validation_rejects_missing_integrity_group(showcase_output, tmp_path):
@@ -384,6 +439,193 @@ def test_semantic_repeat_rejects_changed_case(showcase_output, tmp_path):
     path.write_text(json.dumps(report))
     with pytest.raises(ValueError, match="fresh-root semantic mismatch: identity"):
         showcase_module().compare_runs(output)
+
+
+def test_showcase_surfaces_authority_and_ethos_without_new_scores(showcase_output):
+    module = showcase_module()
+    summary = module.read(showcase_output / "showcase.json")
+    rows = {row["id"]: row for row in summary["identity"]["evidence_cases"]}
+    assert len(rows) == summary["identity"]["counts"]["evidence_cases"] == 13
+    for ident, statuses in (
+        ("authority-resolved", ["resolved", "resolved"]),
+        ("authority-broken-reference", ["broken", "resolved"]),
+        ("authority-prose", ["prose", "resolved"]),
+    ):
+        assert [row["status"] for row in rows[ident]["observation"]["requirements"]] == statuses
+    assert rows["ethos-valid"]["observation"]["valid"] is True
+    assert rows["ethos-malformed"]["observation"]["valid"] is False
+    page = (showcase_output / "index.html").read_text()
+    for ident in rows:
+        assert ident in page
+    assert "authority.reference_broken" in page
+    assert "authority.reference_prose" in page
+    assert "Owner confirmation: NOT_RUN" in page
+    assert len(summary["production_gaps"]) == 12
+    for row in summary["task_contract"]["ethos"]:
+        assert row["usable_authority"] is False
+        assert row["owner_confirmation"]["status"] == "NOT_RUN"
+
+
+@pytest.mark.parametrize("mutation", ["observation", "resealed-expectation", "diagnostics", "status", "exit-code"])
+@pytest.mark.parametrize(
+    "ident", ["authority-resolved", "authority-broken-reference", "authority-prose", "ethos-valid", "ethos-malformed"]
+)
+def test_identity_validation_rejects_resealed_evidence_outcomes(showcase_output, tmp_path, ident, mutation):
+    import shutil
+
+    output = tmp_path / "identity-outcome"
+    shutil.copytree(showcase_output, output)
+    module = showcase_module()
+    path = output / "identity/panel.json"
+    panel = module.read(path)
+    row = next(row for row in panel["evidence_cases"] if row["id"] == ident)
+    measurement = row["expected"]["measurement"]
+    observation = row["observed"]["measurements"][measurement]
+    if mutation == "diagnostics":
+        observation["diagnostics"] = [{"code": "invented"}]
+    elif mutation == "status":
+        observation["status"] = "invented"
+    elif mutation == "exit-code":
+        row["cli_exit_code"] = 99
+    elif measurement == "authority":
+        observation["requirements"][0]["status"] = "invented"
+        if mutation == "resealed-expectation":
+            row["expected"]["requirement_statuses"][0] = "invented"
+    else:
+        observation["valid"] = not observation["valid"]
+        if mutation == "resealed-expectation":
+            row["expected"]["valid"] = observation["valid"]
+    path.write_text(json.dumps(panel))
+    with pytest.raises(ValueError, match="identity"):
+        module.validate_reports(output)
+    (output / "showcase-hashes.json").write_text(json.dumps(module.retained_hashes(output)))
+    with pytest.raises(ValueError, match="identity"):
+        module.verify_existing(output)
+
+
+@pytest.mark.parametrize("section,ident", [("assessments", "valid"), ("evidence_cases", "sourced-equal")])
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        "schema",
+        "version",
+        "criterion-order",
+        "check-order",
+        "source",
+        "check-source",
+        "expected-score",
+        "expected-check",
+    ],
+)
+def test_identity_canonical_reports_reject_coherent_resealing(showcase_output, tmp_path, section, ident, mutation):
+    import shutil
+
+    output = tmp_path / "identity-canonical"
+    shutil.copytree(showcase_output, output)
+    module = showcase_module()
+    # Coherently alter both roots and every derived summary, so outer comparisons
+    # cannot hide a missing check against the checked-in canonical definitions.
+    for root in (output, output / "fresh-replay"):
+        path = root / "identity/panel.json"
+        panel = module.read(path)
+        row = next(row for row in panel[section] if row["id"] == ident)
+        report = row["observed"]
+        item_id = "provenance.task-artifact-access"
+        item = report["items"][item_id]
+        if mutation == "schema":
+            report["schema"] = "invented"
+        elif mutation == "version":
+            item["rubric_version"] = "invented"
+        elif mutation == "criterion-order":
+            report["items"] = dict(reversed(list(report["items"].items())))
+        elif mutation == "check-order":
+            item["check_results"].reverse()
+        elif mutation == "source":
+            item["source"]["id"] = "invented"
+        elif mutation == "check-source":
+            item["check_results"][0]["source_id"] = "invented"
+        elif mutation == "expected-score":
+            row["expected_items"][item_id]["score"] = item["score"] = 3
+        else:
+            check = item["check_results"][0]
+            row["expected_checks"][check["id"]] = check["outcome"] = "PARTIAL"
+            check["remaining_gap"] = "invented gap"
+        path.write_text(json.dumps(panel))
+    summary = module.summarize_reports(output)
+    summary["determinism"] = module.compare_runs(output)
+    (output / "showcase.json").write_text(json.dumps(summary))
+    (output / "index.html").write_text(module.render(summary, module.read(output / "scorer/panel.json")))
+    (output / "showcase-hashes.json").write_text(json.dumps(module.retained_hashes(output)))
+    with pytest.raises(ValueError, match="identity"):
+        module.validate_reports(output)
+    with pytest.raises(ValueError, match="identity"):
+        module.verify_existing(output)
+
+
+@pytest.mark.parametrize("mutation", ["counts", "differences", "native-attestation", "basis", "binding", "fields"])
+def test_identity_sourced_metadata_is_validated(showcase_output, tmp_path, mutation):
+    import shutil
+
+    output = tmp_path / "identity-metadata"
+    shutil.copytree(showcase_output, output)
+    module = showcase_module()
+    path = output / "identity/panel.json"
+    panel = module.read(path)
+    row = next(row for row in panel["evidence_cases"] if row["id"] == "sourced-equal")
+    observation = row["observed"]["measurements"]["sourced_config"]
+    if mutation == "counts":
+        observation["counts"]["run_bound"] = 0
+    elif mutation == "differences":
+        observation["differences"] = ["/agent"]
+    elif mutation == "native-attestation":
+        observation["native_attestation"] = True
+    elif mutation == "fields":
+        del observation["fields"]["/agent"]
+    elif mutation == "basis":
+        observation["fields"]["/agent"]["observed"]["basis"] = "native"
+    else:
+        observation["fields"]["/agent"]["observed"]["binding"]["status"] = "unbound"
+    path.write_text(json.dumps(panel))
+    (output / "showcase-hashes.json").write_text(json.dumps(module.retained_hashes(output)))
+    with pytest.raises(ValueError, match="identity"):
+        module.validate_reports(output)
+    with pytest.raises(ValueError, match="identity"):
+        module.verify_existing(output)
+
+
+@pytest.mark.parametrize("ident", ["authority-resolved", "ethos-valid"])
+def test_fresh_comparison_retains_authority_and_ethos_diagnostics(showcase_output, tmp_path, ident):
+    import shutil
+
+    output = tmp_path / "changed-evidence"
+    shutil.copytree(showcase_output, output)
+    module = showcase_module()
+    path = output / "fresh-replay/identity/panel.json"
+    panel = module.read(path)
+    row = next(row for row in panel["evidence_cases"] if row["id"] == ident)
+    row["observed"]["measurements"][row["expected"]["measurement"]]["diagnostics"] = [{"code": "changed"}]
+    path.write_text(json.dumps(panel))
+    with pytest.raises(ValueError, match="identity"):
+        module.compare_runs(output)
+
+
+@pytest.mark.parametrize("mutation", ["authority", "confirmation"])
+def test_source_bound_validation_rejects_fabricated_ethos_confirmation(showcase_output, tmp_path, mutation):
+    import shutil
+
+    output = tmp_path / "false-owner"
+    shutil.copytree(showcase_output, output)
+    module = showcase_module()
+    path = output / "task-contract/panel.json"
+    panel = module.read(path)
+    row = next(row for row in panel["cases"] if row["id"] == "ethos-valid")
+    if mutation == "authority":
+        row["usable_authority"] = True
+    else:
+        row["owner_confirmation"]["status"] = "confirmed"
+    path.write_text(json.dumps(panel))
+    with pytest.raises(ValueError, match="ethos"):
+        module.validate_source_bound_scores(output)
 
 
 def test_showcase_refuses_existing_output(tmp_path):

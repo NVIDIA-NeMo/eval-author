@@ -188,23 +188,42 @@ def packet(root, scorer, item_id, facts, *, synthetic=True, kind="agent"):
     return selection
 
 
-@pytest.mark.parametrize("synthetic", [True, False])
-@pytest.mark.parametrize("ident", [row[1] for row in MIGRATED_DEFINITIONS] + ["AC-01", "AC-02", "AC-03", "AC-04"])
-def test_measure_cli_separates_demonstration_from_task_scores(tmp_path, synthetic, ident):
+def measure_cli(root: Path, selection: dict) -> dict:
     import subprocess
 
-    scorer = module()
-    selection = packet(tmp_path, scorer, ident, facts_for(ident, 0), synthetic=synthetic)
-    request = tmp_path / "selection.json"
+    request = root / "selection.json"
     request.write_text(json.dumps(selection))
     result = subprocess.run(
-        [sys.executable, str(SCRIPT.with_name("measure.py")), "--root", str(tmp_path), "--selection", str(request)],
+        [sys.executable, str(SCRIPT.with_name("measure.py")), "--root", str(root), "--selection", str(request)],
         capture_output=True,
         text=True,
         timeout=30,
     )
-    assert result.returncode == 1
-    report = json.loads(result.stdout)
+    assert result.returncode == 1, result.stderr
+    return json.loads(result.stdout)
+
+
+def assert_cli_score_boundary(report: dict, ident: str, synthetic: bool, expected: int | None) -> None:
+    group = "criterion_demonstration" if synthetic else "recorded_criterion_evidence"
+    row = report[group][ident]
+    assert row["score"] == (expected if synthetic else None)
+    assert row["evidence_strength"] == ("E1" if synthetic else "E0")
+    assert row["native_execution_verified"] is False
+    assert row["reviewer_authenticated"] is False
+    assert row["score_provenance"]["kind"] == ("synthetic-anchor-application" if synthetic else "recorded-review-only")
+    assert ident not in report["items"] or report["items"][ident]["score"] is None
+    if not synthetic:
+        assert "criterion_demonstration" not in report
+        assert row["status"] == "NOT_ASSESSED"
+    assert report["preflight_success"] is False
+
+
+@pytest.mark.parametrize("synthetic", [True, False])
+@pytest.mark.parametrize("ident", [row[1] for row in MIGRATED_DEFINITIONS] + ["AC-01", "AC-02", "AC-03", "AC-04"])
+def test_measure_cli_separates_demonstration_from_task_scores(tmp_path, synthetic, ident):
+    scorer = module()
+    selection = packet(tmp_path, scorer, ident, facts_for(ident, 0), synthetic=synthetic)
+    report = measure_cli(tmp_path, selection)
     if synthetic:
         row = report["criterion_demonstration"][ident]
         assert row["score"] == 0
@@ -874,6 +893,56 @@ def test_source_reader_fails_closed(tmp_path, mutation):
             record["digest"] = hashlib.sha256(raw).hexdigest()
     with pytest.raises(ValueError):
         scorer.assess_evidence(tmp_path, selection)
+
+
+@pytest.mark.parametrize("synthetic", [True, False])
+@pytest.mark.parametrize("with_neighbor", [False, True])
+@pytest.mark.parametrize("run_identity", [None, "mismatching-run"])
+def test_measure_cli_observed_mismatch_requires_its_own_run_identity(
+    tmp_path: Path, synthetic: bool, with_neighbor: bool, run_identity: str | None
+) -> None:
+    scorer = module()
+    ident = "provenance.observed-configuration"
+    facts = facts_for(ident, 2)
+    rows = facts["run_settings"]
+    if with_neighbor:
+        rows.append({**rows[0], "id": "identified-agreeing-neighbor"})
+    rows[0].update(observed="m2", disposition="invalidates", run_identity=run_identity)
+    selection = packet(tmp_path, scorer, ident, facts, synthetic=synthetic)
+    report = measure_cli(tmp_path, selection)
+    expected = 0 if run_identity else (1 if with_neighbor else None)
+    assert_cli_score_boundary(report, ident, synthetic, expected)
+
+
+@pytest.mark.parametrize("synthetic", [True, False])
+@pytest.mark.parametrize(
+    "native_validation,health,reach,consumer,expected",
+    [
+        ("invalid", "healthy", "reached", "credited", 0),
+        ("unrun", "healthy", "reached", "credited", 1),
+        ("valid", "healthy", "reached", "credited", 2),
+        ("invalid", "error", "reached", "credited", 1),
+        ("invalid", "unrun", "reached", "credited", 1),
+        ("invalid", "healthy", "unreachable", "credited", 1),
+        ("invalid", "healthy", "reached", "rejected", 1),
+    ],
+)
+def test_measure_cli_current_receipt_invalid_credit_requires_healthy_reached_validation(
+    tmp_path: Path,
+    synthetic: bool,
+    native_validation: str,
+    health: str,
+    reach: str,
+    consumer: str,
+    expected: int,
+) -> None:
+    scorer = module()
+    facts = facts_for("AC-03", 2)
+    current = next(row for row in facts["receipt_controls"] if row["receipt_kind"] == "current")
+    current.update(native_validation=native_validation, health=health, reach=reach, consumer=consumer)
+    selection = packet(tmp_path, scorer, "AC-03", facts, synthetic=synthetic)
+    report = measure_cli(tmp_path, selection)
+    assert_cli_score_boundary(report, "AC-03", synthetic, expected)
 
 
 @pytest.mark.parametrize("with_neighbor", [False, True])
