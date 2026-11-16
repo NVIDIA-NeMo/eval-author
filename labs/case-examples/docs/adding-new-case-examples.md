@@ -67,16 +67,12 @@ qualification criteria remain to be defined.
 
 ## Adding a task set
 
-Prefer an existing Harbor benchmark at a specific version. Under the
-[remote dataset proposal](benchmark-format.md#remote-datasets-proposed), a task
-set could reference a Harbor registry dataset without checking the entire
-benchmark into this repository. This support is proposed; the current runner
-requires prepared local task directories. The proposal describes how preparation
-would retain the resolved task identities and source versions.
-
-For benchmarks outside the Harbor registry, we still need to establish supported
-reference mechanisms that avoid copying their contents into this repository.
-The remote dataset proposal links the related work on pinned Git sources.
+Prefer an existing Harbor benchmark at a specific version. The
+[remote task download workflow](benchmark-format.md#remote-datasets)
+accepts a Harbor JSON-registry dataset or individually pinned Git tasks without
+checking their contents into this repository. Download tasks for the complete experiment
+before execution and retain the resulting bundle with its source receipt. The
+runner consumes the generated local task manifests.
 
 Checking in a task set is also supported, particularly for the first public
 release of a previously internal benchmark. Confirm publication rights and

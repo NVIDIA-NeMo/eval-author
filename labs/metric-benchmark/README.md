@@ -13,8 +13,10 @@ mutation testing.
 will grow, change, and may be dropped as we learn. We believe in building in plain
 sight.
 
-Prep happens outside this repository. The benchmark consumes prepared case
-examples, fixed task-subset manifests, and a YAML experiment configuration.
+The benchmark consumes prepared case examples, fixed task-subset manifests, and
+a YAML experiment configuration. The
+[Harbor task download tool](docs/tools.md#download-harbor-tasks) downloads Harbor
+registry datasets or pinned Git tasks into that format.
 
 The architecture has three phases: external prep, execution, and score analysis.
 Execution and score analysis comprise four executable stages, each exposed as a
@@ -39,7 +41,17 @@ to exercise the pipeline locally without model credentials.
 For preparing bundles, use the [benchmark format specification](docs/benchmark-format.md).
 For execution outputs, use the [results format specification](docs/results-format.md).
 
+Use the optional [experiment config generator](docs/create-benchmark-config.md)
+to generate configuration from cases and execution settings, including reduced
+configurations for smoke runs. Generation does not execute the experiment.
+
 See [benchmark tools](docs/tools.md) for the command guides and configuration-loading API.
 
 For the reusable case-example layout, see the
 [case example format](../case-examples/docs/benchmark-format.md).
+
+Directory input pins include every ordinary file, including files ignored by
+Git. On a pin mismatch, verification reports expected and actual digests and,
+when Git is available, lists ignored files that are still hashed. Check for
+accidental `__pycache__` or `.DS_Store` files before updating a pin; verification
+does not remove or exclude them.
