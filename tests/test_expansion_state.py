@@ -9,7 +9,9 @@ import sys
 from pathlib import Path
 
 import pytest
-from test_journey_state import ethos_ready, setup_ready
+from journey_state_support import ethos_ready, setup_ready
+from journey_state_support import expansion_payload as payload
+from journey_state_support import expansion_start as start
 
 SCRIPTS = Path(__file__).resolve().parents[1] / "skills/eval-author/scripts"
 
@@ -20,51 +22,6 @@ def modules(monkeypatch):
     return tuple(
         importlib.import_module(name) for name in ("journey_state", "expansion_state", "conversation_renderer")
     )
-
-
-def start(modules, repo, *, handoff=False):
-    state, expansion, _ = modules
-    setup_ready(state, repo, journey="expand")
-    saved = ethos_ready(state, repo)
-    legacy = "Earlier requested additions"
-    scope = {"legacy_context": legacy, "priorities": ["refunds"]}
-    if handoff:
-        audit = importlib.import_module("audit_state")
-        lifecycle = audit.new_record()
-        lifecycle["findings"] = {
-            "report": {"path": ".eval-author/audit-coverage-report.md", "digest": "b" * 64},
-            "content": {"path": ".eval-author/.working/audit/report-content.json", "digest": "c" * 64},
-            "inputs": [],
-            "source": "Reviewed audit findings",
-        }
-        lifecycle["next_action"] = {
-            "kind": "improve",
-            "recommendation_ids": ["R1", "R3"],
-            "findings_digest": "a" * 64,
-            "source": "User selected these audit recommendations",
-        }
-        audit.retain_handoff({"scopes": {}}, {"scopes": {"audit": {"lifecycle": lifecycle}, "expand": scope}})
-    saved["scopes"]["expand"] = scope
-    state.save(repo, saved)
-    value = expansion.new_record(
-        saved, question="Should the refund task cover both full and partial refunds?", source="User request"
-    )
-    return state.update(
-        repo,
-        {"scopes": {"expand": {"lifecycle": value}}, "pending_question": value["pending"]["question"]},
-        expected_revision=saved["revision"],
-    )
-
-
-def payload(modules, saved):
-    state, _, _ = modules
-    view = state.view(saved)
-    return {
-        "stage": "expansion_continue",
-        "state": view["state"],
-        "revision": saved["revision"],
-        "facts": {"expansion_observations": view["expansion_observations"]},
-    }
 
 
 @pytest.mark.parametrize("handoff", [False, True])
@@ -100,15 +57,59 @@ def test_updates_preserve_context_and_require_current_revision(modules, tmp_path
     state, _, _ = modules
     saved = start(modules, tmp_path)
     patch = {"scopes": {"expand": {"pending_design": "Refund scenarios"}}}
-    before = state.state_path(tmp_path).read_bytes()
+    before = {path: path.read_bytes() for path in tmp_path.rglob("*") if path.is_file()}
     for revision, message in [(None, "expected-revision"), (saved["revision"] - 1, "State changed")]:
         with pytest.raises(ValueError, match=message):
             state.update(tmp_path, patch, expected_revision=revision)
-        assert state.state_path(tmp_path).read_bytes() == before
+        assert {path: path.read_bytes() for path in tmp_path.rglob("*") if path.is_file()} == before
     updated = state.update(tmp_path, patch, expected_revision=saved["revision"])
     assert updated["scopes"]["expand"] == {**saved["scopes"]["expand"], "pending_design": "Refund scenarios"}
     with pytest.raises(ValueError, match="Retain structured expansion"):
         state.update(tmp_path, {"scopes": {"expand": None}}, expected_revision=updated["revision"])
+
+
+def test_expansion_decision_preserves_creation_scope_and_task_acceptance(modules, tmp_path):
+    state, expansion, renderer = modules
+    saved = start(modules, tmp_path, handoff=True)
+    creation_scope = {
+        "cases": ["account-lookup"],
+        "confirmed": True,
+        "source": "User approved the earlier starter suite",
+    }
+    saved["scopes"]["create"] = copy.deepcopy(creation_scope)
+    saved["journey_status"]["create"] = "complete"
+    state.save(tmp_path, saved)
+    task_path = ".eval-author/tasks/account-lookup"
+    task = tmp_path / task_path
+    task.mkdir(parents=True)
+    (task / "README.md").write_text("# Account lookup\n")
+    evidence_path = ".eval-author/.working/account-lookup-controls.json"
+    (tmp_path / evidence_path).write_text('{"result": "passed"}\n')
+    saved = state.record_task(
+        tmp_path,
+        task=task_path,
+        status="accepted",
+        source="Earlier starter-suite task review",
+        evidence=[evidence_path],
+    )
+    tasks = copy.deepcopy(saved["tasks"])
+    handoff = copy.deepcopy(saved["scopes"]["expand"]["audit_handoff"])
+    question = "Which refund edge case should the new task cover?"
+    lifecycle = expansion.new_record(saved, question=question, source="User narrows the selected improvement")
+    updated = state.update(
+        tmp_path,
+        {"scopes": {"expand": {"lifecycle": lifecycle}}, "pending_question": question},
+        expected_revision=saved["revision"],
+    )
+    resumed = state.initialize(tmp_path, journey="expand")
+    for current in (updated, resumed):
+        assert current["scopes"]["create"] == creation_scope
+        assert current["tasks"] == tasks
+        assert current["journey_status"]["create"] == "complete"
+        assert current["scopes"]["expand"]["audit_handoff"] == handoff
+        assert state.task_lifecycle(tmp_path, current, task_path)["status"] == "accepted"
+        assert not state.checklist(current)[2]["complete"]
+        assert question in renderer.render(payload(modules, current))
 
 
 @pytest.mark.parametrize("change", ["ethos", "handoff"])
@@ -204,6 +205,30 @@ def test_renderer_rejects_wrong_authority(modules, tmp_path, change):
         data["state"]["journey"] = "create"
     with pytest.raises(ValueError):
         renderer.render(data)
+
+
+@pytest.mark.parametrize(
+    "claim",
+    [
+        {"complete": True},
+        {"scope_approval": {"approved": True, "source": "Display text"}},
+        {"execution_approval": {"approved": True, "source": "Display text"}},
+        {"accepted_tasks": [".eval-author/tasks/refund"]},
+    ],
+)
+def test_display_claims_cannot_establish_progress_or_permission(modules, tmp_path, claim):
+    state, _, renderer = modules
+    saved = start(modules, tmp_path)
+    data = payload(modules, saved)
+    data["facts"].update(claim)
+    before = state.state_path(tmp_path).read_bytes()
+    with pytest.raises(ValueError):
+        renderer.render(data)
+    assert state.state_path(tmp_path).read_bytes() == before
+    current = state.load_state(tmp_path)
+    assert current == saved
+    assert current["tasks"] == {}
+    assert not state.view(current)["expansion"]["complete"]
 
 
 def test_unstructured_legacy_context_stays_readable(modules, tmp_path):

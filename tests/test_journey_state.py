@@ -14,6 +14,7 @@ from contextlib import nullcontext
 from pathlib import Path
 
 import pytest
+from journey_state_support import ethos_ready, setup_ready
 
 SCRIPTS = Path(__file__).resolve().parents[1] / "skills/eval-author/scripts"
 
@@ -22,23 +23,6 @@ SCRIPTS = Path(__file__).resolve().parents[1] / "skills/eval-author/scripts"
 def state(monkeypatch):
     monkeypatch.syspath_prepend(str(SCRIPTS))
     return importlib.import_module("journey_state")
-
-
-def setup_ready(state, repo, *, journey="create", setup="gym"):
-    state.initialize(repo, agent="assistant", journey=journey, setup=setup)
-    return state.update(
-        repo, {"prerequisites": {key: {"status": "confirmed", "source": "user reply 2"} for key in state.PREREQUISITES}}
-    )
-
-
-def ethos_ready(state, repo):
-    (repo / "ETHOS.md").write_text("# Confirmed agent intent\n")
-    return state.confirm_ethos(
-        repo,
-        reviewed_digest=state.ethos_digest(repo),
-        source="user reviewed saved document in reply 4",
-        validation="ethos-write parser passed",
-    )
 
 
 def save_legacy_state(state, repo, patch):

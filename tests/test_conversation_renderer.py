@@ -14,7 +14,7 @@ import sys
 from pathlib import Path
 
 import pytest
-from test_expansion_state import start as expansion_start
+from journey_state_support import expansion_start
 
 SCRIPTS = Path(__file__).resolve().parents[1] / "skills/eval-author/scripts"
 FIXTURES = Path(__file__).parent / "fixtures/journey-conversation"
