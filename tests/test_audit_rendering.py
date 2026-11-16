@@ -212,8 +212,7 @@ def checkpoint(modules, stage):
                 for label, reason in [
                     (
                         "grader improvement",
-                        "Verify the refund transaction instead of accepting a keyword in the final response. "
-                        "Applying this recommendation to the existing grader inside Eval Author is not yet supported.",
+                        "Verify the refund transaction instead of accepting a keyword in the final response.",
                     ),
                     ("new scenario", "Exercise a refund request after identity verification fails."),
                 ]
@@ -475,7 +474,7 @@ def test_recommendation_headings_capitalize_without_changing_the_question(module
     remember_question(payload, modules)
     output = modules[2].render(payload)
     assert f"1. **{heading}:**" in output
-    assert f"continue with the {label}?" in output
+    assert f"plan the {label}?" in output
 
 
 def test_empty_findings_are_rejected(modules):
@@ -656,7 +655,7 @@ def test_deferred_blocker_only_preempts_a_started_audit(modules, status):
 
 def test_explicit_pending_next_action_still_resumes(modules):
     payload = checkpoint(modules, "next_action")
-    question = "Would you like to finish here or continue with the grader improvement?"
+    question = "Would you like to finish here or plan the proposed grader improvement?"
     remember_question(payload, modules, question)
     payload["stage"] = "audit_resume"
     assert modules[2].render(payload).rstrip().endswith(question)

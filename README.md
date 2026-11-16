@@ -121,8 +121,8 @@ To install without Node.js, follow the
 ## Choose your journey
 
 Eval Author supports three journeys: **build your first evaluations**, **audit
-your existing coverage**, and **improve your evaluation suite**. Each uses
-prerequisite checks for your goal and confirms how your agent should
+your existing coverage**, and **improve your evaluation suite**. Each starts by
+checking the prerequisites for your goal and confirming how your agent should
 behave using `ETHOS.md`.
 
 Open your agent's repository in your coding assistant and copy the prompt for
@@ -164,15 +164,8 @@ Use eval-author to help me improve the existing evaluations for [agent name].
 The suite is in [path/to/evals].
 ```
 
-General improvement requests first offer the supported paths, for both first-time
-users and users returning after another journey. An already selected path or
-specific audit improvement carries forward. Selected audit recommendations
-continue to the supported authoring path, with any implementation limits made
-clear without another proposal step.
-
-Current authoring routes extend Eval Author starter suites or create tasks for
-eligible measured tool gaps from reviewed audit findings. Broader suite expansion
-is still in development.
+Current authoring routes extend Eval Author starter suites or propose additions
+from reviewed audit findings. Broader suite expansion is still in development.
 
 ### Other requests
 

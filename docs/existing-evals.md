@@ -177,16 +177,17 @@ the report, its final response says so and links it, including at intermediate
 checkpoints. On resume, Eval Author reconciles the report with changed inputs
 before presenting its findings as current.
 
-The review includes recommended changes, their expected behavior, supporting
-evidence, and which next actions Eval Author can perform. One question offers
-corrections, acceptance, or a next action, then waits. Acceptance alone ends
-review without another question.
+The review ends with a concrete offer to help with the next step. For an existing
+suite with supported gaps, Eval Author names the main gaps and offers to propose
+new or improved evaluation tasks, ranked with their expected behavior, verifier,
+and supporting evidence. One question offers corrections, acceptance, or the
+next action, then waits. Acceptance alone ends review without another question.
 Accepting the findings can complete a task review or fully measured
-audit while you leave the next action undecided; it does not start implementation.
-A deferred or partial measurement remains unfinished after findings review.
-Selecting a recommendation continues to the supported authoring path, reusing
-the audit's recommendation and settled decisions. Eval Author explains any
-implementation limit without offering to prepare the same recommendation again.
+audit while you leave the next action undecided; it does not start proposal
+work. A deferred or partial measurement remains unfinished after findings review.
+Accepting the findings and that offer moves directly
+into the proposal workflow, reusing the report, specification, selected sources,
+and prior answers.
 
 The offer follows the evidence. With no evaluations, it points to the
 [first-eval workflow](first-evals.md). With insufficient evidence, it recommends
@@ -279,34 +280,17 @@ verifier would check it, and supporting evidence.
 Recommendations distinguish agent failures from verifier defects and ungraded
 runs. Applicable controls must be executed before a task is described as screened.
 Missing evidence leaves screening unproven. Proposals expand the existing
-next actions in the Audit coverage report. Request this directly when you want
-additional planning; it is not a required follow-up to an audit.
+next actions in the Audit coverage report. You can request this directly
+or accept Eval Author's offer during the audit review; the handoff reuses the
+audit inputs and settled answers.
 
 See [audit results](results.md#coverage-audits) for where protections and later
 findings belong.
-An explicit planning request produces recommendations. Selecting an existing
-audit recommendation reuses it. Construction design, validation, and execution
-keep their applicable scope and authorization requirements. The supported
-authoring paths are summarized below.
-
-### What Eval Author can create or improve
-
-| Work | Current support |
-|---|---|
-| Build a first NeMo Gym or Harbor suite | Supported, including task instructions, fixtures, environments, graders, and validation |
-| Add tasks to a starter suite created with Eval Author | Supported; no audit or measured tool gap is required |
-| Create a task from an audit finding | The audit-gap creation workflow supports one eligible, measured tool gap at a time |
-| Automatically create tasks for capability or failure-case audit gaps | Not supported by the audit-gap generator; the audit can recommend these changes |
-| Create a task candidate from a recorded agent interaction | Experimental; requires privacy review, candidate admission, and native qualification |
-| Revise or repair tasks and graders within Eval Author's existing authoring workflow | Supported; affected validation and acceptance evidence must be renewed |
-| Recommend stronger cases, grader repairs, regressions, or additional evidence | Included in the audit |
-| Apply arbitrary audit-selected revisions to existing suite cases or graders | A general implementation workflow is not yet supported |
-
-Creating a task includes authoring and validating its grader. The repair workflow
-also supports fixing verified defects in Eval Author tasks and revalidating them.
-That support does not establish a general editor for every existing evaluation
-suite. For a selected audit recommendation, Eval Author identifies the applicable
-authoring path or explains that applying the change is not yet supported.
+Accepting the proposal offer produces recommendations. Creating, validating,
+or running tasks remains separately scoped: ask for the selected proposal to be
+implemented and validated when you are ready. The current automatic creation
+workflow supports one eligible, measured tool-coverage gap at a time; other
+recommendations may need further task design or measurement.
 
 For the complete workflows, see the [discovery](../skills/eval-author-discover/SKILL.md),
 [audit](../skills/eval-author-audit/SKILL.md), and

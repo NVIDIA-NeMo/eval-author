@@ -4,9 +4,8 @@ description: >-
   Use for "help me with my evals", "help me onboard to expand my evals",
   "what's the state of the eval suite here?", "what happened in this trace?",
   or requests to create, discover, audit, or improve evaluations.
-  For fresh full workflows, follow this skill's entry rules: general requests show
-  rendered orientation before repository work; selected improvement paths carry
-  forward. Scoped utilities keep their scope.
+  For fresh full workflows, read this skill, show its rendered orientation,
+  and end the turn before repository work. Scoped utilities keep their scope.
   Explicit full audits quietly check bounded saved context before choosing an
   introduction. New audits choose task review or add run measurement before checks.
   Returning audits reuse applicable prerequisites and confirmed Ethos. Separate returning requests get
@@ -86,9 +85,7 @@ requests retain the opening below. Before checks on a new audit, follow
 [Choose the audit approach](references/shared-prerequisites.md#choose-the-audit-approach).
 Saved authoring context alone does not select an audit approach.
 
-For improvement requests, first preserve any selected path or pending decision
-under the [expansion handoff](#expansion-handoff). For other new shared flows,
-the first final response is orientation only, including the
+The first final response to a new shared flow is orientation only, including the
 approach choice for a new audit. An explicitly requested audit approach reuses
 that choice and proceeds to its prerequisite preview. Determine the
 goal from the user's request and conversation already available, without inspecting the
@@ -97,9 +94,8 @@ known journey or no journey for goal selection, and use its Markdown as the
 entire final visible response. The unknown-goal opening uses the shorter welcome
 without a checklist introduction. **End the turn immediately after that response.**
 When the user selects a goal, render `goal_selected` with that journey and end
-the turn again. For audit, this asks for the approach; for expansion, it asks
-which supported path to take. Selecting a goal alone does not establish
-readiness or start checks.
+the turn again. For audit, this asks for the approach. Selecting a goal alone
+does not establish readiness or start checks.
 
 Before either orientation response, read only the entry skill, this core skill,
 the [conversation rendering contract](references/conversation-rendering.md), and
@@ -120,13 +116,10 @@ Replace the journey with `audit` or `expand`, or omit it for an undecided reques
 Use `--stage goal_selected --journey <selected-journey>` after goal selection.
 The renderer may load its own source dependencies, but must not inspect repository
 files or saved state, validate Ethos, check prerequisites, write files, or delegate
-work. Apart from audit opening, approach choice, and entry lookup, no other helper
-commands are allowed before readiness, a selected improvement path, or an explicit
-audit-approach answer. This also applies
+work. Apart from audit opening, approach choice, and entry lookup, no other helper commands are allowed before readiness or an explicit audit-approach answer. This also applies
 to direct first-eval and full-audit invocations.
 
-After the actual readiness reply, selected authoring improvement path, or chosen
-audit approach, follow the
+After the actual readiness reply, or the chosen audit approach, follow the
 [shared prerequisite procedure](references/shared-prerequisites.md#check-the-agent-and-setup).
 It owns the check sequence, state-failure handling, transition into Ethos, and
 final response for fresh flows, prerequisite resumes, goal switches, and direct
@@ -180,26 +173,14 @@ for new shared flows; returning audits use the continuation route above.
 
 ### Expansion handoff
 
-For a new general improvement request with no selected path or active decision,
-render `orientation` with journey `expand`, or `goal_selected` with that journey
-after goal selection, and end the turn. Both use the same neutral acknowledgment,
-supported-path bullets, and final action question from
-[expansion_templates.py](scripts/conversation_flows/expansion_templates.py).
-Use this choice for first-time users and users returning after a prior journey;
-do not inspect saved state before it or assume shared work already exists.
-
-Selecting starter expansion or trace-derived authoring supplies direction and
-readiness for the applicable shared checks. Save the actual choice and provenance
-in the existing expansion scope once state operations are permitted. Selecting
-an audit instead follows the [audit entry procedure](references/shared-prerequisites.md#return-to-an-audit)
-and its approach choice before audit checks. Do not add a separate readiness
-question. A requested path, selected audit improvements, or an active pending
-decision takes precedence over the generic choice; retain that context and
-continue the appropriate flow without asking the user to select it again.
+For a saved unresolved expansion entry decision after shared onboarding, follow
+the [expansion continuation contract](references/conversations/expansion.md).
+This state records the pending question; it does not approve construction or
+execution.
 
 When `scopes.expand.audit_handoff` is present, resume the audit's
 [selected improvement handoff](../eval-author-audit/references/coverage-report.md#selected-improvement-handoff-and-follow-through)
-through [selected audit continuation](references/conversations/expansion.md#selected-audit-improvements).
+before choosing a new source or repeating settled audit decisions.
 
 An expansion request does not imply an audit. Carry supplied suite context,
 requested additions, confirmed Ethos, prerequisites, and pending decisions into
@@ -212,12 +193,9 @@ chat. Keep the blocker until the converted suite's actual format is checked;
 Eval Author does not perform the conversion. Supply the exact loaded core skill
 link for the canonical blocker attribution and present the rendering unchanged,
 without appending another pause explanation.
-For a starter suite created by first-eval, resume its scope stage. For a selected
-trace-derived task, use task-create's experimental trace-source mode and the
-[shared trace handoff](references/trace-input.md); retain source selection before
-trace inspection. For supplied reviewed audit findings, follow the selected
-audit continuation above and the applicable authoring eligibility checks.
-If no supported authoring flow matches the supplied suite,
+For a starter suite created by first-eval, resume its scope stage. For supplied
+reviewed audit findings, use `eval-author-task-create` proposals and its existing
+eligibility checks. If no supported authoring flow matches the supplied suite,
 save the pending handoff in shared state and explain the missing capability.
 An explicitly selected addition or proposal-only request keeps that scope.
 
@@ -226,8 +204,6 @@ An explicitly selected addition or proposal-only request keeps that scope.
 Once prerequisites and Ethos are confirmed, follow the
 [completion pause](references/shared-prerequisites.md#pause-after-ethos-confirmation)
 for a new shared flow, or continue the already-requested returning audit.
-An already-selected improvement path continues to its actual next decision
-without a separate completion-readiness question.
 For fresh creation without a saved design or source choice, that pause asks for
 task sources directly; do not add a separate readiness question before it.
 Other flows retain their selected continuation and saved decisions.
@@ -309,15 +285,14 @@ This file carries the standard and boundaries; the sub-flow carries the steps.
 
 `eval-author-audit` works one level above tasks: it generates and validates the
 coverage denominator, measures traces against it, and aggregates deterministic
-coverage reports. For explicit planning requests, `eval-author-task-create` can
-prioritize dataset improvements from those findings across tools, capabilities, and failure
+coverage reports. `eval-author-task-create` owns the proposal step: prioritize
+dataset improvements from those findings across tools, capabilities, and failure
 cases while preserving their measured or unmeasured status. Proposal-only
 requests stop there. Its audit-gap task-creation mode consumes only actionable
 tool gaps and uses the selected NeMo Gym or Harbor native scaffolder rather than guessing a task
 layout. Its trace source mode instead applies privacy and candidate admission without
-requiring an audit gap. Selected audit recommendations follow the existing
-handoff above without another proposal offer. An audit-only request ends with
-the findings and recommendations.
+requiring an audit gap. For a requested full workflow, proceed from audit to proposals even when
+there are no eligible tool gaps; an audit-only request ends with the findings.
 
 Sub-flows that read provider traces load them through the shared
 `scripts/trace_loading.py`, which normalizes ATIF, MLflow, NeMo Gym, and Intake
