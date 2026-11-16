@@ -6,9 +6,9 @@
 INTRO = "Let’s agree which supported improvements to make to your existing evaluations."
 OPTIONS_INTRO = "Let’s work on improving your existing evaluations. I can help you:"
 OPTIONS = (
-    "Expand a starter suite created with Eval Author.",
-    "Create a task candidate from a recorded agent interaction (experimental).",
-    "Audit your suite to identify improvements.",
+    "Expand a starter suite created with Eval Author",
+    "Create a task candidate from a recorded agent interaction (experimental)",
+    "Audit your suite to identify improvements",
 )
 OPTIONS_QUESTION = "What would you like to work on?"
 LIMIT = (
