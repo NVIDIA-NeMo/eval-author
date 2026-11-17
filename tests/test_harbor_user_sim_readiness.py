@@ -51,6 +51,15 @@ def test_both_roles_resolve_without_constructing_or_running_agents(judge: Any, m
     assert {entry.name for entry in outcome.checks} == {"agent", "user-agent", "user-agent-bridge"}
 
 
+@pytest.mark.parametrize("field", ["import_path", "name"])
+def test_explicit_builtin_import_keeps_harbor_class_identity(judge: Any, field: str) -> None:
+    value = config(agents=[{field: "harbor.agents.installed.claude_code:ClaudeCode"}])
+    outcome = judge.ValidationOutcome()
+    judge._check_agent(value, outcome)
+    assert not failures(outcome)
+    assert judge._agent_class(value.agents[0]) is ClaudeCode
+
+
 @pytest.mark.parametrize("role", ["agent", "user-agent"])
 def test_missing_either_role_blocks_readiness(judge: Any, role: str) -> None:
     value = config()

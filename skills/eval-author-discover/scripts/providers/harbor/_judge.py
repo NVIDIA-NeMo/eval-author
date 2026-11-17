@@ -315,7 +315,8 @@ def _task_config(task_dir: Path) -> TaskConfig | None:
 
 def _agent_class(agent: AgentConfig) -> type[BaseAgent]:
     import_path = agent.import_path or (agent.name if ":" in (agent.name or "") else None)
-    with _evict_module_tree(import_path) if import_path else contextlib.nullcontext():
+    local_import = import_path and import_path.split(":", 1)[0].split(".", 1)[0] != "harbor"
+    with _evict_module_tree(import_path) if local_import else contextlib.nullcontext():
         agent_class = AgentFactory.get_agent_class_from_config(agent)
     if not issubclass(agent_class, BaseAgent) or inspect.isabstract(agent_class):
         raise TypeError("The configured class must implement Harbor BaseAgent")
