@@ -47,10 +47,6 @@ preview: workflows, skills, and saved artifacts may change between releases.
 
 ### Changed
 
-- **Breaking: verifier-cheat evidence v3.** The hidden-case read control also
-  reads a file the agent's user must be able to read, and passes only when that
-  read succeeds. Evidence uses `nemo.eval_author.verifier_cheat_evidence.v3` and
-  `harbor-verifier-cheats-v3`; don't combine it with v2 counts.
 - **One trace loader.** `skills/eval-author/scripts/trace_loading.py` loads
   `atif`, `mlflow`, `gym`, `intake`, and `trace` sources into NeMo Compass
   `Trace` objects (trace contract v3) and writes a
@@ -104,6 +100,10 @@ preview: workflows, skills, and saved artifacts may change between releases.
 
   Run-input v3, validation v7, tool-access decisions v1 and publication review
   v1 are unchanged.
+- **Breaking: verifier-cheat evidence v3.** The hidden-case read control also
+  reads a file the agent's user must be able to read, and passes only when that
+  read succeeds. Evidence uses `nemo.eval_author.verifier_cheat_evidence.v3` and
+  `harbor-verifier-cheats-v3`; don't combine it with v2 counts.
 
 ## 0.1.0
 
