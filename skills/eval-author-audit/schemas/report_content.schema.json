@@ -28,8 +28,6 @@
       "additionalProperties": false,
       "required": [
         "repository",
-        "commit",
-        "dirty",
         "date"
       ],
       "properties": {

@@ -22,12 +22,11 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 FIXTURES = ROOT / "evals/verifier-cheats"
+MANIFEST = json.loads((FIXTURES / "manifest.json").read_text())
 PANEL = {
-    f"{grader}--{control}": int(
-        (grader == "vulnerable" and control != "hang") or (grader == "sound" and control == "reference")
-    )
-    for grader in ("sound", "vulnerable", "always-fail")
-    for control in ("reference", "early-exit", "fake-success", "hidden-case-read", "hang", "boolean-output")
+    f"{grader}--{control['id']}": control["expected_reward"][grader]
+    for grader in MANIFEST["graders"]
+    for control in MANIFEST["controls"]
 }
 
 
@@ -41,6 +40,17 @@ def load_json(path):
 def require(condition, message):
     if not condition:
         raise ValueError(message)
+
+
+def read_boundary(stderr):
+    """Classify one hidden-case-read row: protected only when the paired public read succeeded."""
+    try:
+        reads = json.loads(stderr)
+    except ValueError:
+        return "unknown"
+    if not isinstance(reads, dict) or reads.get("public_read") != "ok":
+        return "unknown"
+    return {"denied": "protected", "allowed": "exposed"}.get(reads.get("private_read"), "unknown")
 
 
 def native_check(job, name):
@@ -126,8 +136,9 @@ def native_check(job, name):
             row["semantic_pass"] is (control == "reference" or (control == "boolean-output" and index == 1)),
             "incorrect case semantics",
         )
-        if control == "hidden-case-read":
-            require(row["stderr"] == "hidden-cases-blocked\n", "hidden case access not denied")
+    boundaries = [read_boundary(row["stderr"]) for row in rows] if control == "hidden-case-read" else []
+    for boundary in boundaries:
+        require(boundary == "protected", f"hidden case read boundary is {boundary}")
     return {
         "name": name,
         "reward": reward,
@@ -137,6 +148,7 @@ def native_check(job, name):
         "task_digest": lock["task"]["digest"],
         "semantic_passes": checks["semantic_passes"],
         "timeouts": checks["timeouts"],
+        **({"read_boundary": boundaries[0]} if boundaries else {}),
     }
 
 
@@ -193,8 +205,8 @@ def public_summary(report):
     image = runtime.get("image", [{}])
     metrics = report.get("metrics", {})
     public = {
-        "schema": "nemo.eval_author.verifier_cheat_evidence.v2",
-        "protocol": "harbor-verifier-cheats-v2",
+        "schema": "nemo.eval_author.verifier_cheat_evidence.v3",
+        "protocol": "harbor-verifier-cheats-v3",
         "status": report["status"] if report["status"] in ("passed", "failed", "incomplete") else "incomplete",
         "model_performance_measured": False,
         "skill_authoring_measured": False,
@@ -235,6 +247,8 @@ def public_summary(report):
             value = check.get(key)
             if type(value) in (int, float) and math.isfinite(value) and 0 <= value <= maximum and int(value) == value:
                 safe[key] = int(value)
+        if check.get("read_boundary") in ("protected", "exposed", "unknown"):
+            safe["read_boundary"] = check["read_boundary"]
         public["checks"].append(safe)
     return public
 
@@ -279,8 +293,8 @@ def run(output):
     summary = output / "verifier-cheat-summary.json"
     private = output / "verifier-cheat-private.json"
     report = {
-        "schema": "nemo.eval_author.verifier_cheat_evidence.v2",
-        "protocol": "harbor-verifier-cheats-v2",
+        "schema": "nemo.eval_author.verifier_cheat_evidence.v3",
+        "protocol": "harbor-verifier-cheats-v3",
         "status": "incomplete",
         "model_performance_measured": False,
         "skill_authoring_measured": False,
@@ -376,12 +390,20 @@ def run(output):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", type=Path, required=True, help="new directory for exact native evidence")
+    parser.add_argument("--panel", choices=("normalizer", "refund"), default="normalizer")
     args = parser.parse_args()
+    summary_name = "verifier-cheat-summary.json"
     try:
-        code = run(args.output)
+        if args.panel == "refund":
+            from scorer_native import run as run_refund
+
+            code = run_refund(args.output)
+            summary_name = "scorer-native-summary.json"
+        else:
+            code = run(args.output)
     except FileExistsError:
         parser.error("output directory already exists; use a fresh path")
-    print(json.dumps({"summary": str(args.output.resolve() / "verifier-cheat-summary.json"), "exit_code": code}))
+    print(json.dumps({"summary": str(args.output.resolve() / summary_name), "exit_code": code}))
     return code
 
 

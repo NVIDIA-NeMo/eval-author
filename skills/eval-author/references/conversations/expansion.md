@@ -28,9 +28,13 @@ task-create Step 1; selecting an audit recommendation does not request it.
 For repairs within an existing authoring flow, use the
 [repair and revalidation procedure](../task-validation.md#repair-and-retain).
 The audit handoff does not add a general workflow for editing existing suite
-cases or graders. Describe an unavailable implementation path as not yet supported, retaining the
-audit's recommendation without offering to write it again. Do not apply that
-limitation to supported authoring or repair work.
+cases or graders. Describe an unavailable implementation path as not yet
+supported, retaining the audit's recommendation without offering to write it
+again. For an unsupported grader repair, use `UNSUPPORTED_GRADER_REPAIR` from
+[expansion_templates.py](../../scripts/conversation_flows/expansion_templates.py).
+Lead with that explanation without a bookkeeping preamble. Keep any report-update
+failure in a separate paragraph. Do not apply this limitation to supported
+authoring or repair work or describe it as a blanket prohibition on source edits.
 
 `expansion_continue` presents a saved unresolved entry question; it is not a
 prerequisite to the selected authoring flow. Use it only when an unanswered
@@ -78,6 +82,11 @@ supported path, task and example identities, digest-bound sources, deferred work
 unresolved inputs, and construction limits. Its presentation and user decision
 receipts bind to `scope_digest`; changing scope invalidates the agreement and
 replacement decisions retain history. Existing entry records remain resumable.
+Agreement also binds the repository, selected agent, provider, and applicable
+Ethos document. Rebinding that context requires a new presentation and answer.
+Recorded-interaction scopes retain their scoped Ethos exception, while the
+selected provider, Python/runtime checks, and setup or expansion blockers still
+gate construction.
 Use `expansion_continue` only for entry records; structured construction scope
 records require a compatible scope renderer. Do not save a parallel checklist,
 introduce another state file, or register future-stage placeholders.
@@ -89,6 +98,11 @@ read-only CLI is `journey_state.py --repo REPO check-expansion-scope --task-id I
 --expected-revision REV`. The result always has `execution_authorized: false`;
 construction approval does not authorize running the agent. Scope agreement
 cannot establish journey completion.
+
+Audit-backed scope binds the authored recommendation content separately from
+its `follow_through` progress notes. Updating only those notes and regenerating
+the report preserves an unchanged agreement. Changed recommendations, selected
+sources, measurements, or other bound audit inputs still require reconciliation.
 
 ## Cross-checkpoint invariants
 
@@ -104,7 +118,7 @@ work. Reopen only decisions and checks that depend on changed inputs:
 
 | Changed input | Required reconciliation in its owning workflow |
 | --- | --- |
-| Confirmed intent or selected audit handoff | Reconcile affected entry/scope decisions and their downstream bindings; retain the originating context for review |
+| Selected provider, confirmed intent, or selected audit handoff | Reconcile affected entry/scope decisions and their downstream bindings; retain the originating context for review |
 | Planned task set or construction scope | Reopen scope agreement and approvals bound to that set; retain reusable tasks and evidence for unchanged work |
 | Task or grader content | Recompute validation and reopen dependent task review, execution authorization, and run/result validity for the changed tasks |
 | Validation or run evidence | Recompute the statuses, reviews, and approvals that depend on that evidence; missing or stale evidence cannot remain current |
@@ -155,10 +169,13 @@ structured lifecycle retains that text as `legacy_context`.
 
 The audit handoff leaves construction scope unconfirmed and marked for review.
 Preserve those flags during entry planning; they do not invalidate the entry
-record's Ethos and handoff bindings or establish scope agreement.
+record's provider, Ethos, and handoff bindings or establish scope agreement.
 
-The record binds confirmed Ethos content and the saved audit handoff. Consume
-the handoff supplied by the audit workflow; do not edit its selection from the
+The record binds the selected provider (`setup`), confirmed Ethos content, and
+the saved audit handoff. Older entry records without a provider binding remain
+readable but require explicit reconciliation through `new_record` before
+continuation; never infer their provider from the current setup. Consume the
+handoff supplied by the audit workflow; do not edit its selection from the
 expansion workflow. The binding identifies saved handoff context, not fresh
 audit measurements or report validity. Consult the originating audit records
 before relying on their findings. This checkpoint inspects only Ethos content;
@@ -175,7 +192,7 @@ checklist and saved question without a generic selection or scope preamble.
 Render and present the complete response unchanged. Wrong revisions, missing
 observations, mismatched pending questions, active blockers, and changed context
 reject continuation. Resolve shared blockers through onboarding. Reconcile a
-changed Ethos or handoff and save the relevant entry question with fresh
+changed provider, Ethos, or handoff and save the relevant entry question with fresh
 bindings; do not manufacture a success state or render stale decisions.
 Unchanged entry decisions retain their question across normal resume and journey
 switches. Shared recovery questions take precedence while prerequisites or

@@ -58,7 +58,11 @@
         "trace_sources": [
           "selected-runs.jsonl"
         ],
-        "confirmed": true
+        "confirmed": true,
+        "mode": {
+          "kind": "measured",
+          "source": "User chose measured audit"
+        }
       }
     },
     "tasks": {},

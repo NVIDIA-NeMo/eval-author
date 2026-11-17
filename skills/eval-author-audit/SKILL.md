@@ -54,7 +54,7 @@ coverage denominator from `<ethos_path>` and
 reviewed audit items, then can measure traces and aggregate coverage reports
 against it. It identifies coverage gaps and recommends improvements grounded in
 the findings and evidence limits, then writes a human-readable
-`audit-coverage-report.md` and reviews it with the user. Selected recommendations
+`report_markdown/audits.md` and reviews it with the user. Selected recommendations
 continue through the [improvement handoff](references/coverage-report.md#selected-improvement-handoff-and-follow-through),
 without another recommendation pass. Explicit requests for additional planning
 can expand the same report; proposal-only requests stop there. Task construction
@@ -96,9 +96,11 @@ After fresh onboarding's completion pause and the user's continuation, or the
 returning-audit handoff above, follow
 [Guided audit milestones](references/guided-audit.md):
 confirm evals and, for measured audits, traces, define intended coverage, measure selected evidence when requested,
-then generate and review `audit-coverage-report.md`. Keep source and content
-reviews explicit. Use bounded agent and eval reads. Do not enumerate or read traces
-until their source and location are selected. An existing accepted source choice
+then generate and review `report_markdown/audits.md`. Keep source and content
+reviews explicit. Use bounded agent and eval reads. The
+[retained-run lookup](../eval-author/references/shared-prerequisites.md#locate-retained-evaluation-runs)
+is the only exception to source selection for locating candidate runs.
+Do not read trace contents until their source and location are selected. An existing accepted source choice
 needs no repeated confirmation. Render downstream checkpoints through the
 [audit conversation contract](../eval-author/references/conversations/audit.md).
 
@@ -459,7 +461,7 @@ the Audit coverage report is introduced for guided review; other outputs are int
 | Name | File under `.eval-author/` | Purpose |
 |---|---|---|
 | Audit specification | `audit.md` | Structured source of checks and required evidence, reviewed through the generated coverage tables |
-| Audit coverage report | `audit-coverage-report.md` | Readable intended coverage, test mappings, measured coverage, gaps, evidence limits, and next actions |
+| Audit coverage report | `report_markdown/audits.md` | Readable intended coverage, test mappings, measured coverage, gaps, evidence limits, and next actions |
 | Coverage measurements (JSON) | `audit-coverage-report.json` | Script-generated measurements aggregated over the selected runs, when available |
 | Report content (internal) | `.working/audit/report-content.json` | Validated authored narrative, mappings, recommendations, and source references |
 | Journey state (internal) | `.working/journey-state.json` | Shared decisions, audit progress, and resumption |
@@ -476,11 +478,11 @@ audit; keep their scope. Read-only and `suggest` requests remain read-only.
 
 ## Next Steps
 
-- Before findings review, complete [verifier inspection and evidence reconciliation](references/coverage-report.md#inspect-verifier-behavior-and-retained-controls).
+- Before recording findings, complete [verifier inspection and evidence reconciliation](references/coverage-report.md#inspect-verifier-behavior-and-retained-controls).
   Coverage aggregation alone does not establish verifier screening.
 - For audit-generation inputs and reconciliation modes, return to
   [Step 2: Generate Or Reconcile Audit.md](#step-2-generate-or-reconcile-auditmd).
-- Follow the [combined findings review and handoff](references/guided-audit.md#after-review-offer-the-next-step)
+- Follow the [findings and next-step handoff](references/guided-audit.md#after-review-offer-the-next-step)
   for the selected next action.
 - Audit recommendations consider tools, capabilities, and failure cases. Automatic
   task creation still accepts only uncovered tool items with

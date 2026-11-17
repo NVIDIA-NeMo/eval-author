@@ -173,7 +173,9 @@ def _other_evals_note(report: dict[str, Any]) -> str:
     return (
         "I also found code that looks like evaluations in another format: "
         + ", ".join(f"`{c['path']}`" for c in candidates)
-        + ". Do you want to convert any of it into Harbor tasks?"
+        + ". Eval Author needs Harbor or NeMo Gym tasks to run and check evals. Harbor keeps hidden tests "
+        "and reference solutions away from the agent while it works, starts every run in a fresh container, "
+        "and ties each result to one version of the task. Do you want to convert any of it into Harbor tasks?"
         + _partial_scan_note(report)
     )
 

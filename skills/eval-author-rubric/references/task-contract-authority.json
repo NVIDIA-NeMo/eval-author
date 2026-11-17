@@ -1,0 +1,186 @@
+{
+  "rubric_version": "4.0-draft",
+  "items": [
+    {
+      "id": "CREATE-03",
+      "skill_id": "first_eval_create",
+      "title": "Clear task contract",
+      "question": "Can independent readers resolve the goal and grading boundaries from the public or discoverable contract?",
+      "requirement": "For each scored task, the solver-visible contract must specify enough goal, permissions, outputs, constraints and assumptions to justify grading.",
+      "scope": "task; For each scored task, the solver-visible contract must specify enough goal, permissions, outputs, constraints and assumptions to justify grading.",
+      "measurement": "Material contradiction/ambiguity count; requirement and boundary cases with resolved authority / identified cases. Assess independent interpretations and valid boundary outcomes.",
+      "methods": [
+        "llm_as_judge",
+        "human_review",
+        "probe"
+      ],
+      "checks": [
+        {
+          "method": "llm_as_judge",
+          "action": "Extract goal, allowed actions, outputs, constraints and assumptions from solver-visible material; compare with scorer expectations for contradictions and boundary ambiguity.",
+          "expected_evidence": "Cited requirement and ambiguity register",
+          "when": "During assessment of the declared revision",
+          "id": "CREATE-03-C01"
+        },
+        {
+          "method": "human_review",
+          "action": "Resolve material ambiguities through independent contract interpretation without consulting hidden author intent as authority.",
+          "expected_evidence": "Independent interpretation and disposition",
+          "when": "During assessment of the declared revision",
+          "id": "CREATE-03-C02"
+        },
+        {
+          "method": "probe",
+          "action": "Exercise independently justified valid boundary solutions under the same scorer.",
+          "expected_evidence": "Boundary-case rewards and health",
+          "when": "Only for authorized boundary tests",
+          "id": "CREATE-03-C03"
+        }
+      ],
+      "scoring": {
+        "0": "Material contradiction or underspecification prevents justified grading",
+        "1": "Material ambiguity remains unresolved",
+        "2": "Public/discoverable contract and assumptions resolve material ambiguity",
+        "3": "Independent solutions and boundary cases support interpretation"
+      },
+      "evidence": [
+        "Requirement list",
+        "Cited ambiguity decisions",
+        "Independent interpretations",
+        "Boundary outcomes"
+      ],
+      "on_gap": "Clarify the contract without revealing the solution or removing the intended difficulty; rerun affected controls",
+      "boundary": "Clarify without leaking solutions or removing intended difficulty; a privileged reference solve does not establish clarity. Missing or unrun evidence is NOT_ASSESSED, not 0; justified exclusions are NOT_APPLICABLE. Referenced code is supporting material, not verified runnable integration. Execute interventions only with approval; qualify any material judge/classifier and routing dependency before using its verdict.",
+      "code_references": [
+        "skills/eval-author/scripts/eval_author_shared/construction.py",
+        "skills/eval-author/scripts/eval_author_shared/solution_review.py",
+        "skills/eval-author-environment/references/task-fidelity.md"
+      ],
+      "source_ids": [
+        1
+      ],
+      "implementation_task": "Build a public-contract ambiguity review packet and boundary-case control set."
+    },
+    {
+      "id": "CREATE-04",
+      "skill_id": "first_eval_create",
+      "title": "Discoverable grading requirements",
+      "question": "Can the solver find legitimate authority for every material scored condition?",
+      "requirement": "Every material scored condition must follow from solver-visible instructions or authority reachable under solver permissions.",
+      "scope": "task; Every material scored condition must follow from solver-visible instructions or authority reachable under solver permissions.",
+      "measurement": "Mapped accessible material conditions / all material scored conditions; entailment decisions for formatting, tolerances, defaults and preservation; independent blind requirement-discovery results.",
+      "methods": [
+        "llm_as_judge",
+        "deterministic",
+        "probe"
+      ],
+      "checks": [
+        {
+          "method": "llm_as_judge",
+          "action": "Map scored conditions to authority spans and adjudicate entailment, including formatting, tolerances, defaults and preservation.",
+          "expected_evidence": "Condition-to-authority map with cited decisions",
+          "when": "During assessment of the declared revision",
+          "id": "CREATE-04-C01"
+        },
+        {
+          "method": "deterministic",
+          "action": "Check reference integrity and condition coverage against the full scoring inventory.",
+          "expected_evidence": "Coverage counts and broken references",
+          "when": "During assessment of the declared revision",
+          "id": "CREATE-04-C02"
+        },
+        {
+          "method": "probe",
+          "action": "Test authority access and independent requirement discovery under solver permissions without author hints.",
+          "expected_evidence": "Blind discovery paths and access receipts",
+          "when": "Only for authorized solver-scope access tests",
+          "id": "CREATE-04-C03"
+        }
+      ],
+      "scoring": {
+        "0": "Material hidden requirement has no allowed authority",
+        "1": "Mappings incomplete or disputed",
+        "2": "Every material condition has accessible authority",
+        "3": "Blind reviewers/solvers find required evidence without author leakage"
+      },
+      "evidence": [
+        "Condition/authority map",
+        "Coverage report",
+        "Entailment decisions",
+        "Blind discovery receipts"
+      ],
+      "on_gap": "Expose the legitimate requirement or remove the unsupported condition with approved scope; do not hide new requirements in grading notes",
+      "boundary": "Reviewer access is not solver access; feasibility is separate. Expose legitimate requirements or obtain approval to remove unsupported conditions, not hide requirements in grading notes. Missing or unrun evidence is NOT_ASSESSED, not 0; justified exclusions are NOT_APPLICABLE. Referenced code is supporting material, not verified runnable integration. Execute interventions only with approval; qualify any material judge/classifier and routing dependency before using its verdict.",
+      "code_references": [
+        "skills/eval-author/scripts/eval_author_shared/construction.py",
+        "skills/eval-author/scripts/eval_author_shared/solution_review.py",
+        "skills/eval-author/references/task-validation.md"
+      ],
+      "source_ids": [
+        1,
+        3
+      ],
+      "implementation_task": "Build a complete condition-to-authority crosswalk and blind discoverability check."
+    },
+    {
+      "id": "CREATE-05-A",
+      "skill_id": "first_eval_create",
+      "title": "Correctness and scoring authority",
+      "question": "Are expected results and scoring semantics justified by authoritative requirements?",
+      "requirement": "For every expected result and scored obligation, identify correctness authority and explicit partial-credit, guardrail, entity-linkage and protected-state rules.",
+      "scope": "task; For every expected result and scored obligation, identify correctness authority and explicit partial-credit, guardrail, entity-linkage and protected-state rules.",
+      "measurement": "Expected results with justified authority / all expected results; explicit scoring obligations / material obligations; contradictions and unsupported grading rules.",
+      "methods": [
+        "human_review",
+        "llm_as_judge",
+        "deterministic"
+      ],
+      "checks": [
+        {
+          "method": "human_review",
+          "action": "Justify each expected result using specifications, verified data or independently reviewed reference outcomes; resolve contradictory authority.",
+          "expected_evidence": "Correctness-authority map and decisions",
+          "when": "During assessment of the declared revision",
+          "id": "CREATE-05-A-C01"
+        },
+        {
+          "method": "llm_as_judge",
+          "action": "Compare the scoring contract to authority for partial credit, guardrails, entity/value/destination relationships and protected-state obligations.",
+          "expected_evidence": "Cited semantic contract review",
+          "when": "During assessment of the declared revision",
+          "id": "CREATE-05-A-C02"
+        },
+        {
+          "method": "deterministic",
+          "action": "Check authority/obligation coverage and explicit declared scoring fields.",
+          "expected_evidence": "Coverage and missing-contract report",
+          "when": "During assessment of the declared revision",
+          "id": "CREATE-05-A-C03"
+        }
+      ],
+      "scoring": {
+        "0": "A material reference answer or scoring obligation contradicts authoritative requirements.",
+        "1": "Some results have justified authority but known material authority or scoring-semantic disputes remain.",
+        "2": "All material expected results and scoring rules have justified authority and resolved semantics.",
+        "3": "Independent sources and adjudicators corroborate the material reference and scoring contract."
+      },
+      "evidence": [
+        "Correctness-authority map",
+        "Explicit scoring contract",
+        "Contradiction dispositions"
+      ],
+      "on_gap": "Resolve contradictory authority or scorer misgrades before qualification; a recorded answer may be authority only when its correctness is justified",
+      "boundary": "A recorded answer or gold patch is not authority merely because it exists; no model-majority vote replaces correctness authority. Missing or unrun evidence is NOT_ASSESSED, not 0; justified exclusions are NOT_APPLICABLE. Referenced code is supporting material, not verified runnable integration. Execute interventions only with approval; qualify any material judge/classifier and routing dependency before using its verdict.",
+      "code_references": [
+        "skills/eval-author/references/task-validation.md",
+        "skills/eval-author/scripts/eval_author_shared/construction.py",
+        "skills/eval-author/scripts/eval_author_shared/solution_review.py"
+      ],
+      "source_ids": [
+        1,
+        3
+      ],
+      "implementation_task": "Build a correctness-authority packet and obligation-level scoring contract."
+    }
+  ]
+}

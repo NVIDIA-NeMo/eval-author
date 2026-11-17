@@ -6,6 +6,9 @@
 Run a prepared benchmark from agent execution through coverage, mutant scoring,
 and correlation, or analyze execution results you already have.
 
+To generate an experiment config from prepared cases or a subset of a case,
+use [create_benchmark_config.py](create-benchmark-config.md).
+
 ## Start an experiment
 
 Run from the repository root after `uv sync --locked`. Supply a prepared

@@ -85,11 +85,17 @@ def test_scope_mutation_and_guard_require_exact_revision_without_writes(modules,
     assert state.state_path(tmp_path).read_bytes() == before
 
 
-@pytest.mark.parametrize("missing", ["no_tasks", "selection", "examples", "task_input", "plan_input", "limit_input"])
+@pytest.mark.parametrize(
+    "missing", ["no_tasks", "selection", "examples", "task_input", "plan_input", "limit_input", "trace_admission"]
+)
 def test_incomplete_proposals_cannot_be_approved(modules, tmp_path, missing):
     state, expansion, _ = modules
-    saved = start(modules, tmp_path)
+    saved = start(modules, tmp_path, path="recorded_interaction" if missing == "trace_admission" else "audit_tool_gap")
     value = copy.deepcopy(expansion.record(saved))
+    questions = [
+        "Review the selected interaction for privacy",
+        "Confirm task-candidate admission from the recorded tools",
+    ]
     if missing == "no_tasks":
         value["plan"]["tasks"] = []
         value["plan"]["selected_task_ids"] = []
@@ -101,9 +107,13 @@ def test_incomplete_proposals_cannot_be_approved(modules, tmp_path, missing):
         value["plan"]["tasks"][0]["unresolved_inputs"] = ["Which refund amount should the case use?"]
     elif missing == "plan_input":
         value["plan"]["unresolved_inputs"] = ["Which test account may the new task use?"]
+    elif missing == "trace_admission":
+        value["plan"]["tasks"][0]["unresolved_inputs"] = questions
     else:
         value["plan"]["limits"]["unresolved_inputs"] = ["What construction cost cap should apply?"]
     saved = replace_scope(modules, tmp_path, saved, value)
+    if missing == "trace_admission":
+        assert expansion.record(saved)["plan"]["tasks"][0]["unresolved_inputs"] == questions
     assert progress(modules, tmp_path, saved)["blockers"]
     shown = present(modules, tmp_path, saved)
     before = state.state_path(tmp_path).read_bytes()
@@ -164,6 +174,154 @@ def test_changed_context_blocks_construction_without_erasing_history(modules, tm
     with pytest.raises(ValueError):
         expansion.construction_guard(tmp_path, current, task_id="cover-refund", expected_revision=current["revision"])
     assert state.state_path(tmp_path).read_bytes() == before
+
+
+@pytest.mark.parametrize(
+    "path,change",
+    [
+        ("starter_suite", "agent"),
+        ("recorded_interaction", "agent"),
+        ("starter_suite", "ethos_path"),
+        ("recorded_interaction", "repository"),
+    ],
+)
+def test_changed_identity_requires_a_new_scope_presentation_and_reply(modules, tmp_path, path, change):
+    state, expansion, _ = modules
+    if change == "repository":
+        tmp_path = tmp_path / "original"
+        tmp_path.mkdir()
+    saved = approve(modules, tmp_path, start(modules, tmp_path, path=path))
+    original = copy.deepcopy(expansion.record(saved))
+    if change == "agent":
+        changed = state.initialize(tmp_path, agent="replacement-assistant")
+        changed = state.update(
+            tmp_path,
+            {
+                "prerequisites": {
+                    key: {"status": "verified", "source": "Rechecked access for the selected agent"}
+                    for key in state.AGENT_DEPENDENT
+                },
+                "pending_question": None,
+            },
+            expected_revision=changed["revision"],
+        )
+    elif change == "repository":
+        relocated = tmp_path.with_name("relocated")
+        tmp_path.rename(relocated)
+        tmp_path = relocated
+        changed = state.rebind(tmp_path, previous_repository=saved["repository"], expected_revision=saved["revision"])
+        changed = state.update(
+            tmp_path,
+            {
+                "prerequisites": {
+                    key: {"status": "verified", "source": "Rechecked runtime in the relocated repository"}
+                    for key in ("python", "runtime")
+                },
+                "pending_question": None,
+            },
+            expected_revision=changed["revision"],
+        )
+    else:
+        document = tmp_path / "agents/ETHOS.md"
+        document.parent.mkdir()
+        document.write_bytes((tmp_path / "ETHOS.md").read_bytes())
+        changed = state.update(tmp_path, {"ethos": {"path": "agents/ETHOS.md"}}, expected_revision=saved["revision"])
+    if path != "recorded_interaction":
+        selected_path = changed["ethos"]["path"]
+        changed = state.confirm_ethos(
+            tmp_path,
+            reviewed_digest=state.ethos_digest(tmp_path, selected_path),
+            ethos_path=selected_path,
+            source="User confirms the same document content for the selected agent and path",
+            validation="Saved-file validation passed",
+            expected_revision=changed["revision"],
+        )
+        assert changed["ethos"]["confirmed_digest"] == original["ethos_digest"]
+    assert expansion.record(changed) == original
+    assert not progress(modules, tmp_path, changed)["scope_approved"]
+    before = state.state_path(tmp_path).read_bytes()
+    with pytest.raises(ValueError):
+        expansion.construction_guard(tmp_path, changed, task_id="cover-refund", expected_revision=changed["revision"])
+    reply = "User approves this scope for the selected repository, agent, and document"
+    with pytest.raises(ValueError):
+        decide(modules, tmp_path, changed, source=reply)
+    assert state.state_path(tmp_path).read_bytes() == before
+    agreed = decide(modules, tmp_path, present(modules, tmp_path, changed), source=reply)
+    assert expansion.record(agreed)["history"] == [original["decision"]]
+    assert expansion.construction_guard(tmp_path, agreed, task_id="cover-refund", expected_revision=agreed["revision"])
+
+
+@pytest.mark.parametrize("recovery", ["prerequisite", "changed_ethos", "unchanged_review"])
+def test_scope_uses_shared_recovery_and_restores_its_question_after_unchanged_review(modules, tmp_path, recovery):
+    state, expansion, renderer = modules
+    saved = start(modules, tmp_path, path="starter_suite")
+    original = copy.deepcopy(expansion.record(saved))
+    if recovery == "prerequisite":
+        question = "Restore the evaluation runtime before continuing."
+        current = state.update(
+            tmp_path,
+            {
+                "prerequisites": {"runtime": {"status": "missing", "source": "Runtime probe failed"}},
+                "blockers": [{"id": "runtime", "phase": "setup", "message": "Runtime unavailable"}],
+                "pending_question": question,
+            },
+            expected_revision=saved["revision"],
+        )
+        stage = "results"
+        facts = {
+            "blockers": [
+                {"id": "runtime", "step": "Prerequisites", "reason": "Runtime unavailable", "needed": question}
+            ]
+        }
+    else:
+        if recovery == "changed_ethos":
+            (tmp_path / "ETHOS.md").write_text("# Revised agent intent\n")
+            current = state.load_state(tmp_path)
+        else:
+            current = state.update(
+                tmp_path,
+                {"ethos": {"stage": "review"}, "pending_question": "Does the saved intent still apply?"},
+                expected_revision=saved["revision"],
+            )
+        question = current["pending_question"]
+        stage = "resume"
+        facts = {
+            "ethos": {
+                "status": "existing",
+                "link": str(tmp_path / "ETHOS.md"),
+                "summary": "The saved document describes the agent's intended behavior.",
+            }
+        }
+    before = state.state_path(tmp_path).read_bytes()
+    output = renderer.render({"stage": stage, "state": current, "revision": current["revision"], "facts": facts})
+    assert question in output
+    assert original["pending"]["question"] not in output
+    assert state.state_path(tmp_path).read_bytes() == before
+    assert expansion.record(current) == original
+    if recovery == "changed_ethos":
+        return
+    if recovery == "prerequisite":
+        current = state.update(
+            tmp_path,
+            {
+                "prerequisites": {"runtime": {"status": "verified", "source": "Runtime probe passed"}},
+                "blockers": [],
+                "pending_question": None,
+            },
+            expected_revision=current["revision"],
+        )
+    else:
+        current = state.confirm_ethos(
+            tmp_path,
+            reviewed_digest=state.ethos_digest(tmp_path),
+            source="User confirms the unchanged saved intent",
+            validation="Saved-file validation passed",
+            expected_revision=current["revision"],
+        )
+    assert expansion.record(current) == original
+    assert current["pending_question"] == original["pending"]["question"]
+    with pytest.raises(ValueError, match="Use expansion_scope"):
+        renderer.render({"stage": "resume", "state": current, "revision": current["revision"]})
 
 
 @pytest.mark.parametrize("kind", ["declined", "revise"])
@@ -231,6 +389,50 @@ def test_trace_scope_is_a_partial_onboarding_exception_without_execution_permiss
     assert agreed["scopes"].get("create", {}).get("execution_approval") is None
 
 
+def test_trace_scope_accepts_recorded_interactions_larger_than_journey_state(modules, tmp_path):
+    state, expansion, _ = modules
+    saved = start(modules, tmp_path, path="recorded_interaction")
+    value = copy.deepcopy(expansion.record(saved))
+    source = value["plan"]["sources"][0]
+    interaction = tmp_path / source["path"]
+    interaction.write_text(json.dumps({"trace_id": "refund-1", "steps": [], "padding": " " * state.MAX_BYTES}))
+    source["digest"] = hashlib.sha256(interaction.read_bytes()).hexdigest()
+    agreed = approve(modules, tmp_path, replace_scope(modules, tmp_path, saved, value))
+    assert progress(modules, tmp_path, agreed)["construction_ready"]
+    assert expansion.construction_guard(tmp_path, agreed, task_id="cover-refund", expected_revision=agreed["revision"])
+
+
+@pytest.mark.parametrize(
+    "change,status",
+    [(key, status) for key in ("python", "runtime") for status in ("missing", "unknown")]
+    + [("runtime_blocker", None), ("privacy_blocker", None), ("provider", None)],
+)
+def test_trace_scope_still_requires_its_selected_provider_and_runtime(modules, tmp_path, change, status):
+    state, expansion, _ = modules
+    saved = approve(modules, tmp_path, start(modules, tmp_path, path="recorded_interaction"))
+    if change == "provider":
+        saved = state.initialize(tmp_path, setup="harbor")
+        patch = {
+            "prerequisites": {
+                key: {"status": "verified", "source": "Rechecked the selected Harbor runtime"}
+                for key in ("python", "runtime")
+            }
+        }
+    elif change == "runtime_blocker":
+        patch = {"blockers": [{"id": "runtime", "phase": "setup", "message": "Runtime probe failed"}]}
+    elif change == "privacy_blocker":
+        patch = {"blockers": [{"id": "privacy", "phase": "expand", "message": "Interaction privacy review pending"}]}
+    else:
+        patch = {"prerequisites": {change: {"status": status, "source": "Current runtime probe"}}}
+    saved = state.update(tmp_path, patch, expected_revision=saved["revision"])
+    assert saved["ethos"]["confirmed_digest"] is None
+    assert not progress(modules, tmp_path, saved)["construction_ready"]
+    before = state.state_path(tmp_path).read_bytes()
+    with pytest.raises(ValueError):
+        expansion.construction_guard(tmp_path, saved, task_id="cover-refund", expected_revision=saved["revision"])
+    assert state.state_path(tmp_path).read_bytes() == before
+
+
 def test_v1_entry_can_upgrade_but_v2_cannot_downgrade_or_drop_progress(modules, tmp_path):
     state, expansion, _ = modules
     entry = expansion_start(modules, tmp_path)
@@ -259,19 +461,25 @@ def test_v1_entry_can_upgrade_but_v2_cannot_downgrade_or_drop_progress(modules, 
 
 
 @pytest.mark.parametrize(
-    "path,stage",
+    "path,decision",
     [
-        (path, stage)
-        for path in ("audit_tool_gap", "recorded_interaction")
-        for stage in ("resume", "results", "confirmed", "expansion_continue")
-    ]
-    + [("recorded_interaction", "prerequisite_results")],
+        ("audit_tool_gap", None),
+        ("recorded_interaction", None),
+        ("audit_tool_gap", "approved"),
+        ("audit_tool_gap", "declined"),
+    ],
 )
-def test_saved_scope_uses_its_own_checkpoint_instead_of_shared_onboarding(modules, tmp_path, path, stage):
+def test_saved_scope_uses_its_own_checkpoint_instead_of_shared_onboarding(modules, tmp_path, path, decision):
     _, _, renderer = modules
     saved = start(modules, tmp_path, path=path)
-    with pytest.raises(ValueError, match="Use expansion_scope"):
-        renderer.render({"stage": stage, "state": saved, "revision": saved["revision"]})
+    if decision is not None:
+        saved = decide(modules, tmp_path, present(modules, tmp_path, saved), decision)
+    stages = ["resume", "expansion_continue"]
+    if path == "recorded_interaction":
+        stages.append("prerequisite_results")
+    for stage in stages:
+        with pytest.raises(ValueError, match="Use expansion_scope"):
+            renderer.render({"stage": stage, "state": saved, "revision": saved["revision"]})
 
 
 def test_construction_guard_rejects_an_old_approved_snapshot_after_scope_changes(modules, tmp_path):
@@ -300,7 +508,7 @@ def test_starter_pattern_must_retain_its_existing_acceptance_after_source_revisi
         approve(modules, tmp_path, updated)
 
 
-def test_approval_does_not_authorize_an_unselected_task_or_reuse_audit_acceptance(modules, tmp_path):
+def test_scope_approval_cannot_reuse_audit_acceptance(modules, tmp_path):
     state, expansion, _ = modules
     saved = start(modules, tmp_path)
     shown = present(modules, tmp_path, saved)
@@ -315,15 +523,10 @@ def test_approval_does_not_authorize_an_unselected_task_or_reuse_audit_acceptanc
     with pytest.raises(ValueError):
         replace_scope(modules, tmp_path, shown, value)
     assert state.state_path(tmp_path).read_bytes() == before
-    agreed = decide(modules, tmp_path, shown)
-    with pytest.raises(ValueError):
-        expansion.construction_guard(
-            tmp_path, agreed, task_id="arbitrary-extra-task", expected_revision=agreed["revision"]
-        )
 
 
-@pytest.mark.parametrize("missing", ["measurement", "report_binding", "findings_review"])
-def test_handoff_scope_requires_the_originating_reviewed_measurement(modules, tmp_path, missing):
+@pytest.mark.parametrize("missing", ["measurement", "report_binding", "next_action"])
+def test_handoff_scope_requires_the_originating_measurement_and_selection(modules, tmp_path, missing):
     state, expansion, _ = modules
     saved = start(modules, tmp_path)
     audit = saved["scopes"]["audit"]["lifecycle"]
@@ -333,7 +536,7 @@ def test_handoff_scope_requires_the_originating_reviewed_measurement(modules, tm
         audit["measurement"]["evidence"] = []
         audit["measurement"]["status"] = "deferred"
     else:
-        audit["findings_review"] = None
+        audit["next_action"] = None
     state.save(tmp_path, saved)
     assert progress(modules, tmp_path, saved)["blockers"]
     shown = present(modules, tmp_path, saved)
@@ -364,11 +567,11 @@ def test_bound_measured_gap_can_be_selected_without_an_audit_handoff(modules, tm
     assert state.load_state(tmp_path)["scopes"]["expand"].get("audit_handoff") is None
 
 
-@pytest.mark.parametrize("approved", [False, True])
-def test_construction_check_cli_observes_current_scope_without_writing(modules, tmp_path, approved):
+@pytest.mark.parametrize("scenario", ["approved", "unapproved", "stale_revision", "unselected_task"])
+def test_construction_check_cli_observes_current_scope_without_writing(modules, tmp_path, scenario):
     state, _, _ = modules
     saved = start(modules, tmp_path)
-    if approved:
+    if scenario != "unapproved":
         saved = approve(modules, tmp_path, saved)
     before = state.state_path(tmp_path).read_bytes()
     result = subprocess.run(
@@ -380,37 +583,23 @@ def test_construction_check_cli_observes_current_scope_without_writing(modules, 
             str(tmp_path),
             "check-expansion-scope",
             "--task-id",
-            "cover-refund",
+            "arbitrary-extra-task" if scenario == "unselected_task" else "cover-refund",
             "--expected-revision",
-            str(saved["revision"]),
+            str(saved["revision"] - (scenario == "stale_revision")),
         ],
         text=True,
         capture_output=True,
         check=False,
     )
-    assert result.returncode == (0 if approved else 2), result.stderr
-    if approved:
+    assert result.returncode == (0 if scenario == "approved" else 2), result.stderr
+    if scenario == "approved":
         result_data = json.loads(result.stdout)
         assert result_data["task"]["id"] == "cover-refund"
         assert result_data["execution_authorized"] is False
     else:
         assert not result.stdout
+        assert json.loads(result.stderr)["persisted"] is False
     assert state.state_path(tmp_path).read_bytes() == before
-
-
-def test_trace_privacy_and_admission_questions_are_preserved_as_unresolved_inputs(modules, tmp_path):
-    _, expansion, _ = modules
-    saved = start(modules, tmp_path, path="recorded_interaction")
-    value = copy.deepcopy(expansion.record(saved))
-    questions = [
-        "Review the selected interaction for privacy",
-        "Confirm task-candidate admission from the recorded tools",
-    ]
-    value["plan"]["tasks"][0]["unresolved_inputs"] = questions
-    saved = replace_scope(modules, tmp_path, saved, value)
-    assert expansion.record(saved)["plan"]["tasks"][0]["unresolved_inputs"] == questions
-    with pytest.raises(ValueError):
-        approve(modules, tmp_path, saved)
 
 
 def test_replacing_an_agreement_keeps_the_original_receipt_and_rejects_history_edits(modules, tmp_path):
@@ -424,14 +613,7 @@ def test_replacing_an_agreement_keeps_the_original_receipt_and_rejects_history_e
         "source": "User requested a smaller budget",
     }
     shown = present(modules, tmp_path, replace_scope(modules, tmp_path, saved, value))
-    value = copy.deepcopy(expansion.record(shown))
-    value["decision"] = {
-        "digest": expansion.scope_digest(shown),
-        "kind": "approved",
-        "source": "User approves the revised budget in a later reply",
-    }
-    value["pending"] = None
-    agreed = replace_scope(modules, tmp_path, shown, value)
+    agreed = decide(modules, tmp_path, shown, source="User approves the revised budget in a later reply")
     assert expansion.record(agreed)["history"] == [old_decision]
     value = copy.deepcopy(expansion.record(agreed))
     value["history"] = []
@@ -441,19 +623,45 @@ def test_replacing_an_agreement_keeps_the_original_receipt_and_rejects_history_e
     assert state.state_path(tmp_path).read_bytes() == before
 
 
-def test_scope_can_approve_multiple_eligible_audit_tasks_for_sequential_construction(modules, tmp_path):
+@pytest.mark.parametrize("changed", ["action", "items", "proposed_task"])
+def test_audit_batch_retains_scope_through_progress_updates_but_not_semantic_changes(modules, tmp_path, changed):
     state, expansion, _ = modules
     saved = start(modules, tmp_path, extra_gap=True)
     agreed = approve(modules, tmp_path, saved)
+    original = copy.deepcopy(expansion.record(agreed))
     assert progress(modules, tmp_path, agreed)["construction_ready"]
     assert {item["id"] for item in expansion.record(agreed)["plan"]["deferred"]} == {"R2"}
     before = state.state_path(tmp_path).read_bytes()
+    handoff = agreed["scopes"]["expand"]["audit_handoff"]
+    content_file = tmp_path / handoff["content"]["path"]
+    content = json.loads(content_file.read_text())
     for task_id in ("cover-refund", "cover-cancel-order"):
         allowed = expansion.construction_guard(tmp_path, agreed, task_id=task_id, expected_revision=agreed["revision"])
         assert allowed["task"]["id"] == task_id
         assert allowed["execution_authorized"] is False
+        if task_id == "cover-refund":
+            content["recommendations"][0]["follow_through"] = {
+                "status": "in_progress",
+                "summary": "The first selected task is under construction; no agent runs were recorded.",
+                "evidence": [],
+            }
+            content_file.write_text(json.dumps(content) + "\n")
+            report = tmp_path / handoff["report"]["path"]
+            report.write_text(report.read_text() + "\nPartial-refund follow-through: construction in progress.\n")
     assert state.state_path(tmp_path).read_bytes() == before
     assert agreed["tasks"] == {}
+    assert expansion.record(state.load_state(tmp_path)) == original
+    content["recommendations"][0][changed] = {
+        "action": "repair_verifier",
+        "items": ["lookup_order"],
+        "proposed_task": "Cover full refunds for expired orders instead",
+    }[changed]
+    content_file.write_text(json.dumps(content) + "\n")
+    with pytest.raises(ValueError):
+        expansion.construction_guard(
+            tmp_path, agreed, task_id="cover-cancel-order", expected_revision=agreed["revision"]
+        )
+    assert state.state_path(tmp_path).read_bytes() == before
 
 
 @pytest.mark.parametrize("changed", ["suite_task", "trace", "audit_spec", "findings_input"])
@@ -509,10 +717,32 @@ def test_agreed_subset_does_not_authorize_unselected_improvements(modules, tmp_p
         )
 
 
-@pytest.mark.parametrize("kind", ["approved", "declined"])
-def test_answered_scope_cannot_fall_back_to_entry_rendering(modules, tmp_path, kind):
-    _, _, renderer = modules
-    saved = decide(modules, tmp_path, present(modules, tmp_path, start(modules, tmp_path)), kind)
-    for stage in ("resume", "expansion_continue"):
-        with pytest.raises(ValueError, match="Use expansion_scope"):
-            renderer.render({"stage": stage, "state": saved, "revision": saved["revision"]})
+@pytest.mark.parametrize("changed", ["missing_report", "missing_content", "changed_content"])
+def test_missing_audit_proof_keeps_scope_revisions_saveable_without_rebinding(modules, tmp_path, changed):
+    state, expansion, _ = modules
+    saved = start(modules, tmp_path)
+    original = copy.deepcopy(expansion.record(saved))
+    handoff = copy.deepcopy(saved["scopes"]["expand"]["audit_handoff"])
+    if changed.startswith("missing_"):
+        expansion.record(saved).pop("audit_content_digest")
+        state.save(tmp_path, saved)
+        (tmp_path / handoff[changed.removeprefix("missing_")]["path"]).unlink()
+    else:
+        content_path = tmp_path / handoff["content"]["path"]
+        content = json.loads(content_path.read_text())
+        content["recommendations"][0]["proposed_task"] = "A changed construction recommendation"
+        content_path.write_text(json.dumps(content) + "\n")
+    value = expansion.new_scope(
+        saved,
+        path="audit_tool_gap",
+        request=original["request"],
+        plan=original["plan"],
+        question="How should the changed audit context be reconciled?",
+        source="User revises the blocked construction proposal",
+    )
+    assert value["audit_content_digest"] == (original["audit_content_digest"] if changed == "changed_content" else None)
+    revised = replace_scope(modules, tmp_path, saved, value)
+    assert revised["scopes"]["expand"]["audit_handoff"] == handoff
+    assert progress(modules, tmp_path, revised)["blockers"]
+    with pytest.raises(ValueError):
+        approve(modules, tmp_path, revised)

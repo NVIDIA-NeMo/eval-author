@@ -159,7 +159,12 @@ def expansion_scope_plan(repo, *, path="audit_tool_gap", extra_gap=False):
             ],
         }
         recommendations = [
-            {"id": task["recommendation_id"], "action": "new_task", "items": [task["target_tool"]]}
+            {
+                "id": task["recommendation_id"],
+                "action": "new_task",
+                "items": [task["target_tool"]],
+                "proposed_task": task["scenario"],
+            }
             for task in plan["tasks"]
         ]
         recommendations.insert(1, {"id": "R2", "action": "repair_verifier", "items": ["order_balance"]})
@@ -250,7 +255,10 @@ def expansion_scope_start(
         specification = repo / ".eval-author/audit.md"
         specification.write_text("# Audit checks\n\nCheck lookup_order and refund tool evidence.\n")
         lifecycle["specification"] = str(specification.relative_to(repo))
-        saved["scopes"]["audit"] = {"lifecycle": lifecycle}
+        saved["scopes"]["audit"] = {
+            "mode": {"kind": "measured", "source": "User selected measurement of the retained audit traces"},
+            "lifecycle": lifecycle,
+        }
         audit_progress = audit.progress(repo, saved)
         assert audit_progress is not None
         checks = audit_progress["checks_digest"]
@@ -327,10 +335,14 @@ def expansion_scope_present(modules, repo, saved):
     return expansion_scope_replace(modules, repo, saved, value)
 
 
-def expansion_scope_decide(modules, repo, saved, kind="approved"):
+def expansion_scope_decide(modules, repo, saved, kind="approved", *, source: str | None = None):
     _, expansion, _ = modules
     value = copy.deepcopy(expansion.record(saved))
-    value["decision"] = {"digest": expansion.scope_digest(saved), "kind": kind, "source": f"User {kind} this scope"}
+    value["decision"] = {
+        "digest": expansion.scope_digest(saved),
+        "kind": kind,
+        "source": source if source is not None else f"User {kind} this scope",
+    }
     value["pending"] = (
         {"question": "What would you like to change in this scope?", "source": "User requested a scope revision"}
         if kind == "revise"

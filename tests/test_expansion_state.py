@@ -129,7 +129,7 @@ def test_context_changes_block_stale_entry_without_erasing_it(modules, tmp_path,
         renderer.render(payload(modules, current))
 
 
-@pytest.mark.parametrize("mutation", ["version", "extra", "binding", "question", "source", "approval"])
+@pytest.mark.parametrize("mutation", ["version", "extra", "binding", "setup", "question", "source", "approval"])
 def test_invalid_lifecycle_is_rejected_without_writes(modules, tmp_path, mutation):
     state, expansion, _ = modules
     saved = start(modules, tmp_path)
@@ -140,6 +140,8 @@ def test_invalid_lifecycle_is_rejected_without_writes(modules, tmp_path, mutatio
         value["complete"] = True
     elif mutation == "binding":
         value["ethos_digest"] = "d" * 64
+    elif mutation == "setup":
+        value["setup"] = "unsupported"
     elif mutation in {"question", "source"}:
         value["pending"][mutation] = ""
     else:
@@ -148,6 +150,50 @@ def test_invalid_lifecycle_is_rejected_without_writes(modules, tmp_path, mutatio
     with pytest.raises(ValueError):
         state.update(tmp_path, {"scopes": {"expand": {"lifecycle": value}}}, expected_revision=saved["revision"])
     assert state.state_path(tmp_path).read_bytes() == before
+
+
+@pytest.mark.parametrize("change", ["provider", "legacy"])
+def test_provider_binding_requires_entry_reconciliation(modules, tmp_path, change):
+    state, expansion, renderer = modules
+    saved = start(modules, tmp_path, handoff=True)
+    if change == "provider":
+        saved = state.initialize(tmp_path, setup="harbor")
+        assert saved["pending_question"] is None
+        saved = state.update(
+            tmp_path,
+            {
+                "prerequisites": {
+                    key: {"status": "verified", "source": "Rechecked Harbor prerequisites"}
+                    for key in state.PROVIDER_DEPENDENT
+                }
+            },
+            expected_revision=saved["revision"],
+        )
+    else:
+        expansion.record(saved).pop("setup", None)
+        saved["pending_question"] = None
+        state.save(tmp_path, saved)
+    original_scope = copy.deepcopy(saved["scopes"]["expand"])
+    resumed = state.initialize(tmp_path, journey="expand")
+    current = state.load_state(tmp_path)
+    assert current == resumed
+    assert expansion.entry_ready(current)
+    assert current["scopes"]["expand"] == original_scope
+    assert current["pending_question"] is None
+    assert not state.view(current)["expansion"]["context_current"]
+    with pytest.raises(ValueError, match="context changed"):
+        renderer.render(payload(modules, current))
+    question = f"Which {current['setup']} task should the suite add?"
+    value = expansion.new_record(current, question=question, source="User reconciled the provider context")
+    updated = state.update(
+        tmp_path,
+        {"scopes": {"expand": {"lifecycle": value}}, "pending_question": question},
+        expected_revision=current["revision"],
+    )
+    assert updated["scopes"]["expand"] == {**original_scope, "lifecycle": value}
+    resumed = state.initialize(tmp_path, journey="expand")
+    assert state.view(resumed)["expansion"]["context_current"]
+    assert question in renderer.render(payload(modules, resumed))
 
 
 def test_entry_cannot_claim_completion_or_cross_journey_progress(modules, tmp_path):

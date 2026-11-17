@@ -5,8 +5,9 @@ description: >-
   Experimental rubric requiring explicit end-user opt-in to eval-author-rubric
   for selected tasks or suites; never run by default or infer consent from a
   generic review request. Covers validity, coverage, and diversity. The
-  populated areas are anti-cheat within validity and artifact, configuration,
-  and provenance, selected separately. Other areas remain unimplemented. Does not start an
+  populated areas are anti-cheat within validity; data leakage and forged
+  credit; artifact, configuration, and provenance; and task contract and
+  scoring authority, each selected separately. Other areas remain unimplemented. Does not start an
   audit, run controls without approval, or certify overall evaluation quality.
 triggers:
   - apply eval-author-rubric to these tasks
@@ -72,10 +73,19 @@ the area or criterion IDs explicitly requested by the user:
   [the canonical assessment](references/artifact-configuration-provenance.md)
   for its original criterion IDs and item-specific anchors. Artifact, configuration,
   and provenance opt-in does not select anti-cheat.
+- **Data leakage and forged credit:** use
+  [the leakage and credit assessment](references/leakage-and-credit.md) for
+  AUDIT-03, AUDIT-04-B, AUDIT-05-B, AUDIT-05-S03, TRACE-04-A, ENV-03-S01, and CREATE-02.
+  It maps the anti-cheat AC criteria to these IDs; selecting it selects no
+  other area.
+- **Task contract and scoring authority:** use
+  [the task contract assessment](references/task-contract-authority.md) for
+  CREATE-03, CREATE-04, and CREATE-05-A. Selecting this area selects neither of
+  the others, and selecting another area does not select it.
 
 If the named-rubric request leaves the area ambiguous, clarify the scope once
 before inspecting artifacts. Do not apply unselected areas. An explicit request
-for both areas selects both; selecting particular IDs does not select their whole area.
+for several areas selects each named area; selecting particular IDs does not select their whole area.
 Coverage, diversity, and the remaining validity areas are not implemented.
 Do not score them or imply overall evaluation quality. Retained-credit checks and
 identity-aware coverage are separate consumers, not prerequisites for this assessment.
@@ -108,6 +118,10 @@ the validated representation across selected criteria; do not duplicate discover
 The helper supplies bounded observations, not replacement rubric scores. Preserve
 its unknowns and unsupported integrations; do not infer semantic correctness,
 solver access, or successful workflow preflight from identity matches.
+For selected native receipts, use the [receipt-consistency measurements](references/identity.md#selected-receipt-consistency)
+to identify structured contradictions. Distinguish them from failed controls,
+superseded receipts, and evidence gaps. Report contradictions per eligible claim. Do not
+report this rate as a context-rot or prevention score.
 
 Record the task and verifier revisions, selected configuration, solver role,
 protected artifacts, intentional access, and evidence locations. A path name or
@@ -150,7 +164,7 @@ For each selected criterion, report its original ID, applicability, score or
 explicit unassessed status, evidence strength, measurement, evidence references,
 limitation, and next action.
 Use that criterion's scoring rules. Do not transfer anti-cheat evidence floors to
-artifact, configuration, and provenance criteria.
+artifact, configuration, and provenance or task contract criteria.
 Lead with confirmed defects and what results cannot be trusted, then incomplete
 checks. Keep instructions, claims,
 and measured facts separate. Use short, direct explanations with source IDs;

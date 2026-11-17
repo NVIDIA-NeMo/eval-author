@@ -35,14 +35,33 @@
     {
       "id": "audit-report-render",
       "prompt": "Use the audit skill's worked example as the supplied report input: copy its examples/report-content.json to /workspace/output/.eval-author/.working/audit/report-content.json and its examples/report-sources/ directory to /workspace/output/report-sources/. Validate the content with report_content.py, render the report with render_report.py, and tell me where the report is. Do not edit the generated Markdown, remeasure, or create tasks.",
-      "expected_output": "Validates the copied report-content.json with report_content.py, renders .eval-author/audit-coverage-report.md with render_report.py, and links that report. Does not write the Markdown by hand, edit the generated file, remeasure, or create tasks.",
+      "expected_output": "Validates the copied report-content.json with report_content.py, renders .eval-author/report_markdown/audits.md with render_report.py, and links that report. Does not write the Markdown by hand, edit the generated file, remeasure, or create tasks.",
       "assertions": [
         "Runs report_content.py on the copied report-content.json, or reports the precise blocker without installing dependencies.",
-        "Produces .eval-author/audit-coverage-report.md with render_report.py rather than writing or editing the Markdown directly.",
+        "Produces .eval-author/report_markdown/audits.md with render_report.py rather than writing or editing the Markdown directly.",
         "Links the rendered report in the final reply; does not remeasure or create tasks."
       ],
       "expected_skill": "eval-author-audit",
       "files": []
+    },
+    {
+      "id": "audit-verifier-hidden-requirement",
+      "prompt": "Check whether the verifier of my existing Harbor task at /workspace/input/tasks/order-total can be trusted. Inspect its files only: do not run the task or its tests, write files, start a guided audit, or ask setup questions. Report each issue with its audit finding category and basis.",
+      "expected_output": "Reads the task's instruction, verifier, fixture, and reference solution. Finds that tests/test.sh also requires /workspace/summary.json with currency and order_count, which instruction.md never asks for, so a solution that follows the instruction is rejected; classifies it as false_rejection with inspection basis. Treats the total.txt check as supported: the instruction asks for a total with exactly two decimal places and the fixture amounts sum to 250.50. Executes nothing and writes nothing.",
+      "assertions": [
+        "Identifies the summary.json requirement in tests/test.sh as absent from instruction.md and classifies it as false_rejection with inspection basis, without claiming that any control or task execution confirmed it.",
+        "Does not report the total.txt check as a hidden requirement; ties its expected 250.50 value to the instruction and the fixture amounts.",
+        "Stays read-only and scoped: does not run the task or tests, write files, start the guided audit, or ask setup questions."
+      ],
+      "expected_skill": "eval-author-audit",
+      "files": [
+        "files/tasks/order-total/task.toml",
+        "files/tasks/order-total/instruction.md",
+        "files/tasks/order-total/environment/Dockerfile",
+        "files/tasks/order-total/environment/orders.csv",
+        "files/tasks/order-total/tests/test.sh",
+        "files/tasks/order-total/solution/solve.sh"
+      ]
     },
     {
       "id": "eval-author-audit-negative",

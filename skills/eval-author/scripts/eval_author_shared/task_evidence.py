@@ -199,8 +199,10 @@ def prepare(
         fresh(output, task)
     repair_count = 0
     registrations = []
+    supersedes = None
     if previous:
         old = read(previous)
+        supersedes = {"manifest_sha256": digest(previous)}
         if old.get("schema") not in (SCHEMA, MANIFEST_SCHEMA) or old.get("task_dir") != str(task.resolve()):
             raise EvidenceError("repair must refer to the same task's previous manifest")
         if (
@@ -250,6 +252,9 @@ def prepare(
     }
     if repair_count and reason:
         manifest["repair_reason"] = reason.strip()
+    if supersedes:
+        # Explicit lineage: receipts bound to the replaced bytes belong to a superseded revision.
+        manifest["supersedes"] = supersedes
     if contract["provider"] == "harbor":
         try:
             from harbor.models.task.task import Task

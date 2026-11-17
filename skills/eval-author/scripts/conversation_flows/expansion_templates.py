@@ -10,6 +10,10 @@ OPTIONS = (
     "Audit your suite to identify improvements",
 )
 OPTIONS_QUESTION = "What would you like to work on?"
+UNSUPPORTED_GRADER_REPAIR = (
+    "This grader change isn’t supported inside Eval Author yet. "
+    "You can make the repair in a coding-agent chat using the audit recommendation."
+)
 
 
 def options_prompt() -> str:

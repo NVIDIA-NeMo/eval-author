@@ -320,6 +320,11 @@ you need to create, validate, or run Harbor tasks.
 | Inspect NeMo Intake traces | A working `nemo` CLI, an explicit workspace, and read access to a configured local or remote NeMo Helix instance. |
 | Generate the Harbor HTML case/run report | Python 3.11+, jsonschema 4.23+, and markdown-it-py 4.x. Reads local task/run artifacts; no Harbor runtime, Docker, model access, or network is needed to render. See the [Report generation](../skills/eval-author/references/suite-readme.md#report-generation). |
 
+Automatic discovery in `.eval-author/jobs/` needs descriptor-relative access
+that refuses symlinks, supported on macOS and Linux. Hosts without these APIs
+report that availability remains unverified. You can still confirm that saved runs exist
+without this automatic scan.
+
 The repository's opt-in [live-CI image preparation](skill-evaluation-ci.md) also
 requires Docker's deprecated classic builder; BuildKit-only installations are
 not supported by that path. Ordinary Harbor workflows are unchanged.

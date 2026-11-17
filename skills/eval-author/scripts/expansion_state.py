@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Expansion entry decisions bound to confirmed intent and retained audit context."""
+"""Expansion entry decisions bound to provider, confirmed intent, and retained audit context."""
 
 from __future__ import annotations
 
@@ -11,8 +11,10 @@ import importlib.util
 import json
 import math
 import re
+import sys
 from functools import lru_cache
 from pathlib import Path, PurePosixPath
+from types import ModuleType
 
 PATHS = {
     "starter_suite": "eval-author-first-eval",
@@ -70,11 +72,19 @@ def _receipt(value, *, decision=False) -> None:
 
 
 def _validate_scope(value: dict) -> None:
-    _fields(value, "schema_version ethos_digest handoff_digest pending request path plan presented decision history")
+    _fields(
+        {"audit_content_digest": None, **value},
+        "schema_version ethos_digest handoff_digest audit_content_digest pending request path plan presented decision history",
+    )
     if not isinstance(value["path"], str) or value["path"] not in PATHS:
         raise ValueError("Choose an existing supported expansion path")
     _digest(value["ethos_digest"], nullable=value["path"] == "recorded_interaction")
     _digest(value["handoff_digest"], nullable=True)
+    _digest(value.get("audit_content_digest"), nullable=True)
+    if value.get("audit_content_digest") is not None and (
+        value["path"] != "audit_tool_gap" or value["handoff_digest"] is None
+    ):
+        raise ValueError("Only retained audit-gap scope binds originating report content")
     if value["pending"] is not None:
         _fields(value["pending"], "question source")
         for item in value["pending"].values():
@@ -183,10 +193,17 @@ def validate(value: dict) -> None:
         except (KeyError, TypeError, AttributeError) as exc:
             raise ValueError("Malformed structured expansion scope") from exc
         return
-    if not isinstance(value, dict) or set(value) != {"schema_version", "ethos_digest", "handoff_digest", "pending"}:
+    if not isinstance(value, dict) or set(value) - {"setup"} != {
+        "schema_version",
+        "ethos_digest",
+        "handoff_digest",
+        "pending",
+    }:
         raise ValueError("Expansion entry requires versioned context bindings and a pending decision")
     if type(value["schema_version"]) is not int or value["schema_version"] != 1:
         raise ValueError("Unsupported expansion lifecycle version")
+    if "setup" in value and value["setup"] not in ("gym", "harbor"):
+        raise ValueError("Expansion entry requires a supported provider")
     for field in ("ethos_digest", "handoff_digest"):
         digest = value[field]
         if digest is None and field == "handoff_digest":
@@ -203,6 +220,7 @@ def validate(value: dict) -> None:
 def new_record(state: dict, *, question: str, source: str) -> dict:
     value = {
         "schema_version": 1,
+        "setup": state["setup"],
         "ethos_digest": state["ethos"]["confirmed_digest"],
         "handoff_digest": handoff_digest(state),
         "pending": {"question": question, "source": source},
@@ -216,6 +234,7 @@ def new_scope(state: dict, *, path: str, request: dict, plan: dict, question: st
         "schema_version": 2,
         "ethos_digest": state["ethos"]["confirmed_digest"],
         "handoff_digest": handoff_digest(state),
+        "audit_content_digest": _audit_content_binding(state, path, prior=record(state)),
         "pending": {"question": question, "source": source} if question is not None else None,
         "request": copy.deepcopy(request),
         "path": path,
@@ -236,7 +255,13 @@ def scope_digest(state: dict) -> str:
     return hashlib.sha256(
         json.dumps(
             {key: value[key] for key in ("path", "plan", "ethos_digest", "handoff_digest")}
-            | {"outcome": value["request"]["outcome"]},
+            | {
+                "outcome": value["request"]["outcome"],
+                "repository": state["repository"],
+                "agent": state["agent"],
+                "ethos_path": state["ethos"]["path"] if value["ethos_digest"] is not None else None,
+            }
+            | ({"audit_content_digest": value["audit_content_digest"]} if value.get("audit_content_digest") else {}),
             sort_keys=True,
             separators=(",", ":"),
             allow_nan=False,
@@ -244,15 +269,63 @@ def scope_digest(state: dict) -> str:
     ).hexdigest()
 
 
-@lru_cache(maxsize=1)
-def _task_pipeline():
-    location = Path(__file__).resolve().parents[2] / "eval-author-task-create" / "scripts" / "task_pipeline.py"
-    spec = importlib.util.spec_from_file_location("_expansion_task_pipeline", location)
+@lru_cache(maxsize=2)
+def _bundled_module(skill: str, script: str) -> ModuleType:
+    location = Path(__file__).resolve().parents[2] / skill / "scripts" / script
+    name = "_expansion_" + skill.replace("-", "_") + "_" + Path(script).stem
+    spec = importlib.util.spec_from_file_location(name, location)
     if spec is None or spec.loader is None:
-        raise ValueError("The existing task-gap selector is unavailable")
+        raise ValueError(f"The existing {skill} helper is unavailable")
     module = importlib.util.module_from_spec(spec)
+    sys.modules[name] = module
     spec.loader.exec_module(module)
     return module
+
+
+def _audit_content(repo: Path, ref: dict) -> tuple[dict, str, str]:
+    content = _bundled_module("eval-author-audit", "audit_spec/report_content.py")
+    raw = content.read_bytes(content.local(repo.resolve(), ref["path"]))
+    data = content.decode(raw)
+    _list(data.get("recommendations"))
+    if any(not isinstance(row, dict) for row in data["recommendations"]):
+        raise ValueError("Retain the authored audit recommendation records")
+    defining = {
+        **data,
+        "recommendations": [
+            {key: item for key, item in row.items() if key != "follow_through"} for row in data["recommendations"]
+        ],
+    }
+    checksum = hashlib.sha256(
+        json.dumps(defining, sort_keys=True, separators=(",", ":"), allow_nan=False).encode()
+    ).hexdigest()
+    return data, content.sha(raw), checksum
+
+
+def _audit_content_binding(state: dict, path: str, *, prior: dict | None) -> str | None:
+    from journey_state import _file_digest, _task_local_path
+
+    scope = state["scopes"].get("expand", {})
+    handoff = scope.get("audit_handoff") if isinstance(scope, dict) else None
+    if path != "audit_tool_gap" or handoff is None:
+        return None
+    if (
+        prior
+        and prior["schema_version"] == 2
+        and prior["path"] == path
+        and prior["handoff_digest"] == handoff_digest(state)
+        and prior.get("audit_content_digest") is not None
+    ):
+        return prior["audit_content_digest"]
+    repo = Path(state["repository"])
+    try:
+        _, raw_digest, semantic_digest = _audit_content(repo, handoff["content"])
+        if raw_digest == handoff["content"]["digest"] and (
+            _file_digest(_task_local_path(repo, handoff["report"]["path"]), None)[0] == handoff["report"]["digest"]
+        ):
+            return semantic_digest
+    except (OSError, ValueError, KeyError, TypeError, AttributeError):
+        pass
+    return None
 
 
 def _audit_observation(repo: Path, state: dict, sources: dict) -> dict:
@@ -279,7 +352,33 @@ def _audit_observation(repo: Path, state: dict, sources: dict) -> dict:
     )
     if handoff:
         origin = audit_state.record(state)
-        progress = audit_state.progress(repo, state)
+        data, semantic_digest = None, None
+        try:
+            data, _, semantic_digest = _audit_content(repo, handoff["content"])
+        except (OSError, ValueError, KeyError, TypeError, AttributeError):
+            pass
+        same_content = bool(semantic_digest and semantic_digest == value.get("audit_content_digest"))
+        progress = None
+        if origin and same_content:
+            observed = audit_state.observe(repo, state)
+            audited_sources = {
+                *origin["suite_files"],
+                *origin["trace_files"],
+                origin["specification"],
+                origin.get("selection_manifest"),
+                *(ref["path"] for ref in (origin["measurement"] or {}).get("evidence", [])),
+                *(ref["path"] for ref in (origin["findings"] or {}).get("inputs", [])),
+            }
+            # Equivalent progress copy preserves the reviewed audit identity. Every source,
+            # specification, task and measurement observation still comes from its actual bytes.
+            observed["files"].update(
+                {
+                    handoff[key]["path"]: handoff[key]["digest"]
+                    for key in ("report", "content")
+                    if handoff[key]["path"] not in audited_sources and observed["files"].get(handoff[key]["path"])
+                }
+            )
+            progress = audit_state.derive(state, observed)
         result["handoff_current"] = bool(
             origin
             and progress
@@ -287,14 +386,16 @@ def _audit_observation(repo: Path, state: dict, sources: dict) -> dict:
             and progress["findings_digest"] == handoff["findings_digest"]
             and all((origin["findings"] or {}).get(key) == handoff[key] for key in ("report", "content"))
             and (origin["next_action"] or {}).get("kind") == "improve"
+            and (origin["next_action"] or {}).get("findings_digest") == handoff["findings_digest"]
             and (origin["next_action"] or {}).get("recommendation_ids") == handoff["recommendation_ids"]
         )
         result["coverage_current"] = bool(origin and report_ref in (origin["measurement"] or {}).get("evidence", []))
-        if result["handoff_current"] and origin is not None:
+        if result["handoff_current"] and data is not None:
             try:
+                rows = {row["id"]: row for row in data["recommendations"]}
                 result["recommendations"] = [
-                    {key: item[key] for key in ("id", "action", "items")}
-                    for item in audit_state.selected_recommendations(repo, origin)
+                    {key: rows[identifier][key] for key in ("id", "action", "items")}
+                    for identifier in handoff["recommendation_ids"]
                 ]
                 _list(result["recommendations"])
             except (OSError, ValueError, KeyError, TypeError, AttributeError):
@@ -302,7 +403,9 @@ def _audit_observation(repo: Path, state: dict, sources: dict) -> dict:
                 result["recommendations"] = []
     if report_ref and sources.get(report) == report_ref["digest"]:
         try:
-            selected = _task_pipeline()._select(_task_local_path(repo, report), None)
+            selected = _bundled_module("eval-author-task-create", "task_pipeline.py")._select(
+                _task_local_path(repo, report), None
+            )
             result["actionable_tools"] = [
                 {"name": item["name"], "task_slug": item["task_slug"]} for item in selected["actionable_tools"]
             ]
@@ -329,6 +432,11 @@ def observe(repo, state: dict) -> dict:
     if value is None or value["schema_version"] == 1:
         return result
     validate(value)
+    source_limit = MAX_BYTES
+    if value["path"] == "recorded_interaction":
+        from trace_loading import MAX_RECORD_BYTES
+
+        source_limit = MAX_RECORD_BYTES
     sources, patterns = {}, []
     creation = state["scopes"].get("create", {})
     first_eval = creation.get("first_eval", {}) if isinstance(creation, dict) else {}
@@ -347,7 +455,7 @@ def observe(repo, state: dict) -> dict:
                 if task_lifecycle(repo, state, path)["status"] == "accepted" or reviewed:
                     patterns.append(path)
             else:
-                sources[path], _ = _file_digest(_task_local_path(repo, path), MAX_BYTES)
+                sources[path], _ = _file_digest(_task_local_path(repo, path), source_limit)
         except (OSError, ValueError):
             sources[path] = None
     result.update(
@@ -378,6 +486,8 @@ def derive(state: dict, observed: object) -> dict | None:
         return _derive_scope(state, observed)
     current = (
         state["ethos"]["stage"] == "complete"
+        and "setup" in value
+        and value["setup"] == state["setup"]
         and value["ethos_digest"] == state["ethos"]["confirmed_digest"] == observed["ethos_digest"]
         and value["handoff_digest"] == handoff_digest(state)
     )
@@ -392,7 +502,15 @@ def derive(state: dict, observed: object) -> dict | None:
 def scope_ready(state: dict) -> bool:
     value = record(state)
     if value is not None and value.get("schema_version") == 2 and value["path"] == "recorded_interaction":
-        return state["journey"] == "expand" and not any(item["phase"] == "expand" for item in state["blockers"])
+        return (
+            state["journey"] == "expand"
+            and state["setup"] == value["plan"]["provider"]
+            and all(
+                state["prerequisites"].get(key, {}).get("status") in {"verified", "confirmed"}
+                for key in ("python", "runtime")
+            )
+            and not any(item["phase"] in {"setup", "expand"} for item in state["blockers"])
+        )
     return entry_ready(state)
 
 
@@ -455,7 +573,8 @@ def _derive_scope(state: dict, observed: dict) -> dict:
             sources_current = False
     if not scope_ready(state):
         blockers.append("Resolve the applicable prerequisites and saved blockers before construction")
-    if not trace and state["setup"] != plan["provider"]:
+    provider_current = state["setup"] == plan["provider"]
+    if not provider_current:
         blockers.append("Reconcile the proposed provider with the existing suite setup")
     selected = [task for task in plan["tasks"] if task["id"] in plan["selected_task_ids"]]
     if not selected:
@@ -506,7 +625,7 @@ def _derive_scope(state: dict, observed: dict) -> dict:
                 blockers.append("Keep every selected audit improvement visible as planned or deferred")
     digest = scope_digest(state)
     decision = value["decision"]
-    current = bool(intent_current and handoff_current and sources_current)
+    current = bool(intent_current and handoff_current and sources_current and provider_current)
     approved = bool(current and decision and decision["digest"] == digest and decision["kind"] == "approved")
     decision_kind = decision["kind"] if current and decision and decision["digest"] == digest else None
     stage = {"approved": "scope_approved", "declined": "scope_declined", "revise": "scope_revision"}.get(
@@ -559,6 +678,10 @@ def _transition_scope(repo, previous: dict, updated: dict) -> None:
     if before is not None and before["schema_version"] == 1:
         scope["entry_history"] = [*copy.deepcopy(retained_entries), copy.deepcopy(before)]
     prior = before if before is not None and before["schema_version"] == 2 else None
+    old_binding = prior.get("audit_content_digest") if prior else None
+    if after.get("audit_content_digest") != old_binding:
+        if after.get("audit_content_digest") != _audit_content_binding(updated, after["path"], prior=prior):
+            raise ValueError("Retain the hash-verified originating audit content binding")
     if after["history"] != (prior["history"] if prior else []):
         raise ValueError("Scope decision history is retained automatically; do not alter it")
     old_decision = prior["decision"] if prior else None
@@ -656,7 +779,7 @@ def transition(repo, previous: dict, updated: dict) -> None:
         if not entry_ready(updated):
             raise ValueError("Expansion entry requires its journey, shared prerequisites, and confirmed Ethos")
         if not progress["context_current"]:
-            raise ValueError("Bind the expansion question to the current confirmed intent and handoff")
+            raise ValueError("Bind the expansion question to the current provider, confirmed intent, and handoff")
         if updated["pending_question"] != progress["pending_question"]:
             raise ValueError("Save the expansion entry question as the pending question")
     if (

@@ -1,0 +1,12 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+agents:
+  example:
+    baseline: {}
+    mutant: {}
+# Omitted task IDs are uploaded from prepared sources.
+# Replace this illustrative reference with an actual task revision.
+tasks:
+  example:
+    inspect-files: workspace/inspect-files#aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa

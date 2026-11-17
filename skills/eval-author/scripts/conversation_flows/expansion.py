@@ -34,7 +34,7 @@ def render(payload: dict) -> str:
     if progress is None:
         raise ValueError("Save a structured expansion lifecycle before continuation")
     if not progress["context_current"]:
-        raise ValueError("Expansion context changed; reconcile intent and handoff before continuation")
+        raise ValueError("Expansion context changed; reconcile provider, intent, and handoff before continuation")
     if not expansion_state.entry_ready(state):
         raise ValueError(
             "Resolve shared prerequisites, intent questions, and saved blockers before expansion continuation"
