@@ -24,7 +24,7 @@ if TYPE_CHECKING:
     from harbor.models.job.config import JobConfig
 
 SUPPORTED_HARBOR_VERSION = "0.24.0"
-NEUTRAL_BEHAVIOR = Path(__file__).resolve().parents[1] / "references/user-sim-neutral.md"
+NEUTRAL_BEHAVIOR = Path(__file__).resolve().parents[2] / "eval-author-user-sim/references/neutral-behavior.md"
 USER_TEMPLATE = """{neutral}
 
 ## Private scenario
