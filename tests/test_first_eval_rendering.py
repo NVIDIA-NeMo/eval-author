@@ -104,6 +104,9 @@ def observations(record):
                 for ref in [record["selection"]["config"], *record["selection"].get("inputs", [])]
             }
         )
+        files.update(
+            {ref["path"]: ref["digest"] for ref in (record["selection"].get("bridge") or {}).get("evidence", [])}
+        )
     for run in record["runs"]:
         files.update({ref["path"]: ref["digest"] for ref in run["evidence"]})
         for attempt in run["attempts"]:

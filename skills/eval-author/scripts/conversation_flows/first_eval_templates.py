@@ -130,6 +130,15 @@ SUITE_REVIEW_STATUS = (
 SUITE_QUESTION = "Do these tasks look good? Approve the suite or tell me what to change before we choose how to run it."
 SETTINGS_INTRO = "Here are the settings for running the approved tasks."
 SETTINGS_LABELS = ("Attempts", "Validation", "User-specified limits", "Open questions")
+NEUTRAL_SCENARIO = "<br>Neutral scenario: {task_id} ({path})"
+SIMULATOR_SETTINGS_PENDING = (
+    "- **User simulation:** Neutral user. Simulator identity and conversation limits remain unresolved."
+)
+SIMULATOR_SETTINGS = "- **Simulated user:** Neutral, using {agent_model}\n- **Conversation limits:** {limits}"
+RESULT_TEST_TYPE = "**Test type:** {label}."
+RESULT_USER_SIM = (
+    "**Neutral scenario:** {task_id} ({path}). **Simulator:** {agent_model}. **Conversation limits:** {limits}."
+)
 NO_OPEN_QUESTIONS = "None."
 CHECKS_PASSED = (
     "The verifiers have already passed their checks. I’ll reuse those saved results; "

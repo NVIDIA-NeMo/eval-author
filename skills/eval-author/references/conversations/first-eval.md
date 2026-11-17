@@ -554,6 +554,26 @@ retains complete input references under `selection.inputs`. Actual bounded
 permission is recorded separately in `selection.authorization` using the derived
 `selection_digest` and the authorizing reply reference.
 
+For a User-sim task, use
+`first_eval_state.bind_user_sim_translation(repo, translation.to_dict())` to bind
+the translator's retained configuration and every consumed input. Merge its
+`config`, `inputs`, and `user_sim` fields into the existing selection. The helper
+requires paths inside the target repository and preserves the native working
+directory. If a consumed prompt is outside the repository, retain a local copy
+and regenerate the native configuration to consume that copy before binding.
+Keep each run's translated files outside the task tree and retain them with its
+evidence. Do not overwrite earlier inputs when preparing another run.
+
+Save `execution_settings.user_sim` with `agent_model` and `conversation_limits`
+as explicit display text grounded in the selected native configuration. The
+native configuration owns runtime settings. Conversation limits must describe
+the whole exchange, not a simulator timeout that the runtime does not enforce.
+Bind observed interactive-runner proof through `selection.bridge` using its
+existing `{source, evidence}` shape. This proof must show opening-request
+fidelity, session continuity, participant identity, and the required information
+visibility. Translated files, interface declarations, and synthetic controls do
+not establish this proof. Missing settings or proof keeps execution blocked.
+
 Retain native `runs` with their stable IDs, selected task revisions, native
 attempt identities, statuses, rewards, and evidence. Explicitly save
 `selected_run_ids`; directory membership, append order, and a reviewed attempt do
@@ -606,6 +626,7 @@ document.
 Late execution settings come from the saved record's `execution_settings`, with
 existing plan-presentation fields retained as a compatibility fallback. They
 contain `agent_model`, `attempts`, `validation`, `limits`, and `open_questions`.
+User-sim selections also include the simulator display settings described above.
 Retain target/model and selection details for reproducibility without repeating
 them as settings bullets. Ask a focused question only when a target-agent model choice is
 still missing. Record the actual display

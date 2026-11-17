@@ -184,7 +184,7 @@ def ready(modules, repo, provider="harbor", examples=None):
     return value
 
 
-def select(modules, repo, value, repeats=1):
+def select(modules, repo, value, repeats=1, *, user_sim_bindings=None, user_sim_settings=None):
     value["execution_settings"] = {
         "agent_model": "actual-agent / configured-model",
         "attempts": str(repeats),
@@ -192,6 +192,8 @@ def select(modules, repo, value, repeats=1):
         "limits": "180 seconds; no retries; $1 maximum",
         "open_questions": [],
     }
+    if user_sim_settings is not None:
+        value["execution_settings"]["user_sim"] = user_sim_settings
     save(modules, repo, value)
     value["execution_settings_presented"] = {
         "digest": facts(modules, repo)["settings_digest"],
@@ -209,6 +211,8 @@ def select(modules, repo, value, repeats=1):
         "source": "Inspected provider-resolved explicit selection",
         "settings_digest": facts(modules, repo)["settings_digest"],
     }
+    if user_sim_bindings is not None:
+        value["selection"].update(user_sim_bindings)
     if value["provider"] == "gym":
         value["selection"]["inputs"] = [evidence(repo, ".eval-author/selected.jsonl", "complete selected rows")]
         for case in value["selection"]["cases"]:

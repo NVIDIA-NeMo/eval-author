@@ -11,7 +11,8 @@ import math
 import re
 from collections import Counter
 from itertools import chain
-from pathlib import PurePosixPath
+from pathlib import Path, PurePosixPath
+from typing import Literal, TypedDict
 
 from interaction_types import validate_interaction_plan
 
@@ -20,6 +21,29 @@ REMAINING_STEPS = ("tasks", "environment_check", "validation", "artifacts")
 ARTIFACT_EVIDENCE = {".eval-author/report.html", ".eval-author/report_markdown/tasks.md"}
 # Receipts saved before the task table moved out of the suite README; still valid, never current.
 LEGACY_ARTIFACT_EVIDENCE = {".eval-author/report.html", ".eval-author/README.md"}
+
+
+class EvidenceReference(TypedDict):
+    path: str
+    digest: str
+
+
+class UserSimScenarioIdentity(EvidenceReference):
+    task_id: str
+    user_type: Literal["neutral"]
+
+
+class UserSimSelection(TypedDict):
+    task_id: str
+    user_type: Literal["neutral"]
+    scenario: EvidenceReference
+    working_directory: str
+
+
+class UserSimBindings(TypedDict):
+    config: EvidenceReference
+    inputs: list[EvidenceReference]
+    user_sim: UserSimSelection
 
 
 def fingerprint(value: object) -> str:
@@ -75,7 +99,71 @@ def _settings_fields(settings: object) -> bool:
         )
         and isinstance(settings.get("open_questions"), list)
         and all(isinstance(item, str) and item.strip() for item in settings["open_questions"])
+        and ("user_sim" not in settings or _user_sim_settings(settings["user_sim"]))
     )
+
+
+def _user_sim_settings(value: object) -> bool:
+    return bool(
+        isinstance(value, dict)
+        and set(value) == {"agent_model", "conversation_limits"}
+        and all(isinstance(item, str) and item.strip() for item in value.values())
+    )
+
+
+def user_sim_tasks(value: dict) -> set[str]:
+    return {task["id"] for task in value["plan"]["tasks"] if task.get("test_type") == "user_sim"}
+
+
+def bind_user_sim_translation(repo: Path, translation: dict) -> UserSimBindings:
+    """Bind retained translator inputs without granting runtime readiness or execution authority."""
+    from journey_state import MAX_TASK_BYTES, _file_digest, _task_local_path
+
+    if translation.get("user_type") != "neutral":
+        raise ValueError("Only neutral user-simulation inputs are supported")
+    _text(translation.get("task_id"))
+    paths = translation.get("input_paths")
+    if not isinstance(paths, list) or not paths:
+        raise ValueError("Retain every translated user-simulation input")
+
+    def relative(raw: object, *, directory: bool = False) -> str:
+        if not isinstance(raw, str) or not Path(raw).is_absolute():
+            raise ValueError("Translation paths must be absolute before repository binding")
+        try:
+            path = Path(raw).relative_to(repo).as_posix()
+        except ValueError as exc:
+            raise ValueError("User-simulation inputs and working directory must remain inside the repository") from exc
+        if directory and path == ".":
+            return path
+        _path(path)
+        local = _task_local_path(repo, path)
+        if directory and not local.is_dir():
+            raise ValueError("The translated working directory must exist")
+        return path
+
+    # Check every location before reading any input, including external prompt overrides.
+    selected = [relative(path) for path in paths]
+    config = relative(translation.get("run_config_path"))
+    working_directory = relative(translation.get("working_directory"), directory=True)
+    if config not in selected:
+        raise ValueError("The translated run configuration must be retained among its inputs")
+    references: dict[str, EvidenceReference] = {
+        path: {"path": path, "digest": _file_digest(_task_local_path(repo, path), MAX_TASK_BYTES)[0]}
+        for path in dict.fromkeys(selected)
+    }
+    scenarios = [ref for path, ref in references.items() if PurePosixPath(path).name == "user-sim.yaml"]
+    if len(scenarios) != 1:
+        raise ValueError("Retain exactly one task-local user-sim.yaml input")
+    return {
+        "config": references[config],
+        "inputs": [ref for path, ref in references.items() if path != config],
+        "user_sim": {
+            "task_id": translation["task_id"],
+            "user_type": "neutral",
+            "scenario": scenarios[0],
+            "working_directory": working_directory,
+        },
+    }
 
 
 def record(state: dict) -> dict | None:
@@ -244,6 +332,23 @@ def validate(value: dict) -> None:
         selection = value["selection"]
         if selection is not None:
             _evidence([selection["config"], *selection.get("inputs", [])])
+            simulation = selection.get("user_sim")
+            if simulation is not None:
+                if not isinstance(simulation, dict) or set(simulation) != {
+                    "task_id",
+                    "user_type",
+                    "scenario",
+                    "working_directory",
+                }:
+                    raise ValueError("User-sim selection requires a neutral scenario and working directory")
+                _text(simulation["task_id"])
+                if simulation["user_type"] != "neutral":
+                    raise ValueError("Only neutral user-simulation inputs are supported")
+                _evidence([simulation["scenario"]])
+                if simulation["scenario"] not in selection.get("inputs", []):
+                    raise ValueError("Retain the user-sim scenario in selection.inputs")
+                if simulation["working_directory"] != ".":
+                    _path(simulation["working_directory"])
             for key in ("agent", "model", "source"):
                 _text(selection[key])
             _decision(selection.get("authorization"))
@@ -361,6 +466,8 @@ def _sources(value: dict) -> tuple[dict, set]:
         files.update(ref["path"] for ref in artifacts["evidence"])
     for task_id, task in value["tasks"].items():
         tasks[task_id] = task["path"]
+        if task_id in user_sim_tasks(value):
+            files.add(task["path"] + "/user-sim.yaml")
         for field in ("environment", "validation"):
             files.update(ref["path"] for ref in (task.get(field) or {}).get("evidence", []))
     selection = value["selection"]
@@ -577,7 +684,12 @@ def derive(state: dict, observed: object) -> dict | None:
     )
     settings_digest = fingerprint({"plan_digest": plan_digest, "settings": execution_settings(value)})
     settings = execution_settings(value)
-    settings_resolved = bool(_settings_fields(settings) and not settings["open_questions"])
+    simulation_tasks = user_sim_tasks(value)
+    settings_resolved = bool(
+        _settings_fields(settings)
+        and not settings["open_questions"]
+        and (not simulation_tasks or _user_sim_settings(settings.get("user_sim")))
+    )
     settings_shown = bool(
         suite_approved
         and value.get("execution_settings_presented")
@@ -598,6 +710,17 @@ def derive(state: dict, observed: object) -> dict | None:
     selected = {case["task_id"]: case for case in selection["cases"]} if selection else {}
     bridge = selection.get("bridge") if selection else None
     bridge_current = bool(bridge and all(current(ref) for ref in bridge["evidence"]))
+    simulation = selection.get("user_sim") if selection else None
+    simulation_current = bool(
+        simulation
+        and value["provider"] == "harbor"
+        and simulation_tasks == {simulation["task_id"]}
+        and simulation["scenario"]["path"]
+        == value["tasks"].get(simulation["task_id"], {}).get("path", "") + "/user-sim.yaml"
+        and current(simulation["scenario"])
+        and _user_sim_settings(settings.get("user_sim"))
+        and bridge_current
+    )
     selection_current = bool(
         approved
         and selection
@@ -606,6 +729,7 @@ def derive(state: dict, observed: object) -> dict | None:
         and all(task["created"] for task in tasks.values())
         and all(current(ref) for ref in [selection["config"], *selection.get("inputs", [])])
         and ("execution_settings" not in value or selection.get("settings_digest") == settings_digest)
+        and (simulation_current if simulation_tasks or simulation else True)
         and (value["plan"].get("execution_path") != "gym_harbor" or bridge_current)
     )
     authorized = bool(

@@ -189,6 +189,7 @@ function drawCases(){
     const name=element('td');
     name.append(element('div',task.title||task.name,'case-name'));
     if(task.plan_task_id&&task.plan_task_id!==(task.title||task.name))name.append(element('p','Task ID: '+task.plan_task_id,'small muted'));
+    if(task.user_sim_scenario)name.append(element('p','Neutral scenario: '+task.user_sim_scenario.task_id,'small'));
     if(task.status==='unverified')name.append(element('span','Inventory unverified','status'));
     if(task.path)name.append(element('p',displayTaskPath(task.path),'small muted task-path'));name.title=task.issues.join('\n');
     const readiness=element('td',undefined,'task-readiness');

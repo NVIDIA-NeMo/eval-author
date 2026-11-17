@@ -75,6 +75,17 @@ a native Harbor `run.yaml` and private simulator prompt files in a separate
 directory under `.eval-author/.working/`. It preserves the selected target,
 environment, and verifier settings. Each scenario gets a separate configuration.
 
+Authored task reviews retain the selected test type and identify the neutral
+scenario. Execution settings identify the simulator and the limits on the whole
+conversation. Tasks, input examples, and attempts keep their existing counts.
+The neutral user does not add a persona or another input example.
+
+Changing the scenario reopens task review. Changing simulator settings, translated
+prompts, selected configuration, or a consumed external prompt makes earlier runs
+inapplicable to the current selection. Their identities, grades, and evidence stay
+available as historical results. Keep translated inputs for each run so its exact
+configuration remains inspectable after later changes.
+
 An interactive runner and checked information boundaries are still required
 before execution. The generated prompt requests the exact opening message, but
 the conversation evidence must confirm that the simulator sent it. Valid files

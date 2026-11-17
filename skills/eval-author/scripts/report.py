@@ -38,7 +38,7 @@ from urllib.parse import quote, unquote
 # Isolated Python invocations must resolve the bundled sibling, never cwd code.
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import first_eval_state  # noqa: E402
-from interaction_types import interaction_type_label  # noqa: E402
+from interaction_types import INTERACTION_TYPE_LABELS, interaction_type_label  # noqa: E402
 from journey_state import load_state, task_digest, task_lifecycle  # noqa: E402
 from journey_state import state_path as journey_state_path
 from search_tasks import search_tasks, within_task_scope  # noqa: E402
@@ -163,6 +163,15 @@ TASK_SCHEMA["properties"]["heading_id"] = TEXT
 TASK_SCHEMA["properties"]["grading_summary"] = {"anyOf": [GRADING_SUMMARY, {"type": "null"}]}
 TASK_SCHEMA["properties"]["task_revision"] = NULL_TEXT
 TASK_SCHEMA["properties"]["planned_interaction"] = TEXT
+TASK_SCHEMA["properties"]["interaction_type"] = {"enum": list(INTERACTION_TYPE_LABELS)}
+TASK_SCHEMA["properties"]["user_sim_scenario"] = obj(
+    {
+        "task_id": TEXT,
+        "user_type": {"const": "neutral"},
+        "path": PATH,
+        "digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    }
+)
 TASK_SCHEMA["allOf"] = [
     {
         "if": {"properties": {"status": {"const": "proposed"}}},
@@ -759,6 +768,23 @@ def design_text(value: object) -> str | None:
     return value if len(value) <= 2000 else value[:1999] + "…"
 
 
+def user_sim_identity(repo: Path, task_id: str, task_path: str) -> first_eval_state.UserSimScenarioIdentity:
+    from user_sim import MAX_SCENARIO_BYTES, load_scenario
+
+    relative_path = task_path + "/user-sim.yaml"
+    path = local(repo, relative_path)
+    content = read_bytes(path, MAX_SCENARIO_BYTES)
+    scenario = load_scenario(path)
+    if scenario.task_id != task_id or content != read_bytes(path, MAX_SCENARIO_BYTES):
+        raise ValueError("The user-sim scenario must match the saved task identity and current bytes")
+    return {
+        "task_id": task_id,
+        "user_type": scenario.user_type,
+        "path": relative_path,
+        "digest": hashlib.sha256(content).hexdigest(),
+    }
+
+
 def project_plan(repo: Path, state: dict, tasks: list[dict], metadata: dict) -> dict | None:
     value = first_eval_state.record(state)
     if value is None:
@@ -772,7 +798,7 @@ def project_plan(repo: Path, state: dict, tasks: list[dict], metadata: dict) -> 
         counts["authored" if authored else "proposed"] += 1
         for field in ("validated", "executed"):
             counts[field] += int(progress["tasks"][task_id][field])
-        matches = []
+        matches: list[dict] = []
         if authored:
             root = Path(authored["path"])
             matches = [
@@ -830,8 +856,18 @@ def project_plan(repo: Path, state: dict, tasks: list[dict], metadata: dict) -> 
             tasks.extend(matches)
         for task in matches:
             task["plan_task_id"] = task_id
-            if task["status"] == "proposed" and planned.get("interaction_type") is not None:
+            for field in ("interaction_type", "planned_interaction", "user_sim_scenario"):
+                task.pop(field, None)
+            if planned.get("interaction_type") is not None:
+                task["interaction_type"] = planned["interaction_type"]
                 task["planned_interaction"] = interaction_type_label(planned["interaction_type"])
+            if planned.get("interaction_type") == "user_sim" and authored and task["status"] == "found":
+                try:
+                    task["user_sim_scenario"] = user_sim_identity(repo, task_id, authored["path"])
+                except (OSError, ValueError):
+                    task["issues"].append(
+                        "The neutral user-sim scenario is missing, invalid, or inconsistent with this task."
+                    )
     return counts
 
 
@@ -1250,6 +1286,11 @@ def render_tasks_markdown(data: dict) -> str:
                 actions.append(artifact_link("Task README", task["readme_path"]))
         name_cell = [
             "<strong><code>" + markdown_text(task.get("title") or task["name"]) + "</code></strong>",
+            *(
+                ["Neutral scenario: " + markdown_text(task["user_sim_scenario"]["task_id"])]
+                if task.get("user_sim_scenario")
+                else []
+            ),
             *(
                 ["Task ID: " + markdown_text(task["plan_task_id"])]
                 if task.get("plan_task_id") and task["plan_task_id"] != (task.get("title") or task["name"])
@@ -1706,6 +1747,8 @@ def refresh(
                         retained = {**old, "status": "unverified", "issues": issues}
                         if key == "tasks":
                             retained.pop("plan_task_id", None)
+                            for field in ("interaction_type", "planned_interaction", "user_sim_scenario"):
+                                retained.pop(field, None)
                         records.append(retained)
             readiness_warnings, plan_counts = apply_task_readiness(repo, tasks, metadata)
             warnings.extend(readiness_warnings)
