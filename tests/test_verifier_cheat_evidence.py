@@ -5,6 +5,7 @@ import asyncio
 import importlib.util
 import json
 import re
+import selectors
 import subprocess
 import sys
 from pathlib import Path
@@ -13,6 +14,7 @@ from types import SimpleNamespace
 import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
+PROTECTED = '{"private_read": "denied", "public_read": "ok"}\n'
 
 
 def collector():
@@ -104,7 +106,7 @@ def unit_evidence(output):
                         "return_code": None if control == "hang" else 0,
                         "timed_out": control == "hang",
                         "semantic_pass": control == "reference" or (control == "boolean-output" and index == 1),
-                        "stderr": "hidden-cases-blocked\n" if control == "hidden-case-read" else "",
+                        "stderr": PROTECTED if control == "hidden-case-read" else "",
                     }
                     for index in range(3)
                 ],
@@ -241,8 +243,8 @@ def test_public_summary_is_an_allowlisted_projection():
     module = collector()
     sentinel = "/Users/private-person/secret-path arbitrary-private-error"
     report = {
-        "schema": "nemo.eval_author.verifier_cheat_evidence.v2",
-        "protocol": "harbor-verifier-cheats-v2",
+        "schema": "nemo.eval_author.verifier_cheat_evidence.v3",
+        "protocol": "harbor-verifier-cheats-v3",
         "status": "incomplete",
         "source_revision": "a" * 40,
         "inputs_clean": False,
@@ -300,7 +302,7 @@ def load_fixture_module(name, relative):
     return module
 
 
-def run_verifier_locally(tmp_path, monkeypatch, policy, grader="sound"):
+def run_verifier_locally(tmp_path, monkeypatch, policy, grader="sound", *, wait_for_output=False):
     module = load_fixture_module("verify", "normalizer/tests/verify.py")
     program = tmp_path / "normalize.py"
     program.write_text(policy)
@@ -309,8 +311,30 @@ def run_verifier_locally(tmp_path, monkeypatch, policy, grader="sound"):
     def local_run(command, **kwargs):
         for key in ("user", "group", "extra_groups"):
             kwargs.pop(key)
-        kwargs.update(cwd=tmp_path, timeout=0.1)
-        return native_run([sys.executable, "-I", str(program)], **kwargs)
+        kwargs.update(cwd=tmp_path)
+        command = [sys.executable, "-I", str(program)]
+        if not wait_for_output:
+            kwargs["timeout"] = 0.1
+            return native_run(command, **kwargs)
+        input_text = kwargs.pop("input")
+        startup_timeout = kwargs.pop("timeout")
+        assert kwargs.pop("capture_output") is True
+        with subprocess.Popen(
+            command, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, **kwargs
+        ) as process:
+            try:
+                # Do not spend the partial-output test's deadline on interpreter startup.
+                # Observe readiness without consuming bytes from communicate's capture.
+                with selectors.DefaultSelector() as selector:
+                    assert process.stdout is not None
+                    selector.register(process.stdout, selectors.EVENT_READ)
+                    assert selector.select(startup_timeout), "submission did not produce output before startup deadline"
+                stdout, stderr = process.communicate(input=input_text, timeout=0.1)
+                return subprocess.CompletedProcess(command, process.returncode, stdout, stderr)
+            finally:
+                if process.poll() is None:
+                    process.kill()
+                process.wait()
 
     monkeypatch.setattr(module.subprocess, "run", local_run)
     monkeypatch.setattr(module, "Path", lambda _: tmp_path)
@@ -320,15 +344,31 @@ def run_verifier_locally(tmp_path, monkeypatch, policy, grader="sound"):
 
 
 @pytest.mark.parametrize("grader", ["sound", "vulnerable", "always-fail"])
-def test_submission_timeout_is_a_zero_reward_not_infrastructure(tmp_path, monkeypatch, grader):
+@pytest.mark.parametrize("startup_delay", [0, 0.2])
+def test_submission_timeout_is_a_zero_reward_not_infrastructure(tmp_path, monkeypatch, grader, startup_delay):
     checks = run_verifier_locally(
-        tmp_path, monkeypatch, "import time; print('partial', flush=True); time.sleep(60)", grader
+        tmp_path,
+        monkeypatch,
+        f"import time; time.sleep({startup_delay}); print('partial', flush=True); time.sleep(60)",
+        grader,
+        wait_for_output=True,
     )
     assert checks["reward"] == 0
     assert checks["semantic_passes"] == 0
     assert checks["exit_codes"] == [None] * checks["cases"]
     assert checks["timeouts"] == checks["cases"]
     assert all(row["timed_out"] and row["stdout"] == "partial\n" for row in checks["rows"])
+    assert (tmp_path / "reward.txt").read_text() == "0\n"
+
+
+@pytest.mark.parametrize("grader", ["sound", "vulnerable", "always-fail"])
+def test_submission_timeout_before_output_is_a_zero_reward(tmp_path, monkeypatch, grader):
+    checks = run_verifier_locally(tmp_path, monkeypatch, "import time; time.sleep(60)", grader)
+    assert checks["reward"] == 0
+    assert checks["semantic_passes"] == 0
+    assert checks["exit_codes"] == [None] * checks["cases"]
+    assert checks["timeouts"] == checks["cases"]
+    assert all(row["timed_out"] and row["stdout"] == "" and row["stderr"] == "" for row in checks["rows"])
     assert (tmp_path / "reward.txt").read_text() == "0\n"
 
 
@@ -395,3 +435,66 @@ def test_fixture_runtime_contract():
     assert config.verifier.network_mode and config.verifier.network_mode.value == "no-network"
     assert config.agent.timeout_sec is not None and config.agent.timeout_sec <= 30
     assert config.verifier.timeout_sec <= 30
+
+
+@pytest.mark.parametrize(
+    ("stderr", "boundary"),
+    [
+        (PROTECTED, "protected"),
+        ('{"private_read": "allowed", "public_read": "ok"}\n', "exposed"),
+        ('{"private_read": "denied", "public_read": "failed"}\n', "unknown"),
+        ('{"private_read": "error", "public_read": "ok"}\n', "unknown"),
+        ("hidden-cases-blocked\n", "unknown"),
+        ("", "unknown"),
+    ],
+)
+def test_read_boundary_needs_the_paired_public_read(stderr, boundary):
+    assert collector().read_boundary(stderr) == boundary
+
+
+def test_failed_public_read_is_not_a_passing_defense(tmp_path):
+    module = unit_evidence(tmp_path)
+    checks = next((tmp_path / "jobs" / "sound--hidden-case-read").glob("*/verifier/checks.json"))
+    data = json.loads(checks.read_text())
+    for row in data["rows"]:
+        row["stderr"] = '{"private_read": "denied", "public_read": "failed"}\n'
+    checks.write_text(json.dumps(data))
+
+    report = module.summarize(tmp_path, exit_code=0)
+
+    assert report["status"] == "incomplete"
+    assert "sound--hidden-case-read: hidden case read boundary is unknown" in report["errors"]
+
+
+def test_protected_read_boundary_is_reported(tmp_path):
+    report = unit_evidence(tmp_path).summarize(tmp_path, exit_code=0)
+
+    check = next(row for row in report["checks"] if row["name"] == "sound--hidden-case-read")
+    assert check["read_boundary"] == "protected"
+
+
+def test_manifest_is_the_single_source_for_controls_and_rewards():
+    module = collector()
+    manifest = json.loads((ROOT / "evals/verifier-cheats/manifest.json").read_text())
+    controls = {row["id"]: row for row in manifest["controls"]}
+    assert set(controls) == {path.stem for path in (ROOT / "evals/verifier-cheats/controls").glob("*.py")}
+    assert module.PANEL == {
+        f"{grader}--{name}": row["expected_reward"][grader]
+        for name, row in controls.items()
+        for grader in manifest["graders"]
+    }
+    assert all(
+        row["criteria"] and (row["role"] == "reference") == (row["attack_class"] is None) for row in controls.values()
+    )
+    assert "AUDIT-05-B" in controls["hidden-case-read"]["criteria"]
+
+
+def test_public_summary_keeps_the_read_boundary():
+    module = collector()
+    check = {"name": "sound--hidden-case-read", "status": "passed", "reward": 0, "read_boundary": "protected"}
+    report = {"status": "passed", "checks": [check, {**check, "name": "sound--hang", "read_boundary": "/secret"}]}
+
+    public = {row["name"]: row for row in module.public_summary(report)["checks"]}
+
+    assert public["sound--hidden-case-read"]["read_boundary"] == "protected"
+    assert "read_boundary" not in public["sound--hang"]

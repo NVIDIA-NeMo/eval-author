@@ -92,7 +92,7 @@ work. Reopen only decisions and checks that depend on changed inputs:
 
 | Changed input | Required reconciliation in its owning workflow |
 | --- | --- |
-| Confirmed intent or selected audit handoff | Reconcile affected entry/scope decisions and their downstream bindings; retain the originating context for review |
+| Selected provider, confirmed intent, or selected audit handoff | Reconcile affected entry/scope decisions and their downstream bindings; retain the originating context for review |
 | Planned task set or construction scope | Reopen scope agreement and approvals bound to that set; retain reusable tasks and evidence for unchanged work |
 | Task or grader content | Recompute validation and reopen dependent task review, execution authorization, and run/result validity for the changed tasks |
 | Validation or run evidence | Recompute the statuses, reviews, and approvals that depend on that evidence; missing or stale evidence cannot remain current |
@@ -143,10 +143,13 @@ structured lifecycle retains that text as `legacy_context`.
 
 The audit handoff leaves construction scope unconfirmed and marked for review.
 Preserve those flags during entry planning; they do not invalidate the entry
-record's Ethos and handoff bindings or establish scope agreement.
+record's provider, Ethos, and handoff bindings or establish scope agreement.
 
-The record binds confirmed Ethos content and the saved audit handoff. Consume
-the handoff supplied by the audit workflow; do not edit its selection from the
+The record binds the selected provider (`setup`), confirmed Ethos content, and
+the saved audit handoff. Older entry records without a provider binding remain
+readable but require explicit reconciliation through `new_record` before
+continuation; never infer their provider from the current setup. Consume the
+handoff supplied by the audit workflow; do not edit its selection from the
 expansion workflow. The binding identifies saved handoff context, not fresh
 audit measurements or report validity. Consult the originating audit records
 before relying on their findings. This checkpoint inspects only Ethos content;
@@ -163,7 +166,7 @@ checklist and saved question without a generic selection or scope preamble.
 Render and present the complete response unchanged. Wrong revisions, missing
 observations, mismatched pending questions, active blockers, and changed context
 reject continuation. Resolve shared blockers through onboarding. Reconcile a
-changed Ethos or handoff and save the relevant entry question with fresh
+changed provider, Ethos, or handoff and save the relevant entry question with fresh
 bindings; do not manufacture a success state or render stale decisions.
 Unchanged entry decisions retain their question across normal resume and journey
 switches. Shared recovery questions take precedence while prerequisites or

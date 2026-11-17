@@ -156,7 +156,8 @@ proposal-only, and audit
 generate/validate/measure/aggregate requests keep their
 scope. Explanation-only requests do not start a workflow. Scoped operations reuse
 applicable shared decisions but do not acquire unrelated onboarding requirements.
-Trace-source selection remains required before searching or reading traces.
+Trace-source selection remains required before searching or reading traces,
+apart from the bounded [retained-run lookup](references/shared-prerequisites.md#locate-retained-evaluation-runs).
 
 Load `eval-author-rubric` only after explicit end-user opt-in to that named
 experimental assessment; never load or run it automatically.
@@ -188,8 +189,8 @@ supported-path bullets, and final action question from
 Use this choice for first-time users and users returning after a prior journey;
 do not inspect saved state before it or assume shared work already exists.
 
-Selecting starter expansion or trace-derived authoring supplies direction and
-readiness for the applicable shared checks. Save the actual choice and provenance
+Selecting starter expansion supplies readiness for the shared checks below.
+Trace-derived authoring keeps its scoped trace-source route below. Save the choice and provenance
 in the existing expansion scope once state operations are permitted. Selecting
 an audit instead follows the [audit entry procedure](references/shared-prerequisites.md#return-to-an-audit)
 and its approach choice before audit checks. Do not add a separate readiness
@@ -303,7 +304,7 @@ This file carries the standard and boundaries; the sub-flow carries the steps.
 | `eval-author-audit` | Define intended coverage in `audit.md`, measure selected trace coverage, identify gaps, and recommend improvements supported by the findings |
 | `eval-author-task-create` | Propose concrete dataset improvements from audit findings; when task creation is requested, create one eligible NeMo Gym or Harbor task and prove it with native controls and repeated measured runs |
 | `eval-author-inspect-trace` | Understand one Intake trace without presuming that the trace contains a failure. Not user-invocable; this skill selects it |
-| `eval-author-rubric` | **Experimental; explicit end-user opt-in only, never automatic.** Assess selected rubric items across validity, coverage, and diversity; initially anti-cheat within validity only |
+| `eval-author-rubric` | **Experimental; explicit end-user opt-in only, never automatic.** Assess selected rubric items across validity, coverage, and diversity; populated validity areas are anti-cheat; artifact, configuration, and provenance; and task contract and scoring authority |
 | `eval-author-trace-environment` | **Experimental.** Continue an existing trace-environment workspace or handle an explicit request for this compatibility workflow |
 | `eval-author-environment` | Build and prove the environment a Harbor or NeMo Gym task runs in: provider fit, how each dependency is provided, starting data and reset, end-state export, and isolation. Not user-invocable; first-eval and task-create hand it their agreed cases |
 
@@ -421,11 +422,11 @@ user, not to you.
   requirements and repository setup instructions; for Harbor, use discovery's
   setup guidance to explain installation and verification. An explicit request to install is
   authorization for that setup; a broad eval request alone is not.
-- **Do not run without approval.** Discovery proves an existing suite can run and
-  hands over the command. Task creation may run NeMo Gym verifier controls or Harbor Oracle locally, then starts
-  real-agent jobs only when the user explicitly asked for or approved that spend.
-  First-eval authoring may run local task sanity checks when task creation is requested;
-  real-agent or paid-judge runs require authorization for that execution and spend.
+- **Run within the requested scope.** Discovery proves an existing suite can run and
+  hands over the command. Task creation and first-eval authoring include required
+  verifier controls, including model judges. Real-agent jobs follow the selected
+  workflow's execution checkpoints. Follow the shared
+  [model-call policy](references/shared-prerequisites.md#model-calls-for-requested-work).
 - **Trusted repositories only.** Validating a config can execute repository code,
   because an agent named by import path gets imported. If the repository is not
   trusted, say so and stop.

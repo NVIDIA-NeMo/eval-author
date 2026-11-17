@@ -977,18 +977,29 @@ def update(repo: Path, patch: dict, *, expected_revision: int | None = None, sta
                     field == "scopes"
                     and isinstance(expand_patch, dict)
                     and isinstance(prior_expand, dict)
-                    and ("audit_handoff" in prior_expand or typed_expansion)
+                    and typed_expansion
                 ):
                     changes["expand"] = {**copy.deepcopy(prior_expand), **changes["expand"]}
                 if field == "scopes" and typed_expansion and not isinstance(prior_expand, dict):
                     changes["expand"] = {"legacy_context": copy.deepcopy(prior_expand), **changes["expand"]}
+                if (
+                    field == "scopes"
+                    and not typed_expansion
+                    and isinstance(expand_patch, dict)
+                    and isinstance(prior_expand, dict)
+                    and "audit_handoff" in prior_expand
+                ):
+                    changes["expand"] = {
+                        "audit_handoff": copy.deepcopy(prior_expand["audit_handoff"]),
+                        **changes["expand"],
+                    }
                 state[field].update(changes)
             else:
                 state[field] = copy.deepcopy(value)
         if audit_state.mode(previous) != audit_state.mode(state):
             lifecycle = audit_state.record(state)
             if lifecycle is not None:
-                for key in ("checks_approval", "findings_review", "next_action", "pending"):
+                for key in ("checks_approval", "findings_review", "findings_final", "next_action", "pending"):
                     lifecycle[key] = None
             if "audit" in state["journey_status"]:
                 state["journey_status"]["audit"] = "in_progress"
