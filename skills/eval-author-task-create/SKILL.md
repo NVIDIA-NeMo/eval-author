@@ -56,8 +56,8 @@ candidate admission, environment preparation, construction and native qualificat
 This source mode does not require an audit gap and does not claim coverage closure.
 Skip the audit selector and gap-only scaffold/acceptance steps; use the selected
 provider's native task initialization and the handoff's qualification procedure.
-For audit-gap requests, retain Steps 1–8 and their measured eligibility rules.
-Proposal-only requests still stop before construction.
+For audit-gap requests, retain Steps 1–8 and their measured eligibility rules. Proposal-only requests still stop before construction.
+For an approved `user_sim` task, call [user-sim authoring](../eval-author-user-sim/SKILL.md) after native task initialization and environment proof, preserving its blockers and this flow's qualification rules.
 
 ## Purpose
 
@@ -298,9 +298,8 @@ selected gap and instruction, then return to the shared coverage verification
 steps. Do not apply Harbor file layouts or Oracle CLI flags to NeMo Gym. For either
 provider, build the task's environment with
 [`eval-author-environment`](../eval-author-environment/SKILL.md) and pass its
-smoke task before writing the verifier, reusing the agent's existing proven
-environment kit when one exists, and
-derive expected values with an independent reference query over the kit's data.
+smoke task before writing the verifier. Reuse a proven kit and derive expected values
+with an independent reference query over its data.
 
 For **Harbor**, use the following native scaffold:
 
@@ -320,6 +319,7 @@ rejects mismatched draft, task-name, or proposal filenames.
 For either provider, record the scaffold as **Draft** using
 [Task status](../eval-author/references/shared-prerequisites.md#task-status)
 before refreshing the report.
+For an approved `user_sim` task, call [user-sim authoring](../eval-author-user-sim/SKILL.md) now. Preserve its provider/runtime blockers and this flow's eligibility and native checks.
 
 Then complete Harbor's generated files:
 

@@ -63,6 +63,18 @@ are not labeled passed or failed. Standalone controls and other individual trial
 remain accessible in the separate Legacy trials section and are not combined
 into inferred jobs.
 
+## User-simulation scenarios
+
+For an approved Harbor **User-sim** task, Eval Author writes `user-sim.yaml` in
+the task directory. It describes the neutral user's goal, opening request, known
+facts, and any task-specific conversation rules. The task README links this file
+and explains which parts of the exchange the verifier checks.
+
+This stage supports scenario authoring and validation. Harbor prompt translation
+and an interactive runner are still required before execution. A valid scenario
+file or passing synthetic verifier controls do not establish an actual-agent run
+or measured coverage. Native NeMo Gym User-sim authoring is not supported yet.
+
 ## Discovery and readiness
 
 Open `.eval-author/discovery.md`. An inventory describes the evaluations found,

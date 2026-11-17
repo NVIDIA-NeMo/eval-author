@@ -188,6 +188,11 @@ data, observable state, isolation, and smoke evidence establish environment
 readiness; task controls never prove the kit. Build on that proven kit and keep reference
 answers and verifier-only information outside the agent's initial environment.
 
+For an approved `user_sim` task, call
+[`eval-author-user-sim`](../eval-author-user-sim/SKILL.md) after environment proof
+to author the neutral scenario and conversation-dependent checks. Preserve its
+runtime blockers and this flow's first-task review and native validation gates.
+
 Use [private construction declarations](../eval-author/references/construction-plan.md)
 for grading authority, authored or copied inputs, and observable checks. Validate
 and bind the construction plan before recording native controls. Preserve

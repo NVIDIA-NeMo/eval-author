@@ -103,6 +103,7 @@ instructions. The individual skill files document each workflow in detail.
 | [`eval-author-audit`](skills/eval-author-audit/SKILL.md) | Define intended behavior and measure coverage against trace evidence. |
 | [`eval-author-task-create`](skills/eval-author-task-create/SKILL.md) | Propose improvements from an audit and create a supported task when requested. |
 | [`eval-author-environment`](skills/eval-author-environment/SKILL.md) | Build and prove the environment a Harbor or NeMo Gym task runs in; reached from first-eval and task-create. |
+| [`eval-author-user-sim`](skills/eval-author-user-sim/SKILL.md) | Author and validate neutral scenarios for approved Harbor User-sim tasks; reached through the authoring flows. Execution integration is not yet supplied. |
 | [`eval-author-inspect-trace`](skills/eval-author-inspect-trace/SKILL.md) | Explain an Intake trace selected through the entry skill. |
 | [`eval-author-rubric`](skills/eval-author-rubric/SKILL.md) | **Experimental; explicit end-user opt-in only.** Assess validity, coverage, and diversity; populated validity areas are anti-cheat; artifact, configuration, and provenance; and task contract and scoring authority. |
 | [`eval-author-trace-environment`](skills/eval-author-trace-environment/SKILL.md) | **Experimental.** Derive and validate a private Harbor or native NeMo Gym task from trace evidence. |
