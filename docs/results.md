@@ -288,8 +288,8 @@ Structured construction scope records in journey state retain selected tasks
 and input examples, source digests, limits, and approval, decline, or revision
 receipts. These records keep construction agreement separate from permission to
 run the agent.
-Updating an audit recommendation's progress preserves unchanged construction
-agreement; changes to recommendations or supporting evidence require review.
+Changes to the originating audit report or supporting evidence require review
+before construction continues.
 An implemented change does not by itself establish successful validation or
 better coverage. If task files change, earlier audit measurements need review
 before they can describe the changed tasks. Eval Author retains the original

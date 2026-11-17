@@ -99,10 +99,8 @@ read-only CLI is `journey_state.py --repo REPO check-expansion-scope --task-id I
 construction approval does not authorize running the agent. Scope agreement
 cannot establish journey completion.
 
-Audit-backed scope binds the authored recommendation content separately from
-its `follow_through` progress notes. Updating only those notes and regenerating
-the report preserves an unchanged agreement. Changed recommendations, selected
-sources, measurements, or other bound audit inputs still require reconciliation.
+Audit-backed scope reuses the originating audit's freshness checks. Changes to
+its report or supporting evidence require reconciliation before construction.
 
 ## Cross-checkpoint invariants
 

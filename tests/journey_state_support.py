@@ -6,6 +6,8 @@ import hashlib
 import importlib
 import json
 
+from test_audit_state import selected as selected_audit
+
 
 def setup_ready(state, repo, *, journey="create", setup="gym"):
     state.initialize(repo, agent="assistant", journey=journey, setup=setup)
@@ -117,14 +119,13 @@ def expansion_scope_plan(repo, *, path="audit_tool_gap", extra_gap=False):
         if extra_gap:
             plan["tasks"].append(
                 {
-                    **copy.deepcopy(task),
+                    **task,
                     "id": "cover-cancel-order",
-                    "target_tool": "cancel_order",
-                    "scenario": "A customer cancels an eligible pending order",
                     "recommendation_id": "R3",
-                    "expected_outcome": "Cancel the order and release its reserved inventory",
-                    "grading": "Check the persisted order status and released inventory",
-                    "validation": "Positive, no-action, and wrong-order controls",
+                    "target_tool": "cancel_order",
+                    "scenario": "Cancel an eligible pending order",
+                    "expected_outcome": "Cancel the order and release reserved inventory",
+                    "grading": "Check the persisted order status and inventory",
                     "example_ids": ["pending-order"],
                 }
             )
@@ -172,7 +173,7 @@ def expansion_scope_plan(repo, *, path="audit_tool_gap", extra_gap=False):
         findings = file_source(
             ".eval-author/audit-coverage-report.md",
             "# Audit findings\n\nR1: Add partial refund coverage. R2: Repair the existing order grader.\n"
-            + ("R3: Add order cancellation coverage.\n" if extra_gap else ""),
+            + ("R3: Add cancellation coverage.\n" if extra_gap else ""),
         )
         content = file_source(
             ".eval-author/.working/audit/report-content.json",
@@ -182,9 +183,7 @@ def expansion_scope_plan(repo, *, path="audit_tool_gap", extra_gap=False):
             "recommendation_ids": [row["id"] for row in recommendations],
             "report": {key: findings[key] for key in ("path", "digest")},
             "content": {key: content[key] for key in ("path", "digest")},
-            "source": "User selected R1, R2, and R3 in the reviewed audit report"
-            if extra_gap
-            else "User selected R1 and R2 in the reviewed audit report",
+            "source": "User selected the recommendations listed in the audit report",
         }
         plan["sources"] = [coverage]
         plan["coverage_report"] = coverage["path"]
@@ -231,34 +230,12 @@ def expansion_scope_start(
         plan["sources"][0]["digest"] = state.task_digest(repo, plan["sources"][0]["path"])
     if handoff is not None:
         audit = importlib.import_module("audit_state")
-        lifecycle = audit.new_record()
-        sources = {
-            "suites": (".eval-author/.working/audit/source-suite", "cases.json", '{"cases": ["lookup-order"]}\n'),
-            "traces": (
-                ".eval-author/.working/audit/source-runs",
-                "lookup.json",
-                '{"run_id": "lookup-1", "tool_calls": ["lookup_order"]}\n',
-            ),
-        }
-        for kind, (root, name, content) in sources.items():
-            source = repo / root / name
+        audit_fixture, lifecycle, _ = selected_audit(audit)
+        for relative in lifecycle["suite_files"] + lifecycle["trace_files"] + [lifecycle["specification"]]:
+            source = repo / relative
             source.parent.mkdir(parents=True, exist_ok=True)
-            source.write_text(content)
-            lifecycle[kind] = {
-                "status": "selected",
-                "paths": [root],
-                "candidates": [],
-                "exclusions": [],
-                "source": f"User selected the audit {kind}",
-            }
-            lifecycle["suite_files" if kind == "suites" else "trace_files"] = [str(source.relative_to(repo))]
-        specification = repo / ".eval-author/audit.md"
-        specification.write_text("# Audit checks\n\nCheck lookup_order and refund tool evidence.\n")
-        lifecycle["specification"] = str(specification.relative_to(repo))
-        saved["scopes"]["audit"] = {
-            "mode": {"kind": "measured", "source": "User selected measurement of the retained audit traces"},
-            "lifecycle": lifecycle,
-        }
+            source.write_text("{}\n")
+        saved["scopes"]["audit"] = audit_fixture["scopes"]["audit"]
         audit_progress = audit.progress(repo, saved)
         assert audit_progress is not None
         checks = audit_progress["checks_digest"]
@@ -285,7 +262,6 @@ def expansion_scope_start(
         audit_progress = audit.progress(repo, saved)
         assert audit_progress is not None
         findings_digest = audit_progress["findings_digest"]
-        lifecycle["findings_review"] = {"digest": findings_digest, "source": "User reviewed the audit findings"}
         lifecycle["next_action"] = {
             "kind": "improve",
             "findings_digest": findings_digest,
