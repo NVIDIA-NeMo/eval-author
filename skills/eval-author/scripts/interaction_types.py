@@ -11,9 +11,9 @@ from typing import Literal, TypedDict
 InteractionType = Literal["single_turn", "scripted_multi_step", "user_sim"]
 
 INTERACTION_TYPE_LABELS = {
-    "single_turn": "Single-turn",
-    "scripted_multi_step": "Scripted multi-step",
-    "user_sim": "User-sim",
+    "single_turn": "Single Turn",
+    "scripted_multi_step": "Scripted Multi-step",
+    "user_sim": "User Simulation",
 }
 
 

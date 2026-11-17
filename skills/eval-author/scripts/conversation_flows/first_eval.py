@@ -210,7 +210,7 @@ def task_table(tasks: list[dict]) -> str:
         if task.get("interaction_type") is not None:
             label = interaction_type_label(task["interaction_type"])
             interaction = copy.INTERACTION_TYPE.format(label=label)
-        rows.append(f"| **{task_id}** - {behavior}{interaction} | {expected} | **{verifier_type}** {scoring} |")
+        rows.append(f"| {interaction}**{task_id}** - {behavior} | {expected} | **{verifier_type}** {scoring} |")
     return "\n".join(rows)
 
 

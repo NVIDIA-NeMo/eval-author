@@ -36,7 +36,7 @@ def test_legacy_plan_does_not_gain_an_inferred_type(interaction_types: ModuleTyp
             {
                 "interaction_type": "single_turn",
             },
-            "Single-turn",
+            "Single Turn",
         ),
         (
             {
@@ -44,7 +44,7 @@ def test_legacy_plan_does_not_gain_an_inferred_type(interaction_types: ModuleTyp
                 "state_requirements": "Keep the same cart and conversation between requests.",
                 "prerequisite_checks": ["The requested item exists in the cart before requesting its removal."],
             },
-            "Scripted multi-step",
+            "Scripted Multi-step",
         ),
         (
             {
@@ -52,7 +52,7 @@ def test_legacy_plan_does_not_gain_an_inferred_type(interaction_types: ModuleTyp
                 "state_requirements": "Preserve the current order and the agent's latest offer.",
                 "conversation_scenario": "Ask for a replacement, then accept the least expensive offered equivalent.",
             },
-            "User-sim",
+            "User Simulation",
         ),
     ],
 )
@@ -65,7 +65,7 @@ def test_supported_plans_keep_their_authored_meaning(
     assert interaction_types.interaction_type_label(plan["interaction_type"]) == label
 
 
-@pytest.mark.parametrize("kind", [None, "multi_turn", "User-sim", "", True, 1, [], {}])
+@pytest.mark.parametrize("kind", [None, "multi_turn", "User Simulation", "", True, 1, [], {}])
 def test_invalid_explicit_type_cannot_be_treated_as_legacy(interaction_types: ModuleType, kind: object) -> None:
     with pytest.raises(ValueError, match="interaction_type"):
         interaction_types.validate_interaction_plan({"interaction_type": kind})

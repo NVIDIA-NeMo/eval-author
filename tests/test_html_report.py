@@ -796,9 +796,16 @@ def test_browser_task_titles_graders_and_gym_actions(tmp_path, grading_kind, wit
     if with_proposals:
         import first_eval_state
         import journey_state
-        from test_first_eval_state import start
+        from test_first_eval_state import save, start
 
-        start((journey_state, first_eval_state), tmp_path)
+        record = start((journey_state, first_eval_state), tmp_path)
+        record["plan"]["tasks"][0]["interaction_type"] = "single_turn"
+        record["plan"]["tasks"][1].update(
+            interaction_type="user_sim",
+            state_requirements="Keep the same session.",
+            conversation_scenario="Choose an offered option and confirm it.",
+        )
+        save((journey_state, first_eval_state), tmp_path, record)
     data = report.refresh(
         tmp_path,
         patch={"tasks": {harbor_path: {"grading_kind": grading_kind, "grading_rule": "All state checks pass."}}},
@@ -840,6 +847,13 @@ for(const table of descendants(ids['case-tables']).filter(node=>node.tag==='tabl
 for(const row of taskRows()){
   const task=input.data.tasks.find(task=>task.id===row.dataset.task);
   assert.equal(row.children.length,6);
+  const behavior=row.children[2];
+  if(task.planned_interaction){
+    assert.equal(behavior.children[0].tag,'strong');
+    assert.equal(behavior.children[0].textContent,task.planned_interaction);
+    assert(!descendants(row.children[0]).some(node=>node.textContent===task.planned_interaction));
+  }
+  assert.equal(behavior.children.at(-1).textContent,task.behavior||'Not documented');
   assert.equal(row.children[0].children[0].textContent,task.title||task.name);
   assert(!descendants(row.children[0]).some(node=>node.textContent===task.provider));
   assert.equal(row.children[1].children[0].textContent,task.readiness[0].toUpperCase()+task.readiness.slice(1));

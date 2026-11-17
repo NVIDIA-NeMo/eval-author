@@ -122,11 +122,11 @@ def test_proposal_displays_selected_interaction_without_inferring_legacy_type(cr
         conversation_scenario="Ask for a return | then answer <confirm>.",
     )
     output = renderer.render(payload(creation, "proposal"))
-    assert "<br>**Interaction type:** User-sim |" in output
+    assert "| **User Simulation**<br>**refund** - Respect policy |" in output
     assert "**State carried between requests:** Keep the same customer session." in output
     assert "**Conversation scenario:** Ask for a return &#124; then answer &lt;confirm&gt;." in output
-    assert "**Interaction type:** Single-turn" not in output
-    assert "**Interaction type:** Scripted multi-step" not in output
+    assert "**Single Turn**<br>" not in output
+    assert "**Scripted Multi-step**<br>" not in output
 
 
 def payload(creation, stage, **facts):

@@ -50,17 +50,17 @@ agreement and identify affected plans, fixtures, and coverage claims for review.
 
 - Choose an interaction type for each task before saving or reviewing its
   proposal. Save `interaction_type` alongside the request, expected behavior,
-  and grading rule. Don't store a separate reason for choosing the type.
-- For both Scripted multi-step and User-sim, save `state_requirements`. Describe
+  and grading rule.
+- For both Scripted Multi-step and User Simulation, save `state_requirements`. Describe
   which session, conversation history, and environment state must continue
   between requests and what resets between attempts.
 - Follow the field requirements validated by
   [`interaction_types.py`](../scripts/interaction_types.py).
 - Choose based on the user input needed to exercise the behavior. Conversation
   length, tool-call count, and a conversational interface alone don't justify
-  User-sim.
+  User Simulation.
 
-### Single-turn
+### Single Turn
 
 - Use `single_turn` when one user request can exercise the behavior. The agent
   may make several tool calls to complete it.
@@ -68,7 +68,7 @@ agreement and identify affected plans, fixtures, and coverage claims for review.
   postcode can require order lookup, carrier tracking, and policy checks without
   needing another user message.
 
-### Scripted multi-step
+### Scripted Multi-step
 
 - Use `scripted_multi_step` when predefined requests and checked intermediate
   outcomes lead to the behavior under test. The expected progression must be
@@ -81,7 +81,7 @@ agreement and identify affected plans, fixtures, and coverage claims for review.
   and leaves the later behavior unexercised. A fixed script can't guarantee
   that the agent reaches that behavior.
 
-### User-sim
+### User Simulation
 
 - Use `user_sim` when later user messages must respond to what the agent
   actually asks, offers, or does. The next message depends on the meaning of
@@ -115,7 +115,7 @@ agreement and identify affected plans, fixtures, and coverage claims for review.
   intended interaction type or establish that simulation ran.
 - Preserve task-create's existing source-mode and automatic tool-gap eligibility.
 - Leave legacy plans without a type unspecified until reviewed. Don't infer
-  Single-turn. A change to the interaction type or scenario changes the proposed
+  Single Turn. A change to the interaction type or scenario changes the proposed
   design and requires review of the affected agreement.
 
 ## Plan breadth per behavior

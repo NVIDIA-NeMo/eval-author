@@ -121,25 +121,25 @@ grades the outcome fairly. Once you're happy with that first task, Eval Author
 builds and validates the remaining tasks in your agreed set. You review the
 suite before running it, then use the results to decide whether to add coverage.
 
-Each proposed task shows an **interaction type** beneath its description:
+The HTML report and `report_markdown/tasks.md` show proposed, authored, validated, and
+executed task totals for your full saved plan. Use the
+[generated case review guide](#review-generated-cases) to inspect cases and their
+available evidence.
 
-- **Single-turn** uses one user request. The agent can make several tool calls
+Each proposed task shows an **interaction type** above its description:
+
+- **Single Turn** uses one user request. The agent can make several tool calls
   to complete it.
-- **Scripted multi-step** uses predefined requests and checks intermediate
+- **Scripted Multi-step** uses predefined requests and checks intermediate
   outcomes before continuing. For example, add an item to a cart, check that
   it's there, then request its removal.
-- **User-sim** adapts later user messages to the agent's responses. For example,
+- **User Simulation** adapts later user messages to the agent's responses. For example,
   a simulated customer chooses among the replacement items the agent actually
   offers, then confirms the selected item.
 
 The interaction type describes the task's design. Runtime readiness and actual
 execution are tracked separately. Older saved plans can remain without a
 documented type until reviewed.
-
-The HTML report and `report_markdown/tasks.md` show proposed, authored, validated, and
-executed task totals for your full saved plan. Use the
-[generated case review guide](#review-generated-cases) to inspect cases and their
-available evidence.
 
 Task controls check the task and its verifier: NeMo Gym's known-correct and negative
 verifier fixtures, or Harbor's no-op baseline and reference solution. Results
