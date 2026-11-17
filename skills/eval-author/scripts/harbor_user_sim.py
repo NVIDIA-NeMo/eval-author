@@ -18,12 +18,13 @@ from typing import TYPE_CHECKING, Any
 
 import yaml
 from eval_author_shared.task_evidence import digest
+from harbor_acp import validate_acp_target_settings
+from runtime_policy import RuntimePolicyError, require_supported
 from user_sim import UserSimError, load_scenario
 
 if TYPE_CHECKING:
     from harbor.models.job.config import JobConfig
 
-SUPPORTED_HARBOR_VERSION = "0.24.0"
 NEUTRAL_BEHAVIOR = Path(__file__).resolve().parents[2] / "eval-author-user-sim/references/neutral-behavior.md"
 USER_TEMPLATE = """{neutral}
 
@@ -197,6 +198,7 @@ def _snapshot_input(path: Path, snapshots: dict[str, str]) -> None:
 
 
 def _validate_task(native: JobConfig, scenario_path: Path, output_dir: Path) -> None:
+    from harbor.agents.factory import AgentFactory
     from harbor.models.task.task import Task
 
     assert native.tasks[0].path is not None
@@ -209,12 +211,20 @@ def _validate_task(native: JobConfig, scenario_path: Path, output_dir: Path) -> 
         raise HarborTranslationError("Harbor user-agent bridges do not support multi-step tasks")
     if scenario_path != task_dir.resolve() / "user-sim.yaml":
         raise HarborTranslationError("Use the user-sim.yaml inside the selected native task directory")
+    target = native.agents[0]
+    target_class = AgentFactory.get_agent_class_from_config(target)
+    try:
+        validate_acp_target_settings(target, target_class, task_mcp_servers=bool(task.config.environment.mcp_servers))
+    except ValueError as error:
+        raise HarborTranslationError(str(error)) from error
 
 
 def translate(scenario_path: Path, config_path: Path, output_dir: Path) -> TranslationResult:
     """Preserve native path semantics relative to the calling working directory."""
-    if version("harbor") != SUPPORTED_HARBOR_VERSION:
-        raise HarborTranslationError(f"Translation requires Harbor {SUPPORTED_HARBOR_VERSION}")
+    try:
+        require_supported("harbor", "authoring", version("harbor"))
+    except RuntimePolicyError as error:
+        raise HarborTranslationError(str(error)) from error
     from harbor.models.job.config import JobConfig
     from harbor.models.trial.config import TrialConfig
     from harbor.trial.simulated_user import validate_user_prompt_template
@@ -229,8 +239,8 @@ def translate(scenario_path: Path, config_path: Path, output_dir: Path) -> Trans
     native = JobConfig.model_validate(data)
     # JobConfig does not check the trial's user-agent/load-trajectory exclusion.
     TrialConfig.model_validate({"task": native.tasks[0], "agent": native.agents[0], "user_agent": native.user_agent})
-    _validate_task(native, scenario_path, output_dir)
     external_inputs = _external_inputs(native)
+    _validate_task(native, scenario_path, output_dir)
     for path in external_inputs:
         _snapshot_input(path, snapshots)
     _validate_acpx_input(native)

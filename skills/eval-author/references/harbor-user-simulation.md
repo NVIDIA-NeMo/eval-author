@@ -6,7 +6,8 @@
 Read the [scenario contract](../../eval-author-user-sim/references/scenario-contract.md)
 for the input format, neutral behavior, and information boundaries.
 
-Use `harbor_user_sim.py` with Harbor 0.24.0 in the selected Python environment.
+Use `harbor_user_sim.py` with the selected Harbor environment that meets the
+[shared runtime policy](../scripts/runtime-policy.json).
 It translates one agreed neutral scenario into native job and prompt inputs.
 It doesn't install adapters, call models, start an environment, or run a trial.
 
@@ -16,6 +17,13 @@ model, and options in `user_agent`. Keep provider credentials in environment
 variable references. The bridge is ACP. Keep target policy, model, tools,
 environment, verifier, and repeat settings unchanged. Don't use Oracle or NOP
 as either role for an actual-agent run.
+
+Translation and preflight reject target settings that stock ACP adapters ignore,
+including ordinary prompt templates and Claude's system-prompt, tool-list, and
+native-config overrides. Use an adapter that applies the selected settings and
+verify its effective policy and tools. Don't remove settings to pass preflight
+or move target policy into the simulator prompt. These restrictions apply to the
+interactive target, not to ordinary single-turn runs or the simulator's CLI.
 
 Keep the scenario's `task_id` equal to its agreed plan ID. Harbor may name that
 task `local/refund` while the plan calls it `refund`. Translation binds the

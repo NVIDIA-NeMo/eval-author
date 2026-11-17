@@ -10,6 +10,9 @@ checked against Harbor 0.20.0, and the
 [Harbor environment documentation](https://docs.harborframework.com/core-concepts/tasks/environment)
 describes the current release.
 
+Historical version notes below don't replace the
+[current runtime prerequisites](../../eval-author/references/runtime-prerequisites.md).
+
 ## Contents
 
 - [Layout and reuse](#layout-and-reuse)

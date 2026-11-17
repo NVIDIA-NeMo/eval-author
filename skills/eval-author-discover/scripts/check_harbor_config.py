@@ -9,10 +9,16 @@ import argparse
 import asyncio
 import json
 import sys
+from importlib.metadata import version
 from pathlib import Path
+
+sys.path.append(str(Path(__file__).resolve().parents[2] / "eval-author/scripts"))
+
+from runtime_policy import RuntimePolicyError, require_supported  # noqa: E402
 
 
 async def preflight(repo: Path, config_path: Path) -> dict[str, object]:
+    require_supported("harbor", "discovery", version("harbor"))
     from _checks import required_failures
     from providers.harbor._explore import ConfigCandidate
     from providers.harbor._judge import judge_config, load_config_source
@@ -50,6 +56,9 @@ def main(argv: list[str] | None = None) -> int:
         if not repo.is_dir():
             raise ValueError("The selected repository is not a directory")
         result = asyncio.run(preflight(repo, config))
+    except RuntimePolicyError as error:
+        print(json.dumps({"preflight_passed": False, "error": str(error)}), file=sys.stderr)
+        return 2
     except (OSError, ValueError, ImportError):
         print(
             json.dumps({"preflight_passed": False, "error": "Could not preflight the selected Harbor config"}),

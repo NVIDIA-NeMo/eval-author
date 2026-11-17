@@ -190,26 +190,25 @@ def test_existing_output_and_symlink_are_not_overwritten(inputs: tuple) -> None:
 def test_external_inputs_remain_bound_and_preserved(inputs: tuple) -> None:
     scenario, config, output, original = inputs
     data = copy.deepcopy(original)
-    for name in ("extra.md", "target.md"):
-        Path(name).write_text("Extra target context")
-    for name in ("target-config.json", "user-config.json"):
-        Path(name).write_text('{"instructions": "Role-specific behavior"}')
+    Path("extra.md").write_text("Extra target context")
+    for name in ("target-config.toml", "user-config.toml"):
+        Path(name).write_text('developer_instructions = "Role-specific behavior"\n')
     Path("overlay.yaml").write_text("services: {}\n")
     Path("acpx.json").write_text('{"timeout": 17}')
     data["extra_instruction_paths"] = ["extra.md"]
+    data["agents"][0]["name"] = "codex"
     data["agents"][0]["kwargs"] = {
-        "prompt_template_path": "target.md",
-        "config": "target-config.json",
+        "config": "target-config.toml",
         "unchanged_option": "value",
     }
-    data["user_agent"]["kwargs"] = {"config": "user-config.json"}
+    data["user_agent"]["kwargs"] = {"config": "user-config.toml"}
     data["environment"]["extra_docker_compose"] = ["overlay.yaml"]
     data["user_agent"]["bridge"] = {"kind": "acp", "kwargs": {"acpx_config_path": "acpx.json"}}
     config.write_text(yaml.safe_dump(data))
     result = translate(scenario, config, output)
     assert {
         Path(name).resolve()
-        for name in ("extra.md", "target.md", "acpx.json", "target-config.json", "user-config.json", "overlay.yaml")
+        for name in ("extra.md", "acpx.json", "target-config.toml", "user-config.toml", "overlay.yaml")
     } <= set(result.input_paths)
     generated = yaml.safe_load(result.run_config_path.read_text())
     assert generated["agents"] == data["agents"]
@@ -234,6 +233,7 @@ def test_skill_sources_are_deferred_until_tree_binding_exists(inputs: tuple, rol
 
 def test_inline_role_configs_remain_in_native_configuration(inputs: tuple) -> None:
     scenario, config, output, data = inputs
+    data["agents"][0]["name"] = "codex"
     data["agents"][0]["kwargs"] = {"config": {"policy": "target"}}
     data["user_agent"]["kwargs"] = {"config": {"policy": "user"}}
     config.write_text(yaml.safe_dump(data))
@@ -286,6 +286,7 @@ def test_runtime_input_alias_cannot_hide_retargeted_bytes(inputs: tuple, parent_
     alias = Path("selected")
     suffix = "" if parent_alias else "/config.json"
     alias.symlink_to(Path.cwd() / f"old{suffix}", target_is_directory=parent_alias)
+    data["agents"][0]["name"] = "codex"
     data["agents"][0]["kwargs"] = {"config": "selected/config.json" if parent_alias else "selected"}
     config.write_text(yaml.safe_dump(data))
     for destination in (f"old{suffix}", f"new{suffix}"):
@@ -378,6 +379,33 @@ def test_wrong_harbor_version_is_explicit(inputs: tuple, monkeypatch: pytest.Mon
     monkeypatch.setattr("harbor_user_sim.version", lambda _: "0.23.0")
     with pytest.raises(HarborTranslationError, match="0.24.0"):
         translate(scenario, config, output)
+
+
+def test_newer_stable_harbor_is_not_rejected_by_version(inputs: tuple, monkeypatch: pytest.MonkeyPatch) -> None:
+    scenario, config, output, _ = inputs
+    monkeypatch.setattr("harbor_user_sim.version", lambda _: "0.25.0")
+    assert translate(scenario, config, output).run_config_path.is_file()
+
+
+@pytest.mark.parametrize("setting", ["prompt_template_path", "append_system_prompt", "disallowed_tools", "config"])
+def test_ignored_target_settings_fail_before_writing(inputs: tuple, setting: str) -> None:
+    scenario, config, output, data = inputs
+    Path("PRIVATE_CANARY").write_text("PRIVATE_CANARY")
+    data["agents"][0]["kwargs"] = {setting: "PRIVATE_CANARY"}
+    config.write_text(yaml.safe_dump(data))
+    with pytest.raises(HarborTranslationError, match=setting) as error:
+        translate(scenario, config, output)
+    assert "PRIVATE_CANARY" not in str(error.value)
+    assert not output.exists()
+
+
+def test_task_mcp_servers_are_not_silently_lost(inputs: tuple) -> None:
+    scenario, config, output, _ = inputs
+    with (scenario.parent / "task.toml").open("a") as stream:
+        stream.write('\n[[environment.mcp_servers]]\nname = "orders"\ntransport = "sse"\nurl = "http://orders/mcp"\n')
+    with pytest.raises(HarborTranslationError, match="mcp_servers"):
+        translate(scenario, config, output)
+    assert not output.exists()
 
 
 def test_cli_has_safe_summary_and_sanitized_errors(inputs: tuple) -> None:
