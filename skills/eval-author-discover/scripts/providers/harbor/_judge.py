@@ -360,9 +360,11 @@ def _check_agent(config: JobConfig, outcome: ValidationOutcome) -> None:
             outcome.checks.append(
                 _check("user-agent-session", FAIL, "Harbor cannot combine user_agent with target load_trajectory.")
             )
-        if agent.kwargs.get("version") is not None and user.kwargs.get("version") is not None:
+        if user.kwargs.get("version") is not None:
             try:
-                validate_user_agent_version_pin(agent.name, agent.kwargs["version"], user.name, user.kwargs["version"])
+                validate_user_agent_version_pin(
+                    agent.name, agent.kwargs.get("version"), user.name, user.kwargs["version"]
+                )
             except ValueError:
                 outcome.checks.append(
                     _check(

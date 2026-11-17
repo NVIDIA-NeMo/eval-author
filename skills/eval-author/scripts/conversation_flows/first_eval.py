@@ -158,7 +158,7 @@ def adapter_handoff(state: dict, reason: str) -> str:
         if "user_sim" in settings:
             context["simulator_settings"] = settings["user_sim"]
         selection = record.get("selection")
-        if selection and progress and selection.get("plan_digest") == progress["plan_digest"]:
+        if selection and progress and selection.get("settings_digest") == progress["settings_digest"]:
             context["execution_inputs"] = {
                 "config": selection["config"],
                 "inputs": selection.get("inputs", []),

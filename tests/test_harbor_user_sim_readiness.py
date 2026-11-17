@@ -81,9 +81,10 @@ def test_bridge_requires_advertised_and_implemented_interface(
     assert "user-agent-bridge" in failures(outcome)
 
 
-def test_target_replay_and_conflicting_installed_versions_are_blocked(judge: Any) -> None:
+@pytest.mark.parametrize("target_version", [None, "1"])
+def test_target_replay_and_conflicting_installed_versions_are_blocked(judge: Any, target_version: str | None) -> None:
     value = config(
-        agents=[{"name": "claude-code", "load_trajectory": "old.json", "kwargs": {"version": "1"}}],
+        agents=[{"name": "claude-code", "load_trajectory": "old.json", "kwargs": {"version": target_version}}],
         user_agent={"name": "claude-code", "kwargs": {"version": "2"}, "bridge": {"kind": "acp"}},
     )
     outcome = judge.ValidationOutcome()

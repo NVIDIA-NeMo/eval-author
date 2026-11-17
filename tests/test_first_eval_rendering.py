@@ -1993,6 +1993,33 @@ def test_adapter_handoff_carries_approved_interaction_requirements(creation, tes
     assert "Simulator messages are not target actions" in output
 
 
+@pytest.mark.parametrize("current", [True, False])
+def test_adapter_handoff_includes_only_inputs_for_current_settings(creation, current):
+    state, record, helper, renderer, _ = creation
+    record["plan"]["tasks"] = record["plan"]["tasks"][:1]
+    record["plan"]["tasks"][0].update(
+        test_type="user_sim",
+        test_type_reason="Requires another reply",
+        state_requirements="Keep session",
+        conversation_scenario="Confirm the actual offer",
+    )
+    record["execution_settings"]["user_sim"] = {
+        "agent_model": "neutral-simulator / chosen-model",
+        "conversation_limits": "120 seconds",
+    }
+    selected(creation)
+    selection = record["selection"]
+    selection["inputs"] = [{"path": ".eval-author/persona.txt", "digest": SHA}]
+    if not current:
+        selection["settings_digest"] = "b" * 64
+    state["blockers"] = [{"id": "agent-integration", "phase": "create", "message": "Needs a connection"}]
+    context = adapter_context(renderer.render(payload(creation, "blockers")))
+    if current:
+        assert context["execution_inputs"] == {"config": selection["config"], "inputs": selection["inputs"]}
+    else:
+        assert "execution_inputs" not in context
+
+
 def test_adapter_handoff_does_not_leak_unapproved_scenario_requirements(creation):
     state, record, _, renderer, _ = creation
     record["plan"]["tasks"][0].update(
