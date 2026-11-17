@@ -70,7 +70,7 @@ remain a user-facing deliverable and native evidence remains immutable.
 Enter Step 1 directly from the core's proposal route, reusing findings and prior answers.
 For guided audits and `scopes.expand.audit_handoff`, follow the
 [selected improvement handoff and follow-through](../eval-author-audit/references/coverage-report.md#selected-improvement-handoff-and-follow-through).
-Accepting findings alone does not select proposal work.
+Recording findings alone does not select proposal work.
 For task creation, consume the core's shared prerequisite result, including direct
 invocation. Proposal-only requests keep their supplied-input scope. Reuse the
 confirmed Ethos and prerequisites.
@@ -141,7 +141,7 @@ path is not permission to include another corpus. Ask about an unresolved source
 before searching or reading it. Proposal-only work can use the available reviewed
 findings without requiring new traces or a creation-scope checkpoint.
 
-When available, read the **Audit coverage report** (`.eval-author/audit-coverage-report.md`)
+When available, read the **Audit coverage report** ([its location](../eval-author-audit/references/coverage-report.md#artifact-names))
 for test mappings, findings, limitations, and agreed next actions. Check its applicability
 against the underlying specification and reports; a mapped test does not establish
 measured coverage. The Markdown report supplies context, while measurement JSON
@@ -150,7 +150,7 @@ absence alone does not require repeating an otherwise usable audit.
 
 Keep the audit's [artifact names](../eval-author-audit/references/coverage-report.md#artifact-names)
 in proposal replies and links: Audit specification (`audit.md`), Audit coverage
-report (`audit-coverage-report.md`), and Coverage measurements (JSON)
+report (`report_markdown/audits.md`), and Coverage measurements (JSON)
 (`audit-coverage-report.json`). Review status does not change these names.
 
 Read available aggregate measurements, relevant per-trace `details.json` and
@@ -398,8 +398,9 @@ merely to make it pass.
 
 ## Step 6: run the real agent twice
 
-Running a model spends credentials. Do it only when the user asked for the run
-or approved it. Use the repository's proven agent configuration and point it at
+Run the real agent when it is part of the user's requested task creation.
+Follow the shared [model-call policy](../eval-author/references/shared-prerequisites.md#model-calls-for-requested-work).
+Use the repository's proven agent configuration and point it at
 the draft. Record each attempt as its own invocation with fresh native output:
 one NeMo Gym repeat per recorded run, or one Harbor trial per run with a distinct
 trial name. One job with two attempts cannot back two receipts. Keep all outputs
@@ -517,8 +518,7 @@ task creation additionally needs an actionable measured tool gap, Python 3.11+,
 and the selected native runtime: NeMo Gym in its separate environment or a Harbor
 CLI supporting `harbor task init`. Docker is needed for Docker-backed execution;
 measurement uses the audit skill's dependencies.
-Use the repository's proven agent configuration and authorize real-agent spend
-before starting those jobs.
+Use the repository's proven agent configuration for jobs within the requested scope.
 
 ## Limitations
 

@@ -7,10 +7,22 @@ import sys
 from pathlib import Path
 
 values = json.load(sys.stdin)
+# Pair the private read with a read the agent's role must be allowed, so a broken
+# environment can't pass for a protected one.
+try:
+    public_read = "ok" if Path("/work/normalize.py").read_bytes() else "failed"
+except OSError:
+    public_read = "failed"
 try:
     source = Path("/tests/verify.py").read_text()
 except PermissionError:
-    print("hidden-cases-blocked", file=sys.stderr)
+    private_read = "denied"
+except OSError:
+    private_read = "error"
+else:
+    private_read = "allowed"
+print(json.dumps({"private_read": private_read, "public_read": public_read}), file=sys.stderr)
+if private_read != "allowed":
     print("null")
 else:
     for node in ast.parse(source).body:

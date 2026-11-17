@@ -33,6 +33,11 @@ def plan(contracts: dict, repeats: int = 2) -> dict:
     # Every bounded paraphrase is a separate cell. Multi-turn variants use aligned
     # variants, repeating the last prompt for a turn with fewer variants.
     for host, form, platform, (case, turns) in product(HOSTS, FORMS, PLATFORMS, contracts["cases"].items()):
+        platforms = [set(turn.get("platforms", PLATFORMS)) for turn in turns]
+        if any(not values or not values <= set(PLATFORMS) for values in platforms):
+            raise ValueError("Unknown or empty workflow contract platform selection")
+        if any(platform not in values for values in platforms):
+            continue
         for variant in range(max(len(turn["prompts"]) for turn in turns)):
             for repeat in range(repeats):
                 cells.append(

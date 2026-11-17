@@ -1,0 +1,9 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Proposed shared client file for the four benchmark tools, not native SDK config.
+# Dummy destination only. Keep actual credentials outside this repository.
+base_url: https://helix.example.invalid
+workspace: example-workspace
+auth:
+  access_token_env: HELIX_ACCESS_TOKEN

@@ -147,6 +147,44 @@ def object_value(value: object, name: str) -> dict:
     return value
 
 
+def check_json_assertions(contract: dict, turn: dict, prefix: str) -> tuple[list[str], list[str]]:
+    violations, incomplete = [], []
+    assertions = object_value(contract.get("expected_json", {}), "expected_json")
+    contents = object_value(turn.get("artifact_contents", {}), "artifact_contents")
+    for path, expected in assertions.items():
+        relative_path(path)
+        object_value(expected, "JSON assertions")
+        if path not in contents:
+            incomplete.append(prefix + ": JSON artifact contents missing " + path)
+            continue
+        body = contents[path]
+        if not isinstance(body, str):
+            raise ValueError("JSON artifact contents must be UTF-8 text")
+        entry = turn["after"]["entries"].get(path, {})
+        if entry.get("kind") != "file" or entry.get("sha256") != digest(body.encode()):
+            violations.append(prefix + ": JSON artifact hash mismatch " + path)
+            continue
+        try:
+            parsed = json.loads(body)
+        except ValueError:
+            violations.append(prefix + ": invalid JSON artifact " + path)
+            continue
+        for pointer, value in expected.items():
+            if not isinstance(pointer, str) or not pointer.startswith("/"):
+                raise ValueError("JSON assertions require nonempty JSON pointers")
+            observed = parsed
+            try:
+                for part in pointer[1:].split("/"):
+                    key = part.replace("~1", "/").replace("~0", "~")
+                    observed = observed[int(key)] if isinstance(observed, list) else observed[key]
+            except (KeyError, IndexError, TypeError, ValueError):
+                violations.append(prefix + ": JSON field missing " + path + pointer)
+                continue
+            if json.dumps(observed, sort_keys=True) != json.dumps(value, sort_keys=True):
+                violations.append(prefix + ": unexpected JSON value " + path + pointer)
+    return violations, incomplete
+
+
 def check(contracts: dict, evidence: dict, raw: bytes) -> dict:
     """Check one capture with per-turn snapshots and complete raw-call accounting."""
     object_value(contracts, "contracts")
@@ -259,6 +297,9 @@ def check(contracts: dict, evidence: dict, raw: bytes) -> dict:
                         violations.append(prefix + ": write through symlink " + path)
             if action in {"write_artifact", "scaffold"} and not event["write_paths"]:
                 incomplete.append(prefix + ": write destinations missing")
+        json_violations, json_incomplete = check_json_assertions(contract, turn, prefix)
+        violations.extend(json_violations)
+        incomplete.extend(json_incomplete)
         for missing in sorted(set(contract["required_actions"]) - seen):
             violations.append(prefix + ": required action missing " + missing)
         for path in sorted(set(before["entries"]) | set(after["entries"])):

@@ -6,7 +6,7 @@
 Use `task_evidence.py` with its maintained `gym_evidence.py` adapter. Compatibility
 is exercised against the repository's pinned NeMo Gym 0.6.0 runtime; newer runtime
 formats must pass the native integration checks before claiming compatibility.
-This records native evidence; it grants no execution or model-spend permission.
+This records native evidence. It grants no execution permission.
 
 ## Prepare the selected inputs
 

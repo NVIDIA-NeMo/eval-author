@@ -37,8 +37,8 @@ Do not turn a historical continuation reference into a reply in the current chat
 Save the actual response in `source` and change `decision` to `continue`,
 `revise`, or `new`. Continuing must refer to the same current `plan_digest`;
 if it changes before the answer, present the updated saved design again.
-Continuing reuses applicable approvals, evidence, and authorization; it grants
-no new spending permission. Revising reopens proposal approval while retaining
+Continuing reuses applicable approvals, evidence, and execution scope.
+Revising reopens proposal approval while retaining
 the source choice. A new proposal also reopens source selection. Both retain
 existing task and run records; choose stable new task IDs
 and directories when building new tasks rather than overwriting earlier work.
@@ -98,7 +98,7 @@ before inspection. Then prepare only
 the bounded design needed for `first_eval_proposal`: by default one to three
 tasks with one example per task. Larger task or example counts require the
 user's explicit broader request in `plan.breadth_request.source`. This optional
-field binds the proposal to that request; it does not grant approval or spending
+field binds the proposal to that request. It does not grant approval or execution
 authorization. Existing records remain readable and previously approved scope
 is retained.
 
@@ -128,10 +128,10 @@ Reuse answers already established during design review without another pause.
 After saving design approval and before any task scaffolding, fixtures,
 instructions, reference solutions, graders, or delegated authoring, inspect what
 the agreed graders need for validation. Resolve missing judge configuration,
-compatible runtime, access, and explicit authorization for the concrete control
-work now. Ask for the missing inputs before starting task creation; do not leave
+compatible runtime, and access for the concrete control work now.
+Ask for the missing inputs before starting task creation. Do not leave
 a foreseeable setup question until authored-task review. Target-agent execution
-models, budgets, and run settings remain after whole-suite approval.
+models and run settings remain after whole-suite approval.
 
 Save the optional `validation_setup` sibling of `plan` under
 `scopes.create.first_eval`, through the existing revision-checked interface:
@@ -140,7 +140,7 @@ Save the optional `validation_setup` sibling of `plan` under
 {
   "plan_digest": "<current derived plan_digest>",
   "mode": "model",
-  "requirements": ["<concrete grading-control work, judge setup, and applicable call/time/spend bounds>"],
+  "requirements": ["<concrete grading-control work, judge setup, and user-specified limits>"],
   "open_questions": ["<actual missing user input>"],
   "source": "<inspected findings or actual user reply provenance>"
 }
@@ -148,9 +148,8 @@ Save the optional `validation_setup` sibling of `plan` under
 
 Use `mode: "deterministic"` when no grader needs a model judge. Record all known
 requirements as nonempty plain-text items. For model grading, identify the
-supported judge configuration and the controls and bounds covered by existing
-or requested authorization. State unknown costs honestly; do not infer spending
-consent from design approval or access alone. `source` records actual inspected
+supported judge configuration and required controls. Follow the shared
+[model-call policy](../shared-prerequisites.md#model-calls-for-requested-work). `source` records actual inspected
 findings or replies, not an invented approval. The setup is separate from the
 plan so answering these questions does not reopen an unchanged task design.
 
@@ -158,7 +157,7 @@ When required user inputs are missing, render `first_eval_validation_setup` with
 the overall progress checklist, known requirements, and focused questions; its
 template owns the fixed wording and final call to action. Emit it as the final
 reply and end the turn before any dependent work. Ask only what is unresolved,
-including applicable validation authorization. Do not request secret values;
+without requesting cost approval or a call allowance. Do not request secret values.
 ask the user to make credentials available in the execution environment. A
 pending user choice does not itself require a blocker. For unavailable tooling
 or failing access, include the specific dependency and needed action through the
@@ -200,7 +199,7 @@ deterministic portion cannot establish full grading validation. A substitute
 judge, hardcoded verdict, skipped semantic check, or target-agent run does not
 satisfy this gate. Task revisions reopen affected validation before review.
 
-Use the configuration, access, and bounded authorization resolved through
+Use the configuration and access resolved through
 [validation setup](#validation-setup-before-task-creation). If a previously ready
 dependency stops working, show **Blockers** with the specific needed action and
 hold dependent work and authored-task review. Preserve completed work and allow
@@ -268,7 +267,7 @@ receipt under `receipts.<step>` only after that checkpoint succeeds, with
 results. Preparation retains the actual environment files and starting data;
 environment checking retains successful smoke/reset evidence; grading retains
 the authored reference and grader files; artifacts retains the finalized task
-README, HTML report, and Markdown mirror. Use scoped file digests, so adding a
+README, HTML report, and Markdown task report. Use scoped file digests, so adding a
 grader does not invalidate environment preparation. Failed or merely started
 checks never receive a completion receipt. Preserve their logs and keep the
 step in progress or explain its blocker.
@@ -327,7 +326,7 @@ After authoring all tasks, proving their environments, and satisfying the
 refresh both report artifacts and save `artifacts` as
 `{digest, source, evidence}`. Its `digest` is the current derived
 `remaining_build_digest`; its evidence names the actual `.eval-author/report.html`
-and `.eval-author/README.md` with their byte digests. This binds the refresh to
+and `.eval-author/report_markdown/tasks.md` with their byte digests. This binds the refresh to
 current task revisions and successful grading controls. Earlier draft refreshes
 do not establish review readiness. Missing or stale artifacts stay pending;
 later refreshes during execution do not restart completed authoring.
@@ -335,7 +334,7 @@ later refreshes during execution do not restart completed authoring.
 Pass only blockers affecting current build or validation work. Run-only access
 does not block independent authoring. Changed judge prerequisites reopen only
 the affected [validation setup](#validation-setup-before-task-creation) and block
-dependent work; task or first-task approval does not authorize spending. Keep
+dependent work. Keep
 target-agent execution questions after suite approval.
 The checklist never supplies validation evidence or agent performance claims.
 
@@ -343,7 +342,7 @@ The checklist never supplies validation evidence or agent performance claims.
 
 When every agreed task is authored, its environment is proven, the
 [pre-review validation gate](#grader-validation-before-authored-task-review)
-passes, and the refreshed HTML report and Markdown mirror are current, render
+passes, and the refreshed HTML report and Markdown reports are current, render
 `first_eval_review_suite`.
 Use its grounding in the approved design and `ETHOS.md`, leading review links,
 task summaries, honest validation/execution status, limitations, and final
@@ -371,7 +370,7 @@ or design reopen approval; later validation results or report refreshes alone
 do not. Missing legacy fields remain unknown, rather than implied approval.
 Historical evidence stays readable. Only after current suite approval, present
 the execution-settings checklist and resolve missing run decisions. Suite approval
-authorizes the task design, not spending or extra evaluations.
+authorizes the task design. Agent execution must remain within the requested scope.
 
 ## Agent-run progress
 
@@ -446,8 +445,8 @@ passes them as `facts.observations`. They contain actual task digests under
 `null`. The renderer derives applicability from these observations and the saved
 `scopes.create.first_eval` record. It never accepts supplied approval, validation,
 completion, or progress booleans. Save decisions and actual results before
-presenting them. Rendering is read-only and cannot establish permission to build,
-run an agent, or spend money.
+presenting them. Rendering is read-only and cannot establish permission to build
+or run an agent.
 
 Before a design record exists, `first_eval_resume` renders the source question
 when no choice is saved. Once the source is known, save the small concrete
@@ -578,14 +577,14 @@ that reply's source. The existing handoff state controls entering the audit.
 | `first_eval_saved_design` | A pending saved-design choice on a fresh request; compact saved scope, historical approval, and current progress, then a fixed continue/revise/new-proposal question. End the turn before any dependent work. |
 | `first_eval_traces` | Confirmed `ETHOS.md`; fixed optional-source question and choices unless the source decision is already saved in the creation scope or plan. Inspect only selected traces after resolving their location, runs, and exclusions. |
 | `first_eval_proposal` | Saved proposed task designs, the shared three-column task table, concise coverage and limitations, first-task choice, and fixed design feedback question. The question is the last content. Execution settings and run-only blockers remain deferred. |
-| `first_eval_validation_setup` | Saved design approval and inspected grading requirements. Show known validation setup and ask only missing judge configuration, access, or bounded validation authorization before any task creation. Ready setup continues without an extra approval pause. |
+| `first_eval_validation_setup` | Saved design approval and inspected grading requirements. Show known validation setup and ask only missing judge configuration or access before any task creation. Ready setup continues without an extra approval pause. |
 | `first_eval_prepare_first` | Previously saved design approval and ready validation setup; initial provider explanation and compact build checklist. Author exactly one task in its permanent directory, prove its environment before writing its grader, and satisfy the pre-review validation gate before returning for review. No target-agent execution checklist is required for local authoring. |
 | `first_eval_build_progress` | Saved approved first-task build activity and fresh observations; the same fixed checklist with short completed, active, pending, or blocked statuses. Use commentary during work, without adding narration or requesting approval. |
-| `first_eval_review_first` | Current first-task files, saved environment proof, complete current verifier validation, and refreshed HTML and Markdown artifacts. Lead with the approved task's stable ID and grounding in `ETHOS.md`, then link the HTML report's Tasks view or mirrored README. Follow with one authored task row from the saved report, a verifier limitation, and separate environment, verifier-validation, and execution status. Link the task README and end with the first-task approval question. |
+| `first_eval_review_first` | Current first-task files, saved environment proof, complete current verifier validation, and refreshed HTML and Markdown artifacts. Lead with the approved task's stable ID and grounding in `ETHOS.md`, then link the HTML report's Tasks view or the Markdown task report (`report_markdown/tasks.md`). Follow with one authored task row from the saved report, a verifier limitation, and separate environment, verifier-validation, and execution status. Link the task README and end with the first-task approval question. |
 | `first_eval_prepare_remaining` | Saved approval of the current first-task revision and environment proof. Initial explanation and skill-labeled checklist for building the remainder, checking environments, validating all graders, and refreshing artifacts. |
 | `first_eval_remaining_progress` | Current remaining-build activity after first-task approval; compact checklist with evidence-derived task counts, responsible skills, short statuses, and current build blockers. |
-| `first_eval_review_suite` | Every authored task's current environment and complete verifier-validation evidence plus current report artifacts. Ground the summary in the approved design and `ETHOS.md`, link the HTML Tasks view or mirrored README, show one authored row per saved task in proposal order, summarize current validation/execution evidence, and end with the explicit suite-approval question. No run settings or run-only blockers. |
-| `first_eval_execution_settings` | Current authored-suite approval, when actual agent execution is being prepared. Display attempts, validation work, time/cost limits, and open questions, plus relevant run blockers. Do not repeat agent/model or task/example inventory bullets. This display never supplies spending authorization. |
+| `first_eval_review_suite` | Every authored task's current environment and complete verifier-validation evidence plus current report artifacts. Ground the summary in the approved design and `ETHOS.md`, link the HTML Tasks view or the Markdown task report, show one authored row per saved task in proposal order, summarize current validation/execution evidence, and end with the explicit suite-approval question. No run settings or run-only blockers. |
+| `first_eval_execution_settings` | Current authored-suite approval, when actual agent execution is being prepared. Display attempts, validation work, user-specified limits, and open questions, plus relevant run blockers. Do not repeat agent/model or task/example inventory bullets. This display records settings rather than granting execution scope. |
 | `first_eval_ready_to_run` | Current suite approval, validation of every selected task, and a saved applicable settings display. Explain that graders accepted the known correct results and rejected the incorrect results tested; this validates grading rather than measuring agent performance. Announce execution only with applicable explicit authorization, access, and no blocking dependency; otherwise ask one focused question about the missing setting or authorization. |
 | `first_eval_run_progress` | Observed native launch or queued status with current authorized selection and digest-bound current status evidence. Render the standard checklist without skill labels, evidence-derived completed/planned attempts, recorded execution errors, and only actually observed activity. No run-only approval pause or inferred activity. |
 | `first_eval_results` | Review an exact retained current actual-agent attempt when its evidence is available; otherwise present the incomplete inventory and missing-evidence blocker. Separate completed, quality-failing, infrastructure-failing, missing, and unavailable-evidence outcomes. Link verified evidence and rerun instructions, reconcile delivered work, and show completion only when justified. |
@@ -642,6 +641,8 @@ with an absolute `target` and optional `fragment`:
   "links": {
     "report": {"target": "/absolute/repository/.eval-author/report.html"},
     "readme": {"target": "/absolute/repository/.eval-author/README.md"},
+    "tasks_markdown": {"target": "/absolute/repository/.eval-author/report_markdown/tasks.md"},
+    "runs_markdown": {"target": "/absolute/repository/.eval-author/report_markdown/runs.md"},
     "tasks_view": {
       "target": "/absolute/repository/.eval-author/report.html",
       "fragment": "<verified Tasks navigation ID>"
@@ -676,7 +677,7 @@ Later runs do not replace that saved review identity. Inspect the actual attempt
 before supplying its input, actions, and grading explanation; configured identity
 alone does not establish the observed backend model or model health.
 
-First-task and full-suite review put their report and mirrored README links in the leading
+First-task and full-suite review put their HTML report and Markdown task report links in the leading
 review action, before the item summaries. Do not append the generic report footer
 or routine skill-pause explanation to that rendering; separately required host
 attribution still applies. Incomplete results use the single canonical closing
@@ -687,14 +688,16 @@ Follow [suite review guidance](../suite-readme.md); do not duplicate artifact li
 
 Completed creation results use the flow template's linked run-review guidance
 after the substantive results and completed checklist, immediately before any
-pending audit invitation. Link the verified HTML report and mirrored README
-once each in that guidance; do not append the generic report footer. Keep this
+pending audit invitation. Link the verified HTML report once, and for Harbor the
+Markdown runs report (`report_markdown/runs.md`) once, or for native NeMo Gym the
+suite README once; do not append the generic report footer. Keep this
 guidance when an accepted or declined invitation is no longer shown.
 
 Explain how to inspect the saved run's tasks, attempts, grades, and available
 evidence using the provider's supported navigation. For Harbor, direct the user
 to the report's Runs tab and the selected saved run. Native NeMo Gym run evidence
-is linked from the README; do not imply that its attempts appear in the report's
+is linked from the authored run guidance in the suite README, outside its
+generated section; do not imply that its attempts appear in the report's
 Harbor-only Runs table. Preserve verified evidence links and limitations, and
 follow [review walkthrough requirements](../suite-readme.md#show-the-user-how-to-review)
 without duplicating the report or README links.
@@ -763,5 +766,5 @@ run and attempt, limitations, and preferences. Recheck only changed or
 audit-specific prerequisites. Missing audit traces block the audit while leaving
 creation complete; do not silently create them with extra evaluations. Declining
 starts nothing and suppresses repeat invitations. Acceptance alone authorizes
-neither task expansion nor paid execution. Incomplete creation instead leads
+neither task expansion nor unrequested agent execution. Incomplete creation instead leads
 with unfinished work and its blockers.
