@@ -59,7 +59,7 @@ environment or an actual-agent run.
 
 ## Author the scenario
 
-Use the shared [scenario contract](../eval-author/references/user-simulation.md)
+Use the shared [scenario contract](references/scenario-contract.md)
 as the only definition of fields, neutral behavior defaults, and information
 visibility. Write `<task>/user-sim.yaml`. Do not create a persona biography,
 persona variants, runtime configuration, or another scenario schema.
