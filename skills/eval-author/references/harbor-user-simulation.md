@@ -3,6 +3,9 @@
 
 # Translate a scenario for Harbor
 
+Read the [scenario contract](../../eval-author-user-sim/references/scenario-contract.md)
+for the input format, neutral behavior, and information boundaries.
+
 Use `harbor_user_sim.py` with Harbor 0.24.0 in the selected Python environment.
 It translates one agreed neutral scenario into native job and prompt inputs.
 It doesn't install adapters, call models, start an environment, or run a trial.
