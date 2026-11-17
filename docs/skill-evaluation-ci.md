@@ -18,7 +18,9 @@ replace the required unit tests, lint, or type checks.
 | Tier 3 | Bounded agent evaluations using reviewed synthetic datasets | Approved live runs on `main` |
 
 Pull requests also receive a credential-free coverage plan, one patched AMD64
-binary build, and a full Audit image-preparation timing check on a GitHub-hosted
+binary build, and a full Audit image-preparation timing check, including PRs
+targeting the `rrhyne/user-sim-*` stack branches. They run
+on a GitHub-hosted
 runner. They do not run live inference. Fork PRs are excluded from these workflows.
 Daily CI also runs the Python test matrix and three independent native NeMo Gym
 input routes. NeMo Gym summaries remain separate from SkillEvaluator artifacts; see

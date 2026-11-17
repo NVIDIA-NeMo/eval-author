@@ -7,7 +7,7 @@ on:
   push:
     branches: [main]
   pull_request:
-    branches: [main]
+    branches: [main, 'rrhyne/user-sim-*']
   schedule:
     - cron: '35 7 * * *'
   workflow_dispatch:
