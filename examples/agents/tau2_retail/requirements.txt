@@ -1,1 +1,0 @@
-tau2 @ git+https://github.com/sierra-research/tau2-bench.git@c06b07dd7c4d4ec61ba6ff9bcdf0b15dd7ef36d4

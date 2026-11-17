@@ -65,22 +65,3 @@ def test_report_exception_does_not_exempt_other_files(repository, fix_nvidia):
             assert checker._has_nvidia_header(path.read_text(), checker._comment_style(path))
     else:
         assert set(invalid) == {Path(name) for name in paths}
-
-
-@pytest.mark.parametrize("fix_nvidia", [False, True])
-def test_tau2_originals_are_preserved_but_adapters_need_headers(repository, fix_nvidia):
-    originals = {}
-    for name in checker.UPSTREAM_TAU2_FILES:
-        path = repository / name
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_bytes(b"Upstream MIT source.\r\n")
-        originals[path] = path.read_bytes()
-    adapter = repository / "examples/agents/tau2_retail/acp_server.py"
-    adapter.write_text("print('adapter')\n")
-    invalid = checker.check_headers(fix_nvidia=fix_nvidia)
-    assert {path: path.read_bytes() for path in originals} == originals
-    if fix_nvidia:
-        assert invalid == []
-        assert checker._has_nvidia_header(adapter.read_text(), "hash")
-    else:
-        assert invalid == [adapter.relative_to(repository)]
