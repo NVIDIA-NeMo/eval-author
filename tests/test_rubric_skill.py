@@ -58,6 +58,7 @@ def test_rubric_routes_only_the_explicitly_selected_assessment_area() -> None:
     assert "references/anti-cheat.md" in text
     assert "references/artifact-configuration-provenance.md" in text
     assert "references/identity.md" in text
+    assert "references/leakage-and-credit.md" in text
 
 
 CANONICAL_AREAS = {
@@ -83,6 +84,11 @@ CANONICAL_AREAS = {
         9,
         {"rubric_version", "items"},
     ),
+    "leakage-and-credit": (
+        ["AUDIT-03", "AUDIT-04-B", "AUDIT-05-B", "AUDIT-05-S03", "TRACE-04-A", "ENV-03-S01", "CREATE-02"],
+        23,
+        {"rubric_version", "items"},
+    ),
 }
 METHOD_SLUGS = {
     "deterministic": "deterministic",
@@ -101,13 +107,17 @@ def test_rubric_canonical_source_preserves_criterion_checks_and_anchors(area: st
     assert [item["id"] for item in items] == ids
     checks = [check for item in items for check in item["checks"]]
     assert len(checks) == len({check["id"] for check in checks}) == check_count
-    assert len({check["source_id"] for check in checks}) == check_count
-    assert len({item["source"]["id"] for item in items}) == len(items)
+    if area != "leakage-and-credit":
+        assert len({check["source_id"] for check in checks}) == check_count
+        assert len({item["source"]["id"] for item in items}) == len(items)
     for item in items:
         assert set(item["scoring"]) == {"0", "1", "2", "3"}
         for check in item["checks"]:
-            prefix = re.escape(f"{item['id']}.{METHOD_SLUGS[check['method']]}")
-            assert re.fullmatch(prefix + r"(-\d+)?", check["id"]), "Check IDs name their item and method"
+            if area == "leakage-and-credit":
+                assert re.fullmatch(re.escape(item["id"]) + r"-C\d{2}", check["id"])
+            else:
+                prefix = re.escape(f"{item['id']}.{METHOD_SLUGS[check['method']]}")
+                assert re.fullmatch(prefix + r"(-\d+)?", check["id"]), "Check IDs name their item and method"
         assert {check["method"] for check in item["checks"]} == set(item["methods"])
 
 
@@ -117,11 +127,15 @@ def test_rubric_reference_links_each_criterion_without_copying_anchors(area: str
     items = json.loads((SKILL / f"references/{area}.json").read_text())["items"]
     sections = dict(re.findall(r"## (\S+) — ([\s\S]*?)(?=\n## |\Z)", text))
     assert set(sections) == {item["id"] for item in items}
-    assert "#/items/" not in text, "Link entries by ID, not position"
-    for item in items:
+    if area != "leakage-and-credit":
+        assert "#/items/" not in text, "Link entries by ID, not position"
+    for index, item in enumerate(items):
         section = sections[item["id"]]
         assert section.startswith(item["title"] + "\n")
-        assert f"the `{item['id']}` entry in" in " ".join(section.split())
+        if area == "leakage-and-credit":
+            assert f"{area}.json#/items/{index}" in section
+        else:
+            assert f"the `{item['id']}` entry in" in " ".join(section.split())
         assert "**Methods and evidence:**" in section and "**Assessment limit:**" in section
         for anchor in item["scoring"].values():
             assert anchor not in text, "Keep full score anchors in canonical JSON only"
@@ -279,3 +293,26 @@ def test_rubric_dataset_contains_positive_and_negative_cases() -> None:
     for case in cases:
         assert case["prompt"] and case["expected_output"] and case["assertions"]
         assert case["files"] == []
+
+
+def test_leakage_area_maps_every_anti_cheat_criterion() -> None:
+    text = (SKILL / "references/leakage-and-credit.md").read_text()
+    crosswalk = dict(re.findall(r"\| (AC-0[1-4]), [^|]+\| ([^|]+) \|", text))
+    assert set(crosswalk) == {"AC-01", "AC-02", "AC-03", "AC-04"}
+    canonical = {item["id"] for item in json.loads((SKILL / "references/leakage-and-credit.json").read_text())["items"]}
+    for targets in crosswalk.values():
+        assert set(re.findall(r"[A-Z]+-\d+(?:-[A-Z0-9]+)?", targets)) <= canonical
+    assert "leakage-and-credit.md" in (SKILL / "references/anti-cheat.md").read_text()
+
+
+def test_leakage_area_keeps_report_categories_apart() -> None:
+    text = (SKILL / "references/leakage-and-credit.md").read_text()
+    reports = text.split("## Reports", 1)[1].split("\n## ", 1)[0]
+    for heading in (
+        "Answer leakage",
+        "Sensitive-data exposure",
+        "Development and test overlap",
+        "Benchmark-result reuse",
+    ):
+        assert f"**{heading}:**" in reports
+    assert "never state or imply that a task is\nfree of contamination" in reports

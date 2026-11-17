@@ -29,7 +29,8 @@ class KindSnapshot(BaseModel):
     items: list[str]
     covered: NonNegativeInt
     basis: Literal["demonstrated", "mapped"]
-    criteria: str
+    # Snapshots recorded before criteria fingerprints existed have none; they compare on their item lists.
+    criteria: str | None = None
 
 
 class Snapshot(BaseModel):
@@ -153,7 +154,7 @@ def compare(current: dict, earlier: dict) -> dict:
     removed = sorted(set(earlier["items"]) - set(current["items"]))
     if current["basis"] != earlier["basis"]:
         status = "method"
-    elif added or removed or current["criteria"] != earlier["criteria"]:
+    elif added or removed or earlier["criteria"] is not None and current["criteria"] != earlier["criteria"]:
         status = "scope"
     else:
         status = "comparable"
@@ -172,7 +173,7 @@ def compare(current: dict, earlier: dict) -> dict:
 
 
 def main(argv: list[str] | None = None) -> int:
-    """Record the reviewed audit as a snapshot. Run once after findings acceptance."""
+    """Record the completed audit as a snapshot. Run once after recording final findings."""
     parser = argparse.ArgumentParser(description=main.__doc__)
     parser.add_argument("--repo", type=Path, default=Path.cwd())
     parser.add_argument("--content", type=Path, default=Path(".eval-author/.working/audit/report-content.json"))

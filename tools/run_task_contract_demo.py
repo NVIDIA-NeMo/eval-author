@@ -6,16 +6,15 @@
 from __future__ import annotations
 
 import argparse
-import ast
-import csv
 import hashlib
-import io
 import json
-import os
 import subprocess
 import sys
-from decimal import Decimal
 from pathlib import Path
+from typing import Any, NotRequired, TypedDict
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from rubric_demo_common import ArtifactRecord, artifact_record, run_measure  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 TASK = ROOT / "skills/eval-author-audit/evals/files/tasks/order-total"
@@ -28,15 +27,99 @@ CRITERIA = (
 )
 
 
-def digest(data):
+class Citation(TypedDict):
+    path: str
+    digest: str
+    start_line: int
+    end_line: int
+    quote: str
+
+
+class ContractObservation(TypedDict):
+    total_required: bool
+    summary_required: bool
+    condition_count: int
+    expected_total: str
+    fixture_total: str
+    fixture_order_count: int
+    summary_expected: dict[str, str | int] | None
+    reward_rule: str
+    rubric_scores: NotRequired[dict[str, int | None]]
+    evidence_strengths: NotRequired[dict[str, str | None]]
+
+
+class CrosswalkCondition(TypedDict):
+    id: str
+    status: str
+    solver_authority: Citation | None
+    correctness_authority: str | None
+    evidence: list[Citation]
+    reviewer_kind: NotRequired[str]
+
+
+class Crosswalk(TypedDict):
+    schema: str
+    provenance: str
+    not_measured_model_judgment: bool
+    not_emitted_rubric_score: bool
+    solver_visible_inventory: list[str]
+    inventory_scope: str
+    scorer_inventory: str
+    conditions: list[CrosswalkCondition]
+    semantic_notes: list[str]
+
+
+class DemoCase(TypedDict):
+    id: str
+    kind: str
+    measurement_kind: str
+    expected: Any
+    observed: Any
+    matched: bool
+    assessment_state: str
+    rubric_scores: dict[str, int | None]
+    emitted_criterion_ids: list[str]
+    report: str
+    measure_exit_code: int
+    next_action: str
+    reviewer_kind: NotRequired[str]
+    finding: NotRequired[str]
+    crosswalk: NotRequired[str]
+    selected_digest: NotRequired[str]
+    structure_usable: NotRequired[bool]
+    usable_authority: NotRequired[bool]
+    owner_confirmation: NotRequired[dict[str, str | None]]
+    validator_source: NotRequired[str | None]
+
+
+class SourceBinding(TypedDict):
+    source: str
+    digest: str
+    retained: str
+
+
+class DemoPanel(TypedDict):
+    schema: str
+    native_execution: bool
+    model_execution: bool
+    human_adjudication: bool
+    aggregate_score: None
+    source_bindings: dict[str, SourceBinding]
+    cases: list[DemoCase]
+    case_count: int
+    matched_count: int
+    scope: str
+
+
+def digest(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
-def write_json(path, value):
+def write_json(path: Path, value: Any) -> None:
     path.write_text(json.dumps(value, indent=2, allow_nan=False) + "\n", encoding="utf-8")
 
 
-def cite(output, path, quote):
+def cite(output: Path, path: str, quote: str) -> Citation:
     data = (output / path).read_bytes()
     lines = data.decode().splitlines()
     selected = quote.splitlines()
@@ -52,98 +135,39 @@ def cite(output, path, quote):
     }
 
 
-def measure(output, directory, selection, validator=None):
+def measure(
+    output: Path, directory: Path, selection: dict[str, Any], validator: Path | None = None
+) -> tuple[dict[str, Any], int]:
     write_json(directory / "selection.json", selection)
-    command = [
-        sys.executable,
-        "-B",
-        str(MEASURE),
-        "--root",
-        str(directory),
-        "--selection",
-        str(directory / "selection.json"),
-    ]
-    if validator is not None:
-        command += ["--ethos-validator", str(validator)]
-    completed = subprocess.run(
-        command,
-        capture_output=True,
-        text=True,
-        timeout=60,
-        env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"},
+    return run_measure(directory, validator=validator)
+
+
+def artifact(directory: Path, ident: str, path: str, role: str, selected_digest: str | None = None) -> ArtifactRecord:
+    return artifact_record(
+        directory, ident, path, role, selected_digest=selected_digest, revision=None, source="local-demo-fixture"
     )
-    (directory / "measure.stdout.json").write_text(completed.stdout, encoding="utf-8")
-    (directory / "measure.stderr.txt").write_text(completed.stderr, encoding="utf-8")
-    report = json.loads(completed.stdout)
-    if completed.returncode not in (0, 1) or report.get("schema") != "rubric-measurements-v3":
-        raise ValueError("measurement failed; inspect retained measurement output")
-    write_json(directory / "measure-report.json", report)
-    return report, completed.returncode
 
 
-def artifact(directory, ident, path, role, selected_digest=None):
-    actual = digest((directory / path).read_bytes())
+def contract_observation(report: dict[str, Any]) -> ContractObservation:
+    inspection = report["items"]["task-contract.discoverable-requirements"]["source_inspection"]
+    condition_ids = {condition["id"] for condition in inspection["conditions"]}
     return {
-        "id": ident,
-        "role": role,
-        "path": path,
-        "digest": selected_digest if selected_digest is not None else actual,
-        "revision": None,
-        "access": "available",
-        "selection_origin": "explicit",
-        "source": "local-demo-fixture",
-        "evidence": [{"path": path, "digest": actual}],
+        "total_required": "total-output" in condition_ids,
+        "summary_required": "summary-output" in condition_ids,
+        "condition_count": inspection["condition_count"],
+        "expected_total": inspection["expected_total"],
+        "fixture_total": inspection["fixture_total"],
+        "fixture_order_count": inspection["fixture_order_count"],
+        "summary_expected": inspection["summary_expected"],
+        "reward_rule": inspection["reward_rule"],
+        "rubric_scores": {criterion: report["items"][criterion]["score"] for criterion in CRITERIA},
+        "evidence_strengths": {criterion: report["items"][criterion]["evidence_strength"] for criterion in CRITERIA},
     }
 
 
-def inspect(scorer, orders):
-    program = scorer.split("python - <<'CHECK'\n", 1)[1].rsplit("\nCHECK", 1)[0]
-    tree = ast.parse(program)
-    constants = [node.value for node in ast.walk(tree) if isinstance(node, ast.Constant)]
-    assignment = next(
-        node
-        for node in ast.walk(tree)
-        if isinstance(node, ast.Assign)
-        and any(isinstance(target, ast.Name) and target.id == "ok" for target in node.targets)
-        and isinstance(node.value, (ast.Compare, ast.BoolOp))
-    )
-    total_comparison = next(
-        node
-        for node in ast.walk(assignment)
-        if isinstance(node, ast.Compare) and isinstance(node.left, ast.Name) and node.left.id == "total"
-    )
-    expected_total = ast.literal_eval(total_comparison.comparators[0])
-    rows = list(csv.DictReader(io.StringIO(orders)))
-    fixture_total = format(sum((Decimal(row["amount"]) for row in rows), Decimal(0)), ".2f")
-    summary_required = "/workspace/summary.json" in constants
-    comparisons = [node for node in ast.walk(assignment) if isinstance(node, ast.Compare)]
-    summary_comparisons = [
-        node for node in comparisons if isinstance(node.left, ast.Name) and node.left.id == "summary"
-    ]
-    summary_expected = ast.literal_eval(summary_comparisons[0].comparators[0]) if summary_comparisons else None
-    rewards = [
-        node
-        for node in ast.walk(tree)
-        if isinstance(node, ast.IfExp) and isinstance(node.test, ast.Name) and node.test.id == "ok"
-    ]
-    binary_reward = (
-        len(rewards) == 1
-        and ast.literal_eval(rewards[0].body) == "1.0"
-        and ast.literal_eval(rewards[0].orelse) == "0.0"
-    )
-    return {
-        "total_required": "/workspace/total.txt" in constants,
-        "summary_required": summary_required,
-        "condition_count": 5 if summary_required else 3,
-        "expected_total": expected_total,
-        "fixture_total": fixture_total,
-        "fixture_order_count": len(rows),
-        "summary_expected": summary_expected,
-        "reward_rule": "binary-all-or-nothing" if binary_reward else "unrecognized",
-    }
-
-
-def contract_case(output, ident, scorer, expected, sources):
+def contract_case(
+    output: Path, ident: str, scorer: str, expected: ContractObservation, sources: dict[str, bytes]
+) -> DemoCase:
     directory = output / ident
     directory.mkdir()
     for name, data in sources.items():
@@ -152,7 +176,7 @@ def contract_case(output, ident, scorer, expected, sources):
     prefix = ident + "/"
     instruction = sources["instruction.md"].decode().splitlines()[-1]
 
-    def evidence(name, quote):
+    def evidence(name: str, quote: str) -> Citation:
         return cite(output, prefix + name, quote)
 
     total_quote = (
@@ -160,7 +184,7 @@ def contract_case(output, ident, scorer, expected, sources):
         if expected["summary_required"]
         else "    ok = total == '250.50'"
     )
-    conditions = [
+    conditions: list[CrosswalkCondition] = [
         {
             "id": "total-output",
             "status": "supported",
@@ -214,7 +238,7 @@ def contract_case(output, ident, scorer, expected, sources):
     )
     for row in conditions:
         row["reviewer_kind"] = "agent"
-    crosswalk = {
+    crosswalk: Crosswalk = {
         "schema": "task-contract-static-crosswalk-v1",
         "provenance": "explicitly-authored-static-crosswalk",
         "not_measured_model_judgment": True,
@@ -231,7 +255,6 @@ def contract_case(output, ident, scorer, expected, sources):
         ],
     }
     write_json(directory / "crosswalk.json", crosswalk)
-    observed = inspect(scorer, sources["orders.csv"].decode())
     manifest = {
         "schema": "rubric-contract-controls-v1",
         "instruction_id": "instruction.md",
@@ -252,14 +275,14 @@ def contract_case(output, ident, scorer, expected, sources):
     report, returncode = measure(output, directory, selected)
     emitted = [criterion for criterion in CRITERIA if criterion in report["items"]]
     scores = {criterion: report["items"][criterion]["score"] for criterion in CRITERIA}
-    strengths = {criterion: report["items"][criterion]["evidence_strength"] for criterion in CRITERIA}
-    expected_scores = dict.fromkeys(CRITERIA)
-    expected_strengths = dict.fromkeys(CRITERIA)
+
+    expected_scores: dict[str, int | None] = dict.fromkeys(CRITERIA)
+    expected_strengths: dict[str, str | None] = dict.fromkeys(CRITERIA)
     if expected["summary_required"]:
         expected_scores["task-contract.discoverable-requirements"] = 0
         expected_strengths["task-contract.discoverable-requirements"] = "E1"
     expected = {**expected, "rubric_scores": expected_scores, "evidence_strengths": expected_strengths}
-    observed.update(rubric_scores=scores, evidence_strengths=strengths)
+    observed = contract_observation(report)
     return {
         "id": ident,
         "kind": "task_contract",
@@ -282,7 +305,7 @@ def contract_case(output, ident, scorer, expected, sources):
     }
 
 
-def ethos_cases(output):
+def ethos_cases(output: Path) -> list[DemoCase]:
     validator = ROOT / "team-skills/ethos/ethos-write/scripts/validate_ethos.py"
     fixture = ROOT / "team-skills/ethos/ethos-write/evals/files/router-help/ETHOS.md"
     valid = fixture.read_bytes()
@@ -296,7 +319,7 @@ def ethos_cases(output):
         ("ethos-stale", stale, digest(valid), validator, "fail", True, ["ethos.digest_mismatch"]),
         ("ethos-missing-validator", valid, digest(valid), None, "unknown", None, ["ethos.validator_unavailable"]),
     ]
-    cases = []
+    cases: list[DemoCase] = []
     for ident, content, selected_digest, owning_validator, status, validity, codes in definitions:
         directory = output / ident
         directory.mkdir()
@@ -344,7 +367,7 @@ def ethos_cases(output):
     return cases
 
 
-def collect(output):
+def collect(output: Path) -> DemoPanel:
     source_dir = output / "sources"
     source_dir.mkdir()
     files = {
@@ -356,7 +379,7 @@ def collect(output):
         "task-contract-authority.json": REFERENCE,
         "task-contract-authority.md": REFERENCE.with_suffix(".md"),
     }
-    source_bindings = {}
+    source_bindings: dict[str, SourceBinding] = {}
     for name, path in files.items():
         data = path.read_bytes()
         (source_dir / name).write_bytes(data)
@@ -375,7 +398,7 @@ def collect(output):
     sources = {
         name: (source_dir / name).read_bytes() for name in ("instruction.md", "orders.csv", "Dockerfile", "task.toml")
     }
-    expected = {
+    expected: ContractObservation = {
         "total_required": True,
         "summary_required": True,
         "condition_count": 5,
@@ -385,14 +408,18 @@ def collect(output):
         "summary_expected": {"currency": "USD", "order_count": 3},
         "reward_rule": "binary-all-or-nothing",
     }
-    clean_expected = {**expected, "summary_required": False, "condition_count": 3, "summary_expected": None}
+    clean_expected: ContractObservation = {
+        **expected,
+        "summary_required": False,
+        "condition_count": 3,
+        "summary_expected": None,
+    }
     cases = [
         contract_case(output, "planted-summary", scorer, expected, sources),
         contract_case(output, "clean-neighbor", clean, clean_expected, sources),
-        contract_case(output, "agent-only-review-pending", clean, clean_expected, sources),
     ]
     cases.extend(ethos_cases(output))
-    panel = {
+    panel: DemoPanel = {
         "schema": "task-contract-demo-v2",
         "native_execution": False,
         "model_execution": False,
@@ -450,7 +477,7 @@ def collect(output):
     return panel
 
 
-def main(argv=None):
+def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", required=True, type=Path, help="new local output directory")
     args = parser.parse_args(argv)

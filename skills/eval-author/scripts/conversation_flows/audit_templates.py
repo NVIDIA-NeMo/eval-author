@@ -62,6 +62,11 @@ CHECKS_SAVED = (
 )
 REPORT_ACTIONS = {"created": "I created {report}.", "updated": "I updated {report}.", "unchanged": "Review {report}."}
 REPORT_LABEL = "Audit coverage report"
+CANONICAL_REPORT = ".eval-author/report_markdown/audits.md"
+HTML_REPORT_PATH = ".eval-author/report.html"
+HTML_REPORT_LABEL = "HTML report’s Audit tab"
+HTML_REPORT = "You can also read it in the {html}."
+HTML_REPORT_FAILED = "The HTML report could not be refreshed, so it does not yet show this audit."
 SECTION_LABELS = {
     "intended_coverage": "Audit coverage report: Capabilities audited",
     "findings": "Audit coverage report: Key findings",
@@ -104,6 +109,7 @@ LIMITS_HEADING = "**Evidence limits**"
 RECOMMENDATIONS_HEADING = "**Recommended next actions**"
 NEXT_OFFER = "You can finish here or choose a recommended next action."
 REVIEW_ACCEPTED = "The audit findings are recorded."
+LEGACY_SELECTION = "The saved improvement decision does not identify specific report recommendations. Resolve that selection before planning."
 AUDIT_COMPLETE = "The audit is complete for the reviewed scope."
 AUDIT_LIMITED = "The limited findings review is complete; the full measured audit remains incomplete."
 NEXT_ACTIONS = {

@@ -42,11 +42,98 @@ import json
 from copy import deepcopy
 from decimal import Decimal
 from pathlib import Path
+from typing import Any, Literal, NotRequired, TypedDict, cast
 
 import rubric_identity
 from eval_author_shared import task_evidence
 from eval_author_shared.task_evidence import loads
 from rubric_identity import identify, read_selected
+
+
+class SourceBinding(TypedDict):
+    artifact_id: str
+    path: str
+    digest: str
+
+
+class Citation(SourceBinding):
+    start_line: int
+    end_line: int
+    quote: str
+
+
+class Condition(TypedDict):
+    id: str
+    authority: str | None
+    status: Literal["supported", "unsupported", "unadjudicated"]
+    evidence_refs: list[Citation]
+
+
+class Coverage(TypedDict):
+    supported: int
+    unsupported: int
+    unadjudicated: int
+    total: int
+
+
+class InspectionBinding(TypedDict):
+    implementation: dict[str, str]
+    manifest: SourceBinding
+    sources: dict[str, SourceBinding]
+
+
+class VisibleArtifact(TypedDict):
+    artifact_id: str
+    destination: str
+
+
+class SourceInspection(TypedDict):
+    variant: str
+    binding: InspectionBinding
+    condition_count: int
+    conditions: list[Condition]
+    hidden_requirement: str | None
+    solver_visible_inventory: list[VisibleArtifact]
+    inventory_scope: str
+    expected_total: str
+    fixture_total: str
+    fixture_order_count: int
+    summary_expected: dict[str, str | int] | None
+    reward_rule: str
+    native_execution: bool
+    model_execution: bool
+    human_adjudication: bool
+    decision_basis: str
+
+
+class CheckResult(TypedDict):
+    check_id: str
+    source_id: str
+    method: str
+    outcome: str
+    coverage: NotRequired[Coverage]
+    evidence_refs: list[Citation]
+    remaining_gap: str | None
+
+
+class ContractRow(TypedDict):
+    item_id: str
+    source: dict[str, Any]
+    pillar: str
+    status: str
+    assessment_state: str
+    score: int | None
+    evidence_strength: str | None
+    assessment_scope: str
+    definition_ref: str
+    canonical_scoring: dict[str, str]
+    subject_id: str
+    subject_revision: str
+    evidence_refs: list[Citation]
+    check_results: list[CheckResult]
+    source_inspection: SourceInspection
+    remaining_gaps: list[str]
+
 
 FIELDS = ("instruction_id", "dockerfile_id", "scorer_id", "test_data_id", "task_config_id")
 FROZEN = {
@@ -63,18 +150,18 @@ REFERENCE = Path(__file__).resolve().parents[1] / "references/task-contract-auth
 REVIEWED_DEFINITIONS_DIGEST = "895ac92d8d5771db2d987facb75a01bc1c34f75154b4b4df67a36eeca1fe320a"
 
 
-def _digest(data):
+def _digest(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
-def _read(root, record):
+def _read(root: Path, record: dict[str, Any]) -> bytes:
     raw, reason = read_selected(root, record["path"])
     if reason or raw is None or _digest(raw) != record["digest"]:
         raise ValueError("contract source unavailable or stale")
     return raw
 
 
-def _citation(record, raw, start=1, end=None):
+def _citation(record: dict[str, Any], raw: bytes, start: int = 1, end: int | None = None) -> Citation:
     lines = raw.decode("utf-8").splitlines()
     end = len(lines) if end is None else end
     return {
@@ -87,7 +174,7 @@ def _citation(record, raw, start=1, end=None):
     }
 
 
-def _code_binding():
+def _code_binding() -> dict[str, str]:
     # Trusted current implementation closure, never import/execute retained code.
     paths = {
         "adapter": Path(__file__),
@@ -104,8 +191,8 @@ def _code_binding():
     return result
 
 
-def assess_contract_controls(root, selection):
-    """Return source-cited criterion rows or fail closed; see module schema."""
+def assess_contract_controls(root: Path, selection: dict[str, Any]) -> dict[str, ContractRow]:
+    """Inspect beneath the root resolved once by the measurement entry point."""
     if not isinstance(selection, dict):
         raise ValueError("invalid contract selection")
     if "contract_controls" not in selection:
@@ -117,7 +204,6 @@ def assess_contract_controls(root, selection):
         or not isinstance(selector["artifact_id"], str)
     ):
         raise ValueError("invalid contract selector")
-    root = Path(root).absolute()  # Do not resolve away a symlink before no-follow reads.
     artifacts = selection.get("artifacts")
     if not isinstance(artifacts, list) or identify(root, artifacts)["status"] != "pass":
         raise ValueError("contract identity is incomplete")
@@ -159,12 +245,16 @@ def assess_contract_controls(root, selection):
     scorer = raw["scorer_id"].decode()
     program = scorer.split("python - <<'CHECK'\n", 1)[1].rsplit("\nCHECK\n", 1)[0]
     tree = ast.parse(program)
-    body = tree.body[3].body  # frozen try block
-    comparison = body[-1].value
+    body = cast(ast.Try, tree.body[3]).body  # frozen try block
+    comparison = cast(ast.Assign, body[-1]).value
     planted = isinstance(comparison, ast.BoolOp)
-    total_compare = comparison.values[0] if planted else comparison
+    total_compare = cast(ast.Compare, comparison.values[0] if isinstance(comparison, ast.BoolOp) else comparison)
     expected_total = ast.literal_eval(total_compare.comparators[0])
-    summary_expected = ast.literal_eval(comparison.values[1].comparators[0]) if planted else None
+    summary_expected = (
+        ast.literal_eval(cast(ast.Compare, comparison.values[1]).comparators[0])
+        if isinstance(comparison, ast.BoolOp)
+        else None
+    )
     output_paths = [
         ast.literal_eval(node.args[0])
         for node in ast.walk(tree)
@@ -189,7 +279,7 @@ def assess_contract_controls(root, selection):
     if records["test_data_id"]["path"] != copied_path:
         raise ValueError("contract COPY source is not the selected data")
     refs = {field: _citation(records[field], data) for field, data in raw.items()}
-    conditions = [
+    conditions: list[Condition] = [
         {
             "id": "total-output",
             "authority": "public instruction",
@@ -223,7 +313,14 @@ def assess_contract_controls(root, selection):
     conditions.append(
         {"id": "binary-reward", "authority": None, "status": "unadjudicated", "evidence_refs": [refs["scorer_id"]]}
     )
-    binding = {
+    coverage: Coverage = {
+        "supported": sum(condition["status"] == "supported" for condition in conditions),
+        "unsupported": sum(condition["status"] == "unsupported" for condition in conditions),
+        "unadjudicated": sum(condition["status"] == "unadjudicated" for condition in conditions),
+        "total": len(conditions),
+    }
+    coverage_outcome = "FAIL" if coverage["unsupported"] else "PARTIAL" if coverage["unadjudicated"] else "PASS"
+    binding: InspectionBinding = {
         "implementation": implementation,
         "manifest": {
             "artifact_id": manifest_record["id"],
@@ -236,7 +333,7 @@ def assess_contract_controls(root, selection):
         },
     }
     revision = "sha256:" + _digest(json.dumps(binding, sort_keys=True, separators=(",", ":")).encode())
-    inspection = {
+    inspection: SourceInspection = {
         "variant": variant,
         "binding": binding,
         "condition_count": len(conditions),
@@ -249,6 +346,7 @@ def assess_contract_controls(root, selection):
         "inventory_scope": "The inspection covers the complete declared task COPY inventory and public instruction. It does not inspect a native image.",
         "expected_total": expected_total,
         "fixture_total": fixture_total,
+        "fixture_order_count": len(data_rows),
         "summary_expected": summary_expected,
         "reward_rule": "binary-all-or-nothing",
         "native_execution": False,
@@ -260,7 +358,7 @@ def assess_contract_controls(root, selection):
             else "The frozen clean scorer has no summary requirement. The absence of this one defect does not establish a complete authority mapping or independently justified scoring semantics."
         ),
     }
-    rows = {}
+    rows: dict[str, ContractRow] = {}
     for definition in definitions:
         ident = definition["id"]
         scored = ident == "task-contract.discoverable-requirements" and planted
@@ -280,7 +378,7 @@ def assess_contract_controls(root, selection):
             gaps.append(
                 "Removing the hidden summary does not prove complete legitimate authority. Scoring semantics and independent discovery remain unassessed."
             )
-        checks = []
+        checks: list[CheckResult] = []
         for check in definition["checks"]:
             deterministic = ident == "task-contract.discoverable-requirements" and check["method"] == "deterministic"
             checks.append(
@@ -288,7 +386,8 @@ def assess_contract_controls(root, selection):
                     "check_id": check["id"],
                     "source_id": check["source_id"],
                     "method": check["method"],
-                    "outcome": "PASS" if deterministic else "NOT_RUN",
+                    "outcome": coverage_outcome if deterministic else "NOT_RUN",
+                    **({"coverage": coverage} if deterministic else {}),
                     "evidence_refs": list(refs.values()) if deterministic else [],
                     "remaining_gap": None
                     if deterministic

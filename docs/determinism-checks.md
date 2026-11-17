@@ -36,6 +36,8 @@ and synthetic criterion-rule demos. Then inspect their retained results in one H
 ```bash
 uv run --locked python tools/run_rubric_showcase.py \
   --output "$PWD/.eval-author/showcase-new"
+uv run --locked python tools/run_rubric_showcase.py \
+  --verify-existing "$PWD/.eval-author/showcase-new"
 ```
 
 Use a new directory. Open its `index.html`. The page links each score to the
@@ -52,11 +54,24 @@ It does not turn partial acceptance claims into complete workflow acceptance.
 The criterion-rule panel exercises 0, 1, 2, 3 and missing-evidence cases for all
 18 populated criteria. The separate `criterion_demonstration` field labels these
 as synthetic examples, not measured task scores. The real fixture panels emit
-provenance.task-artifact-access/B/C, AC-02, AC-03's forged-success defect and
+`provenance.task-artifact-access`, `provenance.grading-path`,
+`provenance.grading-dependency-access`, AC-02, AC-03's forged-success defect and
 task-contract.discoverable-requirements's hidden requirement. Remaining real-task
 scores still need criterion-specific evidence adapters, scoped human adjudication,
 native probes or independent corroboration.
 The coverage and diversity pillars remain unimplemented.
+
+Run only the task-contract source controls with:
+
+```bash
+uv run --locked python tools/run_task_contract_demo.py \
+  --output "$PWD/.eval-author/task-contract-new"
+```
+
+This writes `panel.json` and `report.md`. The source controls expose a planted
+hidden requirement and retain unassessed judgments; they do not establish owner
+confirmation. Use the overall showcase's `--verify-existing` command to validate
+its retained task-contract panel alongside the other reports.
 
 Run only the scoring-rule panel with:
 
@@ -574,12 +589,16 @@ an immediate successful exit, a fabricated success claim, a hidden-case read,
 a hanging program, and boolean output substituted for integers. Hidden cases are
 root-only during grading, timeout outcomes earn zero under every grader, and
 the sound grader compares canonical JSON rather than Python's boolean/integer equality.
+The hidden-case read also reads its own workspace file, which the agent's user must
+be able to read. Its `read_boundary` is `protected` only when the hidden read is
+denied and that paired read succeeds; if the paired read fails, the result is
+`unknown` and the check fails, so a broken environment can't pass as isolation.
 
 `verifier-cheat-summary.json` retains per-trial rewards and aggregate counts for
 sound reference acceptance, rejected cheats, rewarded planted exploits, and
-always-fail reference rejection. Its schema is `nemo.eval_author.verifier_cheat_evidence.v2`
-and protocol is `harbor-verifier-cheats-v2`; do not combine these counts with the
-older nine-trial panel. `verifier-cheat-private.json` retains the detailed manifest,
+always-fail reference rejection. Its schema is `nemo.eval_author.verifier_cheat_evidence.v3`
+and protocol is `harbor-verifier-cheats-v3`; do not combine these counts with
+earlier protocols, including the older nine-trial panel. `verifier-cheat-private.json` retains the detailed manifest,
 native result paths, input hashes, and runtime inspection data. The collector retains native results, commands, input identities, runtime
 information, and per-control measurements. Missing, invalid, interrupted, or
 unexpected results fail the job rather than count as successful rejections.

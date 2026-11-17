@@ -67,11 +67,10 @@ to turn audit evidence into prioritized dataset improvements across tools,
 capabilities, and failure cases. For proposal-only requests, stop after Step 1. Shared lifecycle decisions and
 pending work belong only in `.eval-author/.working/journey-state.json`; recommendations
 remain a user-facing deliverable and native evidence remains immutable.
-Enter that step directly from the core's proposal route, carrying existing audit
-findings and prior answers. Accepting the audit's offer to propose tasks also
-enters Step 1 directly; reuse the reviewed Audit coverage report and agreed priorities.
-When handing off from a guided audit, wait for an explicit answer accepting that
-offer; report acceptance alone is not permission to begin proposals.
+Enter Step 1 directly from the core's proposal route, reusing findings and prior answers.
+For guided audits and `scopes.expand.audit_handoff`, follow the
+[selected improvement handoff and follow-through](../eval-author-audit/references/coverage-report.md#selected-improvement-handoff-and-follow-through).
+Recording findings alone does not select proposal work.
 For task creation, consume the core's shared prerequisite result, including direct
 invocation. Proposal-only requests keep their supplied-input scope. Reuse the
 confirmed Ethos and prerequisites.
@@ -142,7 +141,7 @@ path is not permission to include another corpus. Ask about an unresolved source
 before searching or reading it. Proposal-only work can use the available reviewed
 findings without requiring new traces or a creation-scope checkpoint.
 
-When available, read the **Audit coverage report** (`.eval-author/audit-coverage-report.md`)
+When available, read the **Audit coverage report** ([its location](../eval-author-audit/references/coverage-report.md#artifact-names))
 for test mappings, findings, limitations, and agreed next actions. Check its applicability
 against the underlying specification and reports; a mapped test does not establish
 measured coverage. The Markdown report supplies context, while measurement JSON
@@ -151,7 +150,7 @@ absence alone does not require repeating an otherwise usable audit.
 
 Keep the audit's [artifact names](../eval-author-audit/references/coverage-report.md#artifact-names)
 in proposal replies and links: Audit specification (`audit.md`), Audit coverage
-report (`audit-coverage-report.md`), and Coverage measurements (JSON)
+report (`report_markdown/audits.md`), and Coverage measurements (JSON)
 (`audit-coverage-report.json`). Review status does not change these names.
 
 Read available aggregate measurements, relevant per-trace `details.json` and

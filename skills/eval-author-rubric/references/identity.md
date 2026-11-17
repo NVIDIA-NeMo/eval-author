@@ -86,7 +86,7 @@ criterion-specific inventories, JSON-pointer bindings and provenance fields.
 Unsupported IDs, malformed facts, changed sources and contradictory records fail
 closed. Select each criterion explicitly.
 
-Recorded judgments remain `NOT_ASSESSED/E0` unless an owning measurement adapter
+Recorded judgments remain `NOT_ASSESSED` with null evidence strength unless an owning measurement adapter
 establishes the required evidence. A bound JSON record does not authenticate a
 reviewer, establish solver permissions or prove native execution.
 
@@ -128,6 +128,142 @@ validator's reason; its warnings are kept. A changed digest is
 `ethos.digest_mismatch`. A missing or broken validator leaves validity unknown.
 A valid result is structure only: it does not show the content was confirmed,
 is current, or states adequate intent.
+
+## Harbor task layout labels
+
+`layout` is `{"task": <task directory relative to --root>}`; `"."` selects the
+root itself. The measurement labels every file under that directory from the
+Harbor layout. `instruction.md`, `trajectory.json`, and `environment/` are
+`public`; `tests/` and `solution/` are `private`; `task.toml` is
+`configuration`; anything else is `unlabeled`. A declared step under
+`steps/<name>/` follows the same rules, and its `workdir/` is `public`. Each
+record keeps its task-relative path and digest.
+
+A directory without `task.toml`, or without both `instruction.md` and declared
+`[[steps]]`, is `layout.not_harbor` (unknown): give the
+[format warning](../../eval-author/references/task-format.md) instead of
+labeling it by hand. Symlinks are never followed and stay `unresolved`. A
+directory that can't be listed is `layout.directory_unreadable` (unknown), never
+an empty directory. A Dockerfile or Compose file under `environment/` that names
+`tests` or `solution` is `layout.private_path_in_environment` (unknown), a
+candidate for review. The labels describe the layout, not a tested runtime
+boundary or whether a public file contains an answer.
+
+## Internal answer leakage
+
+`leakage` is `{"task": <task directory>, "allowed_overlap": [...]}`. It uses the
+Harbor task layout labels above and compares every readable private file with
+every readable public file. Each finding records `kind`, `method`, `private` and
+`public` paths, the public `lines` range when there is one, and whether declared
+overlap allows it. Findings never contain the matched content.
+
+- `full`: the whole private file appears in a public file, by `exact`,
+  `normalized` (whitespace collapsed, lowercased), or `json-canonical` (sorted
+  keys) comparison. An unallowed full match is `leakage.full` (fail).
+- `hint`: part of a private file appears, as a `normalized-line` of at least 24
+  characters or a `json-value` of at least 6. An unallowed hint is
+  `leakage.hint` (unknown).
+- `reference`: an instruction names a private file's task path, a distinctive
+  file name, or a `test_` function from a private Python file. It is
+  `leakage.reference` (unknown).
+- `filename`: a public file or directory name contains an answer, such as
+  `expected_total_4213.csv`. Answers here are private JSON values of at least 4
+  characters and one-line plain answer files. It is `leakage.filename` (unknown).
+
+`hidden_cases` classifies the task's hidden tests: `protected` when the layout
+keeps every test file private and no public file holds any of a test's content,
+`exposed` when a public file holds a full copy of a test file, and `unknown`
+otherwise, including layout diagnostics, unscanned files, and partial matches
+awaiting review.
+
+Each `allowed_overlap` entry is `{"private", "public", "reason"}` with paths
+relative to the task directory. Use it only for content the task intends the
+agent to see, such as the input a task asks the agent to transform. When a
+`reconstruction` measurement declares a public file `generated`, overlap with
+it is never allowed: `leakage.generated_overlap_not_allowed` (fail).
+`generated_files_checked` says whether a reconstruction measurement was
+available to apply that rule.
+
+Non-UTF-8 files are listed in `unscanned` (`leakage.unscanned_files`, unknown).
+A match shows shared text, not that the agent can use it or that the author
+didn't intend it. No match doesn't establish the task is free of leakage:
+paraphrases, image contents, and answers computable from public inputs stay
+unchecked.
+
+## Development and test overlap
+
+`overlap` is `{"splits": {<name>: [<task directory>, ...]}, "required": [<name>,
+...]}`. `required` names at least two splits a complete check needs, such as
+`development` and `test`. A required split that isn't declared is
+`overlap.split_missing` (unknown), never an empty clean split. Take split
+membership from the suite's own dataset configs or manifests; don't infer it
+from directory names.
+
+Every pair of tasks in different splits is compared:
+
+- `duplicate` (fail): the same directory (`same-directory`), identical
+  instruction bytes (`exact-instruction`), or identical text after collapsing
+  whitespace and lowercasing (`normalized-instruction`). A multi-step task's
+  step instructions are compared together.
+- `sibling` (unknown): different tasks with the same repository and commit
+  (`repository-commit`), read from `task.toml` `[metadata]` keys such as `repo`
+  and `base_commit`, or else from `git clone` and `git checkout` lines in the
+  environment's Dockerfile. Siblings share a codebase rather than a task; review
+  whether the development task reveals what the test task measures.
+
+A task outside the Harbor layout or with an unreadable instruction is unknown.
+Each split reports how many tasks were declared, compared, and had a recoverable
+origin; a task without an origin can't be checked for siblings. Findings name
+tasks, never their content. Paraphrased duplicates, siblings with other kinds of
+shared origin, and model-training contamination are not checked.
+
+## Published sources the agent can reach
+
+`external` is `{"task": <task directory>}`. It reads `task.toml` and never fetches
+anything. `networks` lists the agent's network policy for the task and for each
+declared step. Harbor applies a step's `[steps.agent]` policy first, then the
+task's `[agent]` policy, then the `[environment]` one, and finally its default
+`public`; `allow_internet = false` means `no-network`. Allowed hosts are trimmed,
+lowercased, and stripped of a trailing dot, as Harbor does. The task's origin
+comes from the same repository-and-commit lookup as the overlap check above.
+
+- `external.source_reachable` (fail): the task names its repository and commit,
+  and some agent phase can reach that repository's host, through `public`
+  network or a matching `allowlist`. The repository's later commits may contain
+  the fix.
+- `external.network_open` (unknown): some agent phase has `public` network but no
+  source repository was identified. Other published copies of the answer can't
+  be ruled out.
+
+A job config can add allowed hosts at run time; this check sees only the task.
+Use the cheating evaluation set's hidden-case read for the runtime read
+boundary: it counts as protected only when the private read is denied and its
+paired read of the agent's own workspace file succeeds.
+
+## Benchmark content in prompts and skills
+
+`reuse` is `{"tasks": [<task directory>], "paths": [<file or directory>]}` with
+paths relative to `--root`. `paths` names the prompts, skills, and harness code
+the agent uses. The agent has these before any evaluation starts, so the
+measurement reads every selected file in full; files inside the selected tasks
+are skipped. The root must contain the tasks rather than be one.
+
+Each finding records `kind`, the `task`, the `private` source file, and the
+agent `file` and line. It never copies the matched content.
+
+- `expected-value` (fail): a JSON value of at least 6 characters from a private
+  file.
+- `private-line` (fail): a line of at least 24 characters from a private file,
+  compared after collapsing whitespace and lowercasing.
+- `test-name` (unknown): a `test_` function name from a private Python file.
+- `task-id` (unknown): the task directory's name, when it has at least 6
+  characters.
+
+Layout diagnostics from a selected task, such as a symlinked `tests/`, and
+missing, unreadable, or non-UTF-8 agent files leave the result unknown, never
+clean. A match shows that task-specific text reaches the agent, not how it got
+there. Generalized advice tuned to one grader, such as always writing a file the
+grader checks for, is not detected.
 
 ## Construction authority references
 

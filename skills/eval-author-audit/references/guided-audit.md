@@ -62,7 +62,7 @@ actual reply and reason in `source`, not an offered choice or missing-input find
 Native scripts establish measurement correctness; the lifecycle checks retained bytes.
 
 Save the generated report, content, and input bindings in `findings` using the
-[report binding rules](coverage-report.md#review-and-bindings) and bind
+[report binding rules](coverage-report.md#review-and-bindings).
 Current recorded findings are reviewed automatically; no user acceptance or
 `findings_review` record is needed. A task review records the checks report as
 `findings` before it analyzes the tasks, so approving the checks does not finish it.
@@ -73,7 +73,8 @@ involved. Rewriting the report reopens the finalization. Bind
 when the user selects it. Answering a next-action question clears `pending` and
 `pending_question`; save both before any journey switch. Mark the audit
 complete only when derived `audit.complete` is true. Findings remain in
-`audit-coverage-report.md`; link it whenever it is created or updated.
+`report_markdown/audits.md`; link it and the **Audit** tab of `report.html`
+(`report.html#audit`) whenever it is created or updated.
 
 A fresh audit may set aside the earlier `.eval-author/.working/audit/` folder. Leave
 `.eval-author/.working/audit-history/` in place: it holds the previous audits that the
@@ -129,7 +130,10 @@ choices and present any still-pending suite selection before continuing.
 When selected paths are missing or saved selections conflict with current handoff
 or authoring records, explain the mismatch in the final blocker or source-selection response.
 Name the selected suites/tasks and runs, their selection provenance, and exactly
-which checked paths are missing. Contrast relevant current work already known,
+which checked paths are missing. When a selected suite holds evaluations that are
+neither Harbor tasks nor NeMo Gym environments, give the
+[format warning](../../eval-author/references/task-format.md) with the scope
+summary and continue. Contrast relevant current work already known,
 distinguishing saved records from verified files. Honor a current explicit
 selection even when newer work exists. If scope is unclear, ask which named set
 to audit before requesting its run source. Preserve prior selections until that
@@ -314,7 +318,7 @@ measurement; loading success alone does not complete measurement.
 Complete when the agreed measurement scope has been processed and aggregated
 successfully, even when coverage is low. If some inputs fail, report only the
 successful subset with explicit exclusions and keep the agreed milestone partial.
-Update the authored content and regenerate `audit-coverage-report.md` with the measured subset, methods, and any
+Update the authored content and regenerate `report_markdown/audits.md` with the measured subset, methods, and any
 excluded inputs. Explain the result and limits, link the updated report, and
 when measurement is complete, continue directly to recording findings without
 another approval pause.
@@ -339,7 +343,7 @@ unproven screening even when agent coverage measurement is complete. Use the
 same findings and limits in the rendered conversation and saved report.
 
 Generate or update the **Audit coverage report**
-(`.eval-author/audit-coverage-report.md`) following the
+(`.eval-author/report_markdown/audits.md`) following the
 [report guidance](coverage-report.md), even for a specification-only outcome.
 Then go over it with the user. Lead with what was established: proposed checks,
 partial measurement, or coverage measured over a named set of traces. Explain
@@ -376,7 +380,9 @@ request does not select it. A reply choosing the offered action settles it
 without another permission prompt.
 
 Once proposals are selected, enter `eval-author-task-create` at **Step 1: propose dataset
-improvements**. Carry the Audit coverage report, reviewed Audit specification,
+improvements**. Save specific recommendation IDs through the
+[selected improvement handoff](coverage-report.md#selected-improvement-handoff-and-follow-through).
+Carry the Audit coverage report, reviewed Audit specification,
 available Coverage measurements (JSON) and evidence, selected source scope, user
 corrections, and agreed priorities.
 Do not restart the audit or repeat settled questions. Expand the existing

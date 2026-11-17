@@ -18,6 +18,44 @@ import run_scorer_controls as runner  # noqa: E402
 from test_scorer_native import synthetic_job  # noqa: E402
 
 
+@pytest.mark.parametrize("mutation", ["missing_scoring", "missing_anchor", "duplicate_section"])
+def test_anti_cheat_parser_rejects_malformed_definitions(tmp_path, mutation):
+    sys.path.insert(0, str(ROOT))
+    sys.path.insert(0, str(SCRIPT.parent))
+    sys.path.insert(0, str(ROOT / "skills/eval-author/scripts"))
+    controls = importlib.import_module("skills.eval-author-rubric.scripts.rubric_scorer_controls")
+    text = controls.REFERENCE.read_text()
+    if mutation == "missing_scoring":
+        text = text.replace("**Scoring:**", "**Missing:**", 1)
+    elif mutation == "missing_anchor":
+        text = text.replace("0: confirmed", "missing: confirmed", 1)
+    else:
+        text += "\n## AC-01: duplicate\n**Scoring:** 0: a 1: b 2: c 3: d\n"
+    path = tmp_path / "anti-cheat.md"
+    path.write_text(text)
+    with pytest.raises(ValueError, match="malformed anti-cheat"):
+        controls.anti_cheat_definitions(path)
+
+
+def test_control_and_evidence_consumers_share_scoring_parser(tmp_path, monkeypatch):
+    sys.path.insert(0, str(ROOT))
+    sys.path.insert(0, str(SCRIPT.parent))
+    sys.path.insert(0, str(ROOT / "skills/eval-author/scripts"))
+    controls = importlib.import_module("skills.eval-author-rubric.scripts.rubric_scorer_controls")
+    output = tmp_path / "fixture"
+    retained = runner.prepare(output)
+    (output / "panel.json").write_text(runner.encoded(runner.run_panel(output, retained)))
+    selected = selection_for(output, "baseline")
+    measured = {"scorer_controls": controls.project(output, selected)}
+    original = controls.assess_controls(measured, selected, output)
+    reference = tmp_path / "anti-cheat.md"
+    reference.write_text(controls.REFERENCE.read_text().replace("**Scoring:** ", "**Scoring:**\n\n"))
+    monkeypatch.setattr(controls, "REFERENCE", reference)
+    assert controls.assess_controls(measured, selected, output) == original
+    for ident, definition in controls.anti_cheat_definitions(reference).items():
+        assert original[ident]["canonical_scoring"] == definition["canonical_scoring"]
+
+
 def test_existing_native_panel_reaches_one_without_launch_or_summary_authority(tmp_path, monkeypatch):
     native, _ = synthetic_job(tmp_path)
     monkeypatch.setattr(native.common, "execute", lambda *a, **k: pytest.fail("native launch forbidden"))
@@ -535,7 +573,7 @@ def test_fixture_controls_reach_canonical_scores_through_real_cli(tmp_path):
         assert item["evidence_strength"] == "E2"
         assert item["definition_ref"] == "anti-cheat.md#ac-02-shortcuts-do-not-earn-forbidden-credit"
         assert {c["method"] for c in item["check_results"]} == {"review", "probe", "deterministic"}
-        assert all("check_id" not in c for c in item["check_results"])
+        assert [c["check_id"] for c in item["check_results"]] == ["AC-02.review", "AC-02.probe", "AC-02.deterministic"]
         assert item["remaining_gaps"]
         assert report["items"]["provenance.grading-path"]["score"] == 2
         assert all(report["items"][ident]["score"] is None for ident in ("AC-01", "AC-04"))

@@ -60,7 +60,7 @@ def test_saved_design_is_reported_before_authoring(modules, tmp_path, design, pr
         assert row["proposed_grading"] == planned["grading"]
         assert row["path"] is row["readme_path"] is row["readme_html"] is None
     assert data["plan_counts"] == {"proposed": 2, "authored": 0, "validated": 0, "executed": 0}
-    markdown = (tmp_path / ".eval-author/README.md").read_text()
+    markdown = (tmp_path / ".eval-author/report_markdown/tasks.md").read_text()
     assert "Proposed" in markdown
     assert design[0]["behavior"] in markdown
     assert design[0]["grading"] in markdown
@@ -324,7 +324,7 @@ def test_saved_plan_summaries_are_literal_in_reports(modules, tmp_path, design):
 
     row = next(row for row in data["tasks"] if row["plan_task_id"] == "refund")
     assert row["behavior"] == row["expected_outcome"] == row["proposed_grading"] == source
-    markdown = (tmp_path / ".eval-author/README.md").read_text()
+    markdown = (tmp_path / ".eval-author/report_markdown/tasks.md").read_text()
     assert report.markdown_text(source) in markdown
     assert "<script>alert" not in markdown
     html = (tmp_path / ".eval-author/report.html").read_text()

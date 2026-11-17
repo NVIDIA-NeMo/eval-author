@@ -33,7 +33,7 @@ must be success, failure, or null. Arbitrary equal text is rejected. Completed,
 same-revision failures lower acceptance (confirmed defect outcomes to zero);
 unrun/error/other-revision controls neither corroborate nor establish defects.
 
-Retained review inventories currently produce NOT_ASSESSED/E0 for real tasks:
+Retained review inventories currently produce NOT_ASSESSED with null strength for real tasks:
 no numeric production score is inferred from their asserted semantics. Only the
 explicit synthetic scope exercises numeric rules (0-3). Thus this is a scoring
 rule demonstrator and source-bound review recorder, NOT fourteen new native
@@ -61,6 +61,8 @@ from typing import Any, TypedDict
 
 from eval_author_shared.task_evidence import loads
 from rubric_identity import MAX_FILES, MAX_TOTAL_BYTES, SelectedAccess, read_selected
+from rubric_identity import text as _text
+from rubric_scorer_controls import anti_cheat_definitions
 
 
 class FactPolicy(TypedDict):
@@ -390,26 +392,8 @@ def canonical_definitions() -> dict[str, dict[str, Any]]:
     for name in ("artifact-configuration-provenance", "task-contract-authority"):
         document = loads((REFERENCES / f"{name}.json").read_bytes())
         definitions.update({item["id"]: item for item in document["items"]})
-    text = (REFERENCES / "anti-cheat.md").read_text()
-    for section in re.split(r"(?m)^## ", text)[1:]:
-        heading, body = section.split("\n", 1)
-        if not heading.startswith("AC-"):
-            continue
-        ident, title = heading.split(": ", 1)
-        scoring_text = body.split("**Scoring:** ", 1)[1].split("\n\n", 1)[0]
-        scoring_text = " ".join(scoring_text.split())
-        anchors = re.split(r"(?:^| )([0-3]): ", scoring_text)[1:]
-        definitions[ident] = {
-            "id": ident,
-            "title": title,
-            "scoring": dict(zip(anchors[::2], anchors[1::2], strict=True)),
-            "checks": [
-                {"id": f"{ident}:{method}", "method": method, "action": action.strip()}
-                for method, action in re.findall(
-                    r"- (Deterministic|Review|Probe): (.*?)(?=\n- |\n\n\*\*Scoring:)", body, re.S
-                )
-            ],
-        }
+    for ident, definition in anti_cheat_definitions(REFERENCES / "anti-cheat.md").items():
+        definitions[ident] = {key: value for key, value in definition.items() if key != "canonical_scoring"}
     return definitions
 
 
@@ -471,10 +455,6 @@ def _object(value: Any, keys: set[str]) -> dict[str, Any]:
     if not isinstance(value, dict) or set(value) != keys:
         raise ValueError("malformed criterion evidence object")
     return value
-
-
-def _text(value: Any) -> bool:
-    return isinstance(value, str) and bool(value.strip())
 
 
 class EvidenceReader:
@@ -615,7 +595,12 @@ def _derive(ident: str, facts: dict[str, Any]) -> int | None:
         if any(r["value"] != r["reported_value"] and r["claim_limit"] == "uninterpretable" for r in inventory):
             return 0
         if all(
-            (r["availability"] == "sourced" and r["value"] is not None and r["source_identity"])
+            (
+                r["availability"] == "sourced"
+                and r["value"] is not None
+                and r["value"] == r["reported_value"]
+                and r["source_identity"]
+            )
             or (r["availability"] == "provider_hidden" and r["claim_limit"] != "none")
             for r in inventory
         ):
@@ -919,9 +904,14 @@ def assess_evidence(root: Path, selection: dict[str, Any]) -> dict[str, dict[str
                 raise ValueError("fact source pointer does not name the selected fact")
             for support in record["support"]:
                 _object(support, {"artifact_id", "pointer", "digest"})
-                if support.get("artifact_id") in (record["source"]["artifact_id"], selector["artifact_id"]):
-                    raise ValueError("fact assertion cannot support itself")
                 supported = reader.reference(support)
+                support_record = reader.records[support["artifact_id"]]
+                if any(
+                    support_record["path"] == reader.records[ident]["path"]
+                    or support_record["digest"] == reader.records[ident]["digest"]
+                    for ident in (record["source"]["artifact_id"], selector["artifact_id"])
+                ):
+                    raise ValueError("fact assertion cannot support itself")
                 if supported is None or supported == "" or supported == [] or supported == {}:
                     raise ValueError("empty underlying evidence")
             _validate_fact(value, FACT_POLICIES[ident][name])
@@ -980,7 +970,7 @@ def assess_evidence(root: Path, selection: dict[str, Any]) -> dict[str, dict[str
             selected=True,
             subject_id=subject["artifact_id"],
             subject_revision="sha256:" + subject["digest"],
-            evidence_strength="E1" if synthetic and fact_results else "E0",
+            evidence_strength="E1" if score is not None else None,
             fact_results=fact_results,
             reviewer_authenticated=False,
             native_execution_verified=False,

@@ -50,8 +50,9 @@ Onboarding `resume` rejects these downstream checkpoints.
 
 ## Stages and facts
 
-Every stage accepts `audit_observations`, optional `links`, and applicable
-`blockers`. Additional facts and gates are listed below; unknown fields fail.
+Every stage accepts `audit_observations`, optional `links`, optional
+`suite_report_error` (the renderer's error: the notice then links the Markdown and says the HTML report
+could not be refreshed), and applicable `blockers`. Additional facts and gates are listed below; unknown fields fail.
 
 | Stage | Additional facts and behavior |
 |---|---|
@@ -59,7 +60,7 @@ Every stage accepts `audit_observations`, optional `links`, and applicable
 | `audit_traces` | Optional `report_action`. Requires resolved suite selection and unresolved trace selection. |
 | `audit_checks` | `checks`: lists keyed by `tools`, `capabilities`, `failure_cases`, and `grading`, with `{check, evidence}` rows; use empty lists for absent areas. Requires `validation: "passed"`, `report_action`, `limits`, optional `changes`, a current checks digest and report. |
 | `audit_measurement` | Optional `progress` and `report_action`. Requires current check approval and unresolved measurement; emits no decision question. |
-| `audit_findings` | `conclusion`, a nonempty `findings` list, `limits`, `recommendations`, `report_action`. Requires current checks/findings and complete, current partial, or explicitly deferred measurement, with a saved findings-review checkpoint. |
+| `audit_findings` | `conclusion`, a nonempty `findings` list, `limits`, `recommendations`, `report_action`. Requires current checks/findings and finalized task analysis, or complete, current partial, or explicitly deferred measurement. No findings-acceptance checkpoint is needed. |
 | `audit_next_action` | Acknowledges recorded findings and any selected action without creating a question. Optional `recommendations` accompany only an applicable previously saved action question. |
 | `audit_blockers` | Saved blockers and explanations; optional `report_action`. Uses top-level `pending_question` for the actual recovery choice. |
 | `audit_resume` | Resolves to the blocker or current milestone using its facts. Recorded findings resolve to acknowledgement. |
@@ -94,8 +95,21 @@ Findings require `report` and accept an optional `findings` link.
 Acknowledgement accepts only `report`. Other stages accept `report` only when
 announcing `report_action`. Stage-inapplicable links are rejected.
 Section links require fragments. Supporting evidence stays inside the report.
+When the saved report is `.eval-author/report_markdown/audits.md`, the report notice also
+links the HTML report's Audit tab (`.eval-author/report.html#audit`); callers supply no extra link.
 
 Blockers follow the [shared contract](onboarding.md#blockers): one explanation
 per saved blocker with `id`, `step`, `reason`, `needed`, and `skill_link` where
 required. Shared prerequisites and Ethos take precedence. Blockers suppress
 success checklists and preserve the recovery question over an older review question.
+
+## Specific improvement selections
+
+Use the [selected improvement handoff](../../../eval-author-audit/references/coverage-report.md#selected-improvement-handoff-and-follow-through)
+for recommendation IDs, revision-checked decisions, resume behavior, and report
+follow-through. Include each highlighted recommendation's internal ID in `facts.recommendations[].id`.
+Present its descriptive label, not the ID, and resolve the user's choice internally.
+The renderer accepts older payloads without IDs for compatibility; new findings
+reviews must identify the report recommendations being offered. A legacy generic
+improvement acknowledgement identifies the unresolved selection; the receiving
+workflow asks only which recommendations to plan.

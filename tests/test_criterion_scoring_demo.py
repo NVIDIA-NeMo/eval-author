@@ -227,6 +227,71 @@ def test_rejection_fixture_validation_precedes_measurement(
     assert measured, "trusted fixture must be generated independently of retained evidence"
 
 
+@pytest.mark.parametrize("valid", [True, False])
+def test_verify_existing_is_read_only(tmp_path: Path, retained_demo: Path, valid: bool) -> None:
+    output = tmp_path / "read-only"
+    shutil.copytree(retained_demo, output)
+    if not valid:
+        (output / "summary.json").write_text("{}\n")
+    paths = [output, *output.rglob("*")]
+    for path in paths:
+        path.chmod(path.stat().st_mode & ~0o222)
+
+    def snapshot() -> dict[str, tuple[str | None, int, int]]:
+        return {
+            path.relative_to(output).as_posix(): (
+                hashlib.sha256(path.read_bytes()).hexdigest() if path.is_file() else None,
+                path.stat().st_mtime_ns,
+                path.stat().st_mode,
+            )
+            for path in [output, *output.rglob("*")]
+        }
+
+    try:
+        before = snapshot()
+        result = invoke("--verify-existing", str(output))
+        assert result.returncode == (0 if valid else 1), result.stdout + result.stderr
+        assert snapshot() == before
+    finally:
+        for path in paths:
+            path.chmod(path.stat().st_mode | 0o200)
+
+
+@pytest.mark.parametrize("entrypoint", ["nested-verifier", "rejection-controls"])
+def test_trusted_temporary_roots_resolve_tmpdir_alias(
+    tmp_path: Path, retained_demo: Path, monkeypatch: pytest.MonkeyPatch, entrypoint: str
+) -> None:
+    import tempfile
+
+    real = tmp_path / "real-tmp"
+    real.mkdir()
+    alias = tmp_path / "tmp-alias"
+    alias.symlink_to(real, target_is_directory=True)
+    monkeypatch.setenv("TMPDIR", str(alias))
+    monkeypatch.setattr(tempfile, "tempdir", None)
+    with monkeypatch.context() as context:
+        context.setattr(sys, "path", sys.path.copy())
+        demo = runpy.run_path(str(SCRIPT))
+        showcase = runpy.run_path(str(ROOT / "tools/run_rubric_showcase.py"))
+    before = showcase["retained_hashes"](retained_demo)
+    if entrypoint == "nested-verifier":
+        showcase["verify_private_copy"](retained_demo, demo["run"])
+    else:
+        real_measure = demo["measure"]
+
+        def measure_resolved(directory: Path, **kwargs: bool) -> dict:
+            assert directory == directory.resolve()
+            return real_measure(directory, **kwargs)
+
+        monkeypatch.setitem(demo["rejection_controls"].__globals__, "measure", measure_resolved)
+        output = tmp_path / "controls-copy"
+        shutil.copytree(retained_demo, output)
+        assert demo["rejection_controls"](output, verify=True) == {
+            name: "rejected" for name in demo["REJECTION_CONTROLS"]
+        }
+    assert showcase["retained_hashes"](retained_demo) == before
+
+
 def test_existing_output_is_never_overwritten(retained_demo: Path) -> None:
     before = (retained_demo / "summary.json").read_bytes()
     result = invoke("--output", str(retained_demo))
