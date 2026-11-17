@@ -21,7 +21,7 @@ uv sync --locked
 make hooks
 uv run --locked ruff check .
 uv run --locked ruff format --check .
-uv run --locked pytest -q -rs -n auto
+PYTHONDONTWRITEBYTECODE=1 uv run --locked pytest -q -rs -n auto
 make check-copyright-headers
 make check-licenses
 git diff --check
@@ -123,8 +123,7 @@ sign-off trailers in the resulting commit.
 
 ## CI trust boundary
 
-The checked-in CI workflow tests same-repository pull requests targeting `main`
-or the `rrhyne/user-sim-*` stack branches,
+The checked-in CI workflow tests same-repository pull requests targeting `main`,
 and pushes to `main`, manual dispatches, and daily runs on GitHub-hosted Ubuntu
 runners. It uses a read-only
 `GITHUB_TOKEN`, disables persisted checkout credentials and shared dependency
