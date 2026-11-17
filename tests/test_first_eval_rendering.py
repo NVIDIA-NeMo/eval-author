@@ -276,7 +276,10 @@ def selected(creation):
     }
     record["selection"] = {
         "config": {"path": ".eval-author/run.yaml", "digest": SHA},
-        "cases": [{"task_id": key, "example_ids": [key + "-example"], "attempts": 1} for key in record["tasks"]],
+        "cases": [
+            {"task_id": task["id"], "example_ids": task["example_ids"], "attempts": 1}
+            for task in record["plan"]["tasks"]
+        ],
         "agent": "support",
         "model": "configured-model",
         "source": "Explicit run selection",
