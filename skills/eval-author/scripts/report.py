@@ -41,6 +41,7 @@ import first_eval_state  # noqa: E402
 from journey_state import load_state, task_digest, task_lifecycle  # noqa: E402
 from journey_state import state_path as journey_state_path
 from search_tasks import search_tasks, within_task_scope  # noqa: E402
+from task_types import test_type_label  # noqa: E402
 from working_paths import working_path  # noqa: E402
 
 MAX_FILE_BYTES = 8 * 1024 * 1024
@@ -161,6 +162,7 @@ TASK_SCHEMA["properties"]["title"] = NULL_TEXT
 TASK_SCHEMA["properties"]["heading_id"] = TEXT
 TASK_SCHEMA["properties"]["grading_summary"] = {"anyOf": [GRADING_SUMMARY, {"type": "null"}]}
 TASK_SCHEMA["properties"]["task_revision"] = NULL_TEXT
+TASK_SCHEMA["properties"]["planned_interaction"] = TEXT
 TASK_SCHEMA["allOf"] = [
     {
         "if": {"properties": {"status": {"const": "proposed"}}},
@@ -828,6 +830,10 @@ def project_plan(repo: Path, state: dict, tasks: list[dict], metadata: dict) -> 
             tasks.extend(matches)
         for task in matches:
             task["plan_task_id"] = task_id
+            if task["status"] == "proposed" and planned.get("test_type") is not None:
+                task["planned_interaction"] = design_text(
+                    test_type_label(planned["test_type"]) + ": " + planned["test_type_reason"]
+                )
     return counts
 
 
@@ -1246,6 +1252,7 @@ def render_tasks_markdown(data: dict) -> str:
                 actions.append(artifact_link("Task README", task["readme_path"]))
         name_cell = [
             "<strong><code>" + markdown_text(task.get("title") or task["name"]) + "</code></strong>",
+            *([markdown_text(task["planned_interaction"])] if task.get("planned_interaction") else []),
             *(
                 ["Task ID: " + markdown_text(task["plan_task_id"])]
                 if task.get("plan_task_id") and task["plan_task_id"] != (task.get("title") or task["name"])

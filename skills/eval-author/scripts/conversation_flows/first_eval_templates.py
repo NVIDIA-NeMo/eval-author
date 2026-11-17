@@ -34,6 +34,13 @@ SAVED_DESIGN_QUESTION = "Would you like to continue this saved design, revise it
 PROPOSAL_INTRO = "Here are the proposed evaluation tasks."
 TASK_TABLE = "| Task | Expected outcome | Verifier |\n|---|---|---|"
 PROPOSAL_TABLE = TASK_TABLE
+TASK_TYPE = "<br>**{label}:** {reason}"
+INTERACTION_TITLE = "**{task_id}: interaction details**"
+INTERACTION_FIELDS = {
+    "state_requirements": "State carried between requests",
+    "prerequisite_checks": "Prerequisite checks",
+    "conversation_scenario": "Conversation scenario",
+}
 NOT_DOCUMENTED = "Not documented"
 FIRST_CHOICE = "I’ll build **{task_id}** first."
 PROPOSAL_PROCESS = (

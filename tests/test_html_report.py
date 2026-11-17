@@ -1157,6 +1157,7 @@ def test_copied_script_and_template_installation(tmp_path):
         "working_paths.py",
         "journey_state.py",
         "first_eval_state.py",
+        "task_types.py",
         "audit_state.py",
         "conversation_templates.py",
         "runtime_policy.py",

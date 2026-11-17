@@ -27,6 +27,15 @@ Store the proposed rule before asking for design approval. Keep
 `example_ids` and the actual input in the saved design even though the table
 doesn't display them.
 
+Include `test_type` and `test_type_reason` using the shared
+[interaction planning rules](../coverage-planning.md#choose-the-interaction-type).
+The renderer places the type and reason below the behavior in the Task cell.
+It shows state requirements, prerequisite checks, and conversation scenarios
+below the table so the user can review the proposed exchange before authoring.
+Keep the state requirements, prerequisite checks, and conversation scenario in
+the saved task fields when applicable. Older plans without a recorded type stay
+readable and do not acquire an inferred type.
+
 After authoring, refresh the report with task metadata keyed by the exact
 saved task path. Set `display_id` to the proposed `id` and add
 `scoring_rule` with the implemented score and pass condition. Keep

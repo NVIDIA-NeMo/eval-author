@@ -13,6 +13,8 @@ from collections import Counter
 from itertools import chain
 from pathlib import PurePosixPath
 
+from task_types import validate_interaction_plan
+
 BUILD_STEPS = ("environment", "environment_check", "grading", "artifacts")
 REMAINING_STEPS = ("tasks", "environment_check", "validation", "artifacts")
 ARTIFACT_EVIDENCE = {".eval-author/report.html", ".eval-author/report_markdown/tasks.md"}
@@ -106,6 +108,7 @@ def validate(value: dict) -> None:
         _strings([task["id"] for task in planned])
         for task in planned:
             _strings(task["example_ids"])
+            validate_interaction_plan(task)
             for field in ("verifier_type", "scoring_rule"):
                 if field in task:
                     _text(task[field])

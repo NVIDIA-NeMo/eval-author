@@ -136,7 +136,7 @@ and the intended requirement-to-check mapping. Retain unresolved authority as an
 open design question; proposal-only work still stops here without scaffolding.
 
 Use the shared [Coverage planning](../eval-author/references/coverage-planning.md)
-procedure for source scope, priorities, and proposed example breadth. Reuse the
+procedure for source scope, breadth, and interaction types. Retain type, rationale, and scenario fields. Reuse the
 audit's confirmed corpus and exclusions when inspecting evidence; a discovered
 path is not permission to include another corpus. Ask about an unresolved source
 before searching or reading it. Proposal-only work can use the available reviewed

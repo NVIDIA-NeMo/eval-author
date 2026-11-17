@@ -114,6 +114,13 @@ item rerun commands, and known execution blockers.
 
 ## First evaluations
 
+New task proposals show an interaction type and why it fits the behavior:
+**Single-turn**, **Scripted multi-step**, or **User-sim**. Scripted tasks describe
+the prerequisites needed to reach later behavior. User-sim proposals describe
+how later user messages depend on the agent's responses. These are design
+choices, not evidence that a compatible runner is available or that a task ran.
+Older saved plans can remain without a documented type until reviewed.
+
 The HTML report and `report_markdown/tasks.md` show proposed, authored, validated, and
 executed task totals for your full saved plan. Use the
 [generated case review guide](#review-generated-cases) to inspect cases and their

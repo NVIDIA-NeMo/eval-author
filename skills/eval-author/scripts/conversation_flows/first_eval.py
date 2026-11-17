@@ -197,6 +197,8 @@ def source_prompt(state: dict) -> str:
 
 
 def task_table(tasks: list[dict]) -> str:
+    from task_types import test_type_label
+
     rows = [copy.TASK_TABLE]
     for task in tasks:
         task_id = literal(task.get("task_id") or copy.NOT_DOCUMENTED, "task_id", table=True)
@@ -204,7 +206,12 @@ def task_table(tasks: list[dict]) -> str:
         expected = literal(task.get("expected_outcome") or copy.NOT_DOCUMENTED, "expected_outcome", table=True)
         verifier_type = literal(task.get("verifier_type") or copy.NOT_DOCUMENTED, "verifier_type", table=True)
         scoring = literal(task.get("scoring_rule") or copy.NOT_DOCUMENTED, "scoring_rule", table=True)
-        rows.append(f"| **{task_id}** - {behavior} | {expected} | **{verifier_type}** {scoring} |")
+        interaction = ""
+        if task.get("test_type") is not None:
+            label = test_type_label(task["test_type"])
+            reason = literal(task.get("test_type_reason"), "test_type_reason", table=True)
+            interaction = copy.TASK_TYPE.format(label=label, reason=reason)
+        rows.append(f"| **{task_id}** - {behavior}{interaction} | {expected} | **{verifier_type}** {scoring} |")
     return "\n".join(rows)
 
 
@@ -249,14 +256,29 @@ def proposal(record: dict) -> str:
             "expected_outcome": task.get("expected_result"),
             "verifier_type": task.get("verifier_type"),
             "scoring_rule": task.get("scoring_rule"),
+            "test_type": task.get("test_type"),
+            "test_type_reason": task.get("test_type_reason"),
         }
         for task in tasks
     ]
     examples = len({example for task in tasks for example in task["example_ids"]})
+    interactions = []
+    for task in tasks:
+        details = []
+        for field, label in copy.INTERACTION_FIELDS.items():
+            value = task.get(field)
+            if value:
+                value = ", ".join(value) if isinstance(value, list) else value
+                details.append(f"- **{label}:** {literal(value, field)}")
+        if details:
+            interactions.append(
+                copy.INTERACTION_TITLE.format(task_id=literal(task["id"], "task ID")) + "\n\n" + "\n".join(details)
+            )
     return "\n\n".join(
         [
             copy.PROPOSAL_INTRO,
             task_table(rows),
+            *interactions,
             literal(presentation.get("coverage_note"), "coverage_note"),
             copy.FIRST_CHOICE.format(task_id=literal(record["first_task"], "first task ID")),
             copy.PROPOSAL_PROCESS.format(tasks=len(tasks), examples=examples),

@@ -114,6 +114,22 @@ def observations(record):
     return {"tasks": {key: task["sha256"] for key, task in record["tasks"].items()}, "files": files}
 
 
+def test_proposal_displays_selected_interaction_without_inferring_legacy_type(creation):
+    _, record, _, renderer, _ = creation
+    record["plan"]["tasks"][0].update(
+        test_type="user_sim",
+        test_type_reason="Choose from the offered options | then answer <confirm>.",
+        state_requirements="Keep the same customer session.",
+        conversation_scenario="Ask for a return and answer the agent's clarification before confirming.",
+    )
+    output = renderer.render(payload(creation, "proposal"))
+    assert "**User-sim:** Choose from the offered options &#124; then answer &lt;confirm&gt;." in output
+    assert "**State carried between requests:** Keep the same customer session." in output
+    assert "**Conversation scenario:** Ask for a return" in output
+    assert "**Single-turn:**" not in output
+    assert "**Scripted multi-step:**" not in output
+
+
 def payload(creation, stage, **facts):
     state, record, helper, *_ = creation
     observed = observations(record)

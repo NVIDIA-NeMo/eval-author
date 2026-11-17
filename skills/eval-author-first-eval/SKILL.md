@@ -130,6 +130,9 @@ truth or replace subjective quality with brittle wording checks.
 Follow the [first_eval task table contract](../eval-author/references/conversations/first_eval_templates.md)
 when saving each proposed task's verifier type and scoring rule, before resolving
 its validation setup.
+Choose and retain each task's interaction type using
+[coverage planning](../eval-author/references/coverage-planning.md#choose-the-interaction-type)
+before saving the proposal. Explain the choice in its task row.
 
 Reuse prerequisite findings and the selected source to make the proposal.
 Read only the additional agent interface or selected evidence needed to describe

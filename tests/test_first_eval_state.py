@@ -117,6 +117,25 @@ def test_retargeting_same_content_ethos_does_not_reuse_creation_approval(modules
     assert confirmed["scopes"]["create"]["needs_review"]
 
 
+def test_interaction_change_invalidates_design_approval(modules, tmp_path):
+    value = start(modules, tmp_path)
+    value["plan"]["tasks"][0].update(
+        test_type="single_turn", test_type_reason="The initial request supplies every required fact."
+    )
+    save(modules, tmp_path, value)
+    approve(modules, tmp_path, value)
+    assert facts(modules, tmp_path)["scope_approved"]
+    value["plan"]["tasks"][0].update(
+        test_type="user_sim",
+        test_type_reason="The user must choose among the agent's returned options.",
+        state_requirements="Preserve the same session and cart.",
+        conversation_scenario="Choose a returned option and confirm it when asked.",
+    )
+    saved = save(modules, tmp_path, value)
+    assert saved["scopes"]["create"]["first_eval"]["plan"]["tasks"][0]["test_type"] == "user_sim"
+    assert not facts(modules, tmp_path)["scope_approved"]
+
+
 def author(modules, repo, value, task_id):
     path = f".eval-author/tasks/{task_id}"
     evidence(repo, f"{path}/instruction.md", f"Request for {task_id}")
