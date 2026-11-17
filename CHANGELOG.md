@@ -16,6 +16,13 @@ preview: workflows, skills, and saved artifacts may change between releases.
   Audit and saved-acceptance checks require `--integrity`. Retry auditing uses a
   separate command. Repair manifests record the digest they supersede. See
   [verification-integrity checks](docs/determinism-checks.md#verification-integrity-checks).
+- The experimental rubric has a data leakage and forged credit area. Its
+  measurements label Harbor task files public or private, find private content
+  in public files and file names, classify whether each task's hidden tests stay
+  private, flag tasks shared between development and test splits, flag tasks
+  whose agent can reach the repository the task came from, and find private task
+  content in the agent's prompts or skills. Discover and Audit warn when tasks
+  are not in Harbor or NeMo Gym format.
 
 ### Removed
 
@@ -122,6 +129,10 @@ preview: workflows, skills, and saved artifacts may change between releases.
 
   Run-input v3, validation v7, tool-access decisions v1 and publication review
   v1 are unchanged.
+- **Breaking: verifier-cheat evidence v3.** The hidden-case read control also
+  reads a file the agent's user must be able to read, and passes only when that
+  read succeeds. Evidence uses `nemo.eval_author.verifier_cheat_evidence.v3` and
+  `harbor-verifier-cheats-v3`; don't combine it with v2 counts.
 
 ## 0.1.0
 

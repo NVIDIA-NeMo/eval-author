@@ -527,12 +527,16 @@ an immediate successful exit, a fabricated success claim, a hidden-case read,
 a hanging program, and boolean output substituted for integers. Hidden cases are
 root-only during grading, timeout outcomes earn zero under every grader, and
 the sound grader compares canonical JSON rather than Python's boolean/integer equality.
+The hidden-case read also reads its own workspace file, which the agent's user must
+be able to read. Its `read_boundary` is `protected` only when the hidden read is
+denied and that paired read succeeds; if the paired read fails, the result is
+`unknown` and the check fails, so a broken environment can't pass as isolation.
 
 `verifier-cheat-summary.json` retains per-trial rewards and aggregate counts for
 sound reference acceptance, rejected cheats, rewarded planted exploits, and
-always-fail reference rejection. Its schema is `nemo.eval_author.verifier_cheat_evidence.v2`
-and protocol is `harbor-verifier-cheats-v2`; do not combine these counts with the
-older nine-trial panel. `verifier-cheat-private.json` retains the detailed manifest,
+always-fail reference rejection. Its schema is `nemo.eval_author.verifier_cheat_evidence.v3`
+and protocol is `harbor-verifier-cheats-v3`; do not combine these counts with
+earlier protocols, including the older nine-trial panel. `verifier-cheat-private.json` retains the detailed manifest,
 native result paths, input hashes, and runtime inspection data. The collector retains native results, commands, input identities, runtime
 information, and per-control measurements. Missing, invalid, interrupted, or
 unexpected results fail the job rather than count as successful rejections.

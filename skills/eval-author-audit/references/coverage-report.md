@@ -46,6 +46,7 @@ measured audit, or reuse historical run findings as current evidence.
 
 ## Inspect verifier behavior and retained controls
 
+- If a selected evaluation is neither a Harbor task nor a NeMo Gym environment, warn the user before inspecting it, following the shared [task format guidance](../../eval-author/references/task-format.md): the audit continues, but Eval Author can't check that evaluation for data leakage or isolate its hidden material. Record its verifier review as `evidence_limit` that names the unsupported format.
 - Inspect each selected task's reachable grading path and agent-visible inputs using the shared [simple-cheat screen](../../eval-author/references/task-validation.md#screen-simple-cheats).
 - Follow entry points and guards through assertions and reward writers. Include inspected code, mounts, expected data, and writable report paths in `suite_files` before scope approval.
 - Assess each cheat family, valid alternatives, and realistic wrong answers against the task. Link control definitions in the task README's Verifier section without editing it during an audit.

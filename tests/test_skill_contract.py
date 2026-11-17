@@ -5071,6 +5071,25 @@ def test_other_evals_says_when_it_stopped_early(tmp_path: Path, monkeypatch: pyt
     assert "I stopped looking after 2 files, so there may be more." in renderer.render_report(report)
 
 
+def test_other_evals_note_explains_the_required_format(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Code in another format gets the reasons Eval Author needs Harbor or NeMo Gym before the conversion offer."""
+    renderer = _import_discover_render_report(monkeypatch)
+    report = _discovery_report_fixture(proven=True, runnable=True, configs=[], run_command=None)
+    report.update(
+        {
+            "other_eval_candidates": [{"path": "evals", "signals": ["eval-named file"], "files": ["eval.py"]}],
+            "other_eval_scan": {"files_scanned": 1, "complete": True},
+        }
+    )
+
+    note = renderer._other_evals_note(report)
+
+    assert "Eval Author needs Harbor or NeMo Gym tasks" in note
+    assert "keeps hidden tests and reference solutions away from the agent" in note
+    assert "fresh container" in note
+    assert note.endswith("Do you want to convert any of it into Harbor tasks?")
+
+
 def _import_discover(monkeypatch: pytest.MonkeyPatch) -> Any:
     """Import discover.py and its providers as the skill's scripts see them."""
     monkeypatch.syspath_prepend(str(_DISCOVER_SCRIPTS_DIR))

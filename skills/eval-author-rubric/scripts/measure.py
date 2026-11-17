@@ -15,12 +15,17 @@ from eval_author_shared.task_evidence import loads  # noqa: E402
 from rubric_authority import check_authority  # noqa: E402
 from rubric_configuration import compare_sourced_config  # noqa: E402
 from rubric_ethos import check_ethos  # noqa: E402
+from rubric_external import check_external  # noqa: E402
 from rubric_freshness import check_freshness  # noqa: E402
 from rubric_identity import compare_config, finish, identify, read_selected, resolve_route, text  # noqa: E402
+from rubric_layout import label_task  # noqa: E402
+from rubric_leakage import scan_task  # noqa: E402
 from rubric_links import check_approvals, check_links, check_sourced_approvals  # noqa: E402
 from rubric_native import project_native  # noqa: E402
+from rubric_overlap import check_overlap  # noqa: E402
 from rubric_reconstruction import project_reconstruction  # noqa: E402
 from rubric_report import build_report  # noqa: E402
+from rubric_reuse import check_reuse  # noqa: E402
 from rubric_scoring import assess  # noqa: E402
 
 
@@ -83,6 +88,16 @@ def measure(root, selection, ethos_validator=None):
         measurements["ethos"] = check_ethos(root, artifacts, selection["ethos"], ethos_validator)
     if "authority" in selection:
         measurements["authority"] = check_authority(root, artifacts, selection["authority"])
+    if "layout" in selection:
+        measurements["layout"] = label_task(root, selection["layout"])
+    if "leakage" in selection:
+        measurements["leakage"] = scan_task(root, selection["leakage"], measurements.get("reconstruction"))
+    if "overlap" in selection:
+        measurements["overlap"] = check_overlap(root, selection["overlap"])
+    if "external" in selection:
+        measurements["external"] = check_external(root, selection["external"])
+    if "reuse" in selection:
+        measurements["reuse"] = check_reuse(root, selection["reuse"])
     if "native" in selection:
         selected_native = selection["native"]
         if not isinstance(selected_native, dict) or set(selected_native) != {

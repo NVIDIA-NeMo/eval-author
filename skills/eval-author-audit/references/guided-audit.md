@@ -130,7 +130,10 @@ choices and present any still-pending suite selection before continuing.
 When selected paths are missing or saved selections conflict with current handoff
 or authoring records, explain the mismatch in the final blocker or source-selection response.
 Name the selected suites/tasks and runs, their selection provenance, and exactly
-which checked paths are missing. Contrast relevant current work already known,
+which checked paths are missing. When a selected suite holds evaluations that are
+neither Harbor tasks nor NeMo Gym environments, give the
+[format warning](../../eval-author/references/task-format.md) with the scope
+summary and continue. Contrast relevant current work already known,
 distinguishing saved records from verified files. Honor a current explicit
 selection even when newer work exists. If scope is unclear, ask which named set
 to audit before requesting its run source. Preserve prior selections until that
