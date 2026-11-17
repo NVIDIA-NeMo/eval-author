@@ -7,17 +7,19 @@
 set -euo pipefail
 
 usage() {
-  echo "usage: run.sh --repo DIR --context DIR --out DIR [--selftest-only]" >&2
+  echo "usage: run.sh --repo DIR --context DIR --out DIR [--selftest-only] [--keep-work]" >&2
   exit 2
 }
 
-REPO="" CONTEXT="" OUT="" SELFTEST_ONLY=0
+REPO="" CONTEXT="" OUT="" SELFTEST_ONLY=0 KEEP_WORK=0
 while [ $# -gt 0 ]; do
   case "$1" in
     --repo) REPO="${2:-}"; shift 2 ;;
     --context) CONTEXT="${2:-}"; shift 2 ;;
     --out) OUT="${2:-}"; shift 2 ;;
     --selftest-only) SELFTEST_ONLY=1; shift ;;
+    # Local debugging: keep the scratch directory (repo copy, transcript, test logs) instead of deleting it.
+    --keep-work) KEEP_WORK=1; shift ;;
     *) usage ;;
   esac
 done
@@ -47,14 +49,16 @@ mkdir -p "$WORK/home" "$WORK/tmp" "$WORK/render"
 SELECTOR="inference-hub/$OMP_REVIEW_MODEL:high"
 MODEL_PROXY_IMAGE="nginx:1.31.8-alpine@sha256:fed7e14be83cbd2661a75cdc5b872d936cf155d46c327084d30b8df19ae88d72"
 
-# The agent can write /work/out, and the host uploads it as an artifact; upload-artifact follows symlinks,
-# so only regular files and directories may leave the sandbox.
+# Every container carries the omp-review label so the workflow can stop them even if this script is killed.
 cleanup() {
-  find "$OUT" -mindepth 1 ! -type f ! -type d -delete 2>/dev/null || true
   docker rm -f "$ID-model" "$ID-egress" >/dev/null 2>&1 || true
   docker network rm "$ID-int" "$ID-ext" >/dev/null 2>&1 || true
   docker image rm "omp-review-agent:$ID" "omp-review-egress:$ID" >/dev/null 2>&1 || true
-  rm -rf "$WORK" 2>/dev/null || true
+  if [ "$KEEP_WORK" -eq 1 ]; then
+    echo "run.sh: kept $WORK" >&2
+  else
+    rm -rf "$WORK" 2>/dev/null || true
+  fi
 }
 trap cleanup EXIT
 
@@ -108,18 +112,20 @@ docker build -q -t "omp-review-egress:$ID" -f "$SCRIPT_DIR/egress.Dockerfile" "$
 docker network create --internal "$ID-int" >/dev/null
 docker network create "$ID-ext" >/dev/null
 
-docker run -d --name "$ID-model" --network "$ID-ext" --security-opt no-new-privileges \
+docker run -d --name "$ID-model" --label omp-review --network "$ID-ext" --security-opt no-new-privileges \
   -e OMP_REVIEW_INFERENCE_HUB_API_KEY \
   -v "$SCRIPT_DIR/model-proxy.conf.template:/etc/nginx/templates/default.conf.template:ro" \
   "$MODEL_PROXY_IMAGE" >/dev/null
 docker network connect --alias model-proxy "$ID-int" "$ID-model"
-docker run -d --name "$ID-egress" --network "$ID-ext" --security-opt no-new-privileges "omp-review-egress:$ID" >/dev/null
+docker run -d --name "$ID-egress" --label omp-review --network "$ID-ext" --security-opt no-new-privileges \
+  "omp-review-egress:$ID" >/dev/null
 docker network connect --alias egress-proxy "$ID-int" "$ID-egress"
 
 # The only place the agent container's flags live; the model key is never passed here.
 agent_run() {
-  docker run --rm --network "$ID-int" --user "$(id -u):$(id -g)" --read-only --cap-drop ALL \
+  docker run --rm --label omp-review --network "$ID-int" --user "$(id -u):$(id -g)" --read-only --cap-drop ALL \
     --security-opt no-new-privileges --pids-limit 4096 --memory "${OMP_REVIEW_MEMORY:-12g}" \
+    --cpus "${OMP_REVIEW_CPUS:-3}" \
     -e HOME=/home/reviewer -e PI_CODING_AGENT_DIR=/home/reviewer/.omp/agent -e TMPDIR=/tmp \
     -e UV_CACHE_DIR=/home/reviewer/.cache/uv \
     -e HTTP_PROXY=http://egress-proxy:3128 -e HTTPS_PROXY=http://egress-proxy:3128 \

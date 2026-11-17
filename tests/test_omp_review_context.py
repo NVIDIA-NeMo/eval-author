@@ -36,3 +36,18 @@ def test_previous_review_sha_reads_only_the_posted_trailer():
     ]
     assert context.previous_review_sha(reviews) == NEW
     assert context.previous_review_sha(reviews[:1]) == OLD
+
+
+def test_discussion_keeps_only_human_commenters_with_write_access(monkeypatch):
+    permissions = {"maintainer": (200, {"permission": "write"}), "reader": (200, {"permission": "read"})}
+
+    def api(method: str, path: str, token: str, body: Any = None) -> tuple[int, Any]:
+        return permissions.get(path.split("/")[-2], (404, None))
+
+    monkeypatch.setattr(gh, "api", api)
+    comments = [
+        {"user": {"login": login, "type": kind}, "body": login}
+        for login, kind in [("maintainer", "User"), ("reader", "User"), ("ghost", "User"), ("maintainer", "Bot")]
+    ]
+    writers = context._writers(comments, "o/r", "t")
+    assert [entry["body"] for entry in context._discussion(comments, [], [], writers)] == ["maintainer"]

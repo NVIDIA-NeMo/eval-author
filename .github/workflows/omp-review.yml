@@ -14,13 +14,40 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  review:
+  authorize:
     if: >-
       github.event.pull_request.head.repo.full_name == github.repository &&
       github.event.pull_request.user.type == 'User' &&
-      contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.pull_request.author_association) &&
+      github.event.sender.type == 'User' &&
       ((github.event.action == 'labeled' && github.event.label.name == 'omp-review') ||
        (github.event.action != 'labeled' && !github.event.pull_request.draft))
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    outputs:
+      allowed: ${{ steps.permission.outputs.allowed }}
+    steps:
+      - name: Require a maintainer trigger and an author with write access
+        id: permission
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          ACTOR: ${{ github.event.sender.login }}
+          AUTHOR: ${{ github.event.pull_request.user.login }}
+        run: |
+          set -euo pipefail
+          actor_role="$(gh api "repos/$REPO/collaborators/$ACTOR/permission" --jq .role_name)"
+          author_permission="$(gh api "repos/$REPO/collaborators/$AUTHOR/permission" --jq .permission)"
+          if [[ "$actor_role" =~ ^(admin|maintain)$ && "$author_permission" =~ ^(admin|write)$ ]]; then
+            echo 'allowed=true' >>"$GITHUB_OUTPUT"
+          else
+            echo "Skipping: needs a maintain/admin trigger (got $ACTOR: $actor_role) and a write/admin author (got $AUTHOR: $author_permission)."
+          fi
+
+  review:
+    needs: authorize
+    if: needs.authorize.outputs.allowed == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 75
     environment: omp-review
@@ -46,20 +73,42 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: python3 trusted/tools/omp_review_context.py --repo "$GITHUB_REPOSITORY" --pr "$PR_NUMBER" --base-sha "$BASE_SHA" --head-sha "$HEAD_SHA" --out "$RUNNER_TEMP/omp-review/context"
+      # Everything the sandbox can write lives on this fixed-size filesystem, so it cannot fill the runner's disk.
+      - name: Create sandbox scratch filesystem
+        run: |
+          fallocate -l 10G "$RUNNER_TEMP/omp-scratch.img"
+          mkfs.ext4 -q -m 0 "$RUNNER_TEMP/omp-scratch.img"
+          mkdir "$RUNNER_TEMP/omp-scratch"
+          sudo mount -o loop,nosuid,nodev "$RUNNER_TEMP/omp-scratch.img" "$RUNNER_TEMP/omp-scratch"
+          sudo chown "$(id -u):$(id -g)" "$RUNNER_TEMP/omp-scratch"
       - name: Run sandboxed review
+        # Leaves room for the always() steps below inside the job timeout.
+        timeout-minutes: 65
         env:
           OMP_REVIEW_INFERENCE_HUB_API_KEY: ${{ secrets.OMP_REVIEW_INFERENCE_HUB_API_KEY }}
           OMP_REVIEW_MODEL: ${{ vars.OMP_REVIEW_MODEL }}
           OMP_REVIEW_MODEL_API: ${{ vars.OMP_REVIEW_MODEL_API }}
           OMP_REVIEW_CONTEXT_WINDOW: ${{ vars.OMP_REVIEW_CONTEXT_WINDOW }}
           OMP_REVIEW_MAX_TOKENS: ${{ vars.OMP_REVIEW_MAX_TOKENS }}
-        run: bash trusted/tools/omp-review/run.sh --repo "$GITHUB_WORKSPACE/pr" --context "$RUNNER_TEMP/omp-review/context" --out "$RUNNER_TEMP/omp-review/out"
+          TMPDIR: ${{ runner.temp }}/omp-scratch
+        run: bash trusted/tools/omp-review/run.sh --repo "$GITHUB_WORKSPACE/pr" --context "$RUNNER_TEMP/omp-review/context" --out "$RUNNER_TEMP/omp-scratch/out"
+      # Runs even if run.sh was killed before its own cleanup: stop every sandbox container (the model proxy holds
+      # the key), then pass on review.json only if it is a small regular file. upload-artifact follows symlinks.
+      - name: Stop the sandbox and stage review.json
+        if: always()
+        run: |
+          docker ps -aq --filter label=omp-review | xargs -r docker rm -f >/dev/null
+          review="$RUNNER_TEMP/omp-scratch/out/review.json"
+          mkdir -p "$RUNNER_TEMP/omp-review/upload"
+          if [ -f "$review" ] && [ ! -L "$review" ] && [ "$(stat -c %s "$review")" -le 1048576 ]; then
+            cp "$review" "$RUNNER_TEMP/omp-review/upload/review.json"
+          fi
       - if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: omp-review
-          path: ${{ runner.temp }}/omp-review/out
-          retention-days: 14
+          path: ${{ runner.temp }}/omp-review/upload/review.json
+          retention-days: 1
           if-no-files-found: ignore
 
   post:

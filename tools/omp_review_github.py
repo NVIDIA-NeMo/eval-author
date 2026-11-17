@@ -8,6 +8,7 @@ from __future__ import annotations
 import json
 import re
 import urllib.error
+import urllib.parse
 import urllib.request
 from typing import Any
 
@@ -17,7 +18,8 @@ REVIEW_MARKER = "<!-- omp-review head="
 FINDING_MARKER = "<!-- omp-review-finding -->"
 FAILURE_MARKER = "<!-- omp-review-failure -->"
 LABEL = "omp-review"
-TRUSTED_ASSOCIATIONS = {"OWNER", "MEMBER", "COLLABORATOR"}
+# GitHub reports the maintain role as "write" in the `permission` field.
+WRITE_PERMISSIONS = {"admin", "write"}
 
 _NEXT_LINK = re.compile(r'<([^>]+)>;\s*rel="next"')
 
@@ -61,3 +63,9 @@ def paginate(path: str, token: str) -> list[Any]:
         match = _NEXT_LINK.search(link)
         url = match.group(1) if match else None
     return items
+
+
+def has_write_access(repo: str, login: str, token: str) -> bool:
+    """Whether `login` can push to `repo`, from the permission API rather than the event's author_association."""
+    status, parsed = api("GET", f"/repos/{repo}/collaborators/{urllib.parse.quote(login, safe='')}/permission", token)
+    return status == 200 and isinstance(parsed, dict) and parsed.get("permission") in WRITE_PERMISSIONS

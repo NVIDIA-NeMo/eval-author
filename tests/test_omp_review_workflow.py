@@ -21,6 +21,7 @@ def test_only_trigger_is_pull_request_target():
 
 def test_permissions_are_least_privilege():
     assert WORKFLOW["permissions"] == {}
+    assert JOBS["authorize"]["permissions"] == {"contents": "read"}
     assert JOBS["review"]["permissions"] == {"contents": "read", "pull-requests": "read"}
     assert JOBS["review"]["environment"] == "omp-review"
     assert JOBS["post"]["permissions"] == {"contents": "read", "pull-requests": "write"}
@@ -39,11 +40,24 @@ def test_secrets_reach_only_the_sandbox_step():
     assert with_secrets == ["Run sandboxed review"]
 
 
-def test_review_runs_only_for_trusted_same_repo_humans():
-    condition = JOBS["review"]["if"]
+def test_review_requires_authorized_same_repo_humans():
+    condition = JOBS["authorize"]["if"]
     assert "head.repo.full_name == github.repository" in condition
-    assert "user.type == 'User'" in condition
-    assert '"COLLABORATOR"' in condition
+    assert "pull_request.user.type == 'User'" in condition
+    assert "sender.type == 'User'" in condition
+    gate = JOBS["authorize"]["steps"][0]["run"]
+    assert "^(admin|maintain)$" in gate and "^(admin|write)$" in gate
+    assert JOBS["review"]["needs"] == "authorize"
+    assert JOBS["review"]["if"] == "needs.authorize.outputs.allowed == 'true'"
+
+
+def test_only_staged_review_json_is_uploaded():
+    steps = JOBS["review"]["steps"]
+    upload = next(step for step in steps if step.get("uses", "").startswith("actions/upload-artifact@"))
+    stage = next(step for step in steps if step.get("name") == "Stop the sandbox and stage review.json")
+    assert upload["with"]["path"] == "${{ runner.temp }}/omp-review/upload/review.json"
+    assert stage["if"] == upload["if"] == "always()"
+    assert steps.index(stage) == steps.index(upload) - 1
 
 
 def test_host_run_steps_skip_pr_checkout_and_inline_expressions():

@@ -21,16 +21,22 @@ TEMPLATE = Path(__file__).resolve().parent / "omp-review" / "orchestrator.md"
 _REVIEW_TRAILER = re.compile(re.escape(gh.REVIEW_MARKER) + r"([0-9a-f]{40}) -->\s*\Z")
 
 
-def _trusted_human(item: dict[str, Any]) -> bool:
-    user = item.get("user") or {}
-    return user.get("type") == "User" and item.get("author_association") in gh.TRUSTED_ASSOCIATIONS
+def _writers(items: list[Any], repo: str, token: str) -> set[str]:
+    """Logins of human commenters with write access to the repository."""
+    humans = {
+        user["login"] for item in items if (user := item.get("user") or {}).get("type") == "User" and user.get("login")
+    }
+    return {login for login in humans if gh.has_write_access(repo, login, token)}
 
 
-def _discussion(review_comments: list[Any], issue_comments: list[Any], reviews: list[Any]) -> list[dict[str, Any]]:
+def _discussion(
+    review_comments: list[Any], issue_comments: list[Any], reviews: list[Any], writers: set[str]
+) -> list[dict[str, Any]]:
     entries: list[dict[str, Any]] = []
     for kind, items in (("review_comment", review_comments), ("issue_comment", issue_comments), ("review", reviews)):
         for item in items:
-            if not _trusted_human(item):
+            user = item.get("user") or {}
+            if user.get("type") != "User" or user.get("login") not in writers:
                 continue
             entries.append(
                 {
@@ -145,7 +151,12 @@ def collect(repo: str, pr: int, base_sha: str, head_sha: str, out: Path, token: 
     out.mkdir(parents=True, exist_ok=True)
     documents: dict[str, Any] = {
         "pr.json": metadata,
-        "discussion.json": _discussion(review_comments, issue_comments, reviews),
+        "discussion.json": _discussion(
+            review_comments,
+            issue_comments,
+            reviews,
+            _writers(review_comments + issue_comments + reviews, repo, token),
+        ),
         "prior-findings.json": _prior_findings(review_comments),
         "checks.json": _check_runs(repo, head_sha, token),
     }
