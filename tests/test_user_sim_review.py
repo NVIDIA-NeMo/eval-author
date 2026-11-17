@@ -72,6 +72,34 @@ def selected_user_sim(modules, repo: Path) -> dict:
     return value
 
 
+def test_native_namespaced_task_translates_and_binds_to_agreed_plan_id(modules, tmp_path, monkeypatch):
+    from harbor_user_sim import translate
+
+    monkeypatch.chdir(tmp_path)
+    path = task(tmp_path)
+    write(tmp_path, path + "/user-sim.yaml", SCENARIO)
+    write(tmp_path, path + "/tests/test.sh", "#!/bin/sh\nexit 0\n")
+    (tmp_path / path / "environment").mkdir()
+    config = tmp_path / ".eval-author/base-run.yaml"
+    config.write_text(
+        "tasks:\n  - path: .eval-author/tasks/refund\nagents:\n  - name: claude-code\nuser_agent:\n  name: codex\n"
+    )
+    value = creation.ready(modules, tmp_path, examples=design())
+    receipt = translate(
+        tmp_path / path / "user-sim.yaml", config, tmp_path / ".eval-author/.working/translation"
+    ).to_dict()
+    binding = modules[1].bind_user_sim_translation(tmp_path, receipt)
+    binding["bridge"] = {
+        "source": "Synthetic interface proof for state test",
+        "evidence": [creation.evidence(tmp_path, ".eval-author/.working/bridge-proof.json")],
+    }
+    creation.select(modules, tmp_path, value, user_sim_bindings=binding, user_sim_settings=SIMULATOR_SETTINGS.copy())
+    assert report.user_sim_identity(tmp_path, "refund", path)["task_id"] == "refund"
+    assert receipt["task_id"] == "refund"
+    assert 'name = "org/refund"' in (tmp_path / path / "task.toml").read_text()
+    assert creation.facts(modules, tmp_path)["execution_authorized"]
+
+
 def test_translation_binding_covers_config_and_consumed_inputs_without_runtime_authority(modules, tmp_path):
     translated = translated_inputs(tmp_path)
     binding = modules[1].bind_user_sim_translation(tmp_path, translated)

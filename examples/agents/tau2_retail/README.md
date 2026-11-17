@@ -86,8 +86,9 @@ an operating-system isolation boundary.
 
 This one task establishes a working multi-turn path. It doesn't establish
 coverage gains, broad baseline performance, or reproducibility across repeated
-model runs. The generated task keeps the native `local/cancel-order` task name
-in `user-sim.yaml`, which must match Harbor's task identity.
+model runs. The example uses `local/cancel-order` as both its scenario ID and native task
+name. Authored scenarios keep their agreed plan ID, which may differ from the
+native name. Translation checks the selected task directory to bind the two.
 
 ## Offline checks
 

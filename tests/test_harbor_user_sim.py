@@ -144,12 +144,14 @@ def test_conflicting_or_unsupported_selection_fails_before_writing(inputs: tuple
     assert not output.exists()
 
 
-def test_scenario_identity_and_multistep_are_checked(inputs: tuple) -> None:
+def test_scenario_task_directory_and_multistep_are_checked(inputs: tuple) -> None:
     scenario, config, output, _ = inputs
     task_config = scenario.parent / "task.toml"
-    task_config.write_text('version = "1.0"\n[task]\nname = "example/different-task"\n')
-    with pytest.raises(ValueError, match="task_id"):
-        translate(scenario, config, output)
+    other = scenario.parent.parent / "other" / "user-sim.yaml"
+    other.parent.mkdir()
+    other.write_bytes(scenario.read_bytes())
+    with pytest.raises(ValueError, match="selected native task directory"):
+        translate(other, config, output)
     task_config.write_text('version = "1.0"\n[[steps]]\nname = "first"\n')
     step = scenario.parent / "steps/first"
     step.mkdir(parents=True)

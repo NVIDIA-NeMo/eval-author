@@ -18,7 +18,7 @@ from typing import TYPE_CHECKING, Any
 
 import yaml
 from eval_author_shared.task_evidence import digest
-from user_sim import UserSimError, UserSimScenario, load_scenario
+from user_sim import UserSimError, load_scenario
 
 if TYPE_CHECKING:
     from harbor.models.job.config import JobConfig
@@ -196,7 +196,7 @@ def _snapshot_input(path: Path, snapshots: dict[str, str]) -> None:
     snapshots[key] = observed
 
 
-def _validate_task(native: JobConfig, scenario: UserSimScenario, output_dir: Path) -> None:
+def _validate_task(native: JobConfig, scenario_path: Path, output_dir: Path) -> None:
     from harbor.models.task.task import Task
 
     assert native.tasks[0].path is not None
@@ -207,8 +207,8 @@ def _validate_task(native: JobConfig, scenario: UserSimScenario, output_dir: Pat
     task = Task(task_dir, disable_verification=native.verifier.disable)
     if task.has_steps:
         raise HarborTranslationError("Harbor user-agent bridges do not support multi-step tasks")
-    if task.name != scenario.task_id:
-        raise HarborTranslationError("Scenario task_id does not match the selected native task")
+    if scenario_path != task_dir.resolve() / "user-sim.yaml":
+        raise HarborTranslationError("Use the user-sim.yaml inside the selected native task directory")
 
 
 def translate(scenario_path: Path, config_path: Path, output_dir: Path) -> TranslationResult:
@@ -229,7 +229,7 @@ def translate(scenario_path: Path, config_path: Path, output_dir: Path) -> Trans
     native = JobConfig.model_validate(data)
     # JobConfig does not check the trial's user-agent/load-trajectory exclusion.
     TrialConfig.model_validate({"task": native.tasks[0], "agent": native.agents[0], "user_agent": native.user_agent})
-    _validate_task(native, scenario, output_dir)
+    _validate_task(native, scenario_path, output_dir)
     external_inputs = _external_inputs(native)
     for path in external_inputs:
         _snapshot_input(path, snapshots)

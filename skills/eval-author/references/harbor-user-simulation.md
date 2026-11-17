@@ -17,9 +17,11 @@ variable references. The bridge is ACP. Keep target policy, model, tools,
 environment, verifier, and repeat settings unchanged. Don't use Oracle or NOP
 as either role for an actual-agent run.
 
-Match the scenario's `task_id` to the native task name. A packaged task can have
-the name `local/cancel-order` while its directory is `cancel-order`. Use the full
-native name consistently in the plan and scenario.
+Keep the scenario's `task_id` equal to its agreed plan ID. Harbor may name that
+task `local/refund` while the plan calls it `refund`. Translation binds the
+scenario to the selected native task by requiring its `user-sim.yaml` inside
+that task directory. Review binds the same file and directory to the agreed ID.
+Do not rename an approved plan ID to match Harbor's namespace.
 
 Run from the target repository root, preserving the base config's working
 directory. Harbor resolves its relative paths from that directory. Use a new
