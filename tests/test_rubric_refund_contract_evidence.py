@@ -29,6 +29,39 @@ def materialized(tmp_path: Path, case: str):
     return target, selection
 
 
+def test_current_rule_pin_and_historical_identity_are_separate(tmp_path: Path, monkeypatch):
+    import hashlib
+
+    import pytest
+
+    module = adapter()
+    name = "artifact-configuration-provenance.json"
+    raw = (module.REFERENCE / name).read_bytes()
+    assert hashlib.sha256(raw).hexdigest() == module.RULES[name]
+    assert module.RULES[name] != module.HISTORICAL_RULES[name]
+    document = json.loads(raw)
+    assert "skill_id" not in document["result_template"]
+    # Reconstruct the exact prior bytes, not a second accepted rule definition.
+    current_line = '    "rubric_version": "4.1-draft",\n'
+    historical = raw.replace(current_line.encode(), (current_line + '    "skill_id": null,\n').encode())
+    assert hashlib.sha256(historical).hexdigest() == module.HISTORICAL_RULES[name]
+    prior = json.loads(historical)
+    assert prior["result_template"].pop("skill_id") is None
+    assert prior == document
+
+    for filename in module.RULES:
+        (tmp_path / filename).write_bytes((module.REFERENCE / filename).read_bytes())
+    monkeypatch.setattr(module, "REFERENCE", tmp_path)
+    module._current()
+    (tmp_path / name).write_bytes(historical)
+    with pytest.raises(ValueError, match="unreviewed refund scoring rules"):
+        module._current()
+    document["items"][0]["scoring"]["0"] = "Different acceptance policy."
+    (tmp_path / name).write_text(json.dumps(document))
+    with pytest.raises(ValueError, match="unreviewed refund scoring rules"):
+        module._current()
+
+
 def test_ordinary_cli_consumes_defects_and_replays(tmp_path: Path):
     import rubric_mutation_runner
 

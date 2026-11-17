@@ -35,6 +35,32 @@ and [provenance demo](determinism-checks.md#provenance-demo) for commands.
 
 ### Rubric table results
 
+The separate mutable CREATE-02 subject can be collected without regenerating the
+leakage catalog:
+
+```bash
+python -B skills/eval-author-rubric/scripts/rubric_create02_subject.py \
+  --output /absolute/new/private/create02-subject --defer-replay
+```
+
+This finite refund-decision benchmark claims correct amount and original-payment
+destination on unseen orders, not reasoning traces. Its defective published
+scorer reuses a development answer key by template ID. The independent current-order
+oracle evaluates supplied order evidence. Matched controls retain actual policy
+file-read traces, per-check results, feasibility and separate scorer-repair
+rescores. The new subject is not the original action-only refund task.
+`subject-results.json` links the ordinary `assessment/` JSON, Markdown and HTML;
+`owner-request.json` and `agent-request.json` bind only this new subject and its
+actual observations. Its rubric score remains Unassessed until genuine exact-scope
+qualification. No existing consent transfers. The original CREATE-02.0 result
+remains 2 against its external target 0. Later, use this entrypoint's
+`--verify-existing /absolute/private/create02-subject` for retained replay.
+
+For existing bounded leakage reports, the renderer distinguishes retained
+approvals/deferrals from unanswered questions. Superseded predecision wording is
+labeled historical in the display; source measurements and operator records are
+not rewritten.
+
 The [one-skill Harbor assessment](determinism-checks.md#one-skill-harbor-assessment)
 prints a Markdown table. With `--output`, it saves three private files:
 
@@ -57,6 +83,14 @@ Neither mode creates an aggregate quality score. The table keeps these fields se
 - Controls run: completed check records divided by retained check records, followed by each outcome count.
 - Evidence: the reported strength and a link to full evidence details.
 - Human action: the review actions required by the emitted checks, or an explicit statement that none is specified. A required action is not a completed approval.
+
+Current task reports include `current_inventory` and the seven leakage criteria.
+They retain the replaced AC rows under `legacy_evidence_items` and any old
+score map under `legacy_anti_cheat_scores`. These fields preserve history without
+adding current scores. `undefined_criteria` keeps `METHOD-J1` explicitly
+Unassessed and outside the numeric denominator. The
+[numeric matrix](determinism-checks.md#current-base-numeric-mutation-matrix)
+describes the count basis and remaining acceptance work.
 
 Only `PASS` and `FAIL` count as completed checks. `PARTIAL`, `ERROR`, `BLOCKED`,
 `NOT_RUN`, `UNKNOWN`, and other unassessed states remain separate. These counts
@@ -114,7 +148,8 @@ study. Keep those acceptance gaps explicit.
 ### Combined refund base assessment
 
 One entrypoint joins the attack panel, boundary panel, runtime-origin observation,
-read-boundary panel, and a fresh NOP configuration declaration. It emits the full 18-criterion table
+read-boundary panel, and a fresh NOP configuration declaration. It emits the
+[current canonical table](determinism-checks.md#current-base-numeric-mutation-matrix)
 and replays it before returning. From the repository root, use the same exact
 Harbor 0.24.0 Python executable throughout:
 
@@ -139,11 +174,12 @@ deadlines remain unchanged.
 The read-boundary panel tests UID 65534 before upload, after upload, and after
 verification. Direct, `/proc/self/root`, and symlink reads share a permitted-input
 control. It scans every saved image layer for exact reference-source copies.
-Public scoring rules and socket state remain intentional inputs. Readable
-verifier source is reported separately because its confidentiality is not
-explicit in the task contract. Independent held-out controls remain required for
-AC-01 score 3. Omitting this panel keeps AC-01 Unassessed and permits replay of
-earlier selections.
+Public scoring rules and socket state remain intentional inputs. The current
+contract permits reading verifier source. Older receipts retain their original
+confidentiality caveat as historical evidence. Independent held-out controls remain required for
+legacy AC-01 score 3. Current reports retain that row as historical evidence.
+Omitting this panel does not erase other current leakage observations or force
+them all to Unassessed.
 
 Use `--audit-inspect` to check admitted result-to-source bindings at revision
 score 2. Use `--approve-audit-exercise` instead to authorize three fixed changes
@@ -197,6 +233,183 @@ but incomplete. Exit 2 means selection, execution or replay failed. Registry
 roots are trusted local inputs supplied to the command, never imported from a
 report. The ordinary table command can use the same roots through the
 path-separated `EVAL_AUTHOR_NATIVE_REGISTRIES` variable.
+
+### Upper companions beside accepted source reviews
+
+The retained paths and legacy AC scores below describe the pre-merge scope. They are not acceptance of the current seven-criterion leakage area. See [current numeric scope and deferred acceptance](determinism-checks.md#current-base-numeric-mutation-matrix) for the canonical crosswalk, source-freeze order and fresh-evidence prerequisites. Keep original packets and receipts unchanged. Current reports retain legacy rows as evidence history, not additional scores.
+
+Use `rubric_base_assessment.py` for generation and retained replay. Both upper
+companions are explicit orchestration inputs, not selected artifacts. The
+Environment adapter creates a private overlay only for its owning validator.
+The ordinary source-review, configuration, native and Audit consumers receive
+the original selection unchanged. No accepted packet is rewritten or expanded.
+
+```sh
+export PYTHONDONTWRITEBYTECODE=1
+export TMPDIR=/Users/asutermorris/.hermes/cache/scratch
+.venv/bin/python -B skills/eval-author-rubric/scripts/rubric_base_assessment.py \
+  --root "$TMPDIR" \
+  --selection "$TMPDIR/upper-combined-original-selection.json" \
+  --registry "$HOME/.local/state/eval-author/native" \
+  --source-review-operator-store "$TMPDIR/operator-source-qualification-01/operator-store" \
+  --source-review-operator-trust localhost-assessment-operator-v1 \
+  --upper-environment-bundle "$TMPDIR/upper-environment-native-03" \
+  --upper-anticheat-bundle "$TMPDIR/upper-anticheat-contract/native-05" \
+  --upper-anticheat-registry "$TMPDIR/upper-anticheat-contract/registry" \
+  --output "$TMPDIR/upper-combined-ordinary-04"
+```
+
+Generation includes retained JSON/Markdown/HTML replay. For a later read-only
+replay, replace `--selection` and `--output` with
+`--verify-existing "$TMPDIR/upper-combined-ordinary-04/report"`. Retain all explicit
+companion and trust arguments. Exit 1 retains ordinary auxiliary unknown/status
+limitations; it is not a replay failure (2). No command here launches native or
+model execution. Missing companions cannot silently reproduce a saved combined
+report: exact retained comparison fails.
+
+With `--defer-replay`, generation leaves replay to the final batch orchestrator.
+That option does not mark a report verified. Keep the same companion and trust
+arguments for the final replay after all source changes have stopped.
+
+Six Environment upper predicates consume current registered native evidence,
+original lower-anchor decisions, and post-projection receipt/revocation readback.
+Separately authored operational repeats are not blinded review or model diversity.
+Fairness is limited to matched scripted reference/split policies and batching/order
+accommodations; it carries E2, not a model-performance claim. Actual deadline
+enforcement remains unknown. The declared offline ledger is a real local target,
+not an approved replacement for a live payment provider.
+
+The Anticheat/contract native companion remains frozen and observational. The
+separate `rubric_upper_method_review.py` uses the existing explicit local-operator
+store and event validation for exact-packet method qualification of AC-03, AC-04
+and clear contract. Its trusted callback records only an actually observed scoped
+answer and retention consent. Selected JSON and transcripts cannot supply approval.
+The request binds task/rubric sources, native index, exposure and owning validated
+observations. Every projection rereads the decision and revocation before and
+after scoring. Owner qualification alone is insufficient: current lower anchors,
+healthy consumer rejection/valid acceptance, exact reset surfaces and the valid
+public-first boundary are checked separately. Reject, defer, missing, revoked or
+failed evidence cannot promote. `revoke(request)` leaves an append-only tombstone.
+
+The approved method discloses prior mechanism exposure, the same model and shared
+Harbor/Docker/scorer. It excludes AC-01/AC-02 held-out requirements, blind
+requirement discovery and scoring-authority adjudication. The separate fresh
+review authorization is not evidence in this report. Source review approval is
+unchanged and does not extend to either companion. Local operator trust is not
+cryptographic authentication or protection against same-user arbitrary code.
+
+Full inventories are retained once in measurement JSON. Exact repeated identity
+values link to that inventory; the readable report links companion controls and
+exposure. Reader caps are unchanged. Historical errors, dissent, receipts and
+native rewards remain available without rewriting original accepted artifacts.
+
+
+### Bounded leakage observations and owner requests
+
+After source and generated headers freeze, collect local observations without
+retained replay. This command uses the ordinary assessment consumer. It does not
+require native panels, model calls, credentials or an owner approval to collect:
+
+```sh
+PYTHONDONTWRITEBYTECODE=1 TMPDIR=/Users/asutermorris/.hermes/cache/scratch \
+.venv/bin/python -B skills/eval-author-rubric/scripts/rubric_leakage_recipes.py \
+  --output /Users/asutermorris/.hermes/cache/scratch/leakage-final-observations \
+  --defer-replay
+```
+
+Choose a new output directory; source repairs invalidate previous bindings without
+rewriting the old archive, source inventory or actual rejected agent review.
+Do not invoke collection until the parent authorizes fresh observations.
+
+CREATE-02 now uses a declared deterministic artifact consumer, not a model. It
+records evidence- versus cue-selected amounts/destinations, executed refund actions,
+all four control classes, evidence-free cue-flip pairs, and feasible split-refund
+alternatives on distinct order/payment instances. Requirements, scorer and policy
+are fixed within each pair. The `.1` recipe retains joint-cue attribution confounds.
+The historical `.0` target is not forced: correct cue-selected actions satisfy the
+existing action-only task. Demonstrating a contradictory reasoning claim would
+require a separately declared subject/task claim, not relabeling performed work
+as absent. Public option values are not a demonstrated private-answer access route.
+Exposure subsets use the same valid-work policy and claim no contamination effect;
+local adaptive selection uses measured development feedback, not model learning.
+
+`leakage-results.json` retains ordinary reports and
+paired baseline/repair records. `owner-requests.json` groups the seven criterion
+questions and keeps each distinct observation-bound variant request, plus the
+separate CREATE-02 agent requests. Identical base/2/repair packets share a request,
+not an invented approval. Operational errors and deliberately withheld input
+produce no review request. Exit 1 means decisions remain pending. With this flag,
+`verification` is `deferred`, never verified. Omitting it preserves automatic
+distinct-report replay.
+
+Review the observations before asking one batched set of genuine questions. The
+batch may contain several exact variant bindings under a criterion. An answer
+about the healthy method does not silently accept a defect disposition. CREATE-02
+needs an actual current agent confound review before owner method acceptance.
+The public question strings are owned by `rubric_leakage_intake.QUESTIONS`.
+
+For each answered binding, the trusted orchestration caller loads the associated
+report's `root` and `selection`, then calls
+`rubric_leakage_intake.record(root, selection, observed_decision, kind="owner")`.
+Use `kind="agent"` only for the actual CREATE-02 review. The callback receives the
+fresh exact request and returns the genuine decision, original answer, rationale,
+explicit retention consent, retained scopes and save authorization required by
+the shared operator intake. Never use a canned callback or infer an answer from
+permission to execute. The store must be outside task roots and selected evidence,
+with `EVAL_AUTHOR_SOURCE_REVIEW_OPERATOR_STORE` and
+`EVAL_AUTHOR_SOURCE_REVIEW_OPERATOR_TRUST=localhost-assessment-operator-v1` set at
+that trusted boundary. Ordinary commands accept the equivalent explicit flags.
+Readback and revocation use this same boundary. This is operator-recorded,
+same-user-mutable provenance, not independently authenticated authority.
+
+Keep the predecision reports unchanged. After decisions, generate fresh ordinary
+reports and matrix with the explicit store/trust flags and `--defer-replay`.
+Then run the documented final `--verify-matrix` command once per distinct report.
+Do not replay the predecision report expecting the new score to match it. Current
+base 1/2 or unresolved results and local paired controls remain distinct from the
+historical 14-at-3/four-at-2 base and from highest-anchor qualification.
+
+### Separately declared CREATE-02 subject and fresh repair
+
+A current-order correctness claim is a different subject from the original
+action-only refund example. Its exact owner and actual agent reviews are retained
+through `rubric_create02_subject.record_review`; earlier approvals do not transfer.
+The ordinary subject consumer can then report its scoped zero without changing
+the original example's score or frozen expectation.
+
+After that exact intake, run the integration with new private output:
+
+```bash
+PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -B \
+  skills/eval-author-rubric/scripts/rubric_create02_integration.py \
+  --approved-subject /absolute/private/approved-subject \
+  --leakage-results /absolute/private/local-leakage/leakage-results.json \
+  --source-review-operator-store /absolute/private/operator-store \
+  --source-review-operator-trust localhost-assessment-operator-v1 \
+  --output /absolute/private/create02-integration --defer-replay
+```
+
+`results.md` links the ordinary scored subject report, the fresh repaired-subject
+report and `matrix.json`. The repair changes only the published key lookup to use
+current-order evidence, then executes the same fixed policies separately against
+both scorers on retained-affected and new same-family orders. Full inputs, read
+traces, answers and per-check rewards are retained. This is fresh local execution,
+not same-candidate rescoring, native execution or an independent review. The
+repaired criterion remains Unassessed until separately qualified; there is no
+inherited-approval exception. The original action-only zero-target/actual-two
+mismatch remains a separate matrix attempt. One shared cue/scoring defect is
+counted once, with no extra AUDIT-03 numeric award.
+
+This matrix has the current canonical inventory but integrates only local
+leakage evidence; it does not promote legacy native results. `source-freeze.json`
+binds the new integration and matrix consumer separately from the unchanged
+approved subject. A wording correction is displayed outside that approved
+closure: correct current-order answers were penalized by the defective scorer.
+When the final replay stage is authorized, use the same operator environment and
+`rubric_create02_integration.py --verify-integration /absolute/private/create02-integration`.
+That command deduplicates ordinary report paths. The repair's ordinary table
+consumer is also available as `--repair-consumer`, followed by the table's
+`--root`, `--selection`/`--verify-existing` and `--output` arguments.
 
 ### Reuse an accepted source review
 

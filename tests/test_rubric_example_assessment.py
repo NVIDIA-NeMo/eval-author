@@ -293,6 +293,13 @@ def test_denied_source_and_available_alias_cannot_promote_path(tmp_path, path):
     assert report["items"][PREFIX + "grading-path"]["score"] is None
     assert report["items"][PREFIX + "grading-dependency-access"]["score"] is None
 
+    for name in ("grading-path", "grading-dependency-access"):
+        row = report["items"][PREFIX + name]
+        assert row["evidence_strength"] is None
+        assert row["evidence_refs"]
+        assert row["check_results"]
+        assert row["remaining_gaps"]
+
 
 def test_missing_inventory_member_is_not_a_confirmed_missing_file(tmp_path):
     selection = package(tmp_path)

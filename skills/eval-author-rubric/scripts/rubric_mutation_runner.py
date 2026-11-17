@@ -17,7 +17,7 @@ import example_fixtures as fixtures
 
 # Import the owning entrypoint first so its shared runtime paths are installed.
 import rubric_table
-from rubric_evidence_scoring import canonical_definitions, definitions_digest
+from rubric_leakage_current import canonical_definitions, definitions_digest, current_expectations, inventory, GAPS
 
 SCRIPTS = Path(__file__).resolve().parent
 TASK = "assessment/task/task.toml"
@@ -79,14 +79,15 @@ def observed_rows(assessment: dict[str, Any]) -> dict[str, Any]:
     for ident, definition in definitions.items():
         row = report["items"][ident]
         checks = row["check_results"]
-        if [check.get("check_id", check["id"]) for check in checks] != [check["id"] for check in definition["checks"]]:
+        check_ids = [check.get("check_id") or check.get("id") for check in checks]
+        if check_ids != [check["id"] for check in definition["checks"]]:
             raise ValueError("incomplete check inventory")
         score = row["score"]
         if score is not None and (type(score) is not int or score not in range(4)):
             raise ValueError("invalid observed score")
         result[ident] = {
             "score": score,
-            "checks": {check["id"]: check["outcome"] for check in checks},
+            "checks": {ident: check["outcome"] for ident, check in zip(check_ids, checks)},
             "evidence_strength": row.get("evidence_strength"),
             "remaining_gaps": row.get("remaining_gaps", []),
         }
@@ -308,7 +309,7 @@ def run_source_case(output: Path, mutation: str, *, local_controls: bool = False
         "expected": expected,
         "observed": rows["changed"],
         "baseline_observed": rows["baseline"],
-        "comparison": compare_expectations(expected, rows["changed"]),
+        "comparison": compare_expectations(current_expectations(expected), rows["changed"]),
         "assessment": assessments["changed"],
         "baseline_assessment": assessments["baseline"],
         "intended_collateral": catalog["collateral_criteria"],
@@ -465,8 +466,7 @@ def adapter_requirement(ident: str, scenario: str) -> str:
 
 def reconcile(results: list[dict[str, Any]]) -> dict[str, Any]:
     definitions = canonical_definitions()
-    if len(definitions) != 18 or sum(len(row["checks"]) for row in definitions.values()) != 59:
-        raise ValueError("canonical inventory changed")
+
     runs = []
     for result in results:
         if "invariants" in result and not all(
@@ -483,9 +483,9 @@ def reconcile(results: list[dict[str, Any]]) -> dict[str, Any]:
             attempts = []
             for run in runs:
                 if (
-                    ident not in run["expected"]
-                    or type(run["expected"][ident]) is not type(expected)
-                    or run["expected"][ident] != expected
+                    ident not in current_expectations(run["expected"])
+                    or type(current_expectations(run["expected"])[ident]) is not type(expected)
+                    or current_expectations(run["expected"])[ident] != expected
                 ):
                     continue
                 rows = observed_rows(run["assessment"])
@@ -520,7 +520,7 @@ def reconcile(results: list[dict[str, Any]]) -> dict[str, Any]:
         "definitions_sha256": definitions_digest(),
         "request_sha256": hashlib.sha256(fixtures.ASSESSMENT_REQUEST.encode()).hexdigest(),
         "criterion_count": len(definitions),
-        "check_count": 59,
+        "check_count": inventory()["check_count"],
         "cells": cells,
         "qualified_mutation_cells": 0,
         "counts": {
@@ -542,7 +542,7 @@ def validate_coverage(coverage: dict[str, Any]) -> None:
     expected_keys = {(ident, scenario) for ident in definitions for scenario in ("0", "1", "2", "3", "missing")}
     cells = coverage["cells"]
     if len(cells) != len(expected_keys) or {(row["criterion"], row["scenario"]) for row in cells} != expected_keys:
-        raise ValueError("invalid 18 by 5 inventory")
+        raise ValueError("invalid current criterion by scenario inventory")
     if coverage["definitions_sha256"] != definitions_digest() or coverage["qualified_mutation_cells"] != 0:
         raise ValueError("unsupported qualification or stale definitions")
     checked_reports: set[str] = set()
@@ -577,6 +577,7 @@ def validate_coverage(coverage: dict[str, Any]) -> None:
                 targets = catalog.get(
                     "expected_scores", dict.fromkeys(catalog["target_criteria"], catalog["intended_score"])
                 )
+            targets = current_expectations(targets)
             if (
                 row["criterion"] not in targets
                 or type(targets[row["criterion"]]) is not type(expected)
@@ -639,9 +640,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--native-numeric-registry", type=Path)
     parser.add_argument("--native-numeric-reports", type=Path, help="Optional unchanged emitted native reports; owning validation and replay still required")
     parser.add_argument("--verify-matrix", type=Path, help="Read-only current matrix verification")
+    parser.add_argument("--defer-replay", action="store_true", help="Generate matrix observations and requests without retained replay")
     for flag in ("source-review-operator-store", "source-review-operator-trust", "source-review-session-store", "source-review-signed-store", "upper-environment-bundle", "upper-anticheat-bundle", "upper-anticheat-registry"):
         parser.add_argument("--" + flag)
     args = parser.parse_args(argv)
+    if args.defer_replay and (not (args.base_report or args.extend_matrix) or args.verify_matrix):
+        parser.error("--defer-replay requires matrix generation, not verification")
     if args.base_report or args.verify_matrix or args.extend_matrix:
         if args.case or args.local_controls or args.audit_report or args.verify_coverage or args.evidence_scope_report or args.verify_evidence_scope:
             parser.error("matrix execution cannot be mixed with another runner mode")
@@ -655,7 +659,8 @@ def main(argv: list[str] | None = None) -> int:
                 parser.error("extension needs output, native bundle and registry, without another matrix mode")
             result = complete(args.extend_matrix.absolute(), args.output.absolute(), options,
                               args.native_numeric_bundle.absolute(), args.native_numeric_registry.absolute(),
-                              args.native_numeric_reports.absolute() if args.native_numeric_reports else None)
+                              args.native_numeric_reports.absolute() if args.native_numeric_reports else None,
+                              defer_replay=args.defer_replay)
             print(json.dumps({"summary": str(args.output / "summary.md"), "counts": result["counts"], "verification": result["verification"]}))
             return 0
         if args.verify_matrix:
@@ -673,12 +678,13 @@ def main(argv: list[str] | None = None) -> int:
                 if not args.native_numeric_registry:
                     parser.error("native numeric bundle requires explicit registry")
                 base_output = args.output.with_name(args.output.name + "-base")
-                run_matrix(args.base_report.absolute(), base_output.absolute(), options)
+                run_matrix(args.base_report.absolute(), base_output.absolute(), options, defer_replay=True)
                 result = complete(base_output.absolute() / "matrix.json", args.output.absolute(), options,
                                   args.native_numeric_bundle.absolute(), args.native_numeric_registry.absolute(),
-                                  args.native_numeric_reports.absolute() if args.native_numeric_reports else None)
+                                  args.native_numeric_reports.absolute() if args.native_numeric_reports else None,
+                                  defer_replay=args.defer_replay)
             else:
-                result = run_matrix(args.base_report.absolute(), args.output.absolute(), options)
+                result = run_matrix(args.base_report.absolute(), args.output.absolute(), options, defer_replay=args.defer_replay)
             print(json.dumps({"summary": str(args.output / "summary.md"), "counts": result["counts"], "verification": result["verification"]}))
         return 0
     if args.evidence_scope_report or args.verify_evidence_scope:
@@ -752,6 +758,10 @@ def matrix_assess(root: Path, selection: dict[str, Any], output: Path, options: 
 
 
 def matrix_replay(record: dict[str, Any], *, log: bool = True) -> bool:
+    if record.get("kind") == "create02-subject":
+        from rubric_create02_integration import replay_record
+
+        return replay_record(record)
     argv = [str(SCRIPTS / "rubric_base_assessment.py"), "--root", record["root"],
             "--verify-existing", str(Path(record["report"]).parent), *matrix_flags(record["options"])]
     command = [sys.executable, "-B", *argv]
@@ -822,7 +832,17 @@ def matrix_selection(original: dict[str, Any], case: str, options: dict[str, Any
 
 
 def validate_matrix_expectation(run: dict[str, Any]) -> None:
-    if run.get("extension_kind"):
+    if run.get("extension_kind") == "create02-subject":
+        if run["case"] != "create02-heldout-stale-template-zero":
+            raise ValueError("unknown separately declared CREATE-02 subject")
+        expected = {"CREATE-02": 0}
+    elif run.get("extension_kind") == "leakage":
+        from rubric_leakage_recipes import expectations, evidence_kind
+        case = run["case"].removeprefix("leakage-")
+        expected = expectations(case)
+        if run.get("evidence_control_kind") != evidence_kind(case):
+            raise ValueError("leakage evidence control kind differs from recipe")
+    elif run.get("extension_kind"):
         from rubric_numeric_matrix_extensions import extension_specs
         expected = extension_specs(run["extension_kind"])[run["case"]]
     elif run["case"] in matrix_specs():
@@ -844,44 +864,76 @@ def matrix_summary(base: dict[str, Any], runs: list[dict[str, Any]], repair: dic
     if comparison_projection(before) != comparison_projection(repaired):
         raise ValueError("final full-base repair differs")
     definitions = canonical_definitions()
+    indexed = {run["case"]: run for run in runs}
+    if len(indexed) != len(runs):
+        raise ValueError("duplicate matrix case")
     rows = []
     for run in runs:
         validate_matrix_expectation(run)
+        if run.get("extension_kind") == "leakage":
+            from rubric_leakage_recipes import CONTROL_CASES
+            case = run["case"].removeprefix("leakage-")
+            if case in CONTROL_CASES:
+                ident, _ = CONTROL_CASES[case]
+                for field, arm in (("criterion_baseline", "base"), ("criterion_repair", "repair")):
+                    if run.get(field) != indexed["leakage-" + ident + "." + arm]["assessment"]:
+                        raise ValueError("criterion pair differs from owning leakage case")
+        baseline_record = run.get("criterion_baseline", base)
+        repair_record = run.get("criterion_repair", repair)
+        paired_before = observed_rows(baseline_record)
+        paired_repair = observed_rows(repair_record)
+        if not paired_before or comparison_projection(paired_before) != comparison_projection(paired_repair):
+            raise ValueError("criterion paired repair differs")
         actual = observed_rows(run["assessment"])
-        changes = {k: {"base": before[k], "actual": v} for k, v in actual.items()
-                   if comparison_projection({k: before[k]}) != comparison_projection({k: v})}
+        expected = current_expectations(run["expected"])
+        run["current_expected"] = expected
+        run["legacy_expectation_limits"] = {ident: "Original target retained, but no equivalent current numeric predicate; examine original legacy evidence without treating it as current coverage." for ident in run["expected"] if ident == "AC-01"}
+        changes = {k: {"base": paired_before[k], "actual": v} for k, v in actual.items()
+                   if comparison_projection({k: paired_before[k]}) != comparison_projection({k: v})}
         run["actual"] = actual
         run["changes"] = changes
-        run["collateral"] = sorted(set(changes) - set(run["expected"]))
-        run["unchanged"] = sorted(set(before) - set(changes)) if actual else []
-        for ident, target in run["expected"].items():
+        run["collateral"] = sorted(set(changes) - set(expected))
+        run["unchanged"] = sorted(set(paired_before) - set(changes)) if actual else []
+        for ident, target in expected.items():
             value = actual.get(ident, {}).get("score")
-            matched = bool(actual) and type(value) is type(target) and value == target
-            rows.append({"case": run["case"], "criterion": ident, "base": before[ident]["score"],
+            operational = run.get("evidence_control_kind") == "operational_failure"
+            matched = not operational and bool(actual) and type(value) is type(target) and value == target
+            rows.append({"case": run["case"], "criterion": ident, "base": paired_before[ident]["score"],
                          "expected": target, "actual": value, "executed": bool(actual), "matched": matched,
-                         "numeric_drop": matched and type(target) is int and type(before[ident]["score"]) is int and target < before[ident]["score"],
-                         "reason": (actual.get(ident, {}).get("remaining_gaps", [run["reason"]]) or [run["reason"]])[0], "repair": repaired[ident]["score"], "report": run["assessment"]["report"]})
+                         "evidence_control_kind": run.get("evidence_control_kind", "missing_evidence" if target is None else "numeric_or_repair"),
+                         "base_report": baseline_record["report"], "repair_report": repair_record["report"],
+                         "numeric_drop": matched and type(target) is int and type(paired_before[ident]["score"]) is int and target < paired_before[ident]["score"],
+                         "reason": (actual.get(ident, {}).get("remaining_gaps", [run["reason"]]) or [run["reason"]])[0], "repair": paired_repair[ident]["score"], "report": run["assessment"]["report"]})
     cells = []
     for ident, definition in definitions.items():
         for number in range(4):
-            attempts = [r for r in rows if r["criterion"] == ident and type(r["expected"]) is int and r["expected"] == number]
+            attempts = [r for r in rows if r["criterion"] == ident and r["evidence_control_kind"] != "operational_failure" and type(r["expected"]) is int and r["expected"] == number]
             matched = [r for r in attempts if r["matched"]]
             base_match = before[ident]["score"] == number
             status = "actual_transition" if any(r["numeric_drop"] for r in matched) else "actual_base" if base_match else "actual_control" if matched else "unsupported"
             cells.append({"criterion": ident, "expected": number, "anchor": definition["scoring"][str(number)],
                           "base_actual": before[ident]["score"], "status": status,
-                          "attempts": [{"case": r["case"], "actual": r["actual"], "matched": r["matched"], "report": r["report"]} for r in attempts],
-                          "remaining": None if status != "unsupported" else adapter_requirement(ident, str(number))})
-    if len(cells) != 72 or len({(r["criterion"], r["expected"]) for r in cells}) != 72:
+                          "attempts": [{key: r[key] for key in ("case", "actual", "matched", "report", "base", "base_report", "repair", "repair_report", "evidence_control_kind")} for r in attempts],
+                          "remaining": None if status != "unsupported" else matrix_remaining(ident, number)})
+    count = sum(len(d["scoring"]) for d in definitions.values())
+    if len(cells) != count or len({(r["criterion"], r["expected"]) for r in cells}) != count:
         raise ValueError("canonical matrix incomplete")
-    return {"schema": "rubric-consolidated-matrix-v1", "definitions_sha256": definitions_digest(),
+    return {"schema": "rubric-consolidated-matrix-v2", "definitions_sha256": definitions_digest(),
+            "current_inventory": {k: v for k, v in inventory().items() if k != "criteria"},
+            "undefined_criteria": {"METHOD-J1": "Unassessed: missing canonical definition."},
             "base_qualified": all(r["score"] == 3 for r in before.values()),
             "base": base, "base_scores": {k: v["score"] for k, v in before.items()}, "repair": repair,
             "runs": runs, "rows": rows, "cells": cells,
+            "missing_evidence_cells": [{"criterion": ident, "expected": None,
+                "attempts": [r for r in rows if r["criterion"] == ident and r["expected"] is None and r["evidence_control_kind"] == "missing_evidence"],
+                "demonstrated_drop": any(r["criterion"] == ident and r["expected"] is None and r["evidence_control_kind"] == "missing_evidence" and r["matched"] and type(r["base"]) is int for r in rows)} for ident in definitions],
+            "operational_failure_controls": [r for r in rows if r["evidence_control_kind"] == "operational_failure"],
             "counts": {state: sum(c["status"] == state for c in cells) for state in ("actual_transition", "actual_base", "actual_control", "unsupported")}}
 
 
 def matrix_remaining(criterion: str, number: int) -> str:
+    if criterion in GAPS:
+        return GAPS[criterion]
     if number == 3:
         return "Deferred independent clean/held-out review gate; existing owner decisions establish 2, not 3. No model or token follow-up was run."
     requirements = {
@@ -908,7 +960,7 @@ def matrix_remaining(criterion: str, number: int) -> str:
 def render_matrix(result: dict[str, Any], output: Path) -> str:
     import shlex
     lines = ["# Current base and numeric mutations", "",
-             "Base is **not qualified**: four independent upper gates remain at 2. Controls continue; no all-3 claim.",
+             "Current canonical scope replaces the overlapping legacy Anticheat rows. Base qualification and pending cells are derived below; historical 18-row results do not qualify this scope.",
              "Expected values are external inputs; actual values below come from ordinary CLI reports. Unassessed is not 0.",
              "Exact task rollback and one final full-selection repair reuse unchanged admitted native evidence; no new native/model execution.", "",
              "| Case | Criterion | Base | Expected | Actual | Reason / scope | Repair |",
@@ -918,7 +970,13 @@ def render_matrix(result: dict[str, Any], output: Path) -> str:
         lines.append(f"| [base](baseline/ordinary/report/results.md) | {ident} | {value} | 3 | {value} | {'Current upper gate deferred' if value != 3 else 'Current owning evidence and accepted scope'} | {value} |")
     for row in result["rows"]:
         link = os.path.relpath(Path(row["report"]).with_name("results.md"), output)
-        lines.append(f"| [{row['case']}]({link}) | {row['criterion']} | {score(row['base'])} | {score(row['expected'])} | {score(row['actual']) if row['executed'] else 'BLOCKED'} | {rubric_table.cell(row['reason'])} | {score(row['repair'])} |")
+        base_link = os.path.relpath(Path(row["base_report"]).with_name("results.md"), output)
+        repair_link = os.path.relpath(Path(row["repair_report"]).with_name("results.md"), output)
+        lines.append(f"| [{row['case']}]({link}) | {row['criterion']} | [{score(row['base'])}]({base_link}) | {score(row['expected'])} | {score(row['actual']) if row['executed'] else 'BLOCKED'} | {row['evidence_control_kind']}: {rubric_table.cell(row['reason'])} | [{score(row['repair'])}]({repair_link}) |")
+    lines += ["", "## Legacy targets without an equivalent numeric predicate", ""]
+    for run in result["runs"]:
+        for ident, reason in run.get("legacy_expectation_limits", {}).items():
+            lines.append(f"- {run['case']} / {ident} / original target {run['expected'][ident]}: {reason}")
     lines += ["", "## Remaining numeric cells", ""]
     for cell in result["cells"]:
         if cell["status"] == "unsupported":
@@ -934,7 +992,7 @@ def render_matrix(result: dict[str, Any], output: Path) -> str:
     return "\n".join(lines) + "\n"
 
 
-def run_matrix(source_report: Path, output: Path, options: dict[str, Any]) -> dict[str, Any]:
+def run_matrix(source_report: Path, output: Path, options: dict[str, Any], *, defer_replay: bool = False) -> dict[str, Any]:
     from copy import deepcopy
     from rubric_evidence_scope_mutations import source_inventory, selected_scopes, panel_comparison
     saved = json.loads(rubric_table.read_private(source_report))
@@ -942,13 +1000,14 @@ def run_matrix(source_report: Path, output: Path, options: dict[str, Any]) -> di
     output = fixtures._separate_output(output, source_report)
     output.mkdir(mode=0o700)
     frozen = source_inventory(root, original)
+    write_json(output / "current-inventory.json", inventory())
     write_json(output / "frozen-source-inventory.json", frozen)
     base_identity = fixtures.tree_identity(fixtures.BASE)
     baseline = matrix_assess(root, original, output / "baseline", options)
     if baseline["state"] != "assessed":
         raise ValueError("current combined base failed")
-    if {k: r["score"] for k, r in observed_rows(baseline).items()} != {k: r["score"] for k, r in saved["report"]["items"].items()}:
-        raise ValueError("current base differs from supplied milestone")
+    if saved.get("definitions_sha256") == definitions_digest() and {k: r["score"] for k, r in observed_rows(baseline).items()} != {k: r["score"] for k, r in saved["report"]["items"].items()}:
+        raise ValueError("current base differs from supplied same-definition milestone")
     scopes = selected_scopes(root, original)
     runs = []
     for case, expected in matrix_specs().items():
@@ -1005,13 +1064,19 @@ def run_matrix(source_report: Path, output: Path, options: dict[str, Any]) -> di
                      "task_bytes_changed": fixtures.tree_identity(work / "assessment/task") != base_identity})
         write_json(output / "runs.json", runs)
         print(json.dumps({"case": case, "exit": record["exit"]}), flush=True)
+    from rubric_leakage_recipes import run as run_leakage, pending_requests
+    leakage_runs, leakage_controls = run_leakage(output / "leakage", options)
+    write_json(output / "owner-requests.json", pending_requests(leakage_runs))
+    runs.extend(leakage_runs)
+    write_json(output / "runs.json", runs)
     repair = matrix_assess(root, original, output / "repair", options)
     runs = json.loads((output / "runs.json").read_text())
     result = matrix_summary(baseline, runs, repair)
     result.update(source_report=str(source_report), options=options, frozen_source_inventory=str(output / "frozen-source-inventory.json"),
-                  base_task_identity=base_identity)
+                  base_task_identity=base_identity, leakage_controls=leakage_controls,
+                  historical_source_scores={k: v["score"] for k, v in saved["report"]["items"].items()})
     write_json(output / "matrix.json", result)
-    verification = verify_matrix(output / "matrix.json", options, write_logs=True)
+    verification = {"all_replayed": False, "state": "deferred"} if defer_replay else verify_matrix(output / "matrix.json", options, write_logs=True)
     result["verification"] = verification
     write_json(output / "matrix.json", result)
     (output / "summary.md").write_text(render_matrix(result, output))
@@ -1048,7 +1113,12 @@ def verify_matrix(path: Path, options: dict[str, Any], *, write_logs: bool = Fal
         record = run["assessment"]
         if record["state"] == "assessed":
             reports.append(record)
-        if "source_input" in run:
+        if run.get("extension_kind") == "leakage":
+            from rubric_leakage_recipes import verify_input, verify_observation
+            retained = json.loads(rubric_table.read_private(Path(record["report"])))
+            verify_input(Path(record["root"]), run["case"].removeprefix("leakage-"), retained["selection"])
+            verify_observation(retained["report"], run["case"].removeprefix("leakage-"))
+        elif "source_input" in run:
             work = Path(run["source_input"])
             if fixtures.tree_identity(work / "assessment/task") != run["input_identity"] or fixtures.tree_identity(Path(run["exact_repair"])) != result["base_task_identity"]:
                 raise ValueError("mutation or exact repair changed")
@@ -1079,9 +1149,23 @@ def verify_matrix(path: Path, options: dict[str, Any], *, write_logs: bool = Fal
             after = json.loads(rubric_table.read_private(Path(record["report"])))["report"]
             if panel_comparison(base["report"], after) != run["native_neighbors"]:
                 raise ValueError("native neighbor projection changed")
+    if result.get("leakage_controls"):
+        from rubric_leakage_recipes import verify_input, SOURCE_CASES
+        for run in result["runs"]:
+            if run.get("extension_kind") == "leakage" and run["case"].removeprefix("leakage-") in SOURCE_CASES:
+                if (run.get("criterion_baseline"), run.get("criterion_repair")) != (result["leakage_controls"]["baseline"], result["leakage_controls"]["repair"]):
+                    raise ValueError("leakage source pair changed")
+        for record in result["leakage_controls"].values():
+            saved_control = json.loads(rubric_table.read_private(Path(record["report"])))
+            verify_input(Path(record["root"]), "inventory", saved_control["selection"])
+            if record not in reports:
+                reports.append(record)
+        if comparison_projection(observed_rows(result["leakage_controls"]["baseline"])) != comparison_projection(observed_rows(result["leakage_controls"]["repair"])):
+            raise ValueError("leakage source-only repair differs")
     from concurrent.futures import ThreadPoolExecutor
     # Each subprocess owns its measurement hooks; immutable panels are shared.
     # Verify distinct physical reports, never once per criterion/state cell.
+    reports = list({str(Path(record["report"]).resolve()): record for record in reports}.values())
     with ThreadPoolExecutor(max_workers=4) as pool:
         verified = list(pool.map(lambda record: matrix_replay(record, log=write_logs), reports))
     for record, valid in zip(reports, verified):

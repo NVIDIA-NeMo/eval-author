@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
 # SPDX-License-Identifier: Apache-2.0
 """Owning native/semantic orchestration for the complete numeric matrix.
 
@@ -131,6 +134,8 @@ def enrich(result):
     repairs = {"full_base": result["repair"]["report"]}
     if result.get("semantic_controls"):
         repairs["semantic_source_only"] = result["semantic_controls"]["repair"]["report"]
+    if result.get("leakage_controls"):
+        repairs["leakage_source_only"] = result["leakage_controls"]["repair"]["report"]
     identities = {}
     for run in result["runs"]:
         record = run["assessment"]
@@ -141,8 +146,14 @@ def enrich(result):
         saved = json.loads(rubric_table.read_private(Path(record["report"])))
         run["physical_identity"] = ident
         run["full_emitted_items"] = saved["report"]["items"]
-        run["full_metadata_changed"] = [key for key, value in saved["report"]["items"].items() if value != base_items[key]]
-        run["repair_relation"] = dict(repairs) if run.get("extension_kind") == "semantic" else {"full_base": repairs["full_base"]}
+        paired_items = json.loads(Path(run["criterion_baseline"]["report"]).read_bytes())["report"]["items"] if run.get("criterion_baseline") else base_items
+        run["full_metadata_changed"] = [key for key, value in saved["report"]["items"].items() if value != paired_items[key]]
+        run["repair_relation"] = {"full_base": repairs["full_base"]}
+        if run.get("criterion_repair"):
+            run["repair_relation"]["criterion_paired"] = run["criterion_repair"]["report"]
+        source_kind = run.get("extension_kind")
+        if source_kind in {"semantic", "leakage"} and source_kind + "_source_only" in repairs:
+            run["repair_relation"][source_kind + "_source_only"] = repairs[source_kind + "_source_only"]
     for row in result["rows"]:
         run = next(r for r in result["runs"] if r["case"] == row["case"])
         row["physical_identity"] = run["physical_identity"]
@@ -166,7 +177,7 @@ def enrich(result):
     result["rows"].sort(key=lambda row: (row["case"], row["criterion"]))
     result["physical_case_count"] = len(identities)
     result["base_score_counts"] = {str(n): sum(v == n for v in result["base_scores"].values()) for n in range(4)}
-    result["limits"] = ["Not an all-3 qualified base; four independent upper gates deferred.",
+    result["limits"] = ["Current scope includes all seven leakage criteria; legacy 18-row results are historical, not current qualification.",
         "Source-only mutant scores do not inherit native or owner authority.",
         "Exact rollback/full-base repair is not fresh native regrading of changed bytes.",
         "Local operator-recorded actual scoped answer; no independently authenticated actor/event or cryptographic authority.",
@@ -188,7 +199,7 @@ def verify(path, options, *, base_already_verified=False):
     original_cases = {r["case"]: r for r in original["runs"]}
     extra = []
     for run in result["runs"]:
-        if not run.get("extension_kind"):
+        if not run.get("extension_kind") or run.get("extension_kind") == "leakage":
             old = original_cases.pop(run["case"])
             for key in old:
                 if old[key] != run[key]:
@@ -234,26 +245,30 @@ def verify(path, options, *, base_already_verified=False):
         raise ValueError("source-only repair differs")
     rebuilt = runner.matrix_summary(result["base"], result["runs"], result["repair"])
     rebuilt["semantic_controls"] = controls
+    if result.get("leakage_controls"):
+        rebuilt["leakage_controls"] = result["leakage_controls"]
     enrich(rebuilt)
     for key in rebuilt:
         if result[key] != rebuilt[key]:
             raise ValueError("matrix derivation differs: " + key)
     pending = {(c["criterion"], c["expected"]) for c in result["cells"] if c["status"] == "unsupported"}
-    allowed = {(k, 3) for k in ("AC-01", "AC-02", "task-contract.discoverable-requirements", "task-contract.scoring-authority")}
+    allowed = {(k, 3) for k in runner.canonical_definitions()}
     lower = [c for c in result["cells"] if c["expected"] < 3]
     return {"all_replayed": True, "original_reports_replayed": proof["distinct_reports_replayed"],
         "extension_reports_replayed": len(distinct), "distinct_reports_replayed": proof["distinct_reports_replayed"] + len(distinct),
         "numeric_cells": len(result["cells"]), "lower_numeric_cells": len(lower),
         "all_lower_numeric_covered": all(c["status"] != "unsupported" for c in lower),
-        "only_deferred_upper_remaining": pending == allowed, "full_base_repair_equal": True,
+        "only_deferred_upper_remaining": bool(pending) and pending <= allowed, "full_base_repair_equal": True,
         "source_only_repair_equal": True, "native_owning_admission": True,
         "original_exact_repairs": proof["exact_repairs"], "frozen_sources_preserved": True,
         "blocked_cases": sum(r["assessment"]["state"] != "assessed" for r in result["runs"])}
 
 
-def complete(original_matrix, output, options, bundle, registry, native_reports=None):
+def complete(original_matrix, output, options, bundle, registry, native_reports=None, *, defer_replay=False):
     output.mkdir(mode=0o700, parents=True, exist_ok=False)
     original = json.loads(original_matrix.read_text())
+    if original.get("definitions_sha256") != runner.definitions_digest():
+        raise ValueError("historical matrix cannot be extended as current; generate a fresh current base matrix first")
     if original["options"] != options:
         raise ValueError("base matrix explicit options differ")
     runs, controls, proof = run_extensions(output, original, options, bundle, registry, native_reports)
@@ -261,10 +276,13 @@ def complete(original_matrix, output, options, bundle, registry, native_reports=
     result.update(original_matrix=str(original_matrix), options=options, semantic_controls=controls,
         native_bundle=str(bundle), native_registry=str(registry), native_admission=proof,
         source_report=original["source_report"], frozen_source_inventory=original["frozen_source_inventory"],
-        base_task_identity=original["base_task_identity"])
+        base_task_identity=original["base_task_identity"], leakage_controls=original.get("leakage_controls", {}))
+    runner.write_json(output / "current-inventory.json", runner.inventory())
+    from rubric_leakage_recipes import pending_requests
+    runner.write_json(output / "owner-requests.json", pending_requests([r for r in result["runs"] if r.get("extension_kind") == "leakage"]))
     enrich(result)
     runner.write_json(output / "matrix.json", result)
-    result["verification"] = verify(output / "matrix.json", options)
+    result["verification"] = {"all_replayed": False, "state": "deferred"} if defer_replay else verify(output / "matrix.json", options)
     runner.write_json(output / "matrix.json", result)
     (output / "summary.md").write_text(render(result, output))
     return result
@@ -273,7 +291,7 @@ def complete(original_matrix, output, options, bundle, registry, native_reports=
 def render(result, output):
     import shlex
     relative = lambda path: os.path.relpath(path, output)
-    lines = ["# Consolidated numeric matrix", "", "Base is not all-3 qualified. No new native/model execution; unchanged native evidence is admitted and replayed.", "",
+    lines = ["# Consolidated numeric matrix", "", "Base qualification is reported separately. No new native/model execution; replay status is explicit below.", "",
         "- Coverage: `" + json.dumps(result["counts"], sort_keys=True) + "`.",
         "- Base: `" + json.dumps(result["base_score_counts"], sort_keys=True) + "`.",
         "- Verification: `" + json.dumps(result["verification"], sort_keys=True) + "`.",
@@ -286,11 +304,15 @@ def render(result, output):
             matched = next((a for a in cell["attempts"] if a["matched"]), None)
             path = matched["report"] if matched else result["base"]["report"] if value == cell["expected"] else None
             columns.append("[" + str(cell["expected"]) + "](" + relative(Path(path).with_name("results.md")) + ")" if path else "Deferred")
-        lines.append("| " + ident + " | " + str(value) + " | " + " | ".join(columns) + " |")
+        lines.append("| " + ident + " | " + ("Unassessed" if value is None else str(value)) + " | " + " | ".join(columns) + " |")
     lines += ["", "## Cases and retained disagreements", "", "| Case | Criterion | Base | Expected | Actual | Repair | Reason |", "|---|---|---:|---:|---:|---:|---|"]
     score = lambda value: "Unassessed" if value is None else str(value)
     for row in result["rows"]:
-        lines.append(f"| [{row['case']}]({relative(Path(row['report']).with_name('results.md'))}) | {row['criterion']} | {score(row['base'])} | {score(row['expected'])} | {score(row['actual'])} | {score(row['repair'])} | {rubric_table.cell(row['reason'])} |")
+        lines.append(f"| [{row['case']}]({relative(Path(row['report']).with_name('results.md'))}) | {row['criterion']} | [{score(row['base'])}]({relative(Path(row['base_report']).with_name('results.md'))}) | {score(row['expected'])} | {score(row['actual'])} | [{score(row['repair'])}]({relative(Path(row['repair_report']).with_name('results.md'))}) | {row['evidence_control_kind']}: {rubric_table.cell(row['reason'])} |")
+    lines += ["", "## Legacy targets without an equivalent numeric predicate", ""]
+    for run in result["runs"]:
+        for ident, reason in run.get("legacy_expectation_limits", {}).items():
+            lines.append(f"- {run['case']} / {ident} / original target {run['expected'][ident]}: {reason}")
     lines += ["", "## Deferred only", ""]
     lines += [f"- {c['criterion']} / {c['expected']}: {c['remaining']}" for c in result["cells"] if c["status"] == "unsupported"]
     lines += ["", "## Scope", ""] + ["- " + limit for limit in result["limits"]]

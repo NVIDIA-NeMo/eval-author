@@ -19,7 +19,8 @@ from typing import Any
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "eval-author/scripts"))
 from eval_author_shared.task_evidence import loads  # noqa: E402
 from measure import measure  # noqa: E402
-from rubric_evidence_scoring import canonical_definitions, definitions_digest  # noqa: E402
+from rubric_leakage_current import canonical_definitions, definitions_digest, assess_current  # noqa: E402
+from rubric_evidence_scoring import canonical_definitions as legacy_definitions  # noqa: E402
 from rubric_identity import MAX_FILES, MAX_TOTAL_BYTES, read_selected  # noqa: E402
 
 
@@ -87,6 +88,10 @@ def structured(value: Any) -> str:
 
 
 def human_action(row: dict[str, Any]) -> str:
+    if row.get("display_review_summary"):
+        return row["display_review_summary"]
+    if row.get("assessment_scope") == "finite-heldout-refund-template-cache-v1":
+        return "Exact new-subject owner and agent qualification required; no prior approval transfers." if row["score"] is None else "Exact new-subject decisions retained; independent corroboration remains absent."
     if row.get("upper_method_acceptance"):
         return "Exact-packet disclosed-exposure method and retention accepted by local operator. Original lower-anchor decisions remain scoped; no repeated approval needed."
     scoped = row.get("scoped_operator_review")
@@ -172,6 +177,15 @@ def attention(row: dict[str, Any], fallback: str) -> str:
 
 
 def task_credit(report: dict[str, Any], row: dict[str, Any], number: int | str) -> tuple[str, list[str]]:
+    subject = report.get("measurements", {}).get("create02_subject")
+    if subject and row.get("assessment_scope") == subject["scope"]:
+        pairs = subject["pairs"]
+        published = [arm["published"]["credit"] for pair in pairs for arm in (pair["baseline"], pair["intervention"])]
+        oracle = [arm["evidence_oracle"]["credit"] for pair in pairs for arm in (pair["baseline"], pair["intervention"])]
+        return (f"Published {min(published)}/1 to {max(published)}/1; evidence oracle {min(oracle)}/1 to {max(oracle)}/1 across {len(pairs)} pairs.",
+                [f'<details id="task-credit-{number}"><summary>Finite refund decision credit</summary>',
+                 structured([{key: pair[key] for key in ("instance", "class", "policy", "published_transition", "evidence_transition")} for pair in pairs]),
+                 "</details>"])
     native = report.get("measurements", {}).get("example_assessment", {}).get("native", {})
     if "panels" in native:
         labels, details = [], []
@@ -262,7 +276,10 @@ def task_credit(report: dict[str, Any], row: dict[str, Any], number: int | str) 
 
 
 def render(report: dict[str, Any], case_name: str = "Selected task") -> str:
-    definitions = canonical_definitions()
+    from rubric_leakage_presentation import presentation
+
+    report = presentation(report)
+    definitions = canonical_definitions() if "current_inventory" in report else legacy_definitions()
     if not report["items"] or report["items"].keys() - definitions.keys():
         raise ValueError("invalid criterion inventory")
     for ident, row in report["items"].items():
@@ -291,7 +308,7 @@ def render(report: dict[str, Any], case_name: str = "Selected task") -> str:
             "first-eval": "task creation",
             "first_eval_create": "task creation",
         }.get(source.get("skill_id"), "Rubric")
-        if ident.startswith("AC-"):
+        if ident.startswith("AC-") or ident in {"AUDIT-03", "AUDIT-04-B", "AUDIT-05-B", "AUDIT-05-S03", "TRACE-04-A", "ENV-03-S01", "CREATE-02"}:
             workflow = "Anticheat"
         if ident.startswith("task-contract."):
             workflow = "task creation"
@@ -401,6 +418,10 @@ def render(report: dict[str, Any], case_name: str = "Selected task") -> str:
             cells[5] += f" [Per-case task credit](#task-credit-{number})"
         cells[7] += f". [Evidence {number}](#evidence-{number})"
         lines.append("| " + " | ".join(cells) + " |")
+    for ident, undefined in report.get("undefined_criteria", {}).items():
+        lines.append(f"\n**{cell(ident)} — Unassessed:** {cell(undefined['reason'])}")
+    if "legacy_evidence_items" in report:
+        lines.append("\nLegacy Anticheat rows are retained in assessment.json as evidence history, not additional current scores.")
     lines.extend(
         [
             "",
@@ -412,6 +433,8 @@ def render(report: dict[str, Any], case_name: str = "Selected task") -> str:
     from copy import deepcopy
 
     metadata = deepcopy({key: value for key, value in report.items() if key != "items"})
+    if "legacy_evidence_items" in metadata:
+        metadata["legacy_evidence_items"] = {"full_evidence": "assessment.json#/report/legacy_evidence_items"}
     example = metadata.get("measurements", {}).get("example_assessment", {})
     for key in ("configuration", "source_closure", "source_reviews"):
         if key in example:
@@ -510,6 +533,7 @@ def render_html(markdown: str) -> str:
             "</tbody></table>",
             "<p>Coverage and diversity are outside the populated rubric. Check records are not native trial counts.</p>",
             "<p>Expected scores are withheld from assessment. Compare a frozen catalog only in a separate review.</p>",
+            *["<p>" + html.escape(line.strip()) + "</p>" for line in main.splitlines() if "METHOD-J1" in line or line.startswith("Legacy Anticheat")],
             "<h2>Evidence details</h2>",
             details,
         ]
@@ -556,6 +580,10 @@ addEventListener('hashchange', revealEvidence); revealEvidence();
 
 def assess_table(root: Path, selected: dict[str, Any], task: str | None) -> dict[str, Any]:
     report = measure(root, selected)
+    report = assess_current(root, selected, report)
+    from rubric_create02_subject import assess as assess_create02_subject
+
+    report = assess_create02_subject(root, selected, report)
     if task:
         definitions = canonical_definitions()
         if report["items"].keys() != definitions.keys():

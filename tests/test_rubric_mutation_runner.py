@@ -40,7 +40,9 @@ def test_real_missing_input_assessment_repair_and_external_expectation(tmp_path)
 
 def test_withheld_selection_keeps_all_criteria_unknown(tmp_path):
     result = runner().run_source_case(tmp_path / "missing", "withhold-assessment-evidence")
-    assert len(result["observed"]) == 18
+    assert set(result["observed"]) == set(runner().canonical_definitions())
+    assert len(result["observed"]) == 21
+    assert sum(len(row["checks"]) for row in result["observed"].values()) == 70
     assert all(row["score"] is None for row in result["observed"].values())
     assert all(value == "matched" for value in result["comparison"].values())
     assert result["repair"]["matches_baseline"]
@@ -74,25 +76,31 @@ def test_runner_reports_admitted_semantic_controls(tmp_path):
     module.validate_coverage(module.reconcile([result]))
 
 
-def test_local_defect_does_not_promote_unconsumed_evidence(tmp_path):
+def test_local_defect_uses_owning_source_evidence_not_optional_subprocess_results(tmp_path):
     result = runner().run_source_case(tmp_path / "completion", "completion-only", local_controls=True)
     assert result["controls"]["changed"]["cases"]["no-work"]["result"]["total_credit"] == 1
     assert result["controls"]["changed"]["cases"]["no-work"]["result"]["max_credit"] == 1
     assert result["controls"]["baseline"]["cases"]["no-work"]["result"]["total_credit"] == 0
     assert result["controls"]["repair_matches_baseline"]
-    assert result["observed"]["AC-02"]["score"] is None
-    assert result["comparison"]["AC-02"] == "unassessed"
+    assert result["observed"]["AUDIT-03"]["score"] == 0
+    assert result["comparison"]["AUDIT-03"] == "matched"
+    assert result["semantic_controls"]["assessment_consumed"] is True
+    assert result["controls"]["assessment_consumed"] is False
     assert result["controls"]["unchanged_neighbors"]["reference"] is False
     assert result["controls"]["changed"]["cases"]["reference"]["result"]["accepted"] is True
 
 
-def test_reconciles_18_by_5_without_claiming_pending_matches(tmp_path):
+def test_reconciles_current_numeric_and_missing_without_claiming_pending_matches(tmp_path):
     module = runner()
     result = module.run_source_case(tmp_path / "missing", "withhold-assessment-evidence")
     coverage = module.reconcile([result])
-    assert len(coverage["cells"]) == 90
+    assert coverage["criterion_count"] == 21
+    assert coverage["check_count"] == 70
+    assert sum(row["scenario"] != "missing" for row in coverage["cells"]) == 84
+    assert sum(row["scenario"] == "missing" for row in coverage["cells"]) == 21
+    assert "METHOD-J1" not in {row["criterion"] for row in coverage["cells"]}
     assert coverage["counts"]["actual_prequalification"] == 0
-    assert coverage["counts"]["pending"] == 90
+    assert coverage["counts"]["pending"] == 105
     assert coverage["qualified_mutation_cells"] == 0
     module.validate_coverage(coverage)
     coverage["cells"][0]["criterion"] = "invented"
@@ -145,7 +153,7 @@ def test_source_scope_and_withheld_reference_are_distinct(tmp_path):
     missing = module.run_source_case(tmp_path / "missing", "withhold-reference", local_controls=True)
     assert "reference" not in missing["controls"]["withheld"]["cases"]
     assert "reference" in missing["controls"]["baseline"]["cases"]
-    assert missing["observed"]["AC-02"]["score"] is None
+    assert missing["observed"]["AUDIT-03"]["score"] is None
     assert missing["controls"]["assessment_consumed"] is False
 
 

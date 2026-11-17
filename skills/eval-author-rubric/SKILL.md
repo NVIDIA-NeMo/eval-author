@@ -84,6 +84,11 @@ the area or criterion IDs explicitly requested by the user:
   the others, and selecting another area does not select it.
 
 An explicit request for "all populated areas" selects every populated criterion.
+For the mutable all-populated simulation, use the seven leakage canonical rows
+instead of four overlapping AC scoring rows: 21 criteria and 70 checks, not 25
+criteria. Preserve the AC evidence-floor guidance and original rows in evidence
+history. Never map AC-01's score to exposure disclosure, cue resistance or
+forbidden credit. METHOD-J1 stays Unassessed until its definition exists.
 Do not ask another area-selection question for that request. A supplied task
 package resolves the subject unless its path or evidence scope is ambiguous.
 If the named-rubric request leaves the area ambiguous, clarify the scope once
@@ -194,9 +199,13 @@ to collect missing attack, boundary, runtime-observation and read-boundary scope
 Treat public scoring rules and socket state as intentional inputs. Report observed
 verifier-source readability separately from confirmed leaks. The access panel
 uses agent source review and native UID 65534 controls, not independent held-out
-corroboration. Do not promote AC-01 to 3 without that additional evidence. Pass
+corroboration. Do not promote the corresponding canonical criterion without its own additional evidence. Pass
 `--docker-plugins` on Docker Desktop. The entrypoint also prepares the NOP
-configuration companion, renders all 18 rows, and replays the result.
+configuration companion, renders the 21 current canonical rows plus an explicit
+undefined METHOD-J1 notice, and replays the result. Existing native consumers run
+before current-scope reconciliation; retain their observations and original
+legacy rows without transferring old scores or decisions. The current leakage
+adapter reuses upstream source measurements and owning admitted controls.
 
 For an existing source-review selection, pass `--selection PATH` instead of
 `--task` and `--bundle`. Do not rebuild its configuration or Audit companion just

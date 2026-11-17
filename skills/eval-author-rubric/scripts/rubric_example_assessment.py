@@ -1832,7 +1832,7 @@ def apply(rows: dict[str, Any], measurement: dict[str, Any]) -> None:
             status="ASSESSED" if score is not None else "NOT_ASSESSED",
             assessment_state="ASSESSED" if score is not None else "NOT_ASSESSED",
             execution_state="PARTIAL",
-            evidence_strength="E2" if refs else "E0",
+            evidence_strength="E2" if score is not None else None,
             evidence_refs=deepcopy(refs),
             subject_id=measurement["task_config"],
             subject_revision="sha256:"

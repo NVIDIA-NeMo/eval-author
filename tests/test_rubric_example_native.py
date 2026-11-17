@@ -479,10 +479,10 @@ def test_real_panel_flows_through_measure_without_promoting_absent_checks():
         )["outcome"]
         == "NOT_RUN"
     )
-    assert next(c for c in after["items"]["AC-04"]["check_results"] if c["method"] == "Probe")["outcome"] == "NOT_RUN"
+    assert next(c for c in after["items"]["AC-04"]["check_results"] if c["method"] == "probe")["outcome"] == "NOT_RUN"
     assert after["items"]["task-contract.scoring-authority"]["score"] is None
     assert after["items"]["AC-02"] == before["items"]["AC-02"]
-    assert next(c for c in after["items"]["AC-03"]["check_results"] if c["method"] == "Probe")["outcome"] == "NOT_RUN"
+    assert next(c for c in after["items"]["AC-03"]["check_results"] if c["method"] == "probe")["outcome"] == "NOT_RUN"
     assert len(json.dumps(after).encode()) < 1_000_000, "native report must fit retained table reader"
 
 

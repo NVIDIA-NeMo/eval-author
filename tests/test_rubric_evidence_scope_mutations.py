@@ -16,16 +16,17 @@ def module():
     return importlib.import_module("rubric_evidence_scope_mutations")
 
 
-def test_access_scope_removal_preserves_sources_and_other_selectors():
+def test_attack_scope_removal_preserves_sources_and_other_selectors():
     helper = module()
     selection = {
         "artifacts": [
             {"id": "access", "path": "access/native-index.json"},
             {"id": "attack", "path": "attack/native-index.json"},
+            {"id": "boundary", "path": "boundary/native-index.json"},
         ],
         "example_assessment": {
             "task_config_id": "task",
-            "native_bundle_ids": ["access", "attack"],
+            "native_bundle_ids": ["access", "attack", "boundary"],
             "configuration_id": "config",
         },
         "audit_companion": {"mode": "exercise", "path": "audit"},
@@ -33,13 +34,17 @@ def test_access_scope_removal_preserves_sources_and_other_selectors():
     original = json.loads(json.dumps(selection))
     changed, removed = helper.withhold(
         selection,
-        "AC-01",
-        {"access": "eval-author.refund-access-panel.v1", "attack": "eval-author.refund-attack-panel.v1"},
+        "AUDIT-03",
+        {
+            "access": "eval-author.refund-access-panel.v1",
+            "attack": "eval-author.refund-attack-panel.v1",
+            "boundary": "eval-author.refund-boundary-panel.v1",
+        },
     )
     assert selection == original
     assert changed["artifacts"] == original["artifacts"]
-    assert changed["example_assessment"] == {**original["example_assessment"], "native_bundle_ids": ["attack"]}
-    assert removed == ["access"]
+    assert changed["example_assessment"] == {**original["example_assessment"], "native_bundle_ids": ["access"]}
+    assert removed == ["attack", "boundary"]
     assert "audit_companion" not in changed  # Its exact selected-panel binding must be rebuilt.
     assert "expected" not in json.dumps(changed)
 
@@ -94,7 +99,7 @@ def test_ordinary_source_assessment_partial_removal_and_fresh_repair(tmp_path):
     for field, wrong in (
         ("status", "selective_missing"),
         ("unchanged_criteria", []),
-        ("collateral_criteria", ["AC-01"]),
+        ("collateral_criteria", ["AUDIT-03"]),
         ("fresh_repair_matches", False),
         ("native_neighbors", {}),
         ("native_rerun", True),
@@ -112,11 +117,15 @@ def test_all_criteria_have_evidence_specific_recipes_or_explicit_gaps():
     definitions = helper.canonical_definitions()
     catalog = helper.catalog()
     assert catalog.keys() == definitions.keys()
-    assert len(catalog) == 18
+    assert not {"AC-01", "AC-02", "AC-03", "AC-04", "METHOD-J1"} & catalog.keys()
+    assert set(helper.GAPS) <= catalog.keys()
     assert all(row["checks"] == definitions[ident]["checks"] for ident, row in catalog.items())
     assert catalog["provenance.grading-path"]["supported"] is False
     assert catalog["task-contract.clear-contract"]["supported"] is False
     assert catalog["provenance.declared-configuration"]["supported"] is True
+    for ident in set(helper.GAPS) - helper.PANEL_SCOPES.keys():
+        assert catalog[ident]["supported"] is False
+        assert helper.GAPS[ident] in catalog[ident]["limit"]
     scopes = {
         "runtime": "eval-author.refund-runtime-observation.v1",
         "attack": "eval-author.refund-attack-panel.v1",
@@ -143,7 +152,7 @@ def test_all_criteria_have_evidence_specific_recipes_or_explicit_gaps():
         assert removed == ["audit_companion"]
 
 
-def test_reconcile_rejects_changed_observation_and_accounts_for_all_18(tmp_path):
+def test_reconcile_rejects_changed_observation_and_accounts_for_current_inventory(tmp_path):
     helper = module()
     import example_fixtures
     import rubric_table
@@ -154,7 +163,7 @@ def test_reconcile_rejects_changed_observation_and_accounts_for_all_18(tmp_path)
     source = tmp_path / "source.json"
     source.write_text(json.dumps({"root": str(root), "selection": selection}))
     result = helper.run(source, tmp_path / "batch")
-    assert len(result["criteria"]) == 18
+    assert [row["criterion"] for row in result["criteria"]] == list(helper.canonical_definitions())
     assert all(row["status"] in {"unsupported", "not_selected"} for row in result["criteria"])
     assert result["counts"]["selective_missing"] == 0
     assert result["baseline"]["replay_verified"]
@@ -212,6 +221,66 @@ def test_preexisting_null_is_not_a_demonstrated_drop():
     result = helper.observations({"criterion": row}, {"criterion": row}, {"criterion": row}, "criterion")
     assert result["status"] == "preexisting_null"
     assert result["demonstrated_selective_drop"] is False
+
+
+def test_rows_requires_current_inventory_and_preserves_historical_evidence(tmp_path):
+    from copy import deepcopy
+
+    import pytest
+
+    helper = module()
+    definitions = helper.canonical_definitions()
+    values = {
+        ident: {
+            "score": 1 if ident == "AUDIT-05-B" else None,
+            "check_results": [{"check_id": c["id"], "outcome": "NOT_RUN"} for c in definition["checks"]],
+        }
+        for ident, definition in definitions.items()
+    }
+    historical = {"AC-01": {"score": 3, "findings": ["Historical evidence only."]}}
+    saved = {"report": {"items": values, "current_inventory": {}, "legacy_evidence_items": historical}}
+    path = tmp_path / "assessment.json"
+    path.write_text(json.dumps(saved))
+    record = {"report": str(path)}
+    assert helper.rows(record) == values
+    assert json.loads(path.read_text())["report"]["legacy_evidence_items"] == historical
+    for mutation, message in (("historical", "historical"), ("criterion", "criterion"), ("check", "check")):
+        changed = deepcopy(saved)
+        if mutation == "historical":
+            changed["report"].pop("current_inventory")
+        elif mutation == "criterion":
+            changed["report"]["items"].pop("AUDIT-03")
+        else:
+            changed["report"]["items"]["AUDIT-03"]["check_results"].pop()
+        path.write_text(json.dumps(changed))
+        with pytest.raises(ValueError, match=message):
+            helper.rows(record)
+
+
+def test_reset_removal_keeps_attack_panel_and_source_evidence():
+    helper = module()
+    scopes = {
+        "attack": "eval-author.refund-attack-panel.v1",
+        "boundary": "eval-author.refund-boundary-panel.v1",
+    }
+    selection = {"artifacts": [{"id": "task"}], "example_assessment": {"native_bundle_ids": list(scopes)}}
+    changed, removed = helper.withhold(selection, "ENV-03-S01", scopes)
+    assert removed == ["boundary"]
+    assert changed["example_assessment"]["native_bundle_ids"] == ["attack"]
+    assert changed["artifacts"] == selection["artifacts"]
+
+
+def test_historical_physical_recipe_does_not_become_a_current_criterion():
+    helper = module()
+    scopes = {
+        "attack": "eval-author.refund-attack-panel.v1",
+        "boundary": "eval-author.refund-boundary-panel.v1",
+    }
+    selection = {"artifacts": [], "example_assessment": {"native_bundle_ids": list(scopes)}}
+    changed, removed = helper.withhold(selection, "AC-02", scopes)
+    assert removed == ["attack"]
+    assert changed["example_assessment"]["native_bundle_ids"] == ["boundary"]
+    assert "AC-02" not in helper.catalog()
 
 
 def test_mutation_runner_selective_entrypoint_runs_ordinary_tables(tmp_path):

@@ -138,6 +138,7 @@ def main(argv: list[str] | None = None) -> int:
                 or args.approve_local_native
                 or args.audit_inspect
                 or args.approve_audit_exercise
+                or args.defer_replay
             ):
                 raise ValueError("replay is read-only")
             with contextlib.redirect_stdout(io.StringIO()):
@@ -226,10 +227,10 @@ def main(argv: list[str] | None = None) -> int:
             status = table_main(
                 ["--root", str(root), "--selection", str(configured / "selection.json"), "--output", str(report)]
             )
-            replay = table_main(["--root", str(root), "--verify-existing", str(report)]) if status in (0, 1) else 2
+            replay = (status if args.defer_replay else table_main(["--root", str(root), "--verify-existing", str(report)])) if status in (0, 1) else 2
         if replay != status or status == 2:
             raise ValueError("combined report failed replay")
-        print(json.dumps({"report": str(report), "replay": "verified", "assessment_exit": status}))
+        print(json.dumps({"report": str(report), "replay": "deferred" if args.defer_replay else "verified", "assessment_exit": status}))
         return status
     except (ValueError, OSError, KeyError, TypeError):
         print(

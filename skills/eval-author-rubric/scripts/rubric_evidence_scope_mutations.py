@@ -15,16 +15,14 @@ from pathlib import Path
 from typing import Any
 
 import rubric_table
-from rubric_evidence_scoring import canonical_definitions, definitions_digest
+from rubric_leakage_current import GAPS, canonical_definitions, definitions_digest
 
 SCRIPTS = Path(__file__).resolve().parent
 PANEL_SCOPES = {
-    "AC-01": "eval-author.refund-access-panel.v1",
-    "AC-02": "eval-author.refund-attack-panel.v1",
-    "AC-03": "eval-author.refund-boundary-panel.v1",
-    "AC-04": "eval-author.refund-boundary-panel.v1",
+    "AUDIT-03": ("eval-author.refund-attack-panel.v1", "eval-author.refund-boundary-panel.v1"),
+    "ENV-03-S01": ("eval-author.refund-boundary-panel.v1",),
     **{
-        "provenance." + name: "eval-author.refund-runtime-observation.v1"
+        "provenance." + name: ("eval-author.refund-runtime-observation.v1",)
         for name in (
             "observed-configuration",
             "runtime-route",
@@ -35,6 +33,14 @@ PANEL_SCOPES = {
     },
 }
 AUDIT_CRITERIA = {"provenance.evidence-revision-consistency", "provenance.comparison-fairness"}
+# The numeric runner retains these physical recipes and external expectations.
+# They select historical panel scopes only, never current criterion scores.
+HISTORICAL_PANEL_SCOPES = {
+    "AC-01": ("eval-author.refund-access-panel.v1",),
+    "AC-02": ("eval-author.refund-attack-panel.v1",),
+    "AC-03": ("eval-author.refund-boundary-panel.v1",),
+    "AC-04": ("eval-author.refund-boundary-panel.v1",),
+}
 
 
 def catalog() -> dict[str, Any]:
@@ -42,8 +48,8 @@ def catalog() -> dict[str, Any]:
     for ident, definition in canonical_definitions().items():
         if ident in PANEL_SCOPES:
             supported = True
-            removal = PANEL_SCOPES[ident]
-            limit = "The registered panel is indivisible. Shared criterion evidence changes together; raw receipts are never edited."
+            removal = list(PANEL_SCOPES[ident])
+            limit = "Withhold the owning registered panels together. Retain source observations and other panels, even when they prevent a null. Shared criterion evidence changes together; raw receipts are never edited."
         elif ident in AUDIT_CRITERIA:
             supported = True
             removal = "audit_companion"
@@ -52,6 +58,10 @@ def catalog() -> dict[str, Any]:
             supported = True
             removal = "example_assessment.configuration_id"
             limit = "Task and Docker declarations remain evidence of partial identity. Removing the companion cannot establish a missing-evidence null."
+        elif ident in GAPS:
+            supported = False
+            removal = None
+            limit = GAPS[ident] + " No selective removal of this prerequisite is supported. Local source observations remain selected."
         elif ident.startswith("task-contract."):
             supported = False
             removal = None
@@ -85,9 +95,11 @@ def withhold(
         if "configuration_id" not in selector:
             raise ValueError("required evidence is not selected")
         return changed, [selector.pop("configuration_id")]
-    scope = PANEL_SCOPES[criterion]
+    scopes = PANEL_SCOPES.get(criterion, HISTORICAL_PANEL_SCOPES.get(criterion))
+    if scopes is None:
+        raise ValueError("unsupported selective evidence criterion")
     ids = selector.get("native_bundle_ids", [])
-    removed = [ident for ident in ids if panel_scopes[ident] == scope]
+    removed = [ident for ident in ids if panel_scopes[ident] in scopes]
     if not removed:
         raise ValueError("required evidence is not selected")
     retained = [ident for ident in ids if ident not in removed]
@@ -137,12 +149,14 @@ def assess(root: Path, selection: dict[str, Any], output: Path) -> dict[str, Any
 
 def rows(assessment: dict[str, Any]) -> dict[str, Any]:
     saved = json.loads(rubric_table.read_private(Path(assessment["report"])))
+    if "current_inventory" not in saved["report"]:
+        raise ValueError("historical criterion inventory requires a fresh current assessment")
     values = saved["report"]["items"]
     definitions = canonical_definitions()
     if values.keys() != definitions.keys():
         raise ValueError("incomplete criterion inventory")
     for ident, definition in definitions.items():
-        if [c["id"] for c in values[ident]["check_results"]] != [c["id"] for c in definition["checks"]]:
+        if [c.get("check_id", c.get("id")) for c in values[ident]["check_results"]] != [c["id"] for c in definition["checks"]]:
             raise ValueError("incomplete check inventory")
     return values
 

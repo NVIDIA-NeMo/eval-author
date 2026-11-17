@@ -174,6 +174,79 @@ separately. A with/without-rubric study still needs agreed repetitions, budget,
 held-out cases, and acceptance thresholds. A successful helper command does not
 establish that study's benefit or a user walkthrough without author assistance.
 
+## Current-base numeric mutation matrix
+
+The consolidated runner assesses the supplied combined base once. It runs shared physical cases through `rubric_base_assessment.py`, then reassesses the exact original selection as the common repair. It accepts bases below 3, but does not call them qualified. Accepted operator decisions and explicit upper companions keep their original packets and native receipts.
+
+Canonical definitions generate 21 criteria, 70 checks and 84 numeric cells, plus 21 separate missing-evidence cells. The criteria comprise 11 provenance, 3 contract and 7 leakage entries. The seven leakage entries replace the four overlapping legacy Anticheat rows. `METHOD-J1` remains explicitly Unassessed because upstream has no definition. It contributes no numeric cell. `current-inventory.json` retains the exact definitions, checks, anchors and crosswalk.
+
+`expected` retains the external original recipe. `current_expected` reconciles its targets without changing observed scores. `actual` comes from the ordinary report. AC-02 and AC-03 share AUDIT-03. AC-04 maps to ENV-03-S01. AC-01 contributes evidence to AUDIT-05-B, CREATE-02 and AUDIT-03's forbidden-answer-access control. Its numeric score has no equivalent in those three predicates, so it creates no automatic numeric target. Legacy rows and failed expectations remain historical evidence. They do not qualify current criteria.
+
+The main `summary.md` joins base, case, criterion, expected, actual, reason and repair. `matrix.json` retains collateral changes, unchanged neighbors and physical case identities. Missing evidence is never converted to zero or counted as numeric coverage.
+
+### Run
+
+Finish source changes and header generation before freezing identities. Then refresh affected native evidence and scoped reviews. Run the assessment, matrix, final tests and replay only after those prerequisites settle. The paths below are historical examples, not current admitted evidence. All eight retained native indexes bind changed helpers. Do not reseal or repin their original receipts. Use fresh outputs. The expanded matrix has not run in this implementation stage.
+
+From the repository root, choose a **new** scratch output directory:
+
+```sh
+PYTHONDONTWRITEBYTECODE=1 TMPDIR=/Users/asutermorris/.hermes/cache/scratch \
+.venv/bin/python -B skills/eval-author-rubric/scripts/rubric_mutation_runner.py \
+  --base-report /Users/asutermorris/.hermes/cache/scratch/upper-combined-ordinary-04/report/assessment.json \
+  --output /Users/asutermorris/.hermes/cache/scratch/consolidated-numeric-matrix-fresh \
+  --native-numeric-bundle /Users/asutermorris/.hermes/cache/scratch/native-numeric-mutations-04 \
+  --native-numeric-registry /Users/asutermorris/.local/state/eval-author/native \
+  --registry /Users/asutermorris/.local/state/eval-author/native \
+  --source-review-operator-store /Users/asutermorris/.hermes/cache/scratch/operator-source-qualification-01/operator-store \
+  --source-review-operator-trust localhost-assessment-operator-v1 \
+  --upper-environment-bundle /Users/asutermorris/.hermes/cache/scratch/upper-environment-native-03 \
+  --upper-anticheat-bundle /Users/asutermorris/.hermes/cache/scratch/upper-anticheat-contract/native-05 \
+  --upper-anticheat-registry /Users/asutermorris/.hermes/cache/scratch/upper-anticheat-contract/registry
+```
+
+For read-only current verification, replace `--base-report ... --output ...` with `--verify-matrix /absolute/output/matrix.json`. Omit the native-numeric generation flags and preserve every base trust, registry and companion flag. Replay runs once per distinct report, not per numeric cell. You can also replay an individual report with its owning recorded command.
+
+The runner creates semantic task/subject copies and six leakage source controls: inventory, private copy, answer filename, duplicate split, prompt reuse and withheld source inventory. Each of the seven leakage criteria also has bounded local base, 0/1/2, missing-input, operational-failure and repair arms. These are synthetic fixtures executed by the current local Ledger/scorer, not native or model observations. The owning ordinary consumer decides their actual scores. Owner and agent decisions are never simulated by generation.
+
+`criterion_baseline` and `criterion_repair` identify each control's actual paired reports. Rows and attempts retain their `base_report` and `repair_report`. These links do not substitute the unrelated combined-base repair. `evidence_control_kind=operational_failure` retains the error in its own track and contributes neither missing-evidence nor numeric coverage. Source observations with preexisting unknowns do not count as deliberate missing-input controls. Shared native controls and each scorer arm's credit scale remain in owning reports.
+
+The runner calls the ordinary assessment and validates native mutations through their owning registry and validator. It never collects new native trials. Supply current admitted native evidence after the final source freeze. A separate `-base` output retains complete base-run evidence. Add `--defer-replay` to `--base-report` or `--extend-matrix` generation to retain observations, `owner-requests.json` and an explicitly deferred verification status. Defaults still replay. The combined base-plus-extension command replays its base reports only in the final extension pass, not twice. See [bounded owner-request collection](results.md#bounded-leakage-observations-and-owner-requests) for collection before exact decisions.
+
+For a same-definition current matrix, `--extend-matrix /absolute/current/matrix.json` reuses case reports and exact repairs with ordinary verification. This mode rejects a historical 18-row matrix. Create a fresh current matrix first. `--native-numeric-reports` can reuse current emitted reports only after owning admission and ordinary replay. Neither mode trusts an extension summary's selected score. See [upper companions](results.md#upper-companions-beside-accepted-source-reviews) for the original selection and explicit trust boundary.
+
+### Historical verified deliverable before the merged scope
+
+`/Users/asutermorris/.hermes/cache/scratch/consolidated-numeric-matrix-03/summary.md` and `matrix.json` retain the pre-merge result: 72 numeric cells, 50 transitions, 18 base cells and four deferred upper cells; all 54 lower cells had report/repair links. Its base was 14 scores of 3 and four scores of 2. Its verification covered 43 distinct reports and 39 physical mutations, including 14 exact task repairs. These counts remain historical only. The durable restoration snapshot is `/Users/asutermorris/src/rubric-guided-runs/pr211-numeric-checkpoint`; do not rewrite its records or label them validation of the merged source.
+
+Fairness 0 consumes the actual parent-observed answer **“Yes—unjustified; retain this scoped judgment”** for `semantic-numeric-batch-02/owner-question.json`. The trusted callback records it outside selection via `record_decision`, with explicit retention scope. `semantic-fairness-actual-intake.json` retains the original question hash and proves current source/rule/comparison results equal the asked packet; only the intake changed in the semantic implementation. No actor ID, session authentication or cryptographic provenance is invented. Code running under the same user can change the store. `read_decision` and `revoke_decision` share the existing operator boundary and ordinary assessment rechecks them. Approve in this request means affirm **unjustified**, not approve fairness. No base or upper decision transfers.
+
+### Evidence limits
+
+- Scope controls retain entire admitted native panels. Explicit partial observations describe only a proper subset; they do not erase failed controls or alter receipt bytes.
+- Inventory controls compare sourced claims with selected active entrypoints and configuration identities. Wrong scorer and material contradictory agent identity are not missing-evidence controls.
+- Provider-incompatibility zero comes from the installed Harbor `TaskConfig` validator, not an invented native execution.
+- Reachable shortcut zeros reconstruct a finite, full-closure admitted source variant and exercise the current guarded Ledger plus scorer on bounded data. Native probes remain unrun for this static-evidence route.
+- Source mutants are fresh copies. Changed task bytes cannot inherit frozen native/review authority. Each exact byte/mode repair is retained separately. The common full-base repair restores the original task and selection. It does not regrade a mutant natively.
+- Legacy base scores do not transfer to the canonical leakage criteria. The runner launches no models or native trials. Refresh affected native panels and obtain any required exact-scope decisions before final execution.
+- `hidden-completion` does not prove a hidden requirement when verifier source is allowed authority. Its expected zero remains an explicit mismatch rather than relabeling the ordinary Unassessed result.
+
+### Current deferred acceptance
+
+| Criterion | Implemented observation route | Remaining control or decision |
+|---|---|---|
+| AUDIT-03 | Current native per-check/total comparison, shared consumer controls; finite admitted mandatory-gate bypasses | Owner approval of combined attack applicability and expected credit; all unresolved classes, then independently authored held-out attacks |
+| AUDIT-04-B | Local confirmed mechanism, retained affected and new-instance repair/valid-work comparisons | Owner quarantine/bounded-use dispositions; independent cross-family replay |
+| AUDIT-05-B | Inspectable local exposure inventory earns only the defined partial anchor | Exposure timestamps, searched/unknown corpora, reviewed bounded statement; original/subset sensitivity and independent provenance review |
+| AUDIT-05-S03 | Split overlap and prompt reuse observations | Complete candidate/feedback ledger, actual access lineage, frozen owner-approved confirmation/reuse rule, untouched confirmation or reuse-boundary controls |
+| TRACE-04-A | Inert fixture channel/candidate and sampled-negative inventory with exact local sink digest | Qualified contextual and exact digest/recipient/use disposition; independent labels/release audit; no real sensitive collection |
+| ENV-03-S01 | Native reset/sentinel partial observations and admitted unintended-persistence zero | Full isolated/shared-surface owner declaration; order/session coverage and independent parallel/delayed-effect controls; stochastic repeats only if needed |
+| CREATE-02 | Paired local cue-only/nuisance/misleading/style controls with per-arm credit, transitions and finite-population limits | Actual current agent confound review and owner method acceptance; independent new families |
+| METHOD-J1 | Explicit Unassessed, outside numeric denominator | Upstream canonical judge trust-boundary definition |
+
+The expanded implementation does not claim all 84 cells have results. Current completed counts come only from the final emitted matrix. Missing human, native, independent and adapter prerequisites remain separate from execution failures.
+
+
 ## Overall rubric showcase
 
 Run the identity, provenance, scorer, verification-integrity, task-contract/Ethos
@@ -197,8 +270,8 @@ Missing evidence stays unassessed. The page lists the controls needed for strong
 AC-02 scores and the saved-envelope acceptance/recovery path that is not yet shown.
 It does not turn partial acceptance claims into complete workflow acceptance.
 
-The criterion-rule panel exercises 0, 1, 2, 3 and missing-evidence cases for all
-18 populated criteria. The separate `criterion_demonstration` field labels these
+The criterion-rule panel exercises 0, 1, 2, 3 and missing-evidence cases for the
+18 legacy criteria. It does not establish coverage of the current leakage definitions. The separate `criterion_demonstration` field labels these
 as synthetic examples, not measured task scores. The real fixture panels emit
 `provenance.task-artifact-access`, `provenance.grading-path`,
 `provenance.grading-dependency-access`, AC-02, AC-03's forged-success defect and

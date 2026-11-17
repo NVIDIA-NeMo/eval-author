@@ -33,6 +33,20 @@ def test_table_assesses_materialized_refund_without_manual_selection(tmp_path):
     assert prepared.returncode == 0, prepared.stderr
     result = table_cli(tmp_path / "case/assessment", "--task", "task/task.toml", "--output", tmp_path / "review")
     assert result.returncode == 1, result.stdout + result.stderr
+    saved = json.loads((tmp_path / "review/assessment.json").read_text())
+    definitions = load_table().canonical_definitions()
+    report = saved["report"]
+    assert report["items"].keys() == definitions.keys()
+    for ident, definition in definitions.items():
+        assert [c.get("check_id", c.get("id")) for c in report["items"][ident]["check_results"]] == [
+            c["id"] for c in definition["checks"]
+        ]
+    assert set(report["legacy_evidence_items"]) == {"AC-01", "AC-02", "AC-03", "AC-04"}
+    assert not report["legacy_evidence_items"].keys() & report["items"].keys()
+    assert report["undefined_criteria"]["METHOD-J1"]["score"] is None
+    assert "METHOD-J1" not in report["items"]
+    assert report["items"]["AUDIT-05-B"]["score"] == 1
+    assert report["items"]["AUDIT-04-B"]["score"] is None
     assert table_cli(tmp_path / "case/assessment", "--verify-existing", tmp_path / "review").returncode == 1
 
 
@@ -69,12 +83,19 @@ def test_complete_task_selector_reports_missing_contract(tmp_path):
 def test_table_accepts_task_without_manual_selection(tmp_path):
     from test_rubric_example_assessment import package
 
-    package(tmp_path)
-    result = table_cli(tmp_path, "--task", "task.toml")
+    task = tmp_path / "task"
+    task.mkdir()
+    package(task)
+    output = tmp_path / "review"
+    result = table_cli(tmp_path, "--task", "task/task.toml", "--output", output)
     assert result.returncode == 1, result.stderr
     assert "Task artifact access" in result.stdout
     assert "Coverage and diversity are outside the populated rubric." in result.stdout
-    assert len([line for line in result.stdout.splitlines() if line.startswith("| ")]) == 19
+    saved = json.loads((output / "assessment.json").read_text())
+    definitions = load_table().canonical_definitions()
+    assert saved["report"]["items"].keys() == definitions.keys()
+    headline = result.stdout.split("## Evidence details")[0]
+    assert len([line for line in headline.splitlines() if line.startswith("| ")]) == len(definitions) + 1
     assert "| Expected | Observed rubric score | Task credit |" in result.stdout
     assert "Not supplied" in result.stdout
     assert "not run" in result.stdout.lower() or "blocked" in result.stdout.lower()
@@ -237,14 +258,19 @@ def test_table_does_not_fill_missing_emitted_rows(tmp_path, monkeypatch, mutatio
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     selected = package(tmp_path)
-    report = module.measure(tmp_path, selected)
-    if mutation == "row":
-        report["items"].pop("AC-01")
-    elif mutation == "check":
-        report["items"]["AC-01"]["check_results"].pop()
-    else:
-        report["items"]["provenance.task-artifact-access"]["source"]["id"] = "changed"
-    monkeypatch.setattr(module, "measure", lambda *args: report)
+    current_projection = module.assess_current
+
+    def incomplete_projection(root, selection, report):
+        report = current_projection(root, selection, report)
+        if mutation == "row":
+            report["items"].pop("AUDIT-03")
+        elif mutation == "check":
+            report["items"]["AUDIT-03"]["check_results"].pop()
+        else:
+            report["items"]["provenance.task-artifact-access"]["source"]["id"] = "changed"
+        return report
+
+    monkeypatch.setattr(module, "assess_current", incomplete_projection)
     with pytest.raises(ValueError, match="inventory"):
         module.assess_table(tmp_path, selected, "task.toml")
 
@@ -630,7 +656,7 @@ def test_recorded_contradiction_survives_real_cli_and_replay(tmp_path, mutation)
     document["decisions"][0]["status"] = "contradicted"
     document["decisions"][0]["rationale"] = "Synthetic contradiction preservation control, not an actual finding."
     refresh(tmp_path, selected, "review.json", json.dumps(document))
-    before = module.measure(tmp_path, {**selected, "example_assessment": {"task_config_id": "task.toml"}})
+    before = module.assess_table(tmp_path, {**selected, "example_assessment": {"task_config_id": "task.toml"}}, None)
     selection = tmp_path / "selection.json"
     selection.write_text(json.dumps(selected))
     output = tmp_path / "output"

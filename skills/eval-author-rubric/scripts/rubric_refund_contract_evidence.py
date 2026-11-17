@@ -18,6 +18,7 @@ import ast
 import hashlib
 import json
 import sys
+from collections.abc import Mapping, Sequence
 from copy import deepcopy
 from pathlib import Path
 from typing import Any
@@ -49,8 +50,14 @@ FROZEN = {
 RULES = {
     "task-contract-authority.json": "895ac92d8d5771db2d987facb75a01bc1c34f75154b4b4df67a36eeca1fe320a",
     "task-contract-authority.md": "442781dc765ef18a1e5775245cfc3adeff03d625f73ded419777a1f36ddfdc9f",
-    "artifact-configuration-provenance.json": "22373fc194957308a5dc2608668e6ddb526aad1813afe5126734a60a2c2e079e",
+    "artifact-configuration-provenance.json": "664b543f58e630629416466ecff8c876d198044e71103c925853c4bf5550ed9b",
     "artifact-configuration-provenance.md": "9b920288368aa2259de5869dbe0e75b80b7a0edb738c6b7ac05186dd8c7022c9",
+}
+# The reviewed delta removes only result_template.skill_id=null. All policies,
+# criterion definitions and anchors are unchanged. This prior identity is historical,
+# not an alternative admission pin; retained reports still require fresh assessment.
+HISTORICAL_RULES = {
+    "artifact-configuration-provenance.json": "22373fc194957308a5dc2608668e6ddb526aad1813afe5126734a60a2c2e079e",
 }
 VARIANTS = {
     "base": {},
@@ -226,7 +233,7 @@ def _implementation() -> dict[str, str]:
     return {name: _digest(_read(path.parent, path.name)) for name, path in paths.items()}
 
 
-def _conditions(contract: dict[str, Any], variant: str, refs: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def _conditions(contract: dict[str, Any], variant: str, refs: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:
     refs = [{key: value for key, value in ref.items() if key != "quote"} for ref in refs]
     rows = [
         {"id": name, "authority": requirement, "status": "not_independently_adjudicated", "evidence_refs": refs}
