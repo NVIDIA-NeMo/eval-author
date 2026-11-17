@@ -75,6 +75,48 @@
       ]
     },
     {
+      "id": "task-type-single-request-tool-chain",
+      "prompt": "Use eval-author-first-eval for this response-only planning exercise. Onboarding and Ethos confirmation are complete. The selected source is the inline specification below, with no traces. Do not repeat onboarding, run commands, write files, or author tasks. The agent is a conversational retail assistant. We want one task: 'Tell me the expected arrival date for order R31 shipping to postcode 02139.' The fixture contains the order, carrier tracking, and delivery policy. The agent must look up the order, query tracking, and apply the delivery policy. It needs no more customer facts, decisions, or authorization. Choose the task type and explain its rationale, state requirements, and observable checks. A teammate recommends user simulation because the agent is conversational and will make three tool calls.",
+      "expected_output": "Selects Single-turn because one supplied request contains every customer input needed. Explains that multiple tools and a conversational interface do not require more user turns. Checks the delivery date against the fixture and policy, without adding a conversation or requiring a simulation runner. Labels the proposal as specification-based and does not claim measured coverage.",
+      "assertions": [
+        "Selects Single-turn (single_turn), with a rationale based on the absence of later customer input.",
+        "Explicitly rejects tool-call count or the agent being conversational as sufficient reasons for User-sim.",
+        "Proposes an outcome check against tracking and delivery policy rather than accepting tool invocation alone.",
+        "Does not invent follow-up requests, observed traces, completed execution, or measured coverage.",
+        "Returns the planning answer without repeating onboarding, running commands, creating artifacts, or asking for simulation setup."
+      ],
+      "expected_skill": "eval-author-first-eval",
+      "files": []
+    },
+    {
+      "id": "task-type-scripted-critical-path",
+      "prompt": "Use eval-author-first-eval for a response-only planning exercise after completed onboarding and confirmed Ethos. All selected evidence is inline. Do not run commands, create files, or repeat onboarding. We need to test that removing the final item leaves a persisted retail cart empty. The clean fixture has an empty cart for customer C17. The intended sequence is 'Add one SKU MUG-7 to my cart', then 'Remove SKU MUG-7 from my cart.' Each request is fixed, and the first request must produce exactly one unit of MUG-7 before the second request is meaningful. Assistant wording can vary. An open-ended conversation could end after the addition and never exercise removal. Choose the test type, state continuity, prerequisite checks, and final check. Explain what happens if the first request fails.",
+      "expected_output": "Selects Scripted multi-step with predefined requests, preserves the same customer cart and required conversation state, and checks that the addition produced exactly one MUG-7 before advancing. If that prerequisite fails, records the failure and marks removal unexercised. The final verifier checks the persisted cart is empty after the removal, without requiring exact assistant wording or treating a script as a guarantee that the agent succeeds.",
+      "assertions": [
+        "Selects Scripted multi-step (scripted_multi_step) because fixed requests and predictable checked state transitions reach the targeted removal behavior.",
+        "Requires continuity of the same customer cart between requests and a reset to the clean fixture between independent attempts.",
+        "Requires a check for exactly one MUG-7 after the first stage before the removal request proceeds.",
+        "Records a failed prerequisite and marks downstream removal behavior unexercised instead of counting it as coverage or success.",
+        "Checks persisted final cart state and tolerates harmless wording variation, without running commands or authoring artifacts."
+      ],
+      "expected_skill": "eval-author-first-eval",
+      "files": []
+    },
+    {
+      "id": "task-type-adaptive-offer-response",
+      "prompt": "Use eval-author-first-eval to plan one task in this already-started evaluation workflow. Onboarding and Ethos are confirmed, and the inline specification is the selected source. Answer only, without commands or task files. The customer wants a replacement for a damaged item in order R31. Inventory changes the available replacement options, and the assistant may ask for the order number and damage description in either order. The customer knows those facts and will accept the cheapest equivalent replacement the assistant actually offers under $40. The customer's confirmation must refer to that offered item's identifier. The verifier must establish that the selected replacement was offered and confirmed before the agent changes the order. Choose the task type and outline the conversation, retained state, and checks. We support only a neutral user, and the interactive runner has not yet been verified.",
+      "expected_output": "Selects User-sim because replies must follow actual questions and offers, including the selected offered identifier. Plans a neutral user that answers from supplied facts, chooses the qualifying offered option, and confirms it before mutation. Preserves the order, turn history, and current offer. Verifies offer and confirmation ordering plus actual order state. Keeps runner readiness unresolved without silently replacing the selected interaction type, claiming a runnable integration, or generating personality traits.",
+      "assertions": [
+        "Selects User-sim (user_sim) and identifies actual questions, changing offers, and the offered identifier as dependencies of the next customer message.",
+        "Defines neutral behavior from the customer goal and supplied facts, without personas, personality variants, or invented order facts.",
+        "Preserves conversation and order state, including which options were actually offered.",
+        "Requires verification of an offered qualifying replacement, its customer confirmation before mutation, and the resulting order state.",
+        "Keeps the unverified runner as an execution dependency rather than changing the type or claiming execution support, and does not create files or run commands."
+      ],
+      "expected_skill": "eval-author-first-eval",
+      "files": []
+    },
+    {
       "id": "first-eval-negative",
       "prompt": "What is 17 plus 25? Reply with just the number.",
       "expected_output": "42",

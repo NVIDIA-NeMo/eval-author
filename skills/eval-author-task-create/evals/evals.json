@@ -45,6 +45,48 @@
       "files": []
     },
     {
+      "id": "task-type-failed-scripted-prerequisite",
+      "prompt": "Use eval-author-task-create to review an additional-task proposal from this inline synthetic evidence only. Do not run commands or create files. The task's fixed requests are 'Add SKU BOOK-2 to my cart' and 'Remove SKU BOOK-2 from my cart', using one persisted cart. The requirement under test is removal of the last existing item. A retained trial shows the addition failed, but the runner continued with removal. The final cart was empty and the verifier passed. The proposal calls this observed removal coverage and recommends adapting the next customer message with User-sim to fix the problem. Identify the suitable task type, correct the prerequisite and grading behavior, and explain what the trial actually establishes. No automatic uncovered-tool selection has been supplied.",
+      "expected_output": "Keeps Scripted multi-step for the fixed predictable sequence and identifies the missing intermediate-state check as the defect. Requires proving BOOK-2 was present before sending removal. The failed addition makes removal unexercised, and an empty cart alone cannot earn removal coverage. Treats the retained verifier pass as a false acceptance for the intended behavior and proposes a repair rather than claiming agent success or automatic tool-gap eligibility. Stops at the proposal.",
+      "assertions": [
+        "Selects or retains Scripted multi-step because the sequence remains fixed and predictable, rather than treating a failed prerequisite as a reason for User-sim.",
+        "Requires checking that BOOK-2 exists in the cart before proceeding to its removal.",
+        "Marks the intended downstream removal behavior unexercised and rejects the empty final cart as sufficient coverage evidence.",
+        "Distinguishes the observed verifier false acceptance from proof of successful agent removal.",
+        "Does not fabricate an uncovered tool, bypass automatic-generation eligibility, modify retained outcomes, execute commands, or create artifacts."
+      ],
+      "expected_skill": "eval-author-task-create",
+      "files": []
+    },
+    {
+      "id": "task-type-unavailable-trace-evidence",
+      "prompt": "Use eval-author-task-create to propose a capability-level test from this supplied context only. Do not run commands, search for other traces, or create files. The user-selected trace export retail-returns-17 is unavailable and has not been inspected. I authorize a proposal from the confirmed Ethos instead: the agent must ask for missing return facts, offer currently eligible resolutions, obtain the user's choice among those actual offers, and confirm it before acting. The neutral user can answer from task fixtures and prefers the lowest-cost eligible resolution. We have no measured uncovered-tool item. Choose a type, describe the adaptive exchange and checks, and state what evidence supports the proposal. Another author suggests citing turns 3 and 5 of the unavailable export as proof that users change their minds.",
+      "expected_output": "Proposes User-sim from the authorized Ethos requirements because later replies depend on actual eligible offers, while making the uninspected trace and unmeasured coverage explicit. Rejects invented turn citations and the unsupported claim that users change their minds. Uses a neutral scenario with grounded fixture facts and consent-before-action checks. Leaves automatic tool-gap creation ineligible without a qualifying measured tool gap, and stops at a manual-design proposal.",
+      "assertions": [
+        "Selects User-sim based on response dependencies described by the Ethos, not on invented observed trace behavior.",
+        "States that retail-returns-17 was unavailable and uninspected, and does not cite turns 3 or 5 as evidence.",
+        "Does not infer a changing-mind persona from missing evidence or fabricate customer facts.",
+        "Proposes checks for the actual eligible offer, the customer selection and confirmation, and action ordering.",
+        "Keeps the capability proposal unmeasured and outside automatic tool-gap creation, with no trace search, commands, or authored files."
+      ],
+      "expected_skill": "eval-author-task-create",
+      "files": []
+    },
+    {
+      "id": "task-type-compare-user-reply-dependencies",
+      "prompt": "Use eval-author-task-create to compare two additional-task candidates from these selected inline traces and the confirmed retail policy. Respond only, without commands or artifacts. Both use the same conversational retail agent and preserve policy-based eligibility checks. Candidate A starts with one customer request to report order R31's delivery estimate and supplies the postcode. Its trace contains six agent tool calls and internal retries, but no later customer message is needed. Candidate B asks for an exchange. In its trace the agent offers two currently eligible item identifiers and the customer chooses the cheaper offered item before confirming the exchange. Those eligible identifiers and prices vary with the task fixture, and the proposed user should respond to the actual offered choices. Choose the task type separately for A and B and cite the supplied interaction evidence for each. These are design candidates, and no audit measurement or automatic tool-gap selection is available.",
+      "expected_output": "Selects Single-turn for A and User-sim for B. Explains that the six tool calls and internal retries do not create user-turn dependencies, whereas B requires a user choice tied to the actual offer and a subsequent confirmation. Keeps eligibility and state/ordering checks, labels both proposals unmeasured, and does not claim automatic tool-gap creation or a new persona is required.",
+      "assertions": [
+        "Selects Single-turn for A and User-sim for B rather than assigning a type to the retail agent as a whole.",
+        "Grounds A in the single sufficient request and distinguishes tool calls and internal retries from user messages.",
+        "Grounds B in the customer choice among actual variable offers and the confirmation-before-exchange dependency.",
+        "Keeps outcome and policy checks, including ordered confirmation and consistent order state for B.",
+        "Labels the designs as unmeasured, preserves automatic-generation eligibility limits, and does not run commands or create artifacts."
+      ],
+      "expected_skill": "eval-author-task-create",
+      "files": []
+    },
+    {
       "id": "gym-task-create-negative",
       "prompt": "What is 14 multiplied by 3? Reply with just the number.",
       "expected_output": "42",
