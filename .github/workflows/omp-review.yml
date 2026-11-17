@@ -6,6 +6,9 @@ name: omp review
 on:
   pull_request_target:
     types: [opened, reopened, ready_for_review, labeled]
+  # TRIAL ONLY, revert before merge: lets this PR run its own workflow file against the omp-review-test environment.
+  pull_request:
+    types: [labeled]
 
 permissions: {}
 
@@ -50,7 +53,7 @@ jobs:
     if: needs.authorize.outputs.allowed == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 75
-    environment: omp-review
+    environment: ${{ github.event_name == 'pull_request' && 'omp-review-test' || 'omp-review' }}
     permissions:
       contents: read
       pull-requests: read
