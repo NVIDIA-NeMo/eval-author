@@ -7,8 +7,8 @@ TRACE_INTRO = (
     "We’ll use your confirmed `ETHOS.md` to propose your first evaluation tasks. "
     "Existing traces can help us use realistic requests, but they aren’t required."
 )
-TRACE_QUESTION = "Would you like to use existing traces, or start from `ETHOS.md`?"
-TRACE_CHOICES = ("Start from ETHOS.md", "Use existing traces")
+TRACE_QUESTION = "Would you like to include existing traces when designing your first evaluations?"
+TRACE_CHOICES = ("Continue without traces", "Include existing traces")
 SAVED_DESIGN_INTRO = "I found a saved design for your evaluation tasks."
 SAVED_DESIGN_COUNTS = "Saved design: {tasks} tasks; {examples} distinct input examples."
 SAVED_DESIGN_TABLE = "| Task ID | Behavior under test |\n|---|---|"

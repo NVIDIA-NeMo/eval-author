@@ -780,7 +780,9 @@ def render(payload: dict) -> str:
         return (blocker_section(state, facts, stage) or "") + "\n"
     else:
         if stage == "proposal" and not choice:
-            raise ValueError("Save the user’s choice of existing traces or ETHOS.md before presenting a proposal")
+            raise ValueError(
+                "Save the user’s choice of whether to include existing traces before presenting a proposal"
+            )
         if stage == "resume" and first_eval_state.record(state) is None:
             raise ValueError("Save a small, concrete first-evaluation proposal before resuming the selected source")
         observed = facts.get("observations")
