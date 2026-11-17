@@ -123,10 +123,11 @@ facts, conversation-dependent verifier requirements, control results, and any
 remaining blockers. Put this information into the existing task README and parent
 workflow artifacts instead of creating a separate planning document.
 
-This implementation authors portable scenarios only. Harbor prompt translation,
-interactive runner support, and execution evidence integration are not supplied
-by this subskill. Keep the missing user-sim runtime integration as an explicit
-execution blocker and use the caller's existing integration handoff. Do not
+This subskill authors portable scenarios. When the caller reaches execution
+configuration, use the shared [Harbor translation](../eval-author/references/harbor-user-simulation.md)
+helper with the selected target and simulator settings. Translation doesn't prove
+interactive runner support or execution evidence integration. Keep unmet runtime
+requirements explicit and use the caller's existing integration handoff. Do not
 pass `user-sim.yaml` to Harbor as a native job configuration, flatten the scenario
 into a single request, or claim that validated YAML or local controls demonstrate
 an actual-agent conversation. Return to the first-task checkpoint before authoring

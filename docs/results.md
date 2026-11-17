@@ -70,10 +70,16 @@ the task directory. It describes the neutral user's goal, opening request, known
 facts, and any task-specific conversation rules. The task README links this file
 and explains which parts of the exchange the verifier checks.
 
-This stage supports scenario authoring and validation. Harbor prompt translation
-and an interactive runner are still required before execution. A valid scenario
-file or passing synthetic verifier controls do not establish an actual-agent run
-or measured coverage. Native NeMo Gym User-sim authoring is not supported yet.
+After you select execution settings, Eval Author can translate one scenario into
+a native Harbor `run.yaml` and private simulator prompt files in a separate
+directory under `.eval-author/.working/`. It preserves the selected target,
+environment, and verifier settings. Each scenario gets a separate configuration.
+
+An interactive runner and checked information boundaries are still required
+before execution. The generated prompt requests the exact opening message, but
+the conversation evidence must confirm that the simulator sent it. Valid files
+and passing synthetic controls do not establish an actual-agent run or measured
+coverage. Native NeMo Gym User-sim authoring is not supported yet.
 
 ## Discovery and readiness
 
