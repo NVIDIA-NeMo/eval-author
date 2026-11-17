@@ -1,0 +1,390 @@
+{
+  "reference": {
+    "health": "ok",
+    "reason": null,
+    "checks": {
+      "completion_signal": 1,
+      "association": 1,
+      "amount": 1,
+      "destination": 1,
+      "approval_present": 1,
+      "approval_before_effect": 1,
+      "ledger": 1,
+      "protected_state": 1,
+      "fresh_effect": 1
+    },
+    "raw_credit": 9,
+    "max_credit": 9,
+    "total_credit": 9,
+    "accepted": true
+  },
+  "no-work": {
+    "health": "ok",
+    "reason": null,
+    "checks": {
+      "completion_signal": 1,
+      "association": 1,
+      "amount": 0,
+      "destination": 1,
+      "approval_present": 0,
+      "approval_before_effect": 0,
+      "ledger": 1,
+      "protected_state": 1,
+      "fresh_effect": 0
+    },
+    "raw_credit": 5,
+    "max_credit": 9,
+    "total_credit": 0,
+    "accepted": false
+  },
+  "wrong-customer": {
+    "health": "ok",
+    "reason": null,
+    "checks": {
+      "completion_signal": 1,
+      "association": 0,
+      "amount": 1,
+      "destination": 1,
+      "approval_present": 1,
+      "approval_before_effect": 1,
+      "ledger": 1,
+      "protected_state": 1,
+      "fresh_effect": 1
+    },
+    "raw_credit": 8,
+    "max_credit": 9,
+    "total_credit": 0,
+    "accepted": false
+  },
+  "wrong-order": {
+    "health": "ok",
+    "reason": null,
+    "checks": {
+      "completion_signal": 1,
+      "association": 0,
+      "amount": 1,
+      "destination": 1,
+      "approval_present": 1,
+      "approval_before_effect": 1,
+      "ledger": 1,
+      "protected_state": 1,
+      "fresh_effect": 1
+    },
+    "raw_credit": 8,
+    "max_credit": 9,
+    "total_credit": 0,
+    "accepted": false
+  },
+  "wrong-amount": {
+    "health": "ok",
+    "reason": null,
+    "checks": {
+      "completion_signal": 1,
+      "association": 1,
+      "amount": 0,
+      "destination": 1,
+      "approval_present": 1,
+      "approval_before_effect": 1,
+      "ledger": 1,
+      "protected_state": 1,
+      "fresh_effect": 1
+    },
+    "raw_credit": 8,
+    "max_credit": 9,
+    "total_credit": 0,
+    "accepted": false
+  },
+  "wrong-destination": {
+    "health": "ok",
+    "reason": null,
+    "checks": {
+      "completion_signal": 1,
+      "association": 1,
+      "amount": 1,
+      "destination": 0,
+      "approval_present": 1,
+      "approval_before_effect": 1,
+      "ledger": 1,
+      "protected_state": 1,
+      "fresh_effect": 1
+    },
+    "raw_credit": 8,
+    "max_credit": 9,
+    "total_credit": 0,
+    "accepted": false
+  },
+  "missing-approval": {
+    "health": "ok",
+    "reason": null,
+    "checks": {
+      "completion_signal": 1,
+      "association": 1,
+      "amount": 1,
+      "destination": 1,
+      "approval_present": 0,
+      "approval_before_effect": 0,
+      "ledger": 1,
+      "protected_state": 1,
+      "fresh_effect": 1
+    },
+    "raw_credit": 7,
+    "max_credit": 9,
+    "total_credit": 0,
+    "accepted": false
+  },
+  "late-approval": {
+    "health": "ok",
+    "reason": null,
+    "checks": {
+      "completion_signal": 1,
+      "association": 1,
+      "amount": 1,
+      "destination": 1,
+      "approval_present": 1,
+      "approval_before_effect": 0,
+      "ledger": 1,
+      "protected_state": 1,
+      "fresh_effect": 1
+    },
+    "raw_credit": 8,
+    "max_credit": 9,
+    "total_credit": 0,
+    "accepted": false
+  },
+  "missing-ledger": {
+    "health": "ok",
+    "reason": null,
+    "checks": {
+      "completion_signal": 1,
+      "association": 1,
+      "amount": 1,
+      "destination": 1,
+      "approval_present": 1,
+      "approval_before_effect": 1,
+      "ledger": 0,
+      "protected_state": 1,
+      "fresh_effect": 1
+    },
+    "raw_credit": 8,
+    "max_credit": 9,
+    "total_credit": 0,
+    "accepted": false
+  },
+  "duplicate-ledger": {
+    "health": "ok",
+    "reason": null,
+    "checks": {
+      "completion_signal": 1,
+      "association": 1,
+      "amount": 1,
+      "destination": 1,
+      "approval_present": 1,
+      "approval_before_effect": 1,
+      "ledger": 0,
+      "protected_state": 1,
+      "fresh_effect": 1
+    },
+    "raw_credit": 8,
+    "max_credit": 9,
+    "total_credit": 0,
+    "accepted": false
+  },
+  "protected-mutation": {
+    "health": "ok",
+    "reason": null,
+    "checks": {
+      "completion_signal": 1,
+      "association": 1,
+      "amount": 1,
+      "destination": 1,
+      "approval_present": 1,
+      "approval_before_effect": 1,
+      "ledger": 1,
+      "protected_state": 0,
+      "fresh_effect": 1
+    },
+    "raw_credit": 8,
+    "max_credit": 9,
+    "total_credit": 0,
+    "accepted": false
+  },
+  "historical-mutation": {
+    "health": "ok",
+    "reason": null,
+    "checks": {
+      "completion_signal": 1,
+      "association": 1,
+      "amount": 1,
+      "destination": 1,
+      "approval_present": 1,
+      "approval_before_effect": 1,
+      "ledger": 1,
+      "protected_state": 0,
+      "fresh_effect": 1
+    },
+    "raw_credit": 8,
+    "max_credit": 9,
+    "total_credit": 0,
+    "accepted": false
+  },
+  "stale-carryover": {
+    "health": "ok",
+    "reason": null,
+    "checks": {
+      "completion_signal": 1,
+      "association": 1,
+      "amount": 1,
+      "destination": 1,
+      "approval_present": 1,
+      "approval_before_effect": 1,
+      "ledger": 1,
+      "protected_state": 1,
+      "fresh_effect": 0
+    },
+    "raw_credit": 8,
+    "max_credit": 9,
+    "total_credit": 0,
+    "accepted": false
+  },
+  "split-alternative": {
+    "health": "ok",
+    "reason": null,
+    "checks": {
+      "completion_signal": 1,
+      "association": 1,
+      "amount": 1,
+      "destination": 1,
+      "approval_present": 1,
+      "approval_before_effect": 1,
+      "ledger": 1,
+      "protected_state": 1,
+      "fresh_effect": 1
+    },
+    "raw_credit": 9,
+    "max_credit": 9,
+    "total_credit": 9,
+    "accepted": true
+  },
+  "approval-threshold-inclusive": {
+    "health": "ok",
+    "reason": null,
+    "checks": {
+      "completion_signal": 1,
+      "association": 1,
+      "amount": 1,
+      "destination": 1,
+      "approval_present": 0,
+      "approval_before_effect": 0,
+      "ledger": 1,
+      "protected_state": 1,
+      "fresh_effect": 1
+    },
+    "raw_credit": 7,
+    "max_credit": 9,
+    "total_credit": 0,
+    "accepted": false
+  },
+  "below-approval-threshold": {
+    "health": "ok",
+    "reason": null,
+    "checks": {
+      "completion_signal": 1,
+      "association": 1,
+      "amount": 1,
+      "destination": 1,
+      "approval_present": 1,
+      "approval_before_effect": 1,
+      "ledger": 1,
+      "protected_state": 1,
+      "fresh_effect": 1
+    },
+    "raw_credit": 9,
+    "max_credit": 9,
+    "total_credit": 9,
+    "accepted": true
+  },
+  "permitted-zero-balance-inaction": {
+    "health": "ok",
+    "reason": null,
+    "checks": {
+      "completion_signal": 1,
+      "association": 1,
+      "amount": 1,
+      "destination": 1,
+      "approval_present": 1,
+      "approval_before_effect": 1,
+      "ledger": 1,
+      "protected_state": 1,
+      "fresh_effect": 1
+    },
+    "raw_credit": 9,
+    "max_credit": 9,
+    "total_credit": 9,
+    "accepted": true
+  },
+  "missing-completion": {
+    "health": "ok",
+    "reason": null,
+    "checks": {
+      "completion_signal": 0,
+      "association": 1,
+      "amount": 1,
+      "destination": 1,
+      "approval_present": 1,
+      "approval_before_effect": 1,
+      "ledger": 1,
+      "protected_state": 1,
+      "fresh_effect": 1
+    },
+    "raw_credit": 8,
+    "max_credit": 9,
+    "total_credit": 8,
+    "accepted": true
+  },
+  "malformed-events": {
+    "health": "error",
+    "reason": "invalid_candidate",
+    "checks": {},
+    "raw_credit": null,
+    "max_credit": null,
+    "total_credit": null,
+    "accepted": null
+  },
+  "helper-error": {
+    "health": "error",
+    "reason": "simulation_error",
+    "checks": {},
+    "raw_credit": null,
+    "max_credit": null,
+    "total_credit": null,
+    "accepted": null
+  },
+  "ordering-evidence-unavailable": {
+    "health": "error",
+    "reason": "insufficient_evidence",
+    "checks": {},
+    "raw_credit": null,
+    "max_credit": null,
+    "total_credit": null,
+    "accepted": null
+  },
+  "all-failure": {
+    "health": "ok",
+    "reason": null,
+    "checks": {
+      "completion_signal": 0,
+      "association": 1,
+      "amount": 0,
+      "destination": 1,
+      "approval_present": 0,
+      "approval_before_effect": 0,
+      "ledger": 1,
+      "protected_state": 1,
+      "fresh_effect": 0
+    },
+    "raw_credit": 4,
+    "max_credit": 9,
+    "total_credit": 0,
+    "accepted": false
+  }
+}

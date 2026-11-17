@@ -30,6 +30,252 @@ renaming or resealing them as evidence for the new source bytes.
 See the [rubric measurements](determinism-checks.md#rubric-identity-measurements)
 and [provenance demo](determinism-checks.md#provenance-demo) for commands.
 
+### Rubric table results
+
+The [one-skill Harbor assessment](determinism-checks.md#one-skill-harbor-assessment)
+prints a Markdown table. With `--output`, it saves three private files:
+
+| File | Content |
+| --- | --- |
+| `results.md` | Criterion rows, check counts, evidence links, gaps, and next actions. |
+| `results.html` | Self-contained browser view with the same results and expandable evidence. Open this file for desktop or mobile review. |
+| `assessment.json` | `rubric-table-v1` bundle with the exact selection, root, definition digest, and emitted measurement report. |
+
+`--task` selects one task directory and includes every populated criterion.
+It declares `reference_scope: task_directory` for bounded checks of missing
+required references. An absent required COPY source is reported as missing.
+Partial selections without this scope keep unselected references unresolved.
+`--selection` uses an existing supported measurement selection and retains its rows.
+Neither mode creates an aggregate quality score. The table keeps these fields separate:
+
+- Expected score: `Not supplied`. The assessment never reads mutation expectations.
+- Observed rubric score: the emitted criterion score, or `Unassessed` for null.
+- Task credit: `Not measured here`. A rubric score is not a task reward.
+- Controls run: completed check records divided by retained check records, followed by each outcome count.
+- Evidence: the reported strength and a link to full evidence details.
+- Human action: the review actions required by the emitted checks, or an explicit statement that none is specified. A required action is not a completed approval.
+
+Only `PASS` and `FAIL` count as completed checks. `PARTIAL`, `ERROR`, `BLOCKED`,
+`NOT_RUN`, `UNKNOWN`, and other unassessed states remain separate. These counts
+are not native trial totals or proof that every required control ran.
+`Not applicable` requires a recorded task-contract reason. It is distinct from
+missing evidence. Case labels are short directory names, not source identities.
+Full source IDs, exact quotations, check records, findings, approval references,
+method qualifications, and gaps remain in expandable structured details.
+Report-level measurements and unknowns have a separate details section.
+
+Recorded source reviews appear in both the main table and the details, including
+contradicted decisions. A recorded name or selected JSON cannot establish authority.
+A separately accepted source-review method can qualify the four supported Discover
+source checks. The table names its trust basis and keeps the agent identity.
+Accepted checks do not ask for the same owner decision again. Pre-acceptance gaps
+and the original packet remain labeled historical evidence. Other missing review
+or native evidence remains Unassessed.
+
+The HTML view uses five columns on desktop and stacked criterion rows on narrow
+screens. Scores, blockers, and human actions stay visible without horizontal
+scrolling. Evidence links open their matching details section. This browser view
+is the supported responsive renderer. Markdown hosts may render tables or raw
+HTML differently. No external scripts, fonts, or styles are loaded.
+
+Use `--verify-existing` with the original root to compare all three files against a
+fresh measurement. Verification rereads selected sources and rejects changed
+scores, rows, observations, definitions, recorded reviews, Markdown, and HTML. In task mode, it also
+rebuilds the directory inventory, so added or removed files invalidate the result.
+Verification does not execute retained task code or change the saved bundle.
+Regenerate older two-file bundles in a new output directory. Do not overwrite
+historical evidence to make it match the current renderer.
+
+Keep the original source location and frozen evidence together. The current format
+is root-bound, not a portable archive or authenticated attestation. Coordinated
+rewrites of sources, selections, and reports do not prove historical execution.
+The verifier checks correspondence with current sources, not reviewer identity,
+independence, solver permissions, or the truth of recorded human claims.
+
+The ordinary table also runs bounded local scoring controls for the exact admitted
+refund source family through `rubric_refund_contract_evidence.py`. The
+`measurements.refund_contract` records bind current source bytes, public conditions,
+and control results. Completion-only grading, late approval, omitted ledger entries,
+and mandatory completion each establish scoring-authority 0/E1. Clean base and
+repaired controls receive no positive score without the required review evidence.
+Unsupported or denied source selections keep their ordinary measurements and receive
+no inferred semantic zero. Retained replay repeats source admission and local controls.
+These checks neither execute selected Python nor supply native boundary evidence.
+
+The source-only path cannot establish an all-3 base. Unassessed rows identify
+missing evidence or unsupported consumers. They do not count as passed controls.
+In direct task mode, the table does not collect new human decisions or run native
+controls. It also has no automatic expectation comparison or with/without-rubric
+study. Keep those acceptance gaps explicit.
+
+### Combined refund base assessment
+
+One entrypoint joins the attack panel, boundary panel, runtime-origin observation,
+read-boundary panel, and a fresh NOP configuration declaration. It emits the full 18-criterion table
+and replays it before returning. From the repository root, use the same exact
+Harbor 0.24.0 Python executable throughout:
+
+```bash
+PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -B \
+  skills/eval-author-rubric/scripts/rubric_base_assessment.py \
+  --root /absolute/private --task selected/task/task.toml \
+  --bundle current-attacks --bundle current-boundaries \
+  --registry /absolute/private/attack-registry \
+  --registry /absolute/private/boundary-registry \
+  --output /absolute/private/new-combined --approve-local-native \
+  --docker-plugins /Applications/Docker.app/Contents/Resources/cli-plugins
+```
+
+Repeat `--bundle` for an already collected runtime observation or read-boundary
+panel. With approval, the helper collects missing scopes through the bundled
+credential-free Docker collectors. It does not run a model. The first explicit
+registry receives new admissions. Collection includes image resolution and at
+most 36 native attempts when no panel is reused. Existing per-attempt recorder
+deadlines remain unchanged.
+
+The read-boundary panel tests UID 65534 before upload, after upload, and after
+verification. Direct, `/proc/self/root`, and symlink reads share a permitted-input
+control. It scans every saved image layer for exact reference-source copies.
+Public scoring rules and socket state remain intentional inputs. Readable
+verifier source is reported separately because its confidentiality is not
+explicit in the task contract. Independent held-out controls remain required for
+AC-01 score 3. Omitting this panel keeps AC-01 Unassessed and permits replay of
+earlier selections.
+
+Use `--audit-inspect` to check admitted result-to-source bindings at revision
+score 2. Use `--approve-audit-exercise` instead to authorize three fixed changes
+in fresh private copies: scorer branch, task timeout, and recorded runtime timeout
+multiplier. This approval launches no Docker jobs or model runs. Keep
+`--approve-local-native` omitted when reusing all three panels.
+
+The exercise checks each copy before mutation, rejects stale native credit,
+preserves unaffected panels, and validates a fresh copy of the original source.
+Its revision score 3 covers the canonical change-injection and lineage anchor.
+Recovery proves reuse after an exact rollback. It does not qualify changed-source
+regrading: changed observations have no native score. A changed evaluation still
+needs fresh affected native checks before it can receive their scores.
+
+The explicit selection is `"audit_companion": {"mode": "inspect"}` or
+`"audit_companion": {"mode": "exercise", "path": "new-combined/audit"}`.
+The orchestrator creates it. The latter path is root-relative retained data, never
+an executable or an authorization to launch new native work. Replay rebuilds the
+fixed probes with current trusted code in temporary private copies. It compares
+every retained file and executable bit, including the exact mutations, rejected
+reuse, invalidation records, unchanged neighbors and fresh counterparts. It also
+revalidates the current source and producer bindings. Saved PASS values and
+self-resealed hashes cannot substitute for those checks.
+
+The report links the full `report/audit.json` manifest once. Exercise evidence
+stays under `audit/`. Fairness remains Unassessed until the required human review
+and matched sensitivity checks exist. The report retains its scoped owner question.
+Set `TMPDIR` to an existing private scratch directory for replay copies.
+
+The selected task must match the unchanged base. Each owning validator checks
+its own task and producer bytes. The attack panel's explicit zero-balance inaction
+companion keeps its distinct task contract and credit scale. Changed or stale
+panels fail closed. Preserve them and collect fresh evidence instead of resealing.
+
+The output contains `selection.json`, `configuration/`, any newly collected
+panels, and `report/assessment.json`, `report/results.md`, `report/results.html`.
+Each panel retains its source identity, attempt counts, operational errors and
+scope. Overlapping projections retain failed checks and the lower current score.
+They never add rubric scores or silently supersede a defect.
+
+```bash
+PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -B \
+  skills/eval-author-rubric/scripts/rubric_base_assessment.py \
+  --root /absolute/private --registry /absolute/private/attack-registry \
+  --registry /absolute/private/boundary-registry \
+  --verify-existing /absolute/private/new-combined/report
+```
+
+Exit 1 can accompany `replay: verified`: the retained assessment is reproducible
+but incomplete. Exit 2 means selection, execution or replay failed. Registry
+roots are trusted local inputs supplied to the command, never imported from a
+report. The ordinary table command can use the same roots through the
+path-separated `EVAL_AUTHOR_NATIVE_REGISTRIES` variable.
+
+### Reuse an accepted source review
+
+Ask the same skill to reuse the accepted decision and current evidence. The agent
+prepares the selection and runs the command. You do not assemble review JSON or
+repeat the human review. Local operator trust needs no SSH key or external service.
+
+For first use, choose an existing private operator store outside task and evidence
+inputs. The operator records only your actual packet-scoped answer and explicit
+retention consent. Local trust does not authenticate your identity independently.
+A process with arbitrary code under your host account can change this store.
+File permissions do not isolate it from such a process. Keep it outside solver
+mounts, solver tools and selected evidence.
+
+The command takes trust configuration explicitly. With a previously recorded
+acceptance, run:
+
+```bash
+PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -B \
+  skills/eval-author-rubric/scripts/rubric_base_assessment.py \
+  --root /absolute/private --selection /absolute/private/current-selection.json \
+  --registry /absolute/private/native-registry \
+  --source-review-operator-store /absolute/private/operator-store \
+  --source-review-operator-trust localhost-assessment-operator-v1 \
+  --output /absolute/private/new-accepted-review
+```
+
+Open `new-accepted-review/report/results.html` or `results.md`. The command replays
+both views and the complete `assessment.json`. JSON uses compact serialization;
+large source inventories are linked rather than repeated in HTML. Evidence and
+reader limits are unchanged. This reuse path does not collect native controls or
+call a model. Current source bindings, lower anchors, dissent and revocation still
+control admission. Accepted source alternatives do not adjudicate fairness, task
+semantics or independent native controls.
+
+To replay later, use the same command and trust flags, replacing `--selection`
+and `--output` with `--verify-existing /absolute/private/new-accepted-review/report`.
+Keep the exact Python executable and set `TMPDIR` to a private scratch directory.
+No hidden source-review environment variable is required.
+
+To revoke, ask the assessment operator to revoke the exact packet's retained
+qualification. It calls `revoke_operator_decision` in `rubric_source_reviews.py`
+and reads back the revocation marker. The original decision stays available for
+audit. Replay must reject the old qualified report after revocation. Generate a
+new report to see the remaining evidence without that qualification.
+
+Hosts that require authenticated session provenance or signatures can instead
+supply `--source-review-session-store` or `--source-review-signed-store`. These
+optional routes retain their existing trust checks. Neither a packet-provided
+key nor a transcript copied into selected JSON grants authority.
+
+To retain the refund example's already-given Environment intent, ask the operator
+to save the exact solver-action and external-state answers for those two criteria.
+This needs separate, explicit retention consent: source-review-only consent does
+not cover permissions or state interpretation. The same local trust flags admit
+these separate records; no SSH key, service, invented identity or repeat semantic
+approval is needed. Current source and rubric bindings, native action/error/reset
+checks, and component/state observations remain mandatory. Such scoped intent can
+support level 2, never independent level 3 or blanket runtime approval. The report
+retains the original answers and rationale. To revoke this record, the operator uses
+`revoke` in `rubric_general_review.py`; old qualified reports must fail replay and
+a new report keeps the historical decision without current authority.
+
+The same `prepare`/`record`/`read`/`revoke` operator API accepts `kind="contract"`
+for one adjudication covering all three task-contract criteria and `kind="fairness"`
+with the current owning Audit comparison. These records stay outside selected evidence.
+The contract request preserves the exact intake binding and reconstructs the approved
+public/enforcement spans. Current full coverage, exact fixture computations and owning
+scorer controls gate positive scores; discoverability additionally consumes native
+solver-UID readable-source observations. Owner approval alone earns no score.
+
+Fairness is scoped to reference versus split-refund scripted policies, not model
+performance. The full versioned setup diff must still match; unreviewed differences
+cannot inherit approval. A resolved narrow justification supports level 2 without
+claiming matched sensitivity tests. Contract blind-discovery and independent-boundary
+checks remain unrun where those stronger prerequisites are absent. All six records
+are read again before final projection and on ordinary retained replay. Existing
+failed checks and operational errors remain visible. A numeric table may still exit
+1 because unrelated helper measurements remain unknown; this is not a replay failure.
+
+A complete 18-row table is not an all-3 base or proof of review benefit.
+
 ## Case and run catalog
 
 The case and run catalog can be found in `.eval-author/report.html` and the

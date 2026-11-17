@@ -28,6 +28,152 @@ trajectories or free-form prose. The
 separately requires byte-identical messages for identical rendering inputs;
 that presentation guarantee does not establish deterministic workflow execution.
 
+## One-skill Harbor assessment
+
+The experimental skill can inspect a selected Harbor package and produce a private
+Markdown table. The source adapter is bounded. This path does not yet qualify the
+base at 3 for every populated criterion or prove the expanded demonstration complete.
+Native controls, required human decisions, independent evidence, and the usability
+comparison remain separate acceptance work.
+
+### Prepare a case outside the assessment session
+
+Use a checkout with its locked development environment. Install or load
+`eval-author-rubric` with its sibling `eval-author` skill. Fixture preparation
+writes a new directory. It does not authorize execution of the task.
+
+From the checkout root:
+
+```bash
+uv sync --locked
+export PYTHONDONTWRITEBYTECODE=1
+mkdir -p "$HOME/.cache/eval-author-review"
+uv run --locked python skills/eval-author-rubric/scripts/example_fixtures.py \
+  materialize --output "$HOME/.cache/eval-author-review/case-1"
+uv run --locked python skills/eval-author-rubric/scripts/example_fixtures.py \
+  verify --input "$HOME/.cache/eval-author-review/case-1"
+```
+
+Choose a new case directory each time. For a mutation, the preparer uses
+`materialize --mutation <catalog-id>` with another new directory. Keep the recipe,
+private manifest, and expected findings outside the assessment session. Supply only
+`case-1/assessment/` as the selected package. Directory separation does not enforce
+an access boundary. Use your assistant's file-access controls when a blind review
+needs that boundary.
+
+The helper writes the same request to `assessment/request.md` for every case.
+In a fresh session, select the package and send this unchanged request:
+
+> Apply eval-author-rubric to the supplied Harbor example. Assess all populated areas. Run the approved local checks and produce the results table. Ask only for permissions or decisions that you cannot infer from the selected evidence.
+
+Give any execution or output-write approval separately. An all-populated request
+needs no second question about which rubric areas to assess. The skill handles
+source selection and its measurement helpers. You do not need to build JSON packets.
+
+### Run the credential-free native pair
+
+With local Docker approval, the bundled collector runs the checked-in refund base
+with Harbor's Oracle and NOP agents. It uses Harbor 0.24.0 from the locked Python
+environment, a private HOME, no-network task phases, and a 420-second recorder cap
+per attempt. It forwards no inference credentials or host Docker configuration.
+Docker, Compose, Buildx and the task's pinned base image must be available locally.
+Image preparation can use Docker's normal image resolution. This command does not
+claim an offline image-installation test.
+
+Choose a new output directory. Keep the registry outside that directory and retain
+it for later verification. On Docker Desktop, pass the installed plugin directory
+as shown. On Linux, omit that flag if Compose and Buildx are installed system-wide.
+The collector changes no global Docker configuration and performs no prune.
+
+```bash
+export PYTHONDONTWRITEBYTECODE=1
+export EVAL_AUTHOR_NATIVE_REGISTRY="$HOME/.cache/eval-author-review/native-registry"
+uv run --locked python -B skills/eval-author-rubric/scripts/rubric_native_collect.py \
+  --approve-local-native \
+  --docker-plugins /Applications/Docker.app/Contents/Resources/cli-plugins \
+  --output "$HOME/.cache/eval-author-review/native-pair-1"
+uv run --locked python -B skills/eval-author-rubric/scripts/rubric_example_native.py \
+  --root "$HOME/.cache/eval-author-review" \
+  --task native-pair-1/task/task.toml --bundle native-pair-1 \
+  --output-selection "$HOME/.cache/eval-author-review/native-selection-1.json"
+uv run --locked python -B skills/eval-author-rubric/scripts/rubric_table.py \
+  --root "$HOME/.cache/eval-author-review" \
+  --selection "$HOME/.cache/eval-author-review/native-selection-1.json" \
+  --output "$HOME/.cache/eval-author-review/native-review-1"
+uv run --locked python -B skills/eval-author-rubric/scripts/rubric_table.py \
+  --root "$HOME/.cache/eval-author-review" \
+  --verify-existing "$HOME/.cache/eval-author-review/native-review-1"
+```
+
+Use the same interpreter invocation for collection and consumption. The command
+identity includes its exact executable path. The collector prints attempt counts
+and task rewards. Expected task rewards are Oracle 1 and NOP 0. These are not
+rubric scores. Both attempts, including infrastructure failures, remain in the
+recorder ledger. The table retains partial native evidence without assigning a
+new criterion score. Table generation and replay can therefore return 1.
+
+The local registry admits only indexes written after current collector validation.
+Replay checks current task and producer sources, raw Harbor results, recorder
+receipts, attempt membership, full verifier checks and reward files. A copied
+summary or a self-resealed index cannot establish admission. This registry trusts
+the local host user and installed Harbor runtime. It does not authenticate a
+remote producer or protect against that user editing the registry.
+
+A byte-preserving copy of the bundle can be consumed from another directory on
+the same trusted installation. Keep file modes and the original index unchanged.
+Run the selector with the copied bundle and its copied `task/task.toml`, then write
+a new table. Raw receipts keep their original paths. Replay maps only the exact
+registered bundle prefix. It never imports retained Python. Changes to producer,
+shared helper, installed Harbor or task sources require a new collection.
+
+This pair covers no access-boundary, predecessor/reset, forged-output, independent
+or human-review controls. Highest-anchor qualification remains unfinished. The
+historical ten-attempt panel remains separate: nine completed trials and one
+infrastructure error. A new pair does not supersede or erase that failure.
+Preserve interrupted output. The recorder timeout does not prove Docker teardown
+after forced host-process termination.
+
+### Inspect and verify the report
+
+The source-only command is also available directly. It runs no task code, container,
+or model. The output directory must be new and outside the selected task directory:
+
+```bash
+uv run --locked python skills/eval-author-rubric/scripts/rubric_table.py \
+  --root "$HOME/.cache/eval-author-review/case-1/assessment" \
+  --task task/task.toml --output "$HOME/.cache/eval-author-review/review-1"
+uv run --locked python skills/eval-author-rubric/scripts/rubric_table.py \
+  --root "$HOME/.cache/eval-author-review/case-1/assessment" \
+  --verify-existing "$HOME/.cache/eval-author-review/review-1"
+```
+
+Exit 1 is expected when criteria remain Unassessed or raw measurements need review.
+It is distinct from exit 2, which rejects invalid input or changed evidence.
+Exit 0 does not certify task quality. See [rubric table results](results.md#rubric-table-results)
+for the fields and verification limits.
+
+A completed source inspection is not an all-control run. The report retains
+missing evidence instead of assigning zero. Compare the saved observations with
+the frozen expectation catalog only after the assessment, in a separate session.
+The current table does not import that catalog or decide whether its targets matched.
+
+If a run stops, preserve its output. Verify a completed bundle before reuse.
+For incomplete or invalid output, use a new report directory. After an authorized
+repair, generate fresh evidence. Never rewrite a failed bundle as a passing run.
+For a fixture restore, the preparer can use:
+
+```bash
+uv run --locked python skills/eval-author-rubric/scripts/example_fixtures.py \
+  restore --input "$HOME/.cache/eval-author-review/case-1" \
+  --output "$HOME/.cache/eval-author-review/case-restored"
+```
+
+To review usability, retain original turns and tool results privately. Count
+permission, task-intent, adjudication, recovery, and avoidable orchestration actions
+separately. A with/without-rubric study still needs agreed repetitions, budget,
+held-out cases, and acceptance thresholds. A successful helper command does not
+establish that study's benefit or a user walkthrough without author assistance.
+
 ## Overall rubric showcase
 
 Run the identity, provenance, scorer, verification-integrity, task-contract/Ethos

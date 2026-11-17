@@ -27,7 +27,7 @@ from rubric_scoring import assess  # noqa: E402
 def measure(root, selection, ethos_validator=None):
     selected_root = Path(root).absolute()
     root_identity = None
-    if isinstance(selection, dict) and "scorer_controls" in selection:
+    if isinstance(selection, dict) and ("scorer_controls" in selection or "example_assessment" in selection):
         if any(path.is_symlink() for path in (selected_root, *selected_root.parents)):
             raise ValueError("selected evidence root is a symlink")
         stat = selected_root.stat()
@@ -40,6 +40,7 @@ def measure(root, selection, ethos_validator=None):
         "approval_sources",
         "approvals",
         "artifacts",
+        "audit_companion",
         "authority",
         "decisions",
         "contract_controls",
@@ -48,6 +49,8 @@ def measure(root, selection, ethos_validator=None):
         "entrypoint",
         "ethos",
         "expected_scorer",
+        "evidence_scope",
+        "example_assessment",
         "freshness",
         "links",
         "native",
@@ -125,6 +128,29 @@ def measure(root, selection, ethos_validator=None):
 
         measurements["scorer_controls"] = project(root, selection)
     items = build_report(assess(measurements, selection, root=root), measurements, selection, root)
+    if "example_assessment" in selection:
+        from rubric_example_assessment import apply, project
+
+        measurements["example_assessment"] = project(root, selection)
+        apply(items, measurements["example_assessment"])
+        from rubric_example_native import apply as apply_native
+
+        native = measurements["example_assessment"].get("native")
+        if native and "panels" in native:
+            from rubric_combined import apply_panels
+
+            apply_panels(items, native["panels"], apply_native)
+        else:
+            apply_native(items, native)
+        current_example = project(root, selection)
+        stat = selected_root.stat()
+        if (
+            current_example != measurements["example_assessment"]
+            or identify(root, artifacts) != identity
+            or root_identity != (stat.st_dev, stat.st_ino)
+            or any(path.is_symlink() for path in (selected_root, *selected_root.parents))
+        ):
+            raise ValueError("selected evidence changed during assessment")
     if "scorer_controls" in selection:
         from rubric_scorer_controls import project
 
@@ -168,7 +194,29 @@ def measure(root, selection, ethos_validator=None):
                     raise ValueError("conflicting canonical scores")
         if assess_evidence(root, selection) != evidence_rows or identify(root, artifacts) != identity:
             raise ValueError("selected evidence changed during assessment")
-    return {
+    refund_contract = None
+    if "example_assessment" in selection:
+        from rubric_refund_contract_evidence import apply as apply_refund_contract
+        from rubric_refund_contract_evidence import project as project_refund_contract
+
+        refund_contract = project_refund_contract(root, selection)
+        if refund_contract is not None:
+            measurements["refund_contract"] = refund_contract
+            apply_refund_contract(items, refund_contract)
+    if "example_assessment" in measurements:
+        from rubric_source_reviews import apply as apply_reviews
+
+        apply_reviews(items, measurements["example_assessment"]["source_reviews"])
+    general_review = None
+    if "example_assessment" in measurements:
+        from rubric_general_review import apply as apply_general_review
+        from rubric_general_review import project as project_general_review
+
+        general_review = project_general_review(root, selection, measurements)
+        if general_review is not None:
+            measurements["general_review"] = general_review
+            apply_general_review(items, general_review)
+    report = {
         **({"criterion_demonstration": demonstration} if demonstration else {}),
         **({"recorded_criterion_evidence": recorded} if recorded else {}),
         "schema": "rubric-measurements-v3",
@@ -181,6 +229,52 @@ def measure(root, selection, ethos_validator=None):
         "measurements": measurements,
         "items": items,
     }
+    audit = None
+    if "audit_companion" in selection:
+        from rubric_audit_companion import project_report, selected
+
+        audit = selected(root, selection)
+        report = project_report(report, audit)
+    from rubric_general_review import apply_scoped, project_scoped
+
+    scoped = project_scoped(root, selection, report["measurements"], audit)
+    if scoped:
+        report["measurements"]["scoped_reviews"] = scoped
+        for projection in scoped.values():
+            apply_scoped(report["items"], projection)
+    if refund_contract is not None:
+        from rubric_refund_contract_evidence import project as project_refund_contract
+
+        stat = selected_root.stat()
+        if (
+            project_refund_contract(root, selection) != refund_contract
+            or identify(root, artifacts) != identity
+            or root_identity != (stat.st_dev, stat.st_ino)
+            or any(path.is_symlink() for path in (selected_root, *selected_root.parents))
+        ):
+            raise ValueError("selected evidence changed during assessment")
+    if general_review is not None:
+        from rubric_general_review import project as project_general_review
+
+        if project_general_review(root, selection, measurements) != general_review:
+            raise ValueError("scoped operator review changed during assessment")
+    if project_scoped(root, selection, report["measurements"], audit) != scoped:
+        raise ValueError("scoped owner adjudication changed during assessment")
+    from rubric_evidence_scope_mutations import project_numeric, apply_numeric
+
+    numeric = project_numeric(root, selection, report)
+    if numeric:
+        apply_numeric(report, numeric)
+        if project_numeric(root, selection, report) != numeric:
+            raise ValueError("numeric scope evidence changed during assessment")
+    from rubric_semantic_numeric_mutations import project as project_semantic, apply as apply_semantic
+
+    semantic = project_semantic(root, selection)
+    if semantic is not None:
+        apply_semantic(report, semantic)
+        if project_semantic(root, selection) != semantic:
+            raise ValueError("semantic subject changed during assessment")
+    return report
 
 
 def main(argv=None):

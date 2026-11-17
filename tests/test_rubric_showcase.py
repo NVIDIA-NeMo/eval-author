@@ -49,6 +49,33 @@ def test_showcase_includes_separate_all18_rule_demo(showcase_output):
     assert "criterion-scoring/run-a/missing/measure-report.json" in page
 
 
+def test_showcase_displays_anticheat_without_renaming_evidence(showcase_output):
+    from html.parser import HTMLParser
+
+    class VisibleText(HTMLParser):
+        def __init__(self):
+            super().__init__()
+            self.parts = []
+
+        def handle_data(self, data):
+            self.parts.append(data)
+
+    module = showcase_module()
+    summary = module.read(showcase_output / "showcase.json")
+    panel = module.read(showcase_output / "scorer/panel.json")
+    before = json.dumps([summary, panel], sort_keys=True)
+    page = module.render(summary, panel)
+    parser = VisibleText()
+    parser.feed(page)
+    text = " ".join(parser.parts)
+    for number in range(1, 5):
+        assert f"Anticheat-0{number}" in text
+        assert f"AC-0{number}" not in text
+        assert f"AC-0{number}" in summary["criterion_demonstration"]["results"]["missing"]
+    assert "scorer/rubric-baseline.json" in page
+    assert json.dumps([summary, panel], sort_keys=True) == before
+
+
 def test_showcase_repeats_every_area_in_fresh_root(showcase_output):
     output = showcase_output
     summary = json.loads((output / "showcase.json").read_text())
@@ -246,7 +273,8 @@ def test_showcase_cli_reads_emitted_scores_and_keeps_boundaries(showcase_output)
         canonical.update({row["id"]: row for row in document["items"]})
     for row in summary["criterion_inventory"]:
         assert row["title"] in page
-        assert row["id"] in page
+        display_id = row["id"].replace("AC-", "Anticheat-") if row["id"].startswith("AC-") else row["id"]
+        assert display_id in page
         if row["id"] in canonical:
             assert row["title"] == canonical[row["id"]]["title"]
             assert row["source"] == canonical[row["id"]]["source"]

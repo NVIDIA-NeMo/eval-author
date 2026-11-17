@@ -1,0 +1,675 @@
+{
+  "schema": "refund-local-controls-v1",
+  "cases": [
+    {
+      "id": "reference",
+      "candidate": {
+        "events": [
+          {
+            "kind": "approve",
+            "run_id": "run-current",
+            "customer_id": "customer-A",
+            "order_id": "order-A",
+            "amount_cents": 8000,
+            "actor": "manager-1"
+          },
+          {
+            "kind": "refund",
+            "refund": {
+              "id": "new-0",
+              "run_id": "run-current",
+              "customer_id": "customer-A",
+              "order_id": "order-A",
+              "amount_cents": 8000,
+              "destination": "original-payment-A"
+            }
+          },
+          {
+            "kind": "ledger",
+            "entries": [
+              {
+                "refund_id": "new-0",
+                "amount_cents": 8000
+              }
+            ]
+          }
+        ],
+        "success": true
+      }
+    },
+    {
+      "id": "no-work",
+      "candidate": {
+        "events": [],
+        "success": true
+      }
+    },
+    {
+      "id": "wrong-customer",
+      "candidate": {
+        "events": [
+          {
+            "kind": "approve",
+            "run_id": "run-current",
+            "customer_id": "customer-A",
+            "order_id": "order-A",
+            "amount_cents": 8000,
+            "actor": "manager-1"
+          },
+          {
+            "kind": "refund",
+            "refund": {
+              "id": "new-0",
+              "run_id": "run-current",
+              "customer_id": "customer-B",
+              "order_id": "order-A",
+              "amount_cents": 8000,
+              "destination": "original-payment-A"
+            }
+          },
+          {
+            "kind": "ledger",
+            "entries": [
+              {
+                "refund_id": "new-0",
+                "amount_cents": 8000
+              }
+            ]
+          }
+        ],
+        "success": true
+      }
+    },
+    {
+      "id": "wrong-order",
+      "candidate": {
+        "events": [
+          {
+            "kind": "approve",
+            "run_id": "run-current",
+            "customer_id": "customer-A",
+            "order_id": "order-A",
+            "amount_cents": 8000,
+            "actor": "manager-1"
+          },
+          {
+            "kind": "refund",
+            "refund": {
+              "id": "new-0",
+              "run_id": "run-current",
+              "customer_id": "customer-A",
+              "order_id": "order-B",
+              "amount_cents": 8000,
+              "destination": "original-payment-A"
+            }
+          },
+          {
+            "kind": "ledger",
+            "entries": [
+              {
+                "refund_id": "new-0",
+                "amount_cents": 8000
+              }
+            ]
+          }
+        ],
+        "success": true
+      }
+    },
+    {
+      "id": "wrong-amount",
+      "candidate": {
+        "events": [
+          {
+            "kind": "approve",
+            "run_id": "run-current",
+            "customer_id": "customer-A",
+            "order_id": "order-A",
+            "amount_cents": 8000,
+            "actor": "manager-1"
+          },
+          {
+            "kind": "refund",
+            "refund": {
+              "id": "new-0",
+              "run_id": "run-current",
+              "customer_id": "customer-A",
+              "order_id": "order-A",
+              "amount_cents": 8700,
+              "destination": "original-payment-A"
+            }
+          },
+          {
+            "kind": "ledger",
+            "entries": [
+              {
+                "refund_id": "new-0",
+                "amount_cents": 8700
+              }
+            ]
+          }
+        ],
+        "success": true
+      }
+    },
+    {
+      "id": "wrong-destination",
+      "candidate": {
+        "events": [
+          {
+            "kind": "approve",
+            "run_id": "run-current",
+            "customer_id": "customer-A",
+            "order_id": "order-A",
+            "amount_cents": 8000,
+            "actor": "manager-1"
+          },
+          {
+            "kind": "refund",
+            "refund": {
+              "id": "new-0",
+              "run_id": "run-current",
+              "customer_id": "customer-A",
+              "order_id": "order-A",
+              "amount_cents": 8000,
+              "destination": "other-payment"
+            }
+          },
+          {
+            "kind": "ledger",
+            "entries": [
+              {
+                "refund_id": "new-0",
+                "amount_cents": 8000
+              }
+            ]
+          }
+        ],
+        "success": true
+      }
+    },
+    {
+      "id": "missing-approval",
+      "candidate": {
+        "events": [
+          {
+            "kind": "refund",
+            "refund": {
+              "id": "new-0",
+              "run_id": "run-current",
+              "customer_id": "customer-A",
+              "order_id": "order-A",
+              "amount_cents": 8000,
+              "destination": "original-payment-A"
+            }
+          },
+          {
+            "kind": "ledger",
+            "entries": [
+              {
+                "refund_id": "new-0",
+                "amount_cents": 8000
+              }
+            ]
+          }
+        ],
+        "success": true
+      }
+    },
+    {
+      "id": "late-approval",
+      "candidate": {
+        "events": [
+          {
+            "kind": "refund",
+            "refund": {
+              "id": "new-0",
+              "run_id": "run-current",
+              "customer_id": "customer-A",
+              "order_id": "order-A",
+              "amount_cents": 8000,
+              "destination": "original-payment-A"
+            }
+          },
+          {
+            "kind": "ledger",
+            "entries": [
+              {
+                "refund_id": "new-0",
+                "amount_cents": 8000
+              }
+            ]
+          },
+          {
+            "kind": "approve",
+            "run_id": "run-current",
+            "customer_id": "customer-A",
+            "order_id": "order-A",
+            "amount_cents": 8000,
+            "actor": "manager-1"
+          }
+        ],
+        "success": true
+      }
+    },
+    {
+      "id": "missing-ledger",
+      "candidate": {
+        "events": [
+          {
+            "kind": "approve",
+            "run_id": "run-current",
+            "customer_id": "customer-A",
+            "order_id": "order-A",
+            "amount_cents": 8000,
+            "actor": "manager-1"
+          },
+          {
+            "kind": "refund",
+            "refund": {
+              "id": "new-0",
+              "run_id": "run-current",
+              "customer_id": "customer-A",
+              "order_id": "order-A",
+              "amount_cents": 8000,
+              "destination": "original-payment-A"
+            }
+          }
+        ],
+        "success": true
+      }
+    },
+    {
+      "id": "duplicate-ledger",
+      "candidate": {
+        "events": [
+          {
+            "kind": "approve",
+            "run_id": "run-current",
+            "customer_id": "customer-A",
+            "order_id": "order-A",
+            "amount_cents": 8000,
+            "actor": "manager-1"
+          },
+          {
+            "kind": "refund",
+            "refund": {
+              "id": "new-0",
+              "run_id": "run-current",
+              "customer_id": "customer-A",
+              "order_id": "order-A",
+              "amount_cents": 8000,
+              "destination": "original-payment-A"
+            }
+          },
+          {
+            "kind": "ledger",
+            "entries": [
+              {
+                "refund_id": "new-0",
+                "amount_cents": 8000
+              }
+            ]
+          },
+          {
+            "kind": "ledger",
+            "entries": [
+              {
+                "refund_id": "new-0",
+                "amount_cents": 8000
+              }
+            ]
+          }
+        ],
+        "success": true
+      }
+    },
+    {
+      "id": "protected-mutation",
+      "candidate": {
+        "events": [
+          {
+            "kind": "approve",
+            "run_id": "run-current",
+            "customer_id": "customer-A",
+            "order_id": "order-A",
+            "amount_cents": 8000,
+            "actor": "manager-1"
+          },
+          {
+            "kind": "refund",
+            "refund": {
+              "id": "new-0",
+              "run_id": "run-current",
+              "customer_id": "customer-A",
+              "order_id": "order-A",
+              "amount_cents": 8000,
+              "destination": "original-payment-A"
+            }
+          },
+          {
+            "kind": "ledger",
+            "entries": [
+              {
+                "refund_id": "new-0",
+                "amount_cents": 8000
+              }
+            ]
+          },
+          {
+            "kind": "change_protected",
+            "value": {
+              "account_status": "closed"
+            }
+          }
+        ],
+        "success": true
+      }
+    },
+    {
+      "id": "historical-mutation",
+      "candidate": {
+        "events": [
+          {
+            "kind": "approve",
+            "run_id": "run-current",
+            "customer_id": "customer-A",
+            "order_id": "order-A",
+            "amount_cents": 8000,
+            "actor": "manager-1"
+          },
+          {
+            "kind": "refund",
+            "refund": {
+              "id": "new-0",
+              "run_id": "run-current",
+              "customer_id": "customer-A",
+              "order_id": "order-A",
+              "amount_cents": 8000,
+              "destination": "original-payment-A"
+            }
+          },
+          {
+            "kind": "ledger",
+            "entries": [
+              {
+                "refund_id": "new-0",
+                "amount_cents": 8000
+              }
+            ]
+          },
+          {
+            "kind": "replace_history",
+            "refunds": [
+              {
+                "id": "old-refund",
+                "run_id": "run-old",
+                "customer_id": "customer-A",
+                "order_id": "order-A",
+                "amount_cents": 1800
+              }
+            ],
+            "ledger": [
+              {
+                "refund_id": "old-refund",
+                "amount_cents": 1800
+              }
+            ]
+          }
+        ],
+        "success": true
+      }
+    },
+    {
+      "id": "stale-carryover",
+      "candidate": {
+        "events": [
+          {
+            "kind": "approve",
+            "run_id": "run-current",
+            "customer_id": "customer-A",
+            "order_id": "order-A",
+            "amount_cents": 8000,
+            "actor": "manager-1"
+          },
+          {
+            "kind": "refund",
+            "refund": {
+              "id": "new-0",
+              "run_id": "run-old",
+              "customer_id": "customer-A",
+              "order_id": "order-A",
+              "amount_cents": 8000,
+              "destination": "original-payment-A"
+            }
+          },
+          {
+            "kind": "ledger",
+            "entries": [
+              {
+                "refund_id": "new-0",
+                "amount_cents": 8000
+              }
+            ]
+          }
+        ],
+        "success": true
+      }
+    },
+    {
+      "id": "split-alternative",
+      "candidate": {
+        "events": [
+          {
+            "kind": "approve",
+            "run_id": "run-current",
+            "customer_id": "customer-A",
+            "order_id": "order-A",
+            "amount_cents": 8000,
+            "actor": "manager-2"
+          },
+          {
+            "kind": "refund",
+            "refund": {
+              "id": "new-0",
+              "run_id": "run-current",
+              "customer_id": "customer-A",
+              "order_id": "order-A",
+              "amount_cents": 3000,
+              "destination": "original-payment-A"
+            }
+          },
+          {
+            "kind": "refund",
+            "refund": {
+              "id": "new-1",
+              "run_id": "run-current",
+              "customer_id": "customer-A",
+              "order_id": "order-A",
+              "amount_cents": 5000,
+              "destination": "original-payment-A"
+            }
+          },
+          {
+            "kind": "ledger",
+            "entries": [
+              {
+                "refund_id": "new-0",
+                "amount_cents": 3000
+              },
+              {
+                "refund_id": "new-1",
+                "amount_cents": 5000
+              }
+            ]
+          }
+        ],
+        "success": true
+      }
+    },
+    {
+      "id": "approval-threshold-inclusive",
+      "candidate": {
+        "events": [
+          {
+            "kind": "refund",
+            "refund": {
+              "id": "new-0",
+              "run_id": "run-current",
+              "customer_id": "customer-A",
+              "order_id": "order-A",
+              "amount_cents": 8000,
+              "destination": "original-payment-A"
+            }
+          },
+          {
+            "kind": "ledger",
+            "entries": [
+              {
+                "refund_id": "new-0",
+                "amount_cents": 8000
+              }
+            ]
+          }
+        ],
+        "success": true
+      },
+      "contract_variant": {
+        "sources": {
+          "policy": {
+            "approval_threshold_cents": 8000
+          }
+        }
+      }
+    },
+    {
+      "id": "below-approval-threshold",
+      "candidate": {
+        "events": [
+          {
+            "kind": "refund",
+            "refund": {
+              "id": "new-0",
+              "run_id": "run-current",
+              "customer_id": "customer-A",
+              "order_id": "order-A",
+              "amount_cents": 8000,
+              "destination": "original-payment-A"
+            }
+          },
+          {
+            "kind": "ledger",
+            "entries": [
+              {
+                "refund_id": "new-0",
+                "amount_cents": 8000
+              }
+            ]
+          }
+        ],
+        "success": true
+      },
+      "contract_variant": {
+        "sources": {
+          "policy": {
+            "approval_threshold_cents": 8001
+          }
+        }
+      }
+    },
+    {
+      "id": "permitted-zero-balance-inaction",
+      "candidate": {
+        "events": [],
+        "success": true
+      },
+      "contract_variant": {
+        "sources": {
+          "order": {
+            "merchandise_cents": 2000
+          },
+          "policy": {
+            "allow_zero_balance_no_action": true
+          }
+        }
+      }
+    },
+    {
+      "id": "missing-completion",
+      "candidate": {
+        "events": [
+          {
+            "kind": "approve",
+            "run_id": "run-current",
+            "customer_id": "customer-A",
+            "order_id": "order-A",
+            "amount_cents": 8000,
+            "actor": "manager-1"
+          },
+          {
+            "kind": "refund",
+            "refund": {
+              "id": "new-0",
+              "run_id": "run-current",
+              "customer_id": "customer-A",
+              "order_id": "order-A",
+              "amount_cents": 8000,
+              "destination": "original-payment-A"
+            }
+          },
+          {
+            "kind": "ledger",
+            "entries": [
+              {
+                "refund_id": "new-0",
+                "amount_cents": 8000
+              }
+            ]
+          }
+        ],
+        "success": false
+      }
+    },
+    {
+      "id": "malformed-events",
+      "candidate": {
+        "events": [
+          {
+            "kind": "run_python",
+            "source": "never executed"
+          }
+        ],
+        "success": true
+      }
+    },
+    {
+      "id": "helper-error",
+      "candidate": {
+        "events": [
+          {
+            "kind": "helper_error"
+          }
+        ],
+        "success": true
+      }
+    },
+    {
+      "id": "ordering-evidence-unavailable",
+      "candidate": {
+        "events": [
+          {
+            "kind": "ordering_evidence_unavailable"
+          }
+        ],
+        "success": true
+      }
+    },
+    {
+      "id": "all-failure",
+      "candidate": {
+        "events": [],
+        "success": false
+      }
+    }
+  ]
+}
