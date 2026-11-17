@@ -499,6 +499,16 @@ def detail_parts(model: content.Content, row: dict) -> list[str]:
     return [part if part.endswith((".", "!", "?")) else part + "." for part in parts]
 
 
+def follow_through_parts(model: content.Content, row: dict) -> list[str]:
+    follow = row.get("follow_through")
+    if not follow:
+        return []
+    parts = ["**Follow-through: " + layout.FOLLOW_THROUGH[follow["status"]] + ".** " + prose(model, follow["summary"])]
+    if follow["evidence"]:
+        parts.append("**Follow-through evidence:** " + evidence(model, follow["evidence"]))
+    return parts
+
+
 def action_text(model: content.Content, row: dict) -> str:
     """The action, the revised task's link, which the proposal text cannot repeat, and the proposal."""
     text = layout.ACTIONS[row["action"]]
@@ -686,13 +696,17 @@ def build(model: content.Content) -> tuple[str, dict[int, str]]:
                         layout.PRIORITIES[row["priority"]],
                         jump(row["finding_id"], finding_heading(model, row["finding_id"])),
                         involved_items(model, row),
-                        " ".join([action_text(model, row), *detail_parts(model, row)]),
+                        " ".join(
+                            [action_text(model, row), *detail_parts(model, row), *follow_through_parts(model, row)]
+                        ),
                     ]
                     for row in ranked
                 ],
             ),
             "recommendations",
         )
+    if any(row.get("follow_through") for row in ranked):
+        add([layout.FOLLOW_THROUGH_NOTE, ""], "recommendations")
     section(4, "tasks")
     add([layout.COPY["catalog"], ""], "tasks")
     task_rows = []

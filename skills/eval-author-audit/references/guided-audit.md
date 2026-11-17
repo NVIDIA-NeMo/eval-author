@@ -62,7 +62,7 @@ actual reply and reason in `source`, not an offered choice or missing-input find
 Native scripts establish measurement correctness; the lifecycle checks retained bytes.
 
 Save the generated report, content, and input bindings in `findings` using the
-[report binding rules](coverage-report.md#review-and-bindings) and bind
+[report binding rules](coverage-report.md#review-and-bindings).
 Current recorded findings are reviewed automatically; no user acceptance or
 `findings_review` record is needed. A task review records the checks report as
 `findings` before it analyzes the tasks, so approving the checks does not finish it.
@@ -380,7 +380,9 @@ request does not select it. A reply choosing the offered action settles it
 without another permission prompt.
 
 Once proposals are selected, enter `eval-author-task-create` at **Step 1: propose dataset
-improvements**. Carry the Audit coverage report, reviewed Audit specification,
+improvements**. Save specific recommendation IDs through the
+[selected improvement handoff](coverage-report.md#selected-improvement-handoff-and-follow-through).
+Carry the Audit coverage report, reviewed Audit specification,
 available Coverage measurements (JSON) and evidence, selected source scope, user
 corrections, and agreed priorities.
 Do not restart the audit or repeat settled questions. Expand the existing

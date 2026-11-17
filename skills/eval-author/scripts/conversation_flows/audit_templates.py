@@ -109,6 +109,7 @@ LIMITS_HEADING = "**Evidence limits**"
 RECOMMENDATIONS_HEADING = "**Recommended next actions**"
 NEXT_OFFER = "You can finish here or choose a recommended next action."
 REVIEW_ACCEPTED = "The audit findings are recorded."
+LEGACY_SELECTION = "The saved improvement decision does not identify specific report recommendations. Resolve that selection before planning."
 AUDIT_COMPLETE = "The audit is complete for the reviewed scope."
 AUDIT_LIMITED = "The limited findings review is complete; the full measured audit remains incomplete."
 NEXT_ACTIONS = {
