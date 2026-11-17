@@ -829,10 +829,9 @@ Recording findings alone does not start improvement work.
 Selected improvements survive a later session with their audit context. Their
 scope still needs agreement before implementation. Progress and available
 evidence appear beneath the same recommendation in the Audit coverage report.
-Structured construction scope records in journey state retain selected tasks
-and input examples, source digests, limits, and approval, decline, or revision
-receipts. These records keep construction agreement separate from permission to
-run the agent.
+Journey state retains the existing authoring workflow's planning checkpoint,
+including its plan, actual scope decision, and unresolved question. This allows
+planning to resume without repeating settled choices or authorizing agent runs.
 An implemented change does not by itself establish successful validation or
 better coverage. If task files change, earlier audit measurements need review
 before they can describe the changed tasks. Eval Author retains the original
