@@ -144,8 +144,9 @@ flows are [onboarding.py](../scripts/conversation_flows/onboarding.py),
 [audit.py](../scripts/conversation_flows/audit.py), and
 [expansion.py](../scripts/conversation_flows/expansion.py). Flow-specific fixed
 copy lives in the corresponding `_templates.py` modules where needed.
-[Expansion](../scripts/conversation_flows/expansion.py) currently uses only shared
-labels and its saved pending question, so it has no flow-specific template module.
+[expansion_templates.py](../scripts/conversation_flows/expansion_templates.py)
+supplies the improvement entry menu rendered by onboarding; expansion continuation
+uses shared labels and the saved pending question.
 Shared formatting and escaping live in
 [conversation_formatting.py](../scripts/conversation_formatting.py).
 

@@ -19,7 +19,7 @@ import journey_state
 from conversation_formatting import checklist as format_checklist
 from conversation_formatting import link, literal, mapping, text
 
-from . import audit_templates, first_eval, first_eval_templates
+from . import audit_templates, expansion_templates, first_eval, first_eval_templates
 from . import onboarding_templates as copy
 
 JOURNEYS = (None, *shared.JOURNEYS)
@@ -391,6 +391,8 @@ def render(payload: dict) -> str:
             paragraphs = [copy.PREREQUISITE_PROGRESS_INTRO, prerequisite_table(journey, facts, checking=True)]
         elif journey is None:
             paragraphs = [copy.WELCOME, copy.GOAL_QUESTION, "\n".join(f"- {choice}" for choice in copy.GOAL_CHOICES)]
+        elif journey == "expand":
+            paragraphs = [expansion_templates.options_prompt()]
         else:
             paragraphs = [
                 copy.WELCOME_WITH_CHECKLIST if stage == "orientation" else copy.GOAL_INTROS[journey],

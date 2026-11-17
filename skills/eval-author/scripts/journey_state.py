@@ -271,6 +271,8 @@ def validate(state: dict, *, check_size: bool = True) -> None:
         first_eval_state.validate(creation_scope["first_eval"])
     audit_scope = state["scopes"].get("audit", {})
     expansion_scope = state["scopes"].get("expand", {})
+    if isinstance(expansion_scope, dict) and "entry_choice" in expansion_scope:
+        expansion_state.validate_entry_choice(expansion_scope["entry_choice"])
     if isinstance(expansion_scope, dict) and "lifecycle" in expansion_scope:
         expansion_state.validate(expansion_scope["lifecycle"])
     if isinstance(expansion_scope, dict) and "audit_handoff" in expansion_scope:
@@ -843,20 +845,29 @@ def update(repo: Path, patch: dict, *, expected_revision: int | None = None, sta
     if state_only and "scopes" in patch:
         scopes = patch["scopes"]
         if (
-            not isinstance(scopes, dict)
-            or set(scopes) != {"audit"}
-            or not isinstance(scopes["audit"], dict)
-            or set(scopes["audit"])
-            not in ({"framework", "framework_source"}, {"mode"}, {"framework", "framework_source", "mode"})
+            isinstance(scopes, dict)
+            and set(scopes) == {"expand"}
+            and isinstance(scopes["expand"], dict)
+            and set(scopes["expand"]) == {"entry_choice"}
         ):
-            raise ValueError(
-                "State-only updates accept only audit framework and framework_source observations or mode decisions"
-            )
-        for field, value in scopes["audit"].items():
-            if field == "mode":
-                audit_state.validate_mode(value)
-            else:
-                _text(value, f"scopes.audit.{field}")
+            expansion_state.validate_entry_choice(scopes["expand"]["entry_choice"])
+        else:
+            if (
+                not isinstance(scopes, dict)
+                or set(scopes) != {"audit"}
+                or not isinstance(scopes["audit"], dict)
+                or set(scopes["audit"])
+                not in ({"framework", "framework_source"}, {"mode"}, {"framework", "framework_source", "mode"})
+            ):
+                raise ValueError(
+                    "State-only updates accept only audit framework and framework_source observations or mode decisions, "
+                    "or expansion entry_choice"
+                )
+            for field, value in scopes["audit"].items():
+                if field == "mode":
+                    audit_state.validate_mode(value)
+                else:
+                    _text(value, f"scopes.audit.{field}")
     if "ethos" in patch:
         if (
             not isinstance(patch["ethos"], dict)
@@ -910,6 +921,12 @@ def update(repo: Path, patch: dict, *, expected_revision: int | None = None, sta
                 raise ValueError("Retain the selected audit handoff when updating expansion scope")
             if expected_revision is None:
                 raise ValueError("Audit handoff scope updates require --expected-revision from the latest show")
+        if isinstance(expand_patch, dict) and "entry_choice" in expand_patch:
+            expansion_state.validate_entry_choice(expand_patch["entry_choice"])
+            if state["journey"] != "expand":
+                raise ValueError("Expansion entry choices require the expansion journey")
+            if expected_revision is None:
+                raise ValueError("Expansion entry choices require --expected-revision from the latest show")
         retained_expansion = expansion_state.record(state) is not None
         typed_expansion = isinstance(expand_patch, dict) and ("lifecycle" in expand_patch or retained_expansion)
         expansion_status = isinstance(patch.get("journey_status"), dict) and "expand" in patch["journey_status"]
@@ -956,15 +973,20 @@ def update(repo: Path, patch: dict, *, expected_revision: int | None = None, sta
         if path_changed and expected_revision is None:
             raise ValueError("Selecting ETHOS.md requires --expected-revision from the latest show")
         if state_only and "scopes" in patch:
-            if state["journey"] != "audit":
-                raise ValueError("State-only framework observations require the audit journey")
-            if not isinstance(state["scopes"].get("audit", {}), dict):
-                raise ValueError("Saved audit scope must be a mapping; preserve it for review before updating")
+            if "audit" in patch["scopes"]:
+                if state["journey"] != "audit":
+                    raise ValueError("State-only framework observations require the audit journey")
+                if not isinstance(state["scopes"].get("audit", {}), dict):
+                    raise ValueError("Saved audit scope must be a mapping; preserve it for review before updating")
         prior_draft = copy.deepcopy(state["ethos"]["draft"])
         for field, value in patch.items():
             if state_only and field == "scopes":
                 # Metadata changes preserve source selections and historical decisions.
-                state["scopes"].setdefault("audit", {}).update(copy.deepcopy(value["audit"]))
+                selected = "expand" if "expand" in value else "audit"
+                prior_scope = state["scopes"].get(selected, {})
+                if not isinstance(prior_scope, dict):
+                    prior_scope = {"legacy_context": prior_scope}
+                state["scopes"][selected] = {**copy.deepcopy(prior_scope), **copy.deepcopy(value[selected])}
             elif field in {"prerequisites", "ethos", "scopes", "journey_status"}:
                 if not isinstance(value, dict):
                     raise ValueError(f"{field} must be a mapping")
@@ -977,10 +999,15 @@ def update(repo: Path, patch: dict, *, expected_revision: int | None = None, sta
                     field == "scopes"
                     and isinstance(expand_patch, dict)
                     and isinstance(prior_expand, dict)
-                    and typed_expansion
+                    and (typed_expansion or "entry_choice" in expand_patch)
                 ):
                     changes["expand"] = {**copy.deepcopy(prior_expand), **changes["expand"]}
-                if field == "scopes" and typed_expansion and not isinstance(prior_expand, dict):
+                if (
+                    field == "scopes"
+                    and isinstance(expand_patch, dict)
+                    and (typed_expansion or "entry_choice" in expand_patch)
+                    and not isinstance(prior_expand, dict)
+                ):
                     changes["expand"] = {"legacy_context": copy.deepcopy(prior_expand), **changes["expand"]}
                 if (
                     field == "scopes"

@@ -7,6 +7,41 @@ Use the [shared rendering entry point](../../scripts/conversation_renderer.py)
 with `stage: expansion_continue` for the unresolved post-onboarding expansion
 entry decision. This slice does not approve scope, construct tasks, validate
 grading, or authorize execution. Only this implemented stage is registered.
+For an unselected improvement path, use the core's
+[expansion entry](../../SKILL.md#expansion-handoff) before shared checks;
+continuation retains an already-selected path and its unresolved decision.
+
+## Selected audit improvements
+
+The audit already records the recommended changes, and its handoff identifies
+which ones the user selected. Reuse that report and the retained decisions;
+do not offer to prepare another proposal or repeat the recommendation pass.
+
+Check which selected changes have a supported authoring path. For an audit
+tool-gap addition, continue at [task-create Step 2](../../../eval-author-task-create/SKILL.md#step-2-select-one-actionable-gap),
+matching eligibility to the selected recommendation. Do not substitute an
+unselected gap. Resolve only missing construction details at the existing scope
+and design checkpoints, reusing applicable agreement and execution authorization.
+An explicit request for additional planning keeps that scope and may use
+task-create Step 1; selecting an audit recommendation does not request it.
+
+For repairs within an existing authoring flow, use the
+[repair and revalidation procedure](../task-validation.md#repair-and-retain).
+The audit handoff does not add a general workflow for editing existing suite
+cases or graders. Describe an unavailable implementation path as not yet
+supported, retaining the audit's recommendation without offering to write it
+again. For an unsupported grader repair, use `UNSUPPORTED_GRADER_REPAIR` from
+[expansion_templates.py](../../scripts/conversation_flows/expansion_templates.py).
+Lead with that explanation without a bookkeeping preamble. Keep any report-update
+failure in a separate paragraph. Do not apply this limitation to supported
+authoring or repair work or describe it as a blanket prohibition on source edits.
+
+`expansion_continue` presents a saved unresolved entry question; it is not a
+prerequisite to the selected authoring flow. Use it only when an unanswered
+entry input prevents that work from proceeding. If a retained entry question
+repeats the audit's settled selection, replace it with the actual unresolved
+decision through the revision-checked update below. Preserve the lifecycle and
+update its question and the top-level `pending_question` together.
 
 ## Shared checkpoint contract
 
@@ -104,6 +139,11 @@ After inspecting the request and retained context, create the entry record with
 the actual unresolved entry decision, and its source identifies the request or
 context that requires it. Save the record and the same top-level
 `pending_question` through the existing revision-checked update interface.
+Choose that question using the core's [expansion handoff](../../SKILL.md#expansion-handoff)
+and the selected authoring flow's eligibility rules. Retain unsupported selected
+improvements as context and explain their implementation limit; do not frame
+them as available construction choices. Explain limits only when relevant to
+the selected work; do not claim construction scope is pending when it is agreed.
 Loading legacy scope text does not infer a lifecycle or approval. Introducing a
 structured lifecycle retains that text as `legacy_context`.
 
@@ -127,7 +167,7 @@ After saving, reload normal state and pass the complete `state`, exact
 `revision`, and `facts.expansion_observations` from the same `show` result.
 `expansion_state.observe` obtains current Ethos content outside rendering;
 `derive` checks supplied observations without I/O. The renderer shows the shared
-checklist and saved question.
+checklist and saved question without a generic selection or scope preamble.
 
 Render and present the complete response unchanged. Wrong revisions, missing
 observations, mismatched pending questions, active blockers, and changed context
