@@ -7,8 +7,8 @@ The format for the case examples follows the directory layout and reuses the YAM
 specifications consumed by the metric benchmark. [See here](../../metric-benchmark/docs/benchmark-format.md)
 for details.
 The existing manifest schemas remain supported. The
-[remote dataset proposal](#remote-datasets-proposed) extends task sources;
-runtime support is proposed separately from this format document.
+[remote task download workflow](#remote-datasets) extends task sources
+while preserving the prepared local manifest format.
 
 ## Layers
 
@@ -66,7 +66,7 @@ defined in the [agent specification](../../metric-benchmark/docs/benchmark-forma
 ## Task benchmarks
 
 Each `tasks/<benchmark-name>/` represents a benchmark consisting of Harbor tasks.
-Currently, its `tasks.yml` explicitly lists the selected tasks and their directory paths;
+Its prepared `tasks.yml` explicitly lists the selected tasks and their directory paths;
 directories alone do not define membership. The
 [task specification](../../metric-benchmark/docs/benchmark-format.md#tasks-tasksyml)
 defines task IDs, revisions, paths, and content pins.
@@ -81,67 +81,25 @@ and `tests/` contains its verifier. A supplied reference solution belongs in
 Analysis selects the subset manifest for each case; a task benchmark can provide
 additional subset manifests when needed.
 
-Repository-authored tasks can be checked in. Remote task contents would be fetched
-into an ignored `data/` directory as proposed below. Remote dataset retrieval is
-independent of where the agent executes; the current runner still requires local
-task directories.
+Repository-authored tasks can be checked in. Remote task contents are downloaded
+into a separate prepared bundle. Remote dataset retrieval is independent of where
+the agent executes; the current runner still requires local task directories.
 
-### Remote datasets (proposed)
+### Remote datasets
 
-Allow `tasks.yml` to reference a versioned Harbor registry dataset instead of
-manually listing its tasks. For example, `tasks/terminal-bench/tasks.yml` would
-contain:
+An authored task manifest can select a versioned Harbor JSON-registry dataset or
+list individually pinned Git tasks alongside local tasks. See the
+[remote task source format](../../metric-benchmark/docs/benchmark-format.md#remote-task-sources)
+for selectors, supported sources, and revision rules.
 
-```yaml
-dataset:
-  name: terminal-bench
-  version: "2.0"
-```
+Use the [download commands](../../metric-benchmark/docs/tools.md#download-harbor-tasks)
+to resolve and download the tasks, produce local manifests, and sign the complete
+experiment in a separate output directory. Cases, analysis settings, and explicit
+subset memberships retain their existing structure. Repeating the download command verifies
+the saved bundle without querying the registry.
 
-This is proposed metric-benchmark syntax, not an existing Harbor configuration
-file or an input accepted by the current loader. Harbor already resolves
-`terminal-bench@2.0` through its
-[registry](https://github.com/harbor-framework/harbor/blob/main/registry.json).
-Its [registry model](https://github.com/harbor-framework/harbor/blob/main/src/harbor/models/registry.py)
-associates a dataset name and version with task sources, including Git URLs,
-commits, and directory paths.
-
-A task manifest would contain exactly one of the existing `tasks` list or the new
-`dataset` mapping. `name` and an explicit `version` would be required; floating
-selectors such as `latest` would not be accepted. Omit `dataset.registry` to use
-Harbor's default registry, or set `dataset.registry: {url: <registry-json-url>}`
-to select another remote Harbor registry. The first implementation would select
-the entire dataset. Analysis would continue selecting fixed subsets through
-`subsets.json`.
-
-Cases would keep referencing `tasks/terminal-bench/tasks.yml` by path. Multiple
-named cases could pair different agents with the same dataset. Case IDs,
-analysis settings, and experiment composition would retain their existing
-structure.
-
-Preparation would use the qualified Harbor client's registry and download
-support to resolve and materialize the dataset before execution. It would:
-
-- Record the requested registry, dataset name and version, and the resolved
-  registry entry, task inventory, and immutable source revisions.
-- Fetch the task directories into `data/` and generate the existing explicit
-  task manifest with stable task IDs, revisions, local paths, and content hashes.
-  Preserve registry task names as task IDs and reject duplicate IDs.
-- Bind the resolved inventory and source record to the prepared benchmark so
-  execution and analysis use the same task identities. Signing only the authored
-  dataset selector would not pin its resolved contents.
-- Reuse verified prepared contents on subsequent runs. Missing tasks or changed
-  contents would fail preparation rather than silently reduce or update the
-  dataset; updating a dataset would require explicit preparation of a new version
-  of the benchmark.
-
-Execution would consume the prepared local task inventory, and analysis would
-use its saved metadata and results without querying the registry. Reports would
-retain the originating dataset name, version, and resolved source identity
-alongside each case's results.
-
-The separate [experimental-support proposal and proof of concept](https://github.com/NVIDIA-NeMo/eval-author/pull/195)
-implements registry snapshots, task downloads, and experiment preparation. It also
-covers individual tasks referenced by pinned Git sources. Its generated manifests,
-source records, and revision mapping are proposed implementation choices for
-review. This remote dataset proposal adds no runtime support or dependency changes.
+The downloader retains registry snapshots and resolved Git revisions in the bundle's
+receipt. Archive that bundle with results: automatic inclusion of registry
+provenance in result reports remains follow-up work. See the
+[supported sources and limits](../../metric-benchmark/docs/tools.md#supported-sources-and-limits)
+for the supported scope and remaining work.

@@ -17,11 +17,23 @@ orientation turn. The [onboarding renderer](conversations/onboarding.md#orientat
 narrow no-input command exception for those turns; other helpers remain deferred,
 apart from the audit opening and entry lookup below.
 
+## Model calls for requested work
+
+Perform the model calls needed to complete the user's requested work, including
+LLM judge verifier controls, calibration, retries, and reruns after repairs.
+Do not ask for cost approval, a call allowance, or renewed permission because
+an earlier attempt failed or more calls are needed. Do not impose a cost-based
+run limit. Honor limits the user explicitly sets.
+
+Ask only for missing configuration, access, or a decision that changes the task's
+scope. Keep workflow review checkpoints and host permission requirements.
+A proposal-only or review-only request still does not authorize agent execution.
+
 ## Choose the audit approach
 
 After the metadata-only lookup below, distinguish a resumed audit from a new
-audit that can reuse shared setup or Ethos. An active audit's saved `mode`, or a
-legacy audit lifecycle, means resume its unfinished decision. Shared authoring
+audit that can reuse shared setup or Ethos. An active audit's saved `mode` or
+lifecycle means resume its unfinished decision. Shared authoring
 context alone does not settle the audit approach. An explicit request for a new
 audit starts a new choice even when an earlier audit exists.
 
@@ -224,7 +236,8 @@ Reuse known identity, repository paths, runtime choice, and answers. When naming
 the agent or setup, make its basis clear: the user's request, repository documentation,
 the existing suite, or a previously confirmed answer. Describe inferred identity
 and default choices as such; neither is a user confirmation. Reuse explicit
-choices without asking the user to select them again. Do not enumerate or read
+choices without asking the user to select them again. Except for the
+[retained-run lookup](#locate-retained-evaluation-runs), do not enumerate or read
 traces before the user selects their source and location.
 
 For creation and improvements, honor the user's NeMo Gym or Harbor choice,
@@ -267,6 +280,77 @@ and provide `npx skills@latest add NVIDIA-NeMo/eval-author --skill '*' --agent c
 substituting the current assistant's identifier and adding `--global` when repairing
 a global installation. Provide the command without running it during checks;
 after repair, recheck the files and resources before clearing the blocker.
+
+### Locate retained evaluation runs
+
+Before asking for missing evaluation runs during measured-audit prerequisites
+or trace source selection, check the known repository's `.eval-author/jobs/`.
+Repeat this check when a selected run path is missing or stale. Reuse current
+lookup evidence when nothing relevant has changed. Do not apply this lookup to
+task review, a pending opening/approach choice, an explicit no-trace answer, or
+a request whose explicit source bounds exclude this directory.
+
+List the top-level job directories first, including hidden and ignored paths.
+Prioritize names matching known selected-suite tasks, then newest directory
+modification time, with names breaking ties. These are search hints. Verify
+identity and completion from run metadata before offering candidates.
+
+For Harbor trials, use the read-only helper:
+
+```bash
+python3 -B <skill_dir>/scripts/retained_runs.py --repo <repo> \
+  --agent <agent-identifier-from-run-metadata> --task <known-task-name>
+```
+
+Use the actual runner agent identifier, not the agent's product/display name.
+If it is unknown, omit `--agent` first to inventory candidate identifiers and
+match them against the agent configuration before rerunning with that identifier.
+This inventory alone leaves availability unknown. Do not ask the user for an
+identifier before checking retained metadata and the known configuration.
+Repeat `--task` for known task names, or omit it when suite scope is unresolved.
+The helper checks only `jobs/<job>/<trial>/result.json` and presence of
+`jobs/<job>/<trial>/agent/trajectory.json`. It does not traverse trial logs or
+open trajectories. Its 200-job batch limit counts job directories, not files or
+trials. When `next_offset` is present, continue with `--offset <next_offset>`
+before asking the user for missing runs. Reuse prior batch candidates and errors.
+Follow continuation batches within the same user turn. A batch boundary is not
+a user checkpoint.
+Keep availability verified if any batch found a qualifying run. A later empty
+batch must not overwrite that evidence with an unknown status.
+Restart the lookup if job ordering changes between batches. A partial lookup
+can establish availability from a qualifying candidate, but cannot establish
+absence. Record checked jobs, continuation bounds, and errors.
+If a job disappears or a directory changes, retain other qualifying candidates
+and report the incomplete inventory. The helper uses checked directory handles
+for both metadata reads and trajectory presence. If that safe access is unavailable
+on the host, it returns unknown availability with a capability error instead of
+falling back to path-based reads.
+
+Consume the JSON result in memory. Its `state_update` records observed `data`
+status and source paths for that batch through the existing state-only update
+command. Prefer a qualifying batch's verified update when combining batches. Apply
+it only within the authorized measured-audit lookup, preserving user answers and
+existing selected sources. Keep `candidates` available for the later source
+question. They are not a selected corpus. Other documented run layouts need
+the same targeted metadata/presence checks and explicit bounds. Do not follow
+symlinks outside the root or broaden to the checkout, home, or remote services.
+
+For each candidate, check the run metadata for completion, the evaluated agent
+and task/suite, and an associated trace path such as a Harbor trial's
+`agent/trajectory.json`. Exclude Oracle/nop controls, runs for other agents, and
+incomplete runs from availability evidence. Definitions, result scores, and a
+directory name alone cannot establish that a completed agent run has a trace.
+Missing, ambiguous, or unreadable metadata leaves that candidate unverified.
+Do not run evaluations, install dependencies, or parse/convert traces for this
+lookup. An empty or truncated result does not prove that no traces exist.
+
+Retain observed paths and metadata with the prerequisite or audit findings.
+When source selection is due, offer relevant candidates with their known run
+source and location instead of asking the user to locate them again. Candidates
+remain unselected until the user chooses them. An existing explicit choice needs
+no new confirmation. Honor that choice when newer runs exist, and explain any
+missing-path mismatch before asking which set to use. Actual trace inspection,
+preparation, and measurement still require selected source bounds.
 
 ### Authoring checks
 

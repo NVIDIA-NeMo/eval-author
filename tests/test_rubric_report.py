@@ -30,6 +30,19 @@ def modules(monkeypatch):
     return module, assess
 
 
+def test_count_groups_append_without_replacing_or_duplicating_measurements(modules):
+    report, _ = modules
+    original = {"name": "existing", "value": 7}
+    check = {"measurements": [original]}
+    report._counts(check, {"claims": 3}, 4, "receipts", "missing", "uncertain", append=True)
+    report._counts(check, {"required": 2}, 3, "controls", "missing", "uncertain", append=True)
+    assert check["measurements"][0] is original
+    assert [row["name"] for row in check["measurements"]] == ["existing", "claims", "required"]
+    assert [row["denominator"] for row in check["measurements"][1:]] == [4, 3]
+    report._counts(check, {"replacement": 1}, 1, "checks", "missing", "uncertain")
+    assert [row["name"] for row in check["measurements"]] == ["replacement"]
+
+
 def test_complete_canonical_crosswalk_preserves_assessment_decisions(modules, tmp_path):
     report, assess = modules
     definitions = json.loads(CANONICAL.read_text())
@@ -795,7 +808,8 @@ def test_native_qualified_refs_are_bounded_and_preserve_freshness(modules, nativ
         previous = baseline_checks["CREATE-07-C01"]
         assert previous["evidence"][0] in check["evidence"]
         assert previous["predicate_results"][0] in check["predicate_results"]
-        assert check["measurements"] == previous["measurements"]
+        native_units = {"selected receipt claims", "selected required controls", "selected receipts"}
+        assert [row for row in check["measurements"] if row["unit"] not in native_units] == previous["measurements"]
         assert set(previous["evidence_refs"]) <= set(check["evidence_refs"])
         assert all(row in check["diagnostic_refs"] for row in previous["diagnostic_refs"])
     for ident, other in checks.items():

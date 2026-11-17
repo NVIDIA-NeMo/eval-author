@@ -178,6 +178,15 @@
         "scope": "Validate and render the worked-example report content, then link the generated report"
       },
       {
+        "skill": "eval-author-audit",
+        "id": "audit-verifier-hidden-requirement",
+        "basis": [
+          "skills/eval-author-audit/references/coverage-report.md",
+          "skills/eval-author/references/task-validation.md"
+        ],
+        "scope": "Read-only verifier inspection of an existing Harbor task that classifies a check for a requirement the instruction never states as a false rejection"
+      },
+      {
         "skill": "eval-author-first-eval",
         "id": "first-eval-shared-entry-gym",
         "basis": [
@@ -228,6 +237,36 @@
         "path": "skills/eval-author-first-eval/evals/files/README.md",
         "sha256": "8c5794d710fadab7b78242b6aac298dbeda3073d0dfdd09d616f11e60bc5d04e",
         "description": "Synthetic agent documentation; no runtime evidence or confirmed Ethos"
+      },
+      {
+        "path": "skills/eval-author-audit/evals/files/tasks/order-total/task.toml",
+        "sha256": "5650748960792ba873c04c79332ffee021ecaf221124d5635ce01cb4420efec7",
+        "description": "Synthetic Harbor task whose verifier also requires an unstated summary.json; inspected, never executed"
+      },
+      {
+        "path": "skills/eval-author-audit/evals/files/tasks/order-total/instruction.md",
+        "sha256": "955f0801cbda8210e1b026729d5b0c50c9915a21fbf18c3f88ec4f5c2a8de6c6",
+        "description": "Synthetic Harbor task whose verifier also requires an unstated summary.json; inspected, never executed"
+      },
+      {
+        "path": "skills/eval-author-audit/evals/files/tasks/order-total/environment/Dockerfile",
+        "sha256": "5a331bdd8a43ae46fe2b22fea0261373ddebcc61d09164719273b03b74996635",
+        "description": "Synthetic Harbor task whose verifier also requires an unstated summary.json; inspected, never executed"
+      },
+      {
+        "path": "skills/eval-author-audit/evals/files/tasks/order-total/environment/orders.csv",
+        "sha256": "a1371d0a97cec243e3b0f6bbfe73e3e1e7958dc76979dc5226be8c20df7630d8",
+        "description": "Synthetic Harbor task whose verifier also requires an unstated summary.json; inspected, never executed"
+      },
+      {
+        "path": "skills/eval-author-audit/evals/files/tasks/order-total/tests/test.sh",
+        "sha256": "1a3e89aebead3531b2d5f03772cebd84a599f36eab3ca5cf02b1796b15d58970",
+        "description": "Synthetic Harbor task whose verifier also requires an unstated summary.json; inspected, never executed"
+      },
+      {
+        "path": "skills/eval-author-audit/evals/files/tasks/order-total/solution/solve.sh",
+        "sha256": "1cc56f95351170721f856ed4b9ac95a7da29a9db9dccd676872132016dc271dc",
+        "description": "Synthetic Harbor task whose verifier also requires an unstated summary.json; inspected, never executed"
       }
     ]
   }

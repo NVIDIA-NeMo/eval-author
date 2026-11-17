@@ -30,8 +30,8 @@ copy belongs to that flow's template module, not a second prose template.
 The renderer presents decisions; it never makes them. It does not inspect the
 repository, load or save journey state, probe prerequisites, validate files,
 delegate work, choose sources, run evaluations, or grant approval. Reading its
-output cannot establish readiness, Ethos confirmation, permission to continue,
-or authorization to spend. Persist actual user replies and observed findings
+output cannot establish readiness, Ethos confirmation, or permission to continue.
+Persist actual user replies and observed findings
 through the existing state helper before rendering stateful responses.
 
 ## Audit entry and resumption
@@ -128,7 +128,7 @@ settings, results, and the optional audit handoff. Its stages require reconciled
 saved state and use the `first_eval_` prefix; they have no stateless preview.
 
 [Audit rendering](conversations/audit.md) continues an audit with unresolved
-source selections, proposed-check approval, measurement progress, findings review,
+source selections, proposed-check approval, measurement progress, findings,
 and optional next actions. Its `audit_` stages use reconciled audit state and
 observations, with the Audit coverage report as the single review document.
 

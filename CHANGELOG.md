@@ -8,6 +8,22 @@ preview: workflows, skills, and saved artifacts may change between releases.
 
 ## Unreleased
 
+### Added
+
+- Rubric `native` selections automatically include verification-integrity
+  measurements, a receipt-consistency predicate, and group scores. Required
+  verification stays unassessed because rubric task freshness is unknown.
+  Audit and saved-acceptance checks require `--integrity`. Retry auditing uses a
+  separate command. Repair manifests record the digest they supersede. See
+  [verification-integrity checks](docs/determinism-checks.md#verification-integrity-checks).
+- The experimental rubric has a data leakage and forged credit area. Its
+  measurements label Harbor task files public or private, find private content
+  in public files and file names, classify whether each task's hidden tests stay
+  private, flag tasks shared between development and test splits, flag tasks
+  whose agent can reach the repository the task came from, and find private task
+  content in the agent's prompts or skills. Discover and Audit warn when tasks
+  are not in Harbor or NeMo Gym format.
+
 ### Removed
 
 - **Breaking: ATIF converters.** The `gym-to-atif` and `mlflow-to-atif` skills,
@@ -31,6 +47,35 @@ preview: workflows, skills, and saved artifacts may change between releases.
 
 ### Changed
 
+- **Generated reports are not audit evidence.** Content validation now refuses to
+  bind `.eval-author/README.md`, `report.html`, `report_markdown/*`, or the legacy
+  `audit-coverage-report.md` as a source, because publishing the audit rewrites
+  them and left the findings stale (`source_binding`). Cite the underlying tasks,
+  runs, receipts, or measurements and state findings in `report-content.json`.
+  A `report-content.json` that already binds one of these must drop that source.
+- **Audit recommendations table.** The audit report's Recommended next actions
+  section is now a table with Priority, Finding / Advisory, Affected coverage,
+  and Description columns, instead of a bulleted list. A selected proposal's
+  Verification, Breadth, Next step, and Verifier links continue in its
+  Description cell. Existing `audits.md` files update on the next audit; no
+  content or schema change is needed.
+- **Suite README, HTML report, and Markdown reports.** The generated section of
+  `.eval-author/README.md` is now a general introduction to the evaluation suite
+  that links the reports; it no longer holds task, run, or audit data. The
+  human-readable report lives in `report.html`, which gains an **Audit** tab that
+  renders the latest audit coverage report, with task links that open the Tasks
+  row and run links that open the Runs tab. The former README tables are split
+  into one Markdown report per content tab for agents:
+  `.eval-author/report_markdown/tasks.md` and `runs.md`, and the audit report moves
+  from `.eval-author/audit-coverage-report.md` to `report_markdown/audits.md`. Each
+  tab links to its Markdown report. Refresh still rewrites the README's marked
+  section, so the first refresh after upgrading replaces the old tables there;
+  an older audit is shown from its old location until the next audit regenerates
+  it. First-eval review now links `tasks.md` and, for Harbor runs, `runs.md`
+  instead of the README, and the remaining-task artifact receipt retains
+  `report.html` and `tasks.md`. A receipt saved with `README.md` stays valid but
+  is no longer current, so the next refresh records a new one. See
+  [Case and run catalog](docs/results.md#case-and-run-catalog).
 - **One trace loader.** `skills/eval-author/scripts/trace_loading.py` loads
   `atif`, `mlflow`, `gym`, `intake`, and `trace` sources into NeMo Compass
   `Trace` objects (trace contract v3) and writes a
@@ -84,6 +129,10 @@ preview: workflows, skills, and saved artifacts may change between releases.
 
   Run-input v3, validation v7, tool-access decisions v1 and publication review
   v1 are unchanged.
+- **Breaking: verifier-cheat evidence v3.** The hidden-case read control also
+  reads a file the agent's user must be able to read, and passes only when that
+  read succeeds. Evidence uses `nemo.eval_author.verifier_cheat_evidence.v3` and
+  `harbor-verifier-cheats-v3`; don't combine it with v2 counts.
 
 ## 0.1.0
 
