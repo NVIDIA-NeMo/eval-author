@@ -112,7 +112,8 @@ def test_native_translation_preserves_selection_and_scenario(inputs: tuple) -> N
         {"tasks": [{"path": "tasks/return-headphones", "git_url": "https://example.invalid/repo"}]},
         {"datasets": [{"path": "tasks"}]},
         {"install_only": True},
-        {"source_job": {"type": "local", "path": "old-job", "action": "regrade"}},
+        {"source_jobs": [{"type": "local", "path": "old-job", "action": "regrade"}]},
+        {"source_jobs": [{"type": "local", "path": "old-job", "action": "diff"}]},
         {"agents": []},
         {"agents": [{}]},
         {"agents": [{"name": "oracle"}]},
@@ -183,17 +184,135 @@ def test_external_inputs_remain_bound_and_preserved(inputs: tuple) -> None:
     data = copy.deepcopy(original)
     for name in ("extra.md", "target.md"):
         Path(name).write_text("Extra target context")
+    for name in ("target-config.json", "user-config.json"):
+        Path(name).write_text('{"instructions": "Role-specific behavior"}')
+    Path("overlay.yaml").write_text("services: {}\n")
     Path("acpx.json").write_text('{"timeout": 17}')
     data["extra_instruction_paths"] = ["extra.md"]
-    data["agents"][0]["kwargs"] = {"prompt_template_path": "target.md", "unchanged_option": "value"}
+    data["agents"][0]["kwargs"] = {
+        "prompt_template_path": "target.md",
+        "config": "target-config.json",
+        "unchanged_option": "value",
+    }
+    data["user_agent"]["kwargs"] = {"config": "user-config.json"}
+    data["environment"]["extra_docker_compose"] = ["overlay.yaml"]
     data["user_agent"]["bridge"] = {"kind": "acp", "kwargs": {"acpx_config_path": "acpx.json"}}
     config.write_text(yaml.safe_dump(data))
     result = translate(scenario, config, output)
-    assert {Path(name).resolve() for name in ("extra.md", "target.md", "acpx.json")} <= set(result.input_paths)
+    assert {
+        Path(name).resolve()
+        for name in ("extra.md", "target.md", "acpx.json", "target-config.json", "user-config.json", "overlay.yaml")
+    } <= set(result.input_paths)
     generated = yaml.safe_load(result.run_config_path.read_text())
     assert generated["agents"] == data["agents"]
     assert generated["extra_instruction_paths"] == ["extra.md"]
     assert generated["user_agent"]["bridge"]["kwargs"] == {"acpx_config_path": "acpx.json"}
+    assert generated["user_agent"]["kwargs"] == data["user_agent"]["kwargs"]
+    assert generated["environment"] == data["environment"]
+
+
+@pytest.mark.parametrize("role", ["target", "simulator"])
+@pytest.mark.parametrize("source", ["./local-skills", "example/skills@commit"])
+def test_skill_sources_are_deferred_until_tree_binding_exists(inputs: tuple, role: str, source: str) -> None:
+    scenario, config, output, data = inputs
+    Path("local-skills").mkdir()
+    selected = data["agents"][0] if role == "target" else data["user_agent"]
+    selected["skills"] = [source]
+    config.write_text(yaml.safe_dump(data))
+    with pytest.raises(HarborTranslationError, match="tree binding"):
+        translate(scenario, config, output)
+    assert not output.exists()
+
+
+def test_inline_role_configs_remain_in_native_configuration(inputs: tuple) -> None:
+    scenario, config, output, data = inputs
+    data["agents"][0]["kwargs"] = {"config": {"policy": "target"}}
+    data["user_agent"]["kwargs"] = {"config": {"policy": "user"}}
+    config.write_text(yaml.safe_dump(data))
+    result = translate(scenario, config, output)
+    generated = yaml.safe_load(result.run_config_path.read_text())
+    assert generated["agents"] == data["agents"]
+    assert generated["user_agent"]["kwargs"] == data["user_agent"]["kwargs"]
+
+
+def test_native_expansion_preserves_original_config_strings(inputs: tuple, monkeypatch: pytest.MonkeyPatch) -> None:
+    scenario, config, output, data = inputs
+    native_expanduser = Path.expanduser
+
+    def expanduser(path: Path) -> Path:
+        return Path.cwd().joinpath(*path.parts[1:]) if path.parts and path.parts[0] == "~" else native_expanduser(path)
+
+    monkeypatch.setattr(Path, "expanduser", expanduser)
+    Path("extra.md").write_text("Extra task instructions")
+    Path("overlay.yaml").write_text("services: {}\n")
+    data["tasks"][0]["path"] = "~/tasks/return-headphones"
+    data["extra_instruction_paths"] = ["~/extra.md"]
+    data["environment"]["extra_docker_compose"] = ["~/overlay.yaml"]
+    config.write_text(yaml.safe_dump(data))
+    result = translate(scenario, config, output)
+    generated = yaml.safe_load(result.run_config_path.read_text())
+    assert generated["tasks"] == data["tasks"]
+    assert generated["extra_instruction_paths"] == ["~/extra.md"]
+    assert generated["environment"] == data["environment"]
+    assert {Path("extra.md").resolve(), Path("overlay.yaml").resolve()} <= set(result.input_paths)
+
+
+def test_disabled_native_verification_does_not_require_test_script(inputs: tuple) -> None:
+    scenario, config, output, data = inputs
+    (scenario.parent / "tests/test.sh").unlink()
+    data["verifier"]["disable"] = True
+    config.write_text(yaml.safe_dump(data))
+    result = translate(scenario, config, output)
+    generated = yaml.safe_load(result.run_config_path.read_text())
+    assert generated["verifier"] == data["verifier"]
+    assert result.to_dict()["runtime_ready"] is False
+
+
+@pytest.mark.parametrize("parent_alias", [False, True])
+def test_runtime_input_alias_cannot_hide_retargeted_bytes(inputs: tuple, parent_alias: bool) -> None:
+    scenario, config, output, data = inputs
+    for name in ("old", "new"):
+        directory = Path(name)
+        directory.mkdir()
+        (directory / "config.json").write_text(json.dumps({"policy": name}))
+    alias = Path("selected")
+    suffix = "" if parent_alias else "/config.json"
+    alias.symlink_to(Path.cwd() / f"old{suffix}", target_is_directory=parent_alias)
+    data["agents"][0]["kwargs"] = {"config": "selected/config.json" if parent_alias else "selected"}
+    config.write_text(yaml.safe_dump(data))
+    for destination in (f"old{suffix}", f"new{suffix}"):
+        alias.unlink()
+        alias.symlink_to(Path.cwd() / destination, target_is_directory=parent_alias)
+        with pytest.raises(HarborTranslationError, match="symlink"):
+            translate(scenario, config, output)
+    assert not output.exists()
+
+
+def test_external_directory_alias_stays_visible_in_input_inventory(inputs: tuple, tmp_path: Path) -> None:
+    scenario, config, output, data = inputs
+    outside = tmp_path.parent / f"{tmp_path.name}-external"
+    outside.mkdir()
+    target = tmp_path / "external-target"
+    target.mkdir()
+    (target / "config.json").write_text('{"policy": "one"}')
+    alias = outside / "alias"
+    alias.symlink_to(target, target_is_directory=True)
+    declared = alias / "config.json"
+    data["user_agent"]["kwargs"] = {"config": str(declared)}
+    config.write_text(yaml.safe_dump(data))
+    result = translate(scenario, config, output)
+    assert declared in result.input_paths
+    assert declared.resolve() not in result.input_paths
+
+
+def test_native_task_alias_is_not_hidden_by_path_resolution(inputs: tuple) -> None:
+    scenario, config, output, data = inputs
+    Path("selected-task").symlink_to(scenario.parent, target_is_directory=True)
+    data["tasks"][0]["path"] = "selected-task"
+    config.write_text(yaml.safe_dump(data))
+    with pytest.raises(HarborTranslationError, match="symlink"):
+        translate(scenario, config, output)
+    assert not output.exists()
 
 
 @pytest.mark.parametrize("content", ['{"agents": {}}', '{"defaultAgent": "other"}', "[]"])

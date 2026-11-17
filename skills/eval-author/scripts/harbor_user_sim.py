@@ -12,10 +12,13 @@ import sys
 from dataclasses import dataclass
 from importlib.metadata import version
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import yaml
 from user_sim import UserSimError, UserSimScenario, load_scenario
+
+if TYPE_CHECKING:
+    from harbor.models.job.config import JobConfig
 
 SUPPORTED_HARBOR_VERSION = "0.24.0"
 NEUTRAL_BEHAVIOR = Path(__file__).resolve().parents[1] / "references/user-sim-neutral.md"
@@ -88,7 +91,7 @@ def _selected_job(config_path: Path) -> dict[str, Any]:
     data = load_config_source(config_path)
     if not isinstance(data, dict):
         raise HarborTranslationError("Native job configuration must be a mapping")
-    if data.get("datasets") or data.get("source_job") or data.get("install_only"):
+    if data.get("datasets") or data.get("source_jobs") or data.get("install_only"):
         raise HarborTranslationError("Select one local task for a new agent run")
     tasks = data.get("tasks")
     if not isinstance(tasks, list) or len(tasks) != 1 or not isinstance(tasks[0], dict):
@@ -125,14 +128,46 @@ def _configure_user(data: dict[str, Any], output_dir: Path) -> None:
     bridge["prompt_path"] = str(output_dir / "bridge-prompt.md")
 
 
-def _external_inputs(data: dict[str, Any]) -> tuple[Path, ...]:
+def _input_path_without_alias(path: Path) -> Path:
+    root = Path.cwd().resolve()
+    absolute = path if path.is_absolute() else root / path
+    if path.is_symlink():
+        raise HarborTranslationError("Retain regular input files instead of mutable symlink aliases")
+    if absolute.is_relative_to(root):
+        current = root
+        for part in absolute.relative_to(root).parts:
+            current /= part
+            if current.is_symlink():
+                raise HarborTranslationError("Retain regular input files instead of mutable symlink aliases")
+        return absolute.resolve()
+    # Keep outside aliases visible to the repository's evidence boundary.
+    return absolute
+
+
+def _bound_input_path(path: Path) -> Path:
+    if not path.is_file():
+        raise HarborTranslationError("A declared external input must be an existing regular file")
+    return _input_path_without_alias(path)
+
+
+def _external_inputs(native: JobConfig) -> tuple[Path, ...]:
     from harbor.bridges.acp import validate_acpx_config
 
-    paths = [Path(value) for value in data.get("extra_instruction_paths", [])]
-    target_prompt = data["agents"][0].get("kwargs", {}).get("prompt_template_path")
+    assert native.user_agent is not None
+    paths = [path.expanduser() for path in native.extra_instruction_paths]
+    paths.extend(path.expanduser() for path in native.environment.extra_docker_compose)
+    for role in (*native.agents, native.user_agent):
+        if role.skills:
+            raise HarborTranslationError(
+                "Agent skill directories and remote sources need tree binding before translation"
+            )
+        config = role.kwargs.get("config")
+        if isinstance(config, (str, Path)):
+            paths.append(Path(config))
+    target_prompt = native.agents[0].kwargs.get("prompt_template_path")
     if target_prompt is not None:
         paths.append(Path(target_prompt))
-    acpx_path = data["user_agent"]["bridge"].get("kwargs", {}).get("acpx_config_path")
+    acpx_path = native.user_agent.bridge.kwargs.get("acpx_config_path")
     if acpx_path is not None:
         path = Path(acpx_path)
         config = json.loads(path.read_text())
@@ -140,19 +175,18 @@ def _external_inputs(data: dict[str, Any]) -> tuple[Path, ...]:
             raise HarborTranslationError("ACPX overrides must contain an object")
         validate_acpx_config(config)
         paths.append(path)
-    for path in paths:
-        if not path.is_file():
-            raise HarborTranslationError("A declared external prompt or bridge input is missing")
-    return tuple(path.resolve() for path in paths)
+    return tuple(_bound_input_path(path) for path in paths)
 
 
-def _validate_task(data: dict[str, Any], scenario: UserSimScenario, output_dir: Path) -> None:
+def _validate_task(native: JobConfig, scenario: UserSimScenario, output_dir: Path) -> None:
     from harbor.models.task.task import Task
 
-    task_dir = Path(data["tasks"][0]["path"]).resolve()
+    assert native.tasks[0].path is not None
+    _input_path_without_alias(native.tasks[0].path.expanduser())
+    task_dir = native.tasks[0].get_local_path()
     if output_dir.is_relative_to(task_dir):
         raise HarborTranslationError("Write simulator inputs outside the target task tree")
-    task = Task(task_dir)
+    task = Task(task_dir, disable_verification=native.verifier.disable)
     if task.has_steps:
         raise HarborTranslationError("Harbor user-agent bridges do not support multi-step tasks")
     if task.name != scenario.task_id:
@@ -176,8 +210,8 @@ def translate(scenario_path: Path, config_path: Path, output_dir: Path) -> Trans
     native = JobConfig.model_validate(data)
     # JobConfig does not check the trial's user-agent/load-trajectory exclusion.
     TrialConfig.model_validate({"task": native.tasks[0], "agent": native.agents[0], "user_agent": native.user_agent})
-    _validate_task(data, scenario, output_dir)
-    external_inputs = _external_inputs(data)
+    _validate_task(native, scenario, output_dir)
+    external_inputs = _external_inputs(native)
     template = USER_TEMPLATE.format(neutral=NEUTRAL_BEHAVIOR.read_text())
     validate_user_prompt_template(template, source="Eval Author", persona_path=output_dir / "persona.txt")
     files = {

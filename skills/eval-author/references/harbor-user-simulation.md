@@ -14,6 +14,10 @@ variable references. The bridge is ACP. Keep target policy, model, tools,
 environment, verifier, and repeat settings unchanged. Don't use Oracle or NOP
 as either role for an actual-agent run.
 
+Match the scenario's `task_id` to the native task name. A packaged task can have
+the name `local/cancel-order` while its directory is `cancel-order`. Use the full
+native name consistently in the plan and scenario.
+
 Run from the target repository root, preserving the base config's working
 directory. Harbor resolves its relative paths from that directory. Use a new
 private output directory outside the task tree for each translated configuration:
@@ -34,17 +38,30 @@ starting environment. Never copy the output directory into the task image.
 
 The JSON result lists the native config path, required working directory, and
 input paths for evidence binding. It includes the source scenario and base
-config, emitted files, and declared external instruction, target prompt, and
-ACP configuration files. Bind these bytes alongside the task tree before
-execution. This list does not discover arbitrary file references inside custom
+config, emitted files, declared external instruction and target prompt files,
+ACP configuration, extra Docker Compose files, and file-valued native `config`
+options for both agent roles. Inline native configuration stays in `run.yaml`.
+Bind these bytes alongside the task tree before execution. Task paths, extra
+instructions, and Compose inputs use Harbor's home-directory expansion. Other
+paths keep their native interpretation, and the original config strings stay
+unchanged. This list does not discover arbitrary file references inside custom
 agent options. Retain those through the existing integration's input bindings.
+Mutable file aliases and symlink components inside the working repository are
+rejected. Absolute inputs outside it retain their declared path so evidence
+binding can report an external input instead of silently binding a different
+referent. Retain local copies and regenerate the config when the workflow requires
+repository-local evidence.
 
 The helper validates with Harbor's job, trial, task, bridge-option, and prompt
 validators. It rejects mismatched task identity, multiple or remote task sources,
-multi-step tasks, existing simulator prompt overrides, and existing output
-directories. Resolve a conflict in the selected configuration rather than hiding
-it with an override. Harbor applies one user-agent configuration to every task
-in a job, so translate different scenarios into separate jobs.
+multi-step tasks, source-job regrading or comparison, existing simulator prompt
+overrides, and existing output directories. Agent `skills` entries are also
+deferred because local directories and remote sources need tree bindings that
+this translator doesn't supply. Declared external files must be regular files.
+Resolve a conflict in the selected configuration rather than hiding it with an
+override. Harbor applies one user-agent configuration to every task in a job,
+so translate different scenarios into separate jobs. Disabled native verification
+remains disabled and doesn't become a grading or execution-readiness claim.
 
 ## Check the integration before execution
 
