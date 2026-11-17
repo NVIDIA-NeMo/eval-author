@@ -266,7 +266,7 @@ by directory membership. Report any missing planned task files without creating
 them. Do not substitute another agent, reimplement its decisions, or change what
 the tasks measure to make the connection work.
 
-Honor each saved test_type. Single-turn needs one ordinary invocation. Scripted
+Honor each saved interaction_type. Single-turn needs one ordinary invocation. Scripted
 multi-step needs the specified state continuity and checked prerequisites. If a
 prerequisite fails, retain that failure and mark later behavior unexercised.
 User-sim needs adaptive messages in one continuing session. Verify expected
