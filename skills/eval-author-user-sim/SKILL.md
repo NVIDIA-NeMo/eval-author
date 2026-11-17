@@ -42,7 +42,7 @@ eligibility rules, first-task review, and execution checkpoints.
 ## Check the handoff
 
 Require Harbor as the selected provider, the approved task identifier,
-`test_type: user_sim`, its rationale and
+`interaction_type: user_sim`, its
 conversation scenario, required state continuity, prepared task directory,
 applicable Ethos and policy, environment proof, and the selected fixture sources.
 Reuse the caller's confirmed decisions and author only the named task. If a
