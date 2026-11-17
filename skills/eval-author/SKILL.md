@@ -174,6 +174,11 @@ for new shared flows; returning audits use the continuation route above.
 
 ### Expansion handoff
 
+For a saved unresolved expansion entry decision after shared onboarding, follow
+the [expansion continuation contract](references/conversations/expansion.md).
+This state records the pending question; it does not approve construction or
+execution.
+
 When `scopes.expand.audit_handoff` is present, resume the audit's
 [selected improvement handoff](../eval-author-audit/references/coverage-report.md#selected-improvement-handoff-and-follow-through)
 before choosing a new source or repeating settled audit decisions.

@@ -132,13 +132,20 @@ source selections, proposed-check approval, measurement progress, findings,
 and optional next actions. Its `audit_` stages use reconciled audit state and
 observations, with the Audit coverage report as the single review document.
 
+[Expansion continuation](conversations/expansion.md) presents the saved unresolved
+post-onboarding entry decision using current intent and retained handoff bindings.
+Only `expansion_continue` is implemented; later workflow stages are not registered.
+
 [conversation_renderer.py](../scripts/conversation_renderer.py) dispatches through
 an explicit [journey/stage registry](../scripts/conversation_flows/__init__.py)
 to implemented flow renderers. Duplicate registrations are rejected. Implemented
 flows are [onboarding.py](../scripts/conversation_flows/onboarding.py),
-[first_eval.py](../scripts/conversation_flows/first_eval.py), and
-[audit.py](../scripts/conversation_flows/audit.py), with copy in their
-respective `_templates.py` modules.
+[first_eval.py](../scripts/conversation_flows/first_eval.py),
+[audit.py](../scripts/conversation_flows/audit.py), and
+[expansion.py](../scripts/conversation_flows/expansion.py). Flow-specific fixed
+copy lives in the corresponding `_templates.py` modules where needed.
+[Expansion](../scripts/conversation_flows/expansion.py) currently uses only shared
+labels and its saved pending question, so it has no flow-specific template module.
 Shared formatting and escaping live in
 [conversation_formatting.py](../scripts/conversation_formatting.py).
 

@@ -180,6 +180,8 @@ unchanged draft when applicable, then use `confirm-ethos` with `--ethos` set to
 the selected repository-relative path, the latest `--expected-revision`, the
 computed digest, the user's confirmation reference as
 `--source`, and the validator result's provenance as `--validation`. Preserve
+unresolved intent questions until the canonical workflow resolves them;
+`confirm-ethos` rejects a nonempty `ethos.remaining_questions` list. Preserve
 the validation details in a linked working artifact or the conversation; do
 not pass a structured validation object as if it were the helper's provenance
 string. An explicit `--ethos` must match the saved selection; omitting it retains

@@ -535,6 +535,12 @@ document before its content is confirmed.
 An already-requested [returning audit](#return-to-an-audit) resumes directly;
 the completion pause below is for a new shared flow.
 
+For a retained expansion lifecycle, complete the required shared recovery and
+Ethos confirmation, then follow
+[expansion continuation](conversations/expansion.md) for its saved entry decision
+instead of the confirmed-response instructions below. End the turn at that
+decision.
+
 After the saved `ETHOS.md` has been validated and its content reviewed and
 confirmed, persist completion using `confirm-ethos`. A draft approval or file
 write alone does not complete this step. Preserve confirmed Ethos and prerequisite
@@ -646,8 +652,10 @@ records for resolution; do not replace them with fresh success state.
 For [audit continuation](#return-to-an-audit), use the bounded entry lookup and
 reuse procedure above. When other prerequisite work must resume, complete and save the state-only pass before
 reading target artifacts. Include its completed findings in the final `results`
-response. When no new pass is needed, render `resume` for unfinished shared steps
-or `audit_resume` for downstream audit checkpoints, from normally reconciled
+response. When no new pass is needed, render `resume` for unfinished shared steps,
+`audit_resume` for downstream audit checkpoints, or
+[expansion continuation](conversations/expansion.md) for a saved expansion entry,
+from normally reconciled
 state to present the pending question or earliest unfinished,
 non-deferred step; never regenerate the welcome or readiness question. A goal
 change reuses applicable common decisions. Switching between audit and authoring

@@ -14,6 +14,7 @@ import sys
 from pathlib import Path
 
 import pytest
+from journey_state_support import expansion_start
 
 SCRIPTS = Path(__file__).resolve().parents[1] / "skills/eval-author/scripts"
 FIXTURES = Path(__file__).parent / "fixtures/journey-conversation"
@@ -357,6 +358,112 @@ def test_resume_preserves_pending_downstream_decision(conversation, state_module
     assert "Ready to get started?" not in result
     assert "Ready to continue?" not in result
     assert result.count("- [x]") == 2
+
+
+@pytest.mark.parametrize("stage", ["results", "ethos", "confirmed", "resume"])
+@pytest.mark.parametrize("change", ["current", "ethos", "handoff"])
+def test_structured_expansion_requires_its_own_continuation(conversation, state_module, tmp_path, stage, change):
+    modules = (state_module, importlib.import_module("expansion_state"), conversation)
+    saved = expansion_start(modules, tmp_path, handoff=True)
+    if change == "ethos":
+        (tmp_path / "ETHOS.md").write_text("# Changed agent intent\n", encoding="utf-8")
+    elif change == "handoff":
+        saved["scopes"]["expand"]["audit_handoff"]["recommendation_ids"] = ["R2"]
+    observed = state_module.view(saved)
+    assert observed["expansion"]["context_current"] is (change == "current")
+    payload = {"stage": stage, "state": observed["state"], "revision": saved["revision"]}
+    before = copy.deepcopy(payload)
+    with pytest.raises(ValueError, match="Use expansion_continue"):
+        conversation.render(payload)
+    assert payload == before
+
+
+def expansion_question_variant(question, variant):
+    return {
+        "entry": question,
+        "padding": f"\t {question} \r\n",
+        "crlf": question.replace(" ", "\r\n", 1),
+        "spacing": question.replace(" ", " \t "),
+    }[variant]
+
+
+@pytest.mark.parametrize(
+    "stage,recovery,question_variant",
+    [
+        (stage, recovery, question_variant)
+        for stage in ("results", "ethos", "resume")
+        for recovery in ("prerequisite", "ethos", "blocker")
+        for question_variant in ("recovery", "entry")
+    ]
+    + [("resume", "ethos", variant) for variant in ("padding", "crlf", "spacing")],
+)
+def test_structured_expansion_keeps_shared_recovery_available(
+    conversation, state_module, tmp_path, stage, recovery, question_variant
+):
+    modules = (state_module, importlib.import_module("expansion_state"), conversation)
+    saved = expansion_start(modules, tmp_path)
+    entry_question = saved["pending_question"]
+    recovery_question = "Can we resolve this prerequisite before continuing?"
+    if question_variant == "recovery":
+        saved["pending_question"] = recovery_question
+    else:
+        saved["pending_question"] = expansion_question_variant(entry_question, question_variant)
+    facts = {
+        "ethos": {
+            "status": "existing",
+            "link": str(tmp_path / "ETHOS.md"),
+            "summary": "The agent helps users recover access to their accounts.",
+        }
+    }
+    if recovery == "ethos":
+        saved["ethos"]["stage"] = "review"
+    else:
+        if recovery == "prerequisite":
+            saved["prerequisites"]["runtime"]["status"] = "missing"
+        saved["blockers"] = [
+            {
+                "id": "missing_inputs",
+                "phase": "setup" if recovery == "prerequisite" else "expand",
+                "message": "Missing inputs",
+            }
+        ]
+        facts["blockers"] = [
+            {
+                "id": "missing_inputs",
+                "step": "Restore missing inputs",
+                "reason": "Required inputs are unavailable.",
+                "needed": "Supply the missing inputs before continuing.",
+            }
+        ]
+    payload = {"stage": stage, "state": saved, "revision": saved["revision"], "facts": facts}
+    before = copy.deepcopy(payload)
+    result = conversation.render(payload)
+    assert entry_question not in result
+    if question_variant == "recovery":
+        assert recovery_question in result
+    elif recovery == "ethos":
+        assert facts["ethos"]["summary"] in result
+    else:
+        assert "Restore missing inputs" in result
+    assert payload == before
+
+
+@pytest.mark.parametrize("question_variant", ["entry", "padding", "crlf", "spacing"])
+def test_structured_expansion_recovery_rejects_replayed_entry_question(
+    conversation, state_module, tmp_path, question_variant
+):
+    modules = (state_module, importlib.import_module("expansion_state"), conversation)
+    saved = expansion_start(modules, tmp_path)
+    saved["ethos"]["stage"] = "review"
+    question = expansion_question_variant(saved["pending_question"], question_variant)
+    payload = {
+        "stage": "resume",
+        "state": saved,
+        "revision": saved["revision"],
+        "facts": {"question": question},
+    }
+    with pytest.raises(ValueError, match="Use expansion_continue"):
+        conversation.render(payload)
 
 
 def test_resume_uses_unanswered_intent_question_when_no_pending_question(conversation, state_module):

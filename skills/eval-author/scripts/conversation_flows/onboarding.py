@@ -13,6 +13,7 @@ from urllib.parse import urlsplit
 
 import audit_state
 import conversation_templates as shared
+import expansion_state
 import first_eval_state
 import journey_state
 from conversation_formatting import checklist as format_checklist
@@ -428,6 +429,18 @@ def render(payload: dict) -> str:
         and not any(item["phase"] in {"setup", "ethos"} for item in journey_state.active_blockers(state))
     ):
         raise ValueError("Use audit_resume for saved audit checkpoints after shared onboarding is complete")
+    expansion = expansion_state.record(state) if state["journey"] == "expand" else None
+    if expansion is not None and not state_only:
+        if expansion_state.entry_ready(state):
+            raise ValueError(
+                "Use expansion_continue for saved expansion checkpoints after shared onboarding is complete"
+            )
+        question = literal(expansion["pending"]["question"], "expansion question")
+        if facts.get("question") is not None and literal(facts["question"], "question") == question:
+            raise ValueError("Use expansion_continue for the saved expansion question after shared recovery")
+        if state["pending_question"] is not None and literal(state["pending_question"], "pending question") == question:
+            state = state.copy()
+            state["pending_question"] = None
     audit = None
     if "audit_observations" in facts:
         observed = facts["audit_observations"]
