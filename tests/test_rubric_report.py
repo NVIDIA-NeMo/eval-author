@@ -57,7 +57,8 @@ def test_complete_canonical_crosswalk_preserves_assessment_decisions(modules, tm
     for item in definitions["items"]:
         row = rows[item["id"]]
         assert definitions["result_template"].keys() <= row.keys()
-        assert row["source"] == item["source"] and row["skill_id"] is None
+        assert row["source"] == item["source"]
+        assert "skill_id" not in row
         assert row["status"] == row["assessment_state"] == items[item["id"]]["status"]
         assert row["score"] == items[item["id"]]["score"]
         assert row["subject_id"] is row["subject_revision"] is None

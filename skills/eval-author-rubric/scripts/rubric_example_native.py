@@ -1053,9 +1053,9 @@ def apply(rows: dict[str, Any], panel: dict[str, Any] | None) -> None:
         "provenance.observed-configuration": {"deterministic-1": "PARTIAL", "deterministic-2": "PASS"},
         "provenance.runtime-route": {"deterministic-1": "PARTIAL", "deterministic-2": "PASS"},
         "provenance.solver-tool-access": {"deterministic": "PARTIAL", "probe": "PARTIAL"},
-        "AC-01": {"Deterministic": "PARTIAL", "Probe": "PARTIAL"},
-        "AC-03": {"Deterministic": "PARTIAL"},
-        "AC-04": {"Deterministic": "PARTIAL"},
+        "AC-01": {"deterministic": "PARTIAL", "probe": "PARTIAL"},
+        "AC-03": {"deterministic": "PARTIAL"},
+        "AC-04": {"deterministic": "PARTIAL"},
     }
     refs = [{"measurement": "example_assessment.native", "digest": PANEL_INDEX_SHA256}]
     for ident, methods in covered.items():
@@ -1075,7 +1075,7 @@ def apply(rows: dict[str, Any], panel: dict[str, Any] | None) -> None:
         row["limitations"].append(GAPS[ident])
         row["findings"].append({"code": "native.partial_scope", "message": GAPS[ident]})
         for check in row["check_results"]:
-            suffix = check["id"].split(":" if ident.startswith("AC-") else ".")[-1]
+            suffix = check["id"].rsplit(".", 1)[-1]
             if suffix not in methods or check["outcome"] == "FAIL":
                 continue
             check.update(

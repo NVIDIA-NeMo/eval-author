@@ -77,7 +77,7 @@ def test_example_schema_layout_and_authored_values_are_consistent(audit_report):
     assert "|  | Current audit | Previous audit | Change |" in text
     assert "| Coverage ratio | 100% | - | Not compared |" in text
     assert "| Coverage basis | Mapped tasks (runs not measured) | - | Not compared |" in text
-    assert "[verify.py](../report-sources/tasks/source-answer/verify.py)" in text
+    assert "[verify.py](../../report-sources/tasks/source-answer/verify.py)" in text
     assert_markdown_links(text, renderer)
 
 
@@ -137,7 +137,9 @@ def test_escaped_task_link_in_summary_renders_as_a_markdown_link(audit_report):
     text = rendered.decode()
     assert_markdown_links(text, renderer)
     assert renderer.task_link(model, "T1") in text
-    assert renderer.task_link(model, "T1") == "[T1-source-answer](../report-sources/tasks/source-answer/instruction.md)"
+    assert (
+        renderer.task_link(model, "T1") == "[T1-source-answer](../../report-sources/tasks/source-answer/instruction.md)"
+    )
 
 
 @pytest.mark.parametrize(
@@ -198,7 +200,7 @@ def test_coverage_task_column_retains_intended_mappings_before_measurement(audit
     capabilities = report.split("### Capabilities audited\n\n", 1)[1].split("### Tools", 1)[0]
     row = next(line for line in capabilities.splitlines() if "cited\\_answers" in line)
     cells = row.split(" | ")
-    assert cells[2].startswith("[T1-source-answer](../report-sources/tasks/source-answer")
+    assert cells[2].startswith("[T1-source-answer](../../report-sources/tasks/source-answer")
     assert "Unmeasured" in cells[3]
     failure_cases = report.split("### Failure cases\n\n")[-1].split("## Verifier cheat screening", 1)[0]
     assert "No evaluation coverage" in failure_cases
@@ -226,7 +228,9 @@ def test_findings_have_plain_headings_and_canonical_task_links(audit_report, tas
     advisory = report.split("### ADVISORY\n\n", 1)[1].split("## Key findings", 1)[0]
     heading, paragraph = advisory.split("\n\n", 2)[:2]
     assert heading == "#### Advisory 1 - Accepts an agent-written reward file"
-    assert paragraph.startswith("The grading script for [T1-source-answer](tasks/source-answer/instruction.md) accepts")
+    assert paragraph.startswith(
+        "The grading script for [T1-source-answer](../tasks/source-answer/instruction.md) accepts"
+    )
     key = report.split("## Key findings\n\n", 1)[1].split("## Recommended next actions", 1)[0]
     assert "agent-written reward file" not in key
     tokens = list(markdown_tokens(advisory))
@@ -234,10 +238,10 @@ def test_findings_have_plain_headings_and_canonical_task_links(audit_report, tas
     task_links = [
         token.attrGet("href")
         for token in tokens
-        if token.type == "link_open" and token.attrGet("href").startswith("tasks/source-answer/instruction")
+        if token.type == "link_open" and token.attrGet("href").startswith("../tasks/source-answer/instruction")
     ]
-    assert task_links == ["tasks/source-answer/instruction.md"]
-    assert all((root / ".eval-author" / target).is_file() for target in task_links)
+    assert task_links == ["../tasks/source-answer/instruction.md"]
+    assert all((root / ".eval-author" / target.removeprefix("../")).is_file() for target in task_links)
     assert_markdown_links(report, renderer)
 
 
@@ -358,7 +362,7 @@ def test_task_references_link_the_entire_full_identifier_in_every_section(audit_
     task_links = [(target, label) for target, label in links if label.startswith("T1")]
     assert len(task_links) >= 5
     assert all(label == "T1-source-answer" for _, label in task_links)
-    assert all(target == "../report-sources/tasks/source-answer/instruction.md" for target, _ in task_links)
+    assert all(target == "../../report-sources/tasks/source-answer/instruction.md" for target, _ in task_links)
 
 
 def test_task_mentions_preserve_identifier_boundaries_and_existing_full_names(audit_report):
@@ -435,7 +439,7 @@ def test_a_proposal_without_item_mappings_is_still_listed_and_says_so(audit_repo
     proposal = renderer.prose(model, data["recommendations"][0]["proposed_task"])
     assert recommendations.count(proposal) == 1
     item = next(line for line in recommendations.splitlines() if "Advisory 1" in line)
-    assert item.endswith("no mapped capability or tool")
+    assert item.split(" | ")[2] == "no mapped capability or tool"
     advisory = report.split("### ADVISORY\n\n", 1)[1].split("## Key findings", 1)[0]
     assert "Proposed task: " + proposal in advisory
     assert_markdown_links(report, renderer)
@@ -562,7 +566,7 @@ def test_direct_markdown_edits_refuse_refresh_show_diff_and_name_field(audit_rep
 def test_legacy_conversion_is_explicit_and_keeps_original_bytes(audit_report):
     content, renderer, root = audit_report
     output = root / renderer.OUTPUT
-    output.parent.mkdir()
+    output.parent.mkdir(parents=True)
     original = b"# Existing audit\n\nUser corrections and [evidence](old.json).\n"
     output.write_bytes(original)
     with pytest.raises(content.ContentError, match="legacy_report"):
@@ -572,6 +576,45 @@ def test_legacy_conversion_is_explicit_and_keeps_original_bytes(audit_report):
     backup = root / f".eval-author/.working/audit/legacy-report-{content.sha(original)}.md"
     assert backup.read_bytes() == original
     assert output.read_bytes().startswith(renderer.HEADER.encode())
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        ".eval-author/README.md",
+        ".eval-author/report.html",
+        ".eval-author/report_markdown/tasks.md",
+        ".eval-author/report_markdown/audits.md",
+        ".eval-author/audit-coverage-report.md",
+        ".eval-author/REPORT.HTML",
+    ],
+)
+def test_generated_suite_reports_cannot_be_bound_as_source_evidence(audit_report, path):
+    """Publishing rewrites these files, so a bound digest would be stale the moment the audit is published."""
+    content, _, root = audit_report
+    target = root / path
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text("generated\n")
+    data = example_data(root)
+    data["sources"][3] = {**data["sources"][3], "path": path, "sha256": content.sha(target.read_bytes())}
+    save(root, data)
+    with pytest.raises(content.ContentError, match="cannot be source evidence"):
+        load(audit_report)
+
+
+def test_the_unbindable_paths_are_the_files_publication_writes(audit_report):
+    content, renderer, _ = audit_report
+    for name in (
+        renderer.suite_report.SUITE_README,
+        renderer.suite_report.REPORT_HTML,
+        renderer.suite_report.LEGACY_AUDIT_MARKDOWN,
+        renderer.suite_report.TASKS_MARKDOWN,
+        renderer.suite_report.RUNS_MARKDOWN,
+        renderer.suite_report.AUDIT_MARKDOWN,
+    ):
+        assert content.is_published_path(name)
+    assert not content.is_published_path(".eval-author/audit.md")
+    assert not content.is_published_path("tasks/source-answer/README.md")
 
 
 def test_changed_source_and_symlinks_are_rejected(audit_report):
@@ -715,7 +758,7 @@ def test_generated_output_cannot_overwrite_its_own_saved_source(audit_report):
     )
     data["summary"][0] = "A revised summary cannot overwrite its retained source."
     before = output.read_bytes()
-    with pytest.raises(content.ContentError, match="output_is_input"):
+    with pytest.raises(content.ContentError, match="cannot be source evidence"):
         renderer.refresh(load(audit_report, data))
     assert output.read_bytes() == before
 
@@ -767,18 +810,18 @@ def test_unnamed_task_is_prefixed_once_and_not_repeated_in_its_citation(audit_re
     "paths,expected",
     [
         ([], "No selected agent runs"),
-        ([".eval-author/jobs/a/t1/result.json"], "1 selected agent run in `jobs/a/t1/`"),
+        ([".eval-author/jobs/a/t1/result.json"], "1 selected agent run in [.eval-author/jobs/a/t1/](../jobs/a/t1)"),
         (
             [
                 ".eval-author/jobs/chat/t1/result.json",
                 ".eval-author/jobs/chat/t2/result.json",
                 ".eval-author/jobs/src-1/t1/result.json",
             ],
-            "3 selected agent runs in `jobs/`",
+            "3 selected agent runs in [.eval-author/jobs/](../jobs)",
         ),
         (
             [".eval-author/jobs/chat/t1/result.json", ".eval-author/jobs/chat/t2/result.json", "traces/a.json"],
-            "3 selected agent runs: 2 in `jobs/chat/`, 1 in `../traces/`",
+            "3 selected agent runs: 2 in [.eval-author/jobs/chat/](../jobs/chat), 1 in [traces/](../../traces)",
         ),
     ],
 )
@@ -820,7 +863,7 @@ def test_finding_citations_dedupe_and_skip_scope_sources(audit_report):
     accuracy = report.split("### Finding 3 - Quotation accuracy is unchecked\n\n", 1)[1].split("\n\n", 1)[0]
     assert accuracy.endswith(
         "Code inspection confirmed a weak verifier, as documented in "
-        "[verify.py](../report-sources/tasks/source-answer/verify.py)."
+        "[verify.py](../../report-sources/tasks/source-answer/verify.py)."
     )
     controls = report.split("### Finding 2 - Retained controls are unavailable\n\n", 1)[1].split("\n\n", 1)[0]
     assert controls.endswith("This finding is unproven.")
@@ -860,7 +903,9 @@ def test_bound_traces_without_run_records_count_as_selected_runs(audit_report, m
     monkeypatch.setattr(
         renderer.content, "trace_path", lambda model, entry: model.repo / ".eval-author" / entry["subject"]["trace"]
     )
-    assert renderer.run_roots(model) == "1 selected agent run in `jobs/unattributed/`"
+    assert (
+        renderer.run_roots(model) == "1 selected agent run in [.eval-author/jobs/unattributed/](../jobs/unattributed)"
+    )
 
 
 def test_escaping_keeps_entities_literal_and_file_fragments_out_of_paths(audit_report):
@@ -984,11 +1029,23 @@ def test_details_need_a_proposed_task(audit_report):
         load(audit_report)
 
 
-def next_actions(text):
+def next_actions(text: str) -> str:
     return text.split("## Recommended next actions\n\n", 1)[1].split("## Task catalog\n\n", 1)[0]
 
 
-def test_next_actions_are_one_flat_list_ordered_by_priority(audit_report):
+def next_action_rows(block: str) -> list[list[str]]:
+    """The recommendation table's body rows, each split into its four cells."""
+    rows = [line for line in block.splitlines() if line.startswith("| ")]
+    assert [cell.strip() for cell in rows[0].strip("|").split(" | ")] == [
+        "Priority",
+        "Finding / Advisory",
+        "Affected coverage",
+        "Description",
+    ]
+    return [[cell.strip() for cell in line.strip("|").split(" | ")] for line in rows[2:]]
+
+
+def test_next_actions_are_one_table_ordered_by_priority(audit_report):
     _, renderer, root = audit_report
     data = example_data(root)
     priorities = dict(zip(("R1", "R2", "R3", "R4"), ("low", "medium", "low", "high")))
@@ -997,11 +1054,11 @@ def test_next_actions_are_one_flat_list_ordered_by_priority(audit_report):
     save(root, data)
     block = next_actions(renderer.render(load(audit_report))[0].decode())
     assert "### " not in block
-    items = [line for line in block.splitlines() if line.startswith("- **")]
-    assert [line.split("**")[1] for line in items] == ["High", "Medium", "Low", "Low"]
-    assert not re.search(r"^\d+\. ", block, re.M)
+    rows = next_action_rows(block)
+    assert [row[0] for row in rows] == ["High", "Medium", "Low", "Low"]
+    assert not re.search(r"^(\d+\. |- )", block, re.M)
     # The author's order only breaks ties within a priority.
-    assert "Advisory 1" in items[2] and "Finding 2" in items[3]
+    assert "Advisory 1" in rows[2][1] and "Finding 2" in rows[3][1]
 
 
 def test_a_next_action_lists_every_item_it_involves(audit_report):
@@ -1010,23 +1067,21 @@ def test_a_next_action_lists_every_item_it_involves(audit_report):
     data["recommendations"][0]["items"] = ["cited_answers", "read_file"]
     save(root, data)
     block = next_actions(renderer.render(load(audit_report))[0].decode())
-    item = next(line for line in block.splitlines() if "Advisory 1" in line)
-    assert item.endswith("cited\\_answers (capability), read\\_file (tool)")
+    row = next(row for row in next_action_rows(block) if "Advisory 1" in row[1])
+    assert row[2] == "cited\\_answers (capability), read\\_file (tool)"
 
 
-def test_details_render_under_their_next_action_and_only_for_selected_proposals(audit_report):
+def test_details_render_in_their_next_action_row_and_only_for_selected_proposals(audit_report):
     _, renderer, root = audit_report
     data = example_data(root)
     selected = next(row for row in data["recommendations"] if row["action"] == "revise_task")
     selected["details"] = DETAILS
     save(root, data)
-    lines = next_actions(renderer.render(load(audit_report))[0].decode()).splitlines()
-    position = next(i for i, line in enumerate(lines) if line.startswith("  - Revise a task"))
-    assert lines[position + 1].startswith("  - **Verification:** Accept a reply that cites the read source.")
-    assert lines[position + 3] == "  - **Next step:** Needs manual task design"
-    assert (
-        sum(line.startswith("  - **Verification:**") for line in lines) == 2
-    )  # the example's selected proposal and this one
+    rows = next_action_rows(next_actions(renderer.render(load(audit_report))[0].decode()))
+    row = next(row for row in rows if row[3].startswith("Revise a task"))
+    assert "**Verification:** Accept a reply that cites the read source." in row[3]
+    assert row[3].endswith("**Next step:** Needs manual task design.")
+    assert sum("**Verification:**" in row[3] for row in rows) == 2  # the example's selected proposal and this one
 
 
 def test_the_verifier_link_appears_only_when_the_task_readme_has_a_verifier_section(audit_report):
@@ -1047,7 +1102,290 @@ def test_the_verifier_link_appears_only_when_the_task_readme_has_a_verifier_sect
     save(root, data)
     text = renderer.render(load(audit_report))[0].decode()
     line = next(line for line in text.splitlines() if "**Verifier controls:**" in line)
-    assert "source-answer/README.md#verifier" in line and "Verifier section" in line
+    assert line.startswith("| ") and "source-answer/README.md#verifier" in line and "Verifier section" in line
+
+
+@pytest.mark.parametrize("status", ["selected", "in_progress", "blocked", "implemented"])
+def test_follow_through_is_bound_and_does_not_change_findings_or_coverage(audit_report, status: str) -> None:
+    _, renderer, root = audit_report
+    data = example_data(root)
+    original = renderer.render(load(audit_report))[0].decode()
+    original_findings = copy.deepcopy(data["findings"])
+    data["recommendations"][0]["follow_through"] = {
+        "status": status,
+        "summary": "The selected revision remains limited to the reviewed scenario. No new agent runs were recorded.",
+        "evidence": [data["tasks"][0]["source"]],
+    }
+    report = renderer.render(load(audit_report, data))[0].decode()
+    follow_rows = [row for row in next_action_rows(next_actions(report)) if "**Follow-through: " in row[3]]
+    assert len(follow_rows) == 1
+    assert "**Follow-through evidence:**" in follow_rows[0][3]
+    assert "Changed tasks require review" in next_actions(report)
+    assert (
+        report.split("## Key findings", 1)[1].split("## Recommended next actions", 1)[0]
+        == original.split("## Key findings", 1)[1].split("## Recommended next actions", 1)[0]
+    )
+    assert report.split("## Coverage report", 1)[1] == original.split("## Coverage report", 1)[1]
+    assert data["findings"] == original_findings
+    assert_markdown_links(report, renderer)
+
+
+@pytest.mark.parametrize("change", ["missing_evidence", "unknown_source", "unknown_status"])
+def test_follow_through_rejects_unsupported_claims(audit_report, change: str) -> None:
+    content, _, root = audit_report
+    data = example_data(root)
+    follow = {"status": "implemented", "summary": "The selected task was revised.", "evidence": []}
+    if change == "unknown_source":
+        follow["evidence"] = ["unknown-source"]
+    elif change == "unknown_status":
+        follow["status"] = "coverage_improved"
+    data["recommendations"][0]["follow_through"] = follow
+    with pytest.raises(content.ContentError):
+        load(audit_report, data)
+
+
+@pytest.mark.parametrize("origin", ["user", "eval_author"])
+@pytest.mark.parametrize("action", ["no_action", "finish", "improve", "collect_evidence", "fix_agent"])
+def test_audit_handoff_demo(audit_report, monkeypatch: pytest.MonkeyPatch, origin: str, action: str) -> None:
+    """Scripted report/decision/resume demo; no live assistant or grader execution."""
+    from test_audit_journey_state import ready
+
+    content, renderer, root = audit_report
+    monkeypatch.syspath_prepend(str(ROOT / "skills/eval-author/scripts"))
+    state = importlib.import_module("journey_state")
+    audit = importlib.import_module("audit_state")
+    conversation = importlib.import_module("conversation_renderer")
+    modules = state, audit
+    saved = ready(modules, root)
+    data = example_data(root)
+    if action == "fix_agent":
+        run_path = root / "report-sources/run.json"
+        run = json.loads(run_path.read_text())
+        run["steps"] = [
+            {"step_id": 1, "source": "user", "message": "Source: The release is Friday. Quote that sentence."},
+            {"step_id": 2, "source": "agent", "message": "The release is Tuesday."},
+        ]
+        run_path.write_text(json.dumps(run, indent=2) + "\n")
+        next(row for row in data["sources"] if row["id"] == "S5")["sha256"] = content.sha(run_path.read_bytes())
+        data["findings"].append(
+            {
+                "id": "F5",
+                "category": "agent_failure",
+                "basis": "inspection",
+                "status": "confirmed",
+                "title": "The retained reply changes the quoted day",
+                "explanation": "T1's synthetic retained reply says Tuesday after the supplied text says Friday. The reply is wrong independently of the verifier's score. This illustrative record does not establish live agent behavior.",
+                "tasks": [{"task_id": "T1", "revision": data["tasks"][0]["revision"]}],
+                "items": ["cited_answers"],
+                "evidence": ["S5"],
+                "advisory": None,
+            }
+        )
+        data["recommendations"].append(
+            {
+                "id": "R5",
+                "finding_id": "F5",
+                "priority": "low",
+                "order": 5,
+                "action": "fix_agent",
+                "items": ["cited_answers"],
+                "proposed_task": None,
+            }
+        )
+    content_path = root / ".eval-author/.working/audit/report-content.json"
+    content_path.parent.mkdir(parents=True, exist_ok=True)
+    (root / "report-content.json").unlink()
+    content_path.write_text(json.dumps(data, indent=2) + "\n")
+    model = content.load(content_path, root)
+    published = renderer.refresh(model)
+    lifecycle = audit.new_record()
+    lifecycle.update(
+        suites={
+            "status": "selected",
+            "paths": ["report-sources/tasks"],
+            "candidates": [],
+            "exclusions": [],
+            "source": f"User selected the {origin} suite",
+        },
+        suite_files=["report-sources/tasks/source-answer/instruction.md"],
+        traces={
+            "status": "selected",
+            "paths": ["report-sources/run.json"],
+            "candidates": [],
+            "exclusions": [
+                {"path": "runs/unselected", "reason": "Outside the selected run scope", "source": "User exclusion"}
+            ],
+            "source": "Retained historical run selection; this review does not measure it",
+        },
+        trace_files=["report-sources/run.json"],
+        specification="report-sources/audit.md",
+    )
+    saved = state.update(
+        root,
+        {
+            "scopes": {
+                "audit": {
+                    "mode": {"kind": "task_review", "source": "User selected definition review"},
+                    "origin": origin,
+                    "lifecycle": lifecycle,
+                }
+            }
+        },
+        expected_revision=saved["revision"],
+    )
+    progress = audit.progress(root, saved)
+    assert progress is not None
+    lifecycle["checks_approval"] = {
+        "digest": progress["checks_digest"],
+        "source": "User approved intended checks",
+    }
+    lifecycle["findings"] = {
+        "report": {"path": renderer.OUTPUT, "digest": published["report_sha256"]},
+        "content": {"path": content_path.relative_to(root).as_posix(), "digest": model.digest},
+        "inputs": model.result()["bindings"],
+        "source": "Reviewed the generated report",
+    }
+    saved = state.update(root, {"scopes": {"audit": {"lifecycle": lifecycle}}}, expected_revision=saved["revision"])
+    progress = audit.progress(root, saved)
+    assert progress is not None
+    lifecycle["findings_final"] = {
+        "digest": lifecycle["findings"]["report"]["digest"],
+        "source": "Completed the task review analysis",
+    }
+    if action != "no_action":
+        selected = {"improve": ["R1", "R2", "R4"], "collect_evidence": ["R3"], "fix_agent": ["R5"]}
+        lifecycle["next_action"] = {
+            "kind": action,
+            "findings_digest": progress["findings_digest"],
+            "source": f"User explicitly chose {action}",
+            **({"recommendation_ids": selected[action]} if action in selected else {}),
+        }
+    saved = state.update(root, {"scopes": {"audit": {"lifecycle": lifecycle}}}, expected_revision=saved["revision"])
+    observed = audit.observe(root, saved)
+    transcript = conversation.render(
+        {
+            "stage": "audit_next_action",
+            "state": saved,
+            "revision": saved["revision"],
+            "facts": {"audit_observations": observed, "links": {"report": {"target": str(root / renderer.OUTPUT)}}},
+        }
+    )
+    (root / "scripted-transcript.md").write_text(transcript)
+    (root / "demo-evidence.json").write_text(
+        json.dumps(
+            {
+                "method": "deterministic scripted decisions",
+                "origin": origin,
+                "action": action,
+                "live_assistant": False,
+                "new_controls": False,
+                "new_agent_runs": False,
+                "limitations": [
+                    "Synthetic suite and scripted user decisions do not establish live assistant behavior.",
+                    "No grader or actual-agent execution occurred.",
+                ],
+            },
+            indent=2,
+        )
+        + "\n"
+    )
+    assert "The audit findings are recorded." in transcript
+    assert lifecycle["findings_review"] is None
+    if action != "improve":
+        assert "audit_handoff" not in saved["scopes"].get("expand", {})
+        return
+    handoff = copy.deepcopy(saved["scopes"]["expand"]["audit_handoff"])
+    assert handoff["recommendation_ids"] == ["R1", "R2", "R4"]
+    assert not re.search(r"\bR[1-9][0-9]*\b", transcript)
+    resumed = state.initialize(root, journey="expand")
+    assert resumed["scopes"]["expand"]["audit_handoff"] == handoff
+    with pytest.raises(ValueError, match="expected-revision"):
+        state.update(root, {"scopes": {"expand": {"pending_design": "Updated scope"}}})
+    with pytest.raises(ValueError, match="Retain the selected audit handoff"):
+        state.update(root, {"scopes": {"expand": None}}, expected_revision=resumed["revision"])
+    with pytest.raises(ValueError, match="reviewed audit next action"):
+        state.update(
+            root,
+            {"scopes": {"expand": {"audit_handoff": {**handoff, "recommendation_ids": ["R99"]}}}},
+            expected_revision=resumed["revision"],
+        )
+    assert not resumed["scopes"]["expand"]["confirmed"]
+    assert resumed["scopes"]["audit"]["origin"] == origin
+    assert resumed["scopes"]["audit"]["lifecycle"] == lifecycle
+    assert resumed["ethos"]["stage"] == "complete"
+    resumed = state.update(
+        root,
+        {"scopes": {"expand": {"pending_design": "Agree verifier repair scope"}}},
+        expected_revision=resumed["revision"],
+    )
+    assert resumed["scopes"]["expand"]["audit_handoff"] == handoff
+    data["recommendations"][0]["follow_through"] = {
+        "status": "blocked",
+        "summary": "Verifier repair awaits Journey 3 scope agreement. No controls or agent runs were executed.",
+        "evidence": [],
+    }
+    content_path.write_text(json.dumps(data, indent=2) + "\n")
+    updated = renderer.refresh(content.load(content_path, root))
+    assert updated["report"] == published["report"]
+    assert "Follow-through: Blocked" in (root / renderer.OUTPUT).read_text()
+    assert "No controls or agent runs were executed" in (root / renderer.OUTPUT).read_text()
+    assert state.load_state(root)["scopes"]["expand"]["audit_handoff"] == handoff
+    progress = audit.progress(root, state.load_state(root))
+    assert progress is not None and not progress["findings_reviewed"]
+    task = root / "report-sources/tasks/source-answer/instruction.md"
+    task.write_text(task.read_text() + "\nAn intentional follow-through revision.\n")
+    progress = audit.progress(root, state.load_state(root))
+    assert progress is not None and progress["changed_task_bindings"]
+    with pytest.raises(content.ContentError, match="changed"):
+        renderer.refresh(content.load(content_path, root))
+    assert state.load_state(root)["scopes"]["expand"]["audit_handoff"] == handoff
+
+
+def test_no_change_report_demo(audit_report) -> None:
+    content, renderer, root = audit_report
+    data = example_data(root)
+    task = root / "report-sources/tasks/source-answer"
+    (task / "instruction.md").write_text(
+        "Read the source using read_file. Answer with an exact quotation from it. "
+        "If it contains no answer, say that evidence is insufficient.\n"
+    )
+    (task / "verify.py").write_text(
+        "def verify(reply, source, answerable):\n"
+        "    if not answerable:\n"
+        "        return reply == 'The evidence is insufficient.'\n"
+        "    return bool(reply.strip()) and reply in source\n"
+    )
+    revision = content.core_module().task_evidence.task_digest(task)
+    for row in data["sources"]:
+        if row["id"] == "S3":
+            row["sha256"] = revision
+        elif row["id"] == "S4":
+            row["sha256"] = content.sha((task / "verify.py").read_bytes())
+    data["sources"] = [row for row in data["sources"] if row["id"] != "S5"]
+    for note in data["scope_notes"]:
+        note["evidence"] = [identifier for identifier in note["evidence"] if identifier != "S5"]
+    data["tasks"][0].update(revision=revision, run_ids=[], notes=[])
+    data["runs"] = []
+    data["findings"] = []
+    data["recommendations"] = []
+    data["verifier_review"].update(
+        checks=[], notes=["Only definitions were reviewed. No controls or agent runs were executed."]
+    )
+    for row in data["task_mappings"]:
+        row["tasks"] = [{"task_id": "T1", "relationship": "target"}]
+    data["summary"] = [
+        "No changes justified within the reviewed scope. The definitions address the agreed scenarios.",
+        "This synthetic example reviews definitions only. Grading behavior and actual agent behavior remain unproven.",
+    ]
+    model = load(audit_report, data)
+    renderer.refresh(model)
+    report = (root / renderer.OUTPUT).read_text()
+    assert "No changes justified within the reviewed scope" in report
+    assert "Finding 1 - Coverage gaps" not in report
+    assert "0 recommended tasks" in report
+    assert "runs not measured" in report
+    assert "remain unproven" in report
+    assert_markdown_links(report, renderer)
 
 
 def history_module(audit_report):

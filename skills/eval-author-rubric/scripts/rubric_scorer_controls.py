@@ -5,7 +5,9 @@
 
 import hashlib
 import json
+import re
 import sys
+from collections import Counter
 from copy import deepcopy
 from pathlib import Path
 from typing import Any
@@ -20,6 +22,45 @@ ANCHORS = {
     "AC-03": "credit-comes-from-current-trusted-results",
     "AC-04": "prior-trials-do-not-leak-answers-or-success",
 }
+
+
+def anti_cheat_definitions(reference: Path) -> dict[str, dict[str, Any]]:
+    definitions: dict[str, dict[str, Any]] = {}
+    for section in re.split(r"(?m)^## ", reference.read_text())[1:]:
+        heading, _, body = section.partition("\n")
+        if not heading.startswith("AC-"):
+            continue
+        ident, separator, title = heading.partition(": ")
+        match = re.search(r"\*\*Scoring:\*\*\s*(.*?)(?=\n\s*\n|\Z)", body, re.S)
+        if not separator or ident in definitions or match is None:
+            raise ValueError("malformed anti-cheat definition")
+        scoring = " ".join(match[1].split())
+        anchors = re.split(r"(?:^| )([0-3]): ", scoring)[1:]
+        if anchors[::2] != ["0", "1", "2", "3"] or not all(anchors[1::2]):
+            raise ValueError("malformed anti-cheat scoring anchors")
+        checks = [
+            {"method": method.lower(), "action": action.strip()}
+            for method, action in re.findall(
+                r"- (Deterministic|Review|Probe): (.*?)(?=\n- |\n\n\*\*Scoring:)", body, re.S
+            )
+        ]
+        counts = Counter(check["method"] for check in checks)
+        seen: Counter[str] = Counter()
+        for check in checks:
+            method = check["method"]
+            seen[method] += 1
+            suffix = f"-{seen[method]}" if counts[method] > 1 else ""
+            check["id"] = f"{ident}.{method}{suffix}"
+        definitions[ident] = {
+            "id": ident,
+            "title": title,
+            "canonical_scoring": scoring,
+            "scoring": dict(zip(anchors[::2], anchors[1::2], strict=True)),
+            "checks": checks,
+        }
+    if set(definitions) != set(ANCHORS):
+        raise ValueError("incomplete anti-cheat definitions")
+    return definitions
 
 
 def _runner():
@@ -198,12 +239,11 @@ def assess_controls(measurements, selection, root):
     observed = project(root, selection)
     if json.dumps(observed, sort_keys=True) != json.dumps(measurements.get("scorer_controls"), sort_keys=True):
         raise ValueError("scorer control measurement failed revalidation")
-    reference = REFERENCE.read_text()
+    definitions = anti_cheat_definitions(REFERENCE)
     rows: dict[str, dict[str, Any]] = {}
     for ident, anchor in ANCHORS.items():
         definition_ref = f"anti-cheat.md#{ident.lower()}-{anchor}"
-        section = reference.split(f"## {ident}:", 1)[1].split("\n## ", 1)[0]
-        scoring = section.split("**Scoring:**", 1)[1].split("\n\n", 1)[0].strip()
+        scoring = definitions[ident]["canonical_scoring"]
         rows[ident] = {
             "item_id": ident,
             "pillar": "validity",
@@ -291,4 +331,11 @@ def assess_controls(measurements, selection, root):
                 },
             ],
         )
+    for ident, row in rows.items():
+        for check in row["check_results"]:
+            check["check_id"] = next(
+                definition["id"]
+                for definition in definitions[ident]["checks"]
+                if definition["method"] == check["method"]
+            )
     return rows

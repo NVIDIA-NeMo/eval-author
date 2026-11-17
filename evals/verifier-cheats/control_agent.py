@@ -9,11 +9,13 @@ from pathlib import Path
 
 from harbor.agents.base import BaseAgent
 
+CONTROLS = {row["id"] for row in json.loads((Path(__file__).parent / "manifest.json").read_text())["controls"]}
+
 
 class ControlAgent(BaseAgent):
     def __init__(self, *args, control, **kwargs):
         super().__init__(*args, **kwargs)
-        if control not in ("reference", "early-exit", "fake-success", "hidden-case-read", "hang", "boolean-output"):
+        if control not in CONTROLS:
             raise ValueError("unknown control")
         self.control = control
 

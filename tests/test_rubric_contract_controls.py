@@ -65,10 +65,11 @@ def packet(root, clean=False):
     return selection
 
 
-def test_measure_cli_emits_bounded_contract_scores(tmp_path):
+@pytest.mark.parametrize("clean,outcome,total,unsupported", [(False, "FAIL", 5, 2), (True, "PARTIAL", 3, 0)])
+def test_measure_cli_emits_bounded_contract_scores(tmp_path, clean, outcome, total, unsupported):
     import subprocess
 
-    selection = packet(tmp_path)
+    selection = packet(tmp_path, clean=clean)
     request = tmp_path / "selection.json"
     request.write_text(json.dumps(selection))
     result = subprocess.run(
@@ -79,8 +80,12 @@ def test_measure_cli_emits_bounded_contract_scores(tmp_path):
     )
     assert result.returncode == 1
     report = json.loads(result.stdout)
-    assert report["items"]["task-contract.discoverable-requirements"]["score"] == 0
-    assert report["items"]["task-contract.discoverable-requirements"]["evidence_strength"] == "E1"
+    row = report["items"]["task-contract.discoverable-requirements"]
+    assert row["score"] == (None if clean else 0)
+    assert row["evidence_strength"] == (None if clean else "E1")
+    check = next(check for check in row["check_results"] if check["method"] == "deterministic")
+    assert check["outcome"] == outcome
+    assert check["coverage"] == {"supported": 2, "total": total, "unsupported": unsupported, "unadjudicated": 1}
     assert report["items"]["task-contract.clear-contract"]["score"] is None
     assert "criterion_demonstration" not in report
     definitions = json.loads(module().REFERENCE.read_bytes())["items"]
@@ -258,14 +263,27 @@ def test_identity_selection_requires_exact_unique_ids_and_digests(tmp_path):
         module().assess_contract_controls(tmp_path, selection)
 
 
-def test_symlink_root_is_not_resolved_into_authority(tmp_path):
+def test_symlink_root_resolves_to_the_same_contract_through_cli(tmp_path):
+    import subprocess
+
     real = tmp_path / "real"
     real.mkdir()
     selection = packet(real)
     link = tmp_path / "alias"
     link.symlink_to(real, target_is_directory=True)
-    with pytest.raises(ValueError):
-        module().assess_contract_controls(link, selection)
+    request = real / "selection.json"
+    request.write_text(json.dumps(selection))
+    reports = []
+    for root in (real, link):
+        result = subprocess.run(
+            [sys.executable, str(SCRIPT.with_name("measure.py")), "--root", str(root), "--selection", str(request)],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        assert result.returncode == 1, result.stdout + result.stderr
+        reports.append(json.loads(result.stdout))
+    assert reports[0] == reports[1]
 
 
 def test_unknown_selector_keys_are_rejected(tmp_path):

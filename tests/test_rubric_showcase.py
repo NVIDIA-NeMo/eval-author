@@ -6,6 +6,7 @@ import os
 import subprocess
 import sys
 from pathlib import Path
+from typing import Any, cast
 
 import pytest
 
@@ -90,7 +91,7 @@ def test_showcase_repeats_every_area_in_fresh_root(showcase_output):
     assert (output / "integrity/panel.json").read_bytes() != (repeat / "integrity/panel.json").read_bytes()
     assert len(primary["identity"]["package_acceptance"]["cases"]) > 0
     assert len(primary["provenance"]["cases"]) == 16
-    assert len(primary["task_contract"]["cases"]) == 7
+    assert len(primary["task_contract"]["cases"]) == 6
     assert len(primary["scorer"]["panel"]["cases"]) == 21
     assert len(primary["integrity"]["cases"]) == 8
     assert primary["integrity"]["retry"]["score"] is None
@@ -282,7 +283,7 @@ def test_showcase_cli_reads_emitted_scores_and_keeps_boundaries(showcase_output)
     assert "<th>Discoverable grading requirements</th>" in page
     assert "identity/panel.json" in page
     assert "provenance/panel.json" in page
-    assert summary["task_contract"]["matched"] == summary["task_contract"]["cases"] == 7
+    assert summary["task_contract"]["matched"] == summary["task_contract"]["cases"] == 6
     assert summary["task_contract"]["human_adjudication"] is False
     assert "task-contract/report.md" in page
     assert "<table" in page
@@ -665,3 +666,311 @@ def test_showcase_refuses_existing_output(tmp_path):
     )
     assert result.returncode != 0
     assert not (tmp_path / "index.html").exists()
+
+
+def test_scoring_replay_resolves_trusted_temporary_root(tmp_path, monkeypatch):
+    import contextlib
+
+    module = showcase_module()
+    real = tmp_path / "real"
+    real.mkdir()
+    alias = tmp_path / "alias"
+    alias.symlink_to(real, target_is_directory=True)
+    source = tmp_path / "bundle/criterion-scoring"
+    source.mkdir(parents=True)
+    (source / "sentinel").write_text("retained")
+
+    @contextlib.contextmanager
+    def temporary_directory(**kwargs):
+        yield str(alias)
+
+    seen = []
+
+    def verify(copied, *, verify):
+        assert verify is True
+        assert copied == real / "criterion-scoring"
+        assert not any(path.is_symlink() for path in copied.parents)
+        seen.append(copied)
+
+    monkeypatch.setattr(module.tempfile, "TemporaryDirectory", temporary_directory)
+    module.verify_private_copy(source, verify)
+    assert seen
+    assert (source / "sentinel").read_text() == "retained"
+
+
+@pytest.mark.parametrize("failure", ["symlink", "existing", "partial"])
+def test_output_failure_diagnostics_preserve_evidence(tmp_path, monkeypatch, capsys, failure):
+    module = showcase_module()
+    output = tmp_path / "output"
+    if failure == "symlink":
+        alias = tmp_path / "alias"
+        alias.symlink_to(tmp_path, target_is_directory=True)
+        output = alias / "output"
+    elif failure == "existing":
+        output.mkdir()
+        (output / "sentinel").write_text("keep")
+    else:
+
+        def fail(directory):
+            (directory / "sentinel").write_text("keep")
+            raise ValueError("producer failed")
+
+        monkeypatch.setattr(module, "collect", fail)
+    with pytest.raises(SystemExit):
+        module.main(["--output", str(output)])
+    error = capsys.readouterr().err
+    if failure == "symlink":
+        assert str(tmp_path / "alias") in error
+    else:
+        assert "new output directory" in error
+        assert str(output) in error
+        assert (output / "sentinel").read_text() == "keep"
+
+
+@pytest.mark.parametrize("mutation", ["expected-score", "expected-count", "fresh-equality"])
+def test_integrity_rejects_coherent_expectation_tampering(tmp_path, mutation):
+    module = showcase_module()
+    sys.path.insert(0, str(ROOT / "tools"))
+    from run_verification_integrity_demo import anchor
+
+    integrity = tmp_path / "integrity"
+    integrity.mkdir()
+    cases = [anchor(integrity / f"anchor-{score}", passed, score) for score, passed in enumerate((0, 1, 3, 4))]
+    cases.extend(
+        {"id": ident} for ident in ("missing", "stale", "acceptance-contradiction", "acceptance-consistent-claim")
+    )
+    panel: dict = {"status": "passed", "cases": cases, "determinism": {"normalized_fresh_run_equal": True}}
+    if mutation == "fresh-equality":
+        cast(Any, panel["determinism"])["normalized_fresh_run_equal"] = "<img src=x onerror=alert(1)>"
+    else:
+        cases[0]["expected"]["score" if mutation == "expected-score" else "passed"] = 99
+    (integrity / "panel.json").write_text(json.dumps(panel))
+    # Only this prefix is needed: the independent expectation gate must reject
+    # before reaching absent later panels, not fail on an unrelated file read.
+    with pytest.raises(ValueError, match="integrity (anchor expectation|replay)"):
+        module.validate_reports(tmp_path)
+
+
+def test_renderer_escapes_all_untrusted_scalar_fields():
+    import html
+
+    module = showcase_module()
+    payload = '<img src=x onerror="alert(1)">'
+    ids = [
+        "provenance.task-artifact-access",
+        "provenance.grading-path",
+        "provenance.grading-dependency-access",
+        "task-contract.clear-contract",
+        "task-contract.discoverable-requirements",
+        "task-contract.scoring-authority",
+    ]
+    arm: dict = dict.fromkeys(
+        (
+            "score",
+            "evidence_strength",
+            "false_accepts",
+            "invalid_denominator",
+            "false_rejects",
+            "valid_denominator",
+            "health_errors",
+            "alternatives_accepted",
+            "alternatives_total",
+        ),
+        payload,
+    )
+    arm["remaining_gaps"] = [payload]
+    summary = {
+        "criterion_inventory": [
+            {
+                "id": ident,
+                "title": payload,
+                "area": payload,
+                "demonstration_status": payload,
+                "scoring_rule_status": payload,
+            }
+            for ident in ids
+        ],
+        "scorer": {
+            "baseline": arm,
+            "reviewed": arm,
+            "matched_controls": payload,
+            "attempted_controls": payload,
+            "replay_equal": payload,
+        },
+        "integrity": {
+            "fresh_replay_equal": payload,
+            "anchors": [
+                dict.fromkeys(
+                    (
+                        "id",
+                        "expected",
+                        "observed",
+                        "passed",
+                        "failed",
+                        "unknown",
+                        "excluded",
+                        "canonical_score",
+                        "evidence",
+                    ),
+                    payload,
+                )
+            ],
+        },
+        "task_contract": {"ethos": [], "assessments": [], "matched": payload, "cases": payload},
+        "identity": {
+            "counts": {"evidence_cases": payload},
+            "assessments": [{"id": payload, "scores": dict.fromkeys(ids, payload)}],
+            "evidence_cases": [
+                {"id": payload, "measurement": "ethos", "observation": {"status": payload, "valid": payload}}
+            ],
+        },
+        "provenance": {"matched": payload, "cases": payload},
+        "receipt_authenticity": {},
+        "production_gaps": [],
+        "criterion_demonstration": {
+            "criterion_count": payload,
+            "vector_count_per_root": payload,
+            "results": {
+                name: dict.fromkeys(ids, payload) for name in ("score-0", "score-1", "score-2", "score-3", "missing")
+            },
+        },
+        "determinism": {"fresh_run_equal": payload},
+    }
+    page = module.render(summary, {"cases": []})
+    assert payload not in page
+    assert html.escape(payload, quote=True) in page
+
+
+def test_scorer_replay_rejects_coordinated_panel_tampering(tmp_path, capsys):
+    module = showcase_module()
+    import run_scorer_controls as owner
+
+    output = tmp_path / "scorer"
+    assert owner.main(["--output", str(output), "--rubric"]) == 0
+    capsys.readouterr()
+    path = output / "panel.json"
+    panel = module.read(path)
+    row = next(row for row in panel["cases"] if row["id"] == "no-work")
+    row["observed"]["baseline"]["accepted"] = False
+    row["expected"]["baseline"]["accepted"] = False
+    path.write_text(json.dumps(panel))
+    before = module.retained_hashes(tmp_path)
+    with pytest.raises(ValueError, match="scorer replay"):
+        module.validate_scorer_reports(output)
+    assert module.retained_hashes(tmp_path) == before
+
+
+@pytest.mark.parametrize("area", ["integrity", "task-contract"])
+def test_linked_markdown_rejects_resealed_append(showcase_output, tmp_path, area):
+    import shutil
+
+    module = showcase_module()
+    output = tmp_path / "linked"
+    shutil.copytree(showcase_output, output)
+    path = output / area / "report.md"
+    path.write_text(path.read_text() + "\nInvented verified approval.\n")
+    (output / "showcase-hashes.json").write_text(json.dumps(module.retained_hashes(output)))
+    with pytest.raises(ValueError, match="Markdown"):
+        module.validate_linked_reports(output)
+    with pytest.raises(ValueError, match="Markdown"):
+        module.verify_existing(output)
+
+
+@pytest.mark.parametrize("capture", ["identity.stdout", "scorer.stdout", "integrity.stderr"])
+def test_invocation_captures_are_consistency_checked(showcase_output, tmp_path, capture):
+    import shutil
+
+    module = showcase_module()
+    output = tmp_path / "capture"
+    shutil.copytree(showcase_output, output)
+    (output / capture).write_text("invented invocation capture")
+    with pytest.raises(ValueError, match="invocation capture"):
+        module.validate_invocation_captures(output)
+
+
+@pytest.mark.parametrize("mutation", ["expected", "fresh-equality", "scorer"])
+def test_verify_rejects_fully_resealed_forgery(showcase_output, tmp_path, mutation):
+    import shutil
+
+    module = showcase_module()
+    output = tmp_path / "forged"
+    shutil.copytree(showcase_output, output)
+    for root in (output, output / "fresh-replay"):
+        name = "scorer" if mutation == "scorer" else "integrity"
+        path = root / name / "panel.json"
+        panel = module.read(path)
+        if mutation == "expected":
+            panel["cases"][0]["expected"]["score"] = '<img src=x onerror="alert(1)">'
+        elif mutation == "fresh-equality":
+            panel["determinism"]["normalized_fresh_run_equal"] = False
+        else:
+            row = next(row for row in panel["cases"] if row["id"] == "no-work")
+            row["observed"]["baseline"]["accepted"] = row["expected"]["baseline"]["accepted"] = False
+        path.write_text(json.dumps(panel))
+        for capture in (f"{name}.stdout", "scorer-replay.stdout") if name == "scorer" else (f"{name}.stdout",):
+            captured = module.read(root / capture)
+            captured.update(panel)
+            (root / capture).write_text(json.dumps(captured))
+    summary = module.summarize_reports(output)
+    summary["determinism"] = module.compare_runs(output)
+    (output / "showcase.json").write_text(json.dumps(summary))
+    (output / "index.html").write_text(module.render(summary, module.read(output / "scorer/panel.json")))
+    (output / "showcase-hashes.json").write_text(json.dumps(module.retained_hashes(output)))
+    with pytest.raises(ValueError, match="integrity (anchor expectation|replay)|scorer replay"):
+        module.verify_existing(output)
+
+
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        ("total_required", False),
+        ("summary_required", False),
+        ("condition_count", 99),
+        ("expected_total", "999.99"),
+        ("fixture_total", "999.99"),
+        ("fixture_order_count", 99),
+        ("summary_expected", {"currency": "EUR", "order_count": 99}),
+        ("reward_rule", "invented"),
+        (
+            "evidence_strengths",
+            dict.fromkeys(
+                (
+                    "task-contract.clear-contract",
+                    "task-contract.discoverable-requirements",
+                    "task-contract.scoring-authority",
+                ),
+                "E3",
+            ),
+        ),
+    ],
+)
+def test_contract_inspection_rejects_coherent_resealing(showcase_output, tmp_path, field, value):
+    import hashlib
+    import shutil
+
+    module = showcase_module()
+    output = tmp_path / "contract-forgery"
+    shutil.copytree(showcase_output, output)
+    for root in (output, output / "fresh-replay"):
+        path = root / "task-contract/panel.json"
+        panel = module.read(path)
+        row = next(row for row in panel["cases"] if row["id"] == "planted-summary")
+        row["observed"][field] = row["expected"][field] = value
+        path.write_text(json.dumps(panel))
+        (root / "task-contract.stdout").write_text(json.dumps(panel))
+        hashes_path = root / "task-contract/hashes.json"
+        hashes = module.read(hashes_path)
+        hashes["panel.json"] = hashlib.sha256(path.read_bytes()).hexdigest()
+        hashes_path.write_text(json.dumps(hashes))
+    summary = module.summarize_reports(output)
+    summary["determinism"] = module.compare_runs(output)
+    (output / "showcase.json").write_text(json.dumps(summary))
+    (output / "index.html").write_text(module.render(summary, module.read(output / "scorer/panel.json")))
+    (output / "showcase-hashes.json").write_text(json.dumps(module.retained_hashes(output)))
+    with pytest.raises(ValueError, match="task contract inspection"):
+        module.verify_existing(output)
+
+
+def test_showcase_labels_logs_as_unauthenticated_invocation_captures(showcase_output):
+    page = (showcase_output / "index.html").read_text()
+    assert "invocation captures, not authenticated execution evidence" in page

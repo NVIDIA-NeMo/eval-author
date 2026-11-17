@@ -27,7 +27,7 @@ PHASES = {
     "complete": "next_action",
 }
 STAGES = {"audit_" + stage for stage in {*PHASES.values(), "blockers", "resume"}}
-COMMON_FACTS = {"audit_observations", "links", "blockers"}
+COMMON_FACTS = {"audit_observations", "links", "blockers", "suite_report_error"}
 STAGE_FACTS = {
     "suites": {"suites", "report_action"},
     "traces": {"report_action"},
@@ -48,8 +48,12 @@ def rows(value: object, label: str, *, maximum: int = 100) -> list:
 def recommendations(facts: dict) -> list[dict]:
     result = rows(facts.get("recommendations", []), "recommendations", maximum=3)
     labels = set()
+    identifiers = []
     for item in result:
-        mapping(item, "recommendation", {"kind", "label", "reason"})
+        mapping(item, "recommendation", {"kind", "label", "reason", "id"})
+        if "id" in item:
+            audit_state.recommendation_ids([item["id"]])
+            identifiers.append(item["id"])
         if item.get("kind") not in audit_state.ACTIONS - {"finish"}:
             raise ValueError("Recommendations require a supported next action")
         label = text(item.get("label"), "recommendation label")
@@ -57,6 +61,8 @@ def recommendations(facts: dict) -> list[dict]:
         if label in labels:
             raise ValueError("Recommendation labels must be distinct")
         labels.add(label)
+    if identifiers:
+        audit_state.recommendation_ids(identifiers)
     return result
 
 
@@ -101,7 +107,16 @@ def report_notice(state: dict, lifecycle: dict, facts: dict) -> str:
     action = facts.get("report_action")
     if not isinstance(action, str) or action not in copy.REPORT_ACTIONS:
         raise ValueError("Supply the actual report action: created, updated, or unchanged")
-    return copy.REPORT_ACTIONS[action].format(report=report_link(state, lifecycle, facts))
+    notice = copy.REPORT_ACTIONS[action].format(report=report_link(state, lifecycle, facts))
+    # The audit renderer refreshes report.html from the canonical report; a legacy location has no Audit tab yet.
+    # A suite_report_error means the Markdown is current but the HTML is not, so never announce the HTML then.
+    if facts.get("suite_report_error"):
+        notice += " " + copy.HTML_REPORT_FAILED
+    elif lifecycle["findings"]["report"]["path"] == copy.CANONICAL_REPORT:
+        notice += " " + copy.HTML_REPORT.format(
+            html=link(local_target(state, copy.HTML_REPORT_PATH), copy.HTML_REPORT_LABEL, fragment="audit")
+        )
+    return notice
 
 
 def scope(state: dict, lifecycle: dict) -> str:
@@ -336,7 +351,7 @@ def render(payload: dict) -> str:
         if pending:
             question = literal(pending["question"], "pending next action")
         elif state["pending_question"] is not None:
-            raise ValueError("Clear the answered findings question before acknowledging acceptance")
+            raise ValueError("Clear the obsolete findings question before acknowledging recorded findings")
     elif state["pending_question"] is not None:
         raise ValueError("Resolve the pending measurement question through a saved blocker")
     if stage == "suites":
@@ -364,6 +379,9 @@ def render(payload: dict) -> str:
             parts.append(measurement_status(lifecycle, audit))
         if audit["next_action_current"]:
             parts.append(copy.NEXT_ACTIONS[lifecycle["next_action"]["kind"]])
+            action = lifecycle["next_action"]
+            if action["kind"] == "improve" and not action.get("recommendation_ids"):
+                parts.append(copy.LEGACY_SELECTION)
         elif pending and (recommended := recommendation_section(facts)):
             parts.append(recommended)
     if stage in {"suites", "traces", "measurement"} and "report_action" in facts:

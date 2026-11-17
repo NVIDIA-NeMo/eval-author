@@ -12,6 +12,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+from collections.abc import Callable
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -235,6 +236,7 @@ def validate_reports(output: Path) -> None:
     ]
     require_equal([row["id"] for row in panel["cases"]], expected_ids, "integrity membership")
     require_equal(panel["status"], "passed", "integrity status")
+    require_equal(panel["determinism"]["normalized_fresh_run_equal"], True, "integrity replay")
     for row, passed, score in zip(panel["cases"][:4], (0, 1, 3, 4), range(4), strict=True):
         report = read(output / "integrity" / row["evidence"]["report"])
         observed = receipt_score(report)
@@ -262,6 +264,23 @@ def validate_reports(output: Path) -> None:
         )
         require_equal(observed["required_freshness"], ["unknown"] * 3, "integrity freshness")
         require_equal(observed["group_scopes"], ["verification_integrity"] * 2, "integrity groups")
+        require_equal(
+            row["expected"],
+            {
+                key: observed[key]
+                for key in (
+                    "score",
+                    "passed",
+                    "failed",
+                    "unknown",
+                    "excluded",
+                    "required_group",
+                    "required_freshness",
+                    "group_scopes",
+                )
+            },
+            "integrity anchor expectation",
+        )
     for row in panel["cases"]:
         require_equal(row["matches_expectations"], True, "integrity case match")
     for row, status, score in zip(
@@ -436,17 +455,89 @@ def validate_reports(output: Path) -> None:
         if not criterion["remaining_gaps"]:
             raise ValueError("scorer missing gaps")
 
+    validate_scorer_reports(output / "scorer")
+
     validate_source_bound_scores(output)
+    validate_linked_reports(output)
 
     # The owner replays only trusted current measure.py against data. Its CLI
     # writes invocation logs, so verify a private copy to keep this bundle read-only.
-    with tempfile.TemporaryDirectory(prefix="showcase-scoring-verify-") as scratch:
-        copied = Path(scratch) / "criterion-scoring"
-        shutil.copytree(output / "criterion-scoring", copied)
-        verify_scoring_demo(copied, verify=True)
+    verify_private_copy(output / "criterion-scoring", verify_scoring_demo)
+    validate_invocation_captures(output)
+
+
+def verify_private_copy(source: Path, verifier: Callable) -> None:
+    with tempfile.TemporaryDirectory(prefix="showcase-verify-") as scratch:
+        # Resolve the trusted system temporary root, not retained input paths.
+        copied = Path(scratch).resolve() / source.name
+        shutil.copytree(source, copied)
+        verifier(copied, verify=True)
+
+
+def validate_scorer_reports(output: Path) -> dict:
+    from run_scorer_controls import rubric_demo, run_panel
+
+    selected = read(output / "selection.json")
+    panel = run_panel(output, selected)
+    require_equal(read(output / "panel.json"), panel, "scorer replay")
+    panel["rubric_comparison"] = rubric_demo(output, selected, verify=True)
+    return panel
+
+
+def validate_invocation_captures(output: Path) -> None:
+    from run_scorer_controls import encoded
+
+    panels = {
+        name: read(output / name / "panel.json")
+        for name in ("identity", "provenance", "task-contract", "integrity", "scorer")
+    }
+    panels["criterion-scoring"] = read(output / "criterion-scoring/summary.json")
+    panels["scorer"] = {
+        **panels["scorer"],
+        "rubric_comparison": {
+            "criterion": "AC-02",
+            "expected": {"baseline": 0, "reviewed": 1},
+            "observed": {
+                arm: read(output / f"scorer/rubric-{arm}.json")["items"]["AC-02"]["score"]
+                for arm in ("baseline", "reviewed")
+            },
+            "matched": True,
+        },
+    }
+    panels["scorer-replay"] = panels["scorer"]
+    for name, panel in panels.items():
+        require_equal((output / f"{name}.stderr").read_text(), "", f"{name} invocation capture stderr")
+        try:
+            captured = read(output / f"{name}.stdout")
+        except ValueError as exc:
+            raise ValueError(f"{name} invocation capture JSON mismatch") from exc
+        require_equal(captured, panel, f"{name} invocation capture")
+        if name.startswith("scorer"):
+            require_equal((output / f"{name}.stdout").read_text(), encoded(panel), f"{name} invocation capture bytes")
+
+
+def validate_linked_reports(output: Path) -> None:
+    from run_task_contract_demo import collect as collect_contract
+    from run_verification_integrity_demo import render as render_integrity
+
+    require_equal(
+        (output / "integrity/report.md").read_text(),
+        render_integrity(read(output / "integrity/panel.json")),
+        "integrity Markdown",
+    )
+    # The contract renderer is owned by collect; regenerate from trusted fixtures
+    # rather than copy its formatting or execute retained sources.
+    with tempfile.TemporaryDirectory(prefix="showcase-contract-verify-") as scratch:
+        root = Path(scratch).resolve()
+        collect_contract(root)
+        require_equal(
+            (output / "task-contract/report.md").read_text(), (root / "report.md").read_text(), "task contract Markdown"
+        )
 
 
 def validate_source_bound_scores(output: Path) -> None:
+    from run_task_contract_demo import contract_observation
+
     for arm, score in (("baseline", 0), ("reviewed", None)):
         report = read(output / f"scorer/rubric-{arm}.json")
         criterion = report["items"]["AC-03"]
@@ -460,9 +551,17 @@ def validate_source_bound_scores(output: Path) -> None:
             if finding not in report["items"]["AC-02"]["finding_ids"]:
                 raise ValueError("AC-02 shared finding missing")
     contract = read(output / "task-contract/panel.json")
-    require_equal(contract["case_count"], 7, "task contract count")
-    require_equal(contract["matched_count"], 7, "task contract matched count")
-    require_equal(len({row["id"] for row in contract["cases"]}), 7, "task contract membership")
+    expected_cases = [
+        "planted-summary",
+        "clean-neighbor",
+        "ethos-valid",
+        "ethos-invalid",
+        "ethos-stale",
+        "ethos-missing-validator",
+    ]
+    require_equal(contract["case_count"], len(expected_cases), "task contract count")
+    require_equal(contract["matched_count"], len(expected_cases), "task contract matched count")
+    require_equal([row["id"] for row in contract["cases"]], expected_cases, "task contract membership")
     require_equal(contract["human_adjudication"], False, "task contract adjudication")
     for row in contract["cases"]:
         report = read(output / "task-contract" / row["report"])
@@ -518,7 +617,9 @@ def validate_source_bound_scores(output: Path) -> None:
                 "E1" if row["id"] == "planted-summary" else None,
                 "task contract evidence",
             )
-            require_equal(row["observed"], row["expected"], "task contract inspection")
+            observation = contract_observation(report)
+            require_equal(row["observed"], observation, "task contract inspection projection")
+            require_equal(row["expected"], observation, "task contract inspection expectation")
             read(output / "task-contract" / row["crosswalk"])
 
 
@@ -587,7 +688,7 @@ def render(summary, panel):
         return esc(value)
 
     def score(value):
-        return "Unassessed" if value is None else str(value)
+        return "Unassessed" if value is None else esc(value)
 
     labels = {row["id"]: row["title"] for row in summary["criterion_inventory"]}
 
@@ -600,9 +701,9 @@ def render(summary, panel):
     scorer = summary["scorer"]
     compare = "".join(
         f"<tr><td>{arm.capitalize()}</td><td>{score(scorer[arm]['score'])}/{esc(scorer[arm]['evidence_strength'])}</td>"
-        f"<td>{scorer[arm]['false_accepts']}/{scorer[arm]['invalid_denominator']}</td>"
-        f"<td>{scorer[arm]['false_rejects']}/{scorer[arm]['valid_denominator']}</td>"
-        f'<td>{scorer[arm]["health_errors"]}</td><td><a href="scorer/rubric-{arm}.json">Rubric report</a></td></tr>'
+        f"<td>{esc(scorer[arm]['false_accepts'])}/{esc(scorer[arm]['invalid_denominator'])}</td>"
+        f"<td>{esc(scorer[arm]['false_rejects'])}/{esc(scorer[arm]['valid_denominator'])}</td>"
+        f'<td>{esc(scorer[arm]["health_errors"])}</td><td><a href="scorer/rubric-{arm}.json">Rubric report</a></td></tr>'
         for arm in ("baseline", "reviewed")
     )
     cases = "".join(
@@ -616,8 +717,8 @@ def render(summary, panel):
         for row in panel["cases"]
     )
     anchors = "".join(
-        f"<tr><td>{esc(row['id'])}</td><td>{row['expected']}</td><td>{score(row['observed'])}</td>"
-        f"<td>{row['passed']} / {row['failed']} / {row['unknown']} / {row['excluded']}</td>"
+        f"<tr><td>{esc(row['id'])}</td><td>{esc(row['expected'])}</td><td>{score(row['observed'])}</td>"
+        f"<td>{esc(row['passed'])} / {esc(row['failed'])} / {esc(row['unknown'])} / {esc(row['excluded'])}</td>"
         f'<td>{score(row["canonical_score"])}</td><td><a href="{esc(row["evidence"])}">Evidence</a></td></tr>'
         for row in summary["integrity"]["anchors"]
     )
@@ -697,7 +798,7 @@ h1{{font-size:30px;line-height:1.2}}h2{{margin-top:36px;font-size:22px}}a{{color
 <h2>1. Canonical rubric: Anticheat-02</h2>
 <p>The completion-only baseline awards credit that the task forbids. The reviewed scorer accepts valid solutions and checks the required effects. Task-credit totals use each arm's own scale, separate from the canonical rubric score.</p>
 <div class="scroll"><table><thead><tr><th>Scorer</th><th>Anticheat-02</th><th>False accepts / healthy invalid</th><th>False rejects / healthy valid</th><th>Operational errors</th><th>Evidence</th></tr></thead><tbody>{compare}</tbody></table></div>
-<p>{scorer["matched_controls"]}/{scorer["attempted_controls"]} control outcomes match the frozen expectations. The reviewed scorer accepts {scorer["reviewed"]["alternatives_accepted"]}/{scorer["reviewed"]["alternatives_total"]} declared valid alternatives. The baseline has {scorer["baseline"]["health_errors"]} operational errors. The reviewed arm has {scorer["reviewed"]["health_errors"]}. These errors do not count as semantic rejections. Each control's frozen acceptance expectation for the reviewed arm determines its valid/invalid denominator. They include valid alternatives, permitted inaction, partial credit and the negative approval boundary. Operational cases remain separate. Same-input scorer replay: {scorer["replay_equal"]}.</p>
+<p>{esc(scorer["matched_controls"])}/{esc(scorer["attempted_controls"])} control outcomes match the frozen expectations. The reviewed scorer accepts {esc(scorer["reviewed"]["alternatives_accepted"])}/{esc(scorer["reviewed"]["alternatives_total"])} declared valid alternatives. The baseline has {esc(scorer["baseline"]["health_errors"])} operational errors. The reviewed arm has {esc(scorer["reviewed"]["health_errors"])}. These errors do not count as semantic rejections. Each control's frozen acceptance expectation for the reviewed arm determines its valid/invalid denominator. They include valid alternatives, permitted inaction, partial credit and the negative approval boundary. Operational cases remain separate. Same-input scorer replay: {esc(scorer["replay_equal"])}.</p>
 <details><summary>Inspect all paired controls and task credit</summary><div class="scroll"><table><thead><tr><th>Control</th><th>Role</th><th>Baseline credit</th><th>Reviewed credit</th><th>Expected comparison</th></tr></thead><tbody>{cases}</tbody></table></div></details>
 <h3>Receipt authenticity: Anticheat-03</h3>
 <p>The baseline accepts a solver-authored success claim. The actual local control emits Anticheat-03 = 0/E2. The reviewed arm remains Unassessed. Anticheat-02 and Anticheat-03 share the refund-solver-authored-success finding. They describe the same exploit, not two independent exploits. Rejecting this one shortcut does not prove a complete receipt trust boundary.</p>
@@ -705,22 +806,22 @@ h1{{font-size:30px;line-height:1.2}}h2{{margin-top:36px;font-size:22px}}a{{color
 <h2>2. Integrity group: receipt_consistency</h2>
 <p>The deterministic receipt-consistency check emits these separate 0–3 group scores (<code>provenance.evidence-revision-consistency.deterministic-1</code>). They do not score the whole Evidence revision consistency criterion. Required verification remains Unassessed because native freshness is unknown.</p>
 <div class="scroll"><table><thead><tr><th>Case</th><th>Expected group</th><th>Observed group</th><th>Pass / fail / unknown / excluded</th><th>Canonical evidence revision consistency</th><th>Evidence</th></tr></thead><tbody>{anchors}</tbody></table></div>
-<p><a href="integrity/report.md">Missing/stale evidence, acceptance claims and retry cases</a>: missing or stale evidence stays Unassessed. The acceptance helpers project results from partial claims. These examples do not demonstrate saved-envelope workflow acceptance. Retry candidates remain unscored. Fresh-directory normalized integrity replay: {summary["integrity"]["fresh_replay_equal"]}.</p>
+<p><a href="integrity/report.md">Missing/stale evidence, acceptance claims and retry cases</a>: missing or stale evidence stays Unassessed. The acceptance helpers project results from partial claims. These examples do not demonstrate saved-envelope workflow acceptance. Retry candidates remain unscored. Fresh-directory normalized integrity replay: {esc(summary["integrity"]["fresh_replay_equal"])}.</p>
 <h2>3. Identity and provenance</h2>
 <p>Separate canonical scores assess the selected task, declared scorer route and dependency inventory. A wrong route lowers Grading-path identification to 0. An unresolved route remains Unassessed. A confirmed missing task lowers Task artifact access to 0. These identity results do not prove scorer correctness.</p>
 <div class="scroll"><table><thead><tr><th>Mutation</th><th>{label("provenance.task-artifact-access")}</th><th>{label("provenance.grading-path")}</th><th>{label("provenance.grading-dependency-access")}</th></tr></thead><tbody>{identity_rows}</tbody></table></div>
-<p><a href="identity/panel.json">Identity assessment and source/configuration diagnostics</a>. The provenance panel matches {summary["provenance"]["matched"]}/{summary["provenance"]["cases"]} cases through the actual CLI. The cases include changed selected bytes, broken links, configuration binding, stale dependencies and retained-text reconstruction. <a href="provenance/panel.json">Provenance evidence and individual report links</a>.</p>
+<p><a href="identity/panel.json">Identity assessment and source/configuration diagnostics</a>. The provenance panel matches {esc(summary["provenance"]["matched"])}/{esc(summary["provenance"]["cases"])} cases through the actual CLI. The cases include changed selected bytes, broken links, configuration binding, stale dependencies and retained-text reconstruction. <a href="provenance/panel.json">Provenance evidence and individual report links</a>.</p>
 <h2>4. Task contract and scoring authority</h2>
 <h3>Selected-source evidence diagnostics</h3>
-<p>The identity panel includes {summary["identity"]["counts"]["evidence_cases"]} evidence cases. Authority locators resolve selected content, fail for a broken reference, or stay unknown for prose. An unaffected neighbor remains resolved. Resolving a locator does not establish semantic correctness or authenticated owner approval. These checks add no canonical score.</p>
+<p>The identity panel includes {esc(summary["identity"]["counts"]["evidence_cases"])} evidence cases. Authority locators resolve selected content, fail for a broken reference, or stay unknown for prose. An unaffected neighbor remains resolved. Resolving a locator does not establish semantic correctness or authenticated owner approval. These checks add no canonical score.</p>
 <div class="scroll"><table><thead><tr><th>Case</th><th>Measurement</th><th>Status</th><th>Observed detail</th><th>Diagnostics</th></tr></thead><tbody>{evidence_rows}</tbody></table></div>
 <p>The order-total task asks for total.txt. Its planted scorer also requires summary.json. The retained static crosswalk cites the instruction, scorer and input data. A clean neighbor removes that hidden condition. For the planted hidden condition, the real CLI emits Discoverable grading requirements = 0/E1. This score is bound to the supported fixture source bytes. The clean neighbor stays Unassessed because removing one defect does not establish a positive anchor. Clear task contract and Correctness and scoring authority remain Unassessed. No human adjudication is supplied.</p>
 <table><thead><tr><th>Source case</th><th>{label("task-contract.clear-contract")}</th><th>{label("task-contract.discoverable-requirements")}</th><th>{label("task-contract.scoring-authority")}</th><th>Discoverability evidence strength</th><th>Evidence</th></tr></thead><tbody>{contract_rows}</tbody></table>
-<p><a href="task-contract/report.md">Condition crosswalk and expected-versus-observed inspection</a>. {summary["task_contract"]["matched"]}/{summary["task_contract"]["cases"]} task-contract and Ethos scenarios match their expectations. The results come from authored static inspections and real structure checks. No model judgment was measured.</p>
+<p><a href="task-contract/report.md">Condition crosswalk and expected-versus-observed inspection</a>. {esc(summary["task_contract"]["matched"])}/{esc(summary["task_contract"]["cases"])} task-contract and Ethos scenarios match their expectations. The results come from authored static inspections and real structure checks. No model judgment was measured.</p>
 <div class="scroll"><table><thead><tr><th>Ethos case</th><th>Measurement status</th><th>Structure valid</th><th>Owner confirmation</th><th>Evidence</th></tr></thead><tbody>{ethos_rows}</tbody></table></div>
 <p>A structurally valid but changed Ethos still fails its digest binding. An unavailable validator leaves the result unknown. Valid structure does not establish confirmed owner intent. The owning journey-state validator handles saved-byte confirmation and invalidation. This demo supplies no reviewed user turn. Confirmation is NOT_RUN, and the demo creates no journey-state approval.</p>
 <h2>5. Synthetic scoring-rule coverage</h2>
-<p>All {demo["criterion_count"]} criteria have tests for 0, 1, 2, 3 and missing through the actual measurement CLI: {demo["vector_count_per_root"]} criterion vectors per root. These authored synthetic numbers do not qualify a task. They appear only in criterion_demonstration, never in real measured items. The source-bound scores above come from inspecting selected sources or executing local controls. This matrix tests how scoring rules respond to invented observations. Human review, native execution and independent corroboration were NOT_RUN.</p>
+<p>All {esc(demo["criterion_count"])} criteria have tests for 0, 1, 2, 3 and missing through the actual measurement CLI: {esc(demo["vector_count_per_root"])} criterion vectors per root. These authored synthetic numbers do not qualify a task. They appear only in criterion_demonstration, never in real measured items. The source-bound scores above come from inspecting selected sources or executing local controls. This matrix tests how scoring rules respond to invented observations. Human review, native execution and independent corroboration were NOT_RUN.</p>
 <div class="scroll"><table><thead><tr><th>Criterion</th><th>0 anchor</th><th>1 anchor</th><th>2 anchor</th><th>3 anchor</th><th>Missing evidence</th></tr></thead><tbody>{matrix}</tbody></table></div>
 <p><a href="criterion-scoring/summary.json">Synthetic coverage and rejection controls</a>. Each cell links to the full emitted report, including evidence references and limitations. Synthetic E1 does not establish native or authenticated human evidence.</p>
 <h2>6. Full criterion inventory (score-free)</h2>
@@ -731,9 +832,9 @@ h1{{font-size:30px;line-height:1.2}}h2{{margin-top:36px;font-size:22px}}a{{color
 <p>The local paired controls match their expected outcomes. A canonical score of 2 requires the remaining applicable attack controls and native evidence. Independent held-out attacks and valid alternatives are required for score 3.</p><ul>{gaps}</ul>
 <p>To demonstrate complete verification and recovery, first produce a full saved acceptance envelope and show ordinary acceptance. Then invalidate it with a later failure or source change. Rerun the affected controls and show ordinary acceptance again. The current partial-claim cases do not demonstrate that sequence.</p>
 <p>These results establish no overall quality score, coverage/diversity score or task qualification. They establish neither authenticated approval authority nor a causal authoring benefit. A matched authoring study is separate work.</p>
-<h2>Reproduce</h2><p>Fresh-root semantic repeat: {summary["determinism"]["fresh_run_equal"]}. The demo regenerates every included area in fresh-replay/ and compares the results, including partial acceptance and retry diagnostics. <a href="semantic-result.json">Explicit semantic projection</a> · <a href="fresh-replay/semantic-result.json">Fresh projection</a>. Raw path-specific identities remain separate and unmodified. This shows repeatability within the same checkout. It does not show that raw bytes stay equal after relocation. Identity inputs are temporary. The retained panel cannot replay those inputs durably.</p><pre>uv run --locked python tools/run_rubric_showcase.py \\
+<h2>Reproduce</h2><p>Fresh-root semantic repeat: {esc(summary["determinism"]["fresh_run_equal"])}. The demo regenerates every included area in fresh-replay/ and compares the results, including partial acceptance and retry diagnostics. <a href="semantic-result.json">Explicit semantic projection</a> · <a href="fresh-replay/semantic-result.json">Fresh projection</a>. Raw path-specific identities remain separate and unmodified. This shows repeatability within the same checkout. It does not show that raw bytes stay equal after relocation. Identity inputs are temporary. The retained panel cannot replay those inputs durably.</p><pre>uv run --locked python tools/run_rubric_showcase.py \\
   --output "$PWD/.eval-author/showcase-new"</pre>
-<p>Use a new output directory. Data-only retained verification: <code>uv run --locked python tools/run_rubric_showcase.py --verify-existing "$PWD/.eval-author/showcase-new"</code>. This validates emitted reports, semantic comparisons and byte manifests without executing retained code. The local hash manifest is not authenticated attestation. The temporary identity inputs cannot be replayed. <a href="showcase.json">Summary projection</a> · <a href="scorer/panel.json">Frozen control comparison</a> · <a href="integrity/hashes.json">Integrity artifact hashes</a></p>
+<p>Use a new output directory. Data-only retained verification: <code>uv run --locked python tools/run_rubric_showcase.py --verify-existing "$PWD/.eval-author/showcase-new"</code>. This validates emitted reports, semantic comparisons and byte manifests without executing retained code. The local hash manifest is not authenticated attestation. Logs are invocation captures, not authenticated execution evidence. Top-level captures are checked against their emitted JSON and expected empty stderr; nested logs have byte-manifest coverage only. These consistency checks do not authenticate a historical execution. The temporary identity inputs cannot be replayed. <a href="showcase.json">Summary projection</a> · <a href="scorer/panel.json">Frozen control comparison</a> · <a href="integrity/hashes.json">Integrity artifact hashes</a></p>
 </main></html>"""
 
 
@@ -777,15 +878,24 @@ def main(argv=None):
         "--verify-existing", type=Path, help="read-only retained bundle validation; never executes retained code"
     )
     args = parser.parse_args(argv)
+    created = False
+    output = (args.output or args.verify_existing).absolute()
     try:
-        output = (args.output or args.verify_existing).absolute()
-        if ".." in output.parts or any(path.is_symlink() for path in (output, *output.parents)):
-            raise ValueError("unsafe output directory")
+        if ".." in output.parts:
+            raise ValueError(f"unsafe output directory (parent traversal): {output}")
+        for path in (output, *output.parents):
+            if path.is_symlink():
+                raise ValueError(f"unsafe output directory: symlinked component {path}; use its physical path")
         if args.verify_existing:
             verify_existing(output)
             print(output / "index.html")
             return 0
+        if output.exists():
+            raise ValueError(
+                f"output already exists: {output}; choose a new output directory; retained files were not changed"
+            )
         output.mkdir(mode=0o700, parents=True, exist_ok=False)
+        created = True
         summary = collect(output)
         validate_reports(output)
         fresh = output / "fresh-replay"
@@ -800,7 +910,10 @@ def main(argv=None):
         (output / "showcase-hashes.json").write_text(json.dumps(retained_hashes(output), indent=2) + "\n")
         verify_existing(output)
     except (OSError, ValueError, KeyError, TypeError, IndexError, StopIteration, subprocess.TimeoutExpired) as exc:
-        parser.error(str(exc))
+        detail = str(exc)
+        if created:
+            detail += f"; partial evidence retained at {output}; choose a new output directory to retry"
+        parser.error(detail)
     print(output / "index.html")
     return 0
 

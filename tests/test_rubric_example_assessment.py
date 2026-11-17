@@ -845,7 +845,7 @@ def test_readonly_assessment_accounts_for_every_canonical_check(tmp_path):
     assert gates["AC-01"]["native_required"] is True
 
 
-@pytest.mark.parametrize("method", ["AC-01:Review", "AC-04:Review"])
+@pytest.mark.parametrize("method", ["AC-01.review", "AC-04.review"])
 def test_anti_cheat_review_is_recorded_without_changing_native_floor(tmp_path, method):
     selection = package(tmp_path)
     document = add_review(tmp_path, selection, None)
@@ -854,7 +854,7 @@ def test_anti_cheat_review_is_recorded_without_changing_native_floor(tmp_path, m
     refresh(tmp_path, selection, "review.json", json.dumps(document))
     result, report = run_cli(tmp_path, selection)
     assert result.returncode != 2
-    row = report["items"][method.split(":")[0]]
+    row = report["items"][method.rsplit(".", 1)[0]]
     assert row["recorded_source_reviews"][0]["decision"]["check_id"] == method
     assert row["score"] is None
     assert all(check["outcome"] == "NOT_RUN" for check in row["check_results"])

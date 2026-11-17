@@ -13,13 +13,15 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
-import os
 import shutil
 import subprocess
 import sys
 import tempfile
 from pathlib import Path
 from typing import Any
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from rubric_demo_common import ArtifactRecord, artifact_record, run_measure  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPTS = ROOT / "skills/eval-author-rubric/scripts"
@@ -28,7 +30,7 @@ sys.path.insert(0, str(SCRIPTS))
 from rubric_evidence_scoring import canonical_definitions, definitions_digest, value_digest  # noqa: E402
 from rubric_identity import read_selected  # noqa: E402
 
-# Authored synthetic observations, independent of scorer predicates and tests.
+# Authored synthetic fixtures shared by the demo and tests, independent of scorer predicates.
 VECTORS = {
     "provenance.task-artifact-access": (
         "task_artifacts",
@@ -378,21 +380,12 @@ def read_json(path: Path) -> Any:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
-def artifact(directory: Path, ident: str, document: Any, role: str = "evidence") -> dict[str, Any]:
+def artifact(directory: Path, ident: str, document: Any, role: str = "evidence") -> ArtifactRecord:
     path = directory / f"{ident}.json"
     write_json(path, document)
-    digest = hashlib.sha256(path.read_bytes()).hexdigest()
-    return {
-        "id": ident,
-        "path": path.name,
-        "digest": digest,
-        "access": "available",
-        "role": role,
-        "revision": "synthetic-demo-v1",
-        "source": "authored-synthetic-scoring-demo",
-        "selection_origin": "explicit",
-        "evidence": [{"path": path.name, "digest": digest}],
-    }
+    return artifact_record(
+        directory, ident, path.name, role, revision="synthetic-demo-v1", source="authored-synthetic-scoring-demo"
+    )
 
 
 def prepare(directory: Path, expected: int | None) -> None:
@@ -464,37 +457,16 @@ def prepare(directory: Path, expected: int | None) -> None:
 
 def measure(directory: Path, *, baseline: bool = False, verify: bool = False) -> dict[str, Any]:
     prefix = "baseline" if baseline else "measure"
-    selection = "baseline-selection.json" if baseline else "selection.json"
-    command = [
-        sys.executable,
-        "-B",
-        str(SCRIPTS / "measure.py"),
-        "--root",
-        str(directory),
-        "--selection",
-        str(directory / selection),
-    ]
-    if verify:
-        command += ["--verify-existing", str(directory / f"{prefix}-report.json")]
-    result = subprocess.run(
-        command, capture_output=True, text=True, timeout=60, env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"}
-    )
     log = prefix + ("-verify" if verify else "")
-    (directory / f"{log}.stdout.json").write_text(result.stdout, encoding="utf-8")
-    (directory / f"{log}.stderr.txt").write_text(result.stderr, encoding="utf-8")
-    write_json(
-        directory / f"{log}-invocation.json",
-        {
-            "command": command,
-            "returncode": result.returncode,
-            "engine": "actual-measure.py-cli",
-        },
+    report, _ = run_measure(
+        directory,
+        prefix=prefix,
+        selection_name="baseline-selection.json" if baseline else "selection.json",
+        verify=verify,
+        record_invocation=True,
+        sort_keys=True,
+        error_message=f"measurement rejected evidence: {directory.name}/{log}",
     )
-    report = json.loads(result.stdout)
-    if result.returncode not in (0, 1) or report.get("schema") != "rubric-measurements-v3":
-        raise ValueError(f"measurement rejected evidence: {directory.name}/{log}")
-    if not verify:
-        write_json(directory / f"{prefix}-report.json", report)
     return report
 
 
@@ -507,7 +479,7 @@ def validate_report(report: dict[str, Any], baseline: dict[str, Any], expected: 
             row["score"] != expected
             or (expected is not None and type(row["score"]) is not int)
             or row["assessment_scope"] != "synthetic-scoring-demonstration"
-            or row["evidence_strength"] != "E1"
+            or row["evidence_strength"] != (None if expected is None else "E1")
             or row["native_execution_verified"] is not False
             or row["reviewer_authenticated"] is not False
             or row["execution_state"] != "NOT_RUN"
@@ -579,12 +551,13 @@ def validate_control(directory: Path, expected: Path) -> None:
 def rejection_controls(output: Path, *, verify: bool) -> dict[str, str]:
     results = {}
     with tempfile.TemporaryDirectory(prefix="criterion-controls-") as temporary:
-        trusted = Path(temporary) / "score-3"
+        root = Path(temporary).resolve()
+        trusted = root / "score-3"
         prepare(trusted, 3)
         measure(trusted)
         measure(trusted, baseline=True)
         for name in REJECTION_CONTROLS:
-            expected = Path(temporary) / name
+            expected = root / name
             shutil.copytree(trusted, expected)
             mutate_control(expected, name)
             directory = output / "rejection-controls" / name
@@ -615,6 +588,23 @@ def rejection_controls(output: Path, *, verify: bool) -> dict[str, str]:
 
 
 def run(output: Path, *, verify: bool = False) -> dict[str, Any]:
+    if verify:
+        # Preserve no-follow admission; copied symlinks must not redirect log writes.
+        if output.is_symlink() or any(path.is_symlink() for path in output.rglob("*")):
+            raise ValueError("retained evidence contains a symlink")
+        # The owning CLI retains invocation logs, so replay only a private copy.
+        with tempfile.TemporaryDirectory(prefix="criterion-verify-") as temporary:
+            root = Path(temporary).resolve()
+            copied = root / "evidence"
+            shutil.copytree(output, copied, symlinks=True)
+            for path in (copied, *copied.rglob("*")):
+                if not path.is_symlink():
+                    path.chmod(path.stat().st_mode | 0o200)
+            return _run(copied, verify=True)
+    return _run(output, verify=False)
+
+
+def _run(output: Path, *, verify: bool) -> dict[str, Any]:
     output = output.absolute()
     if set(canonical_definitions()) != set(VECTORS) or len(VECTORS) != 18:
         raise ValueError("demo does not cover the canonical criterion inventory")

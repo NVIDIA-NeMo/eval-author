@@ -18,6 +18,12 @@ references: [cases](benchmark-format.md#cases-casesyml),
 [execution settings](benchmark-format.md#execution-executionyml), and
 [analysis settings](benchmark-format.md#analysis-analysisyml).
 
+## Generate an experiment config
+
+Use the optional [experiment config generator](create-benchmark-config.md)
+to generate a full benchmark configuration or a reduced smoke-run configuration.
+Generation and execution are separate commands.
+
 ## Signing a benchmark
 
 See [`sha-sign`](sha-sign.md) for signing, re-signing, checking pins, and the Python API.

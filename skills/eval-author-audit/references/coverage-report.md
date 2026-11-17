@@ -5,8 +5,9 @@
 
 ## Artifact names
 
-- Introduce `.eval-author/audit-coverage-report.md` as the audit's readable review artifact.
+- Introduce `.eval-author/report_markdown/audits.md` as the audit's readable review artifact, and the **Audit** tab of `.eval-author/report.html` as the same report for people in a browser.
 - Treat `.eval-author/.working/audit/report-content.json` as authored input and the Markdown as generated, read-only output.
+- Audits written before this location existed live at `.eval-author/audit-coverage-report.md`. The renderer writes the new location and removes the old file only when it is an unedited generated report; it keeps an edited or hand-written one and reports `legacy_report_retained`. Until the first audit, `audits.md` is a placeholder whose first line is the suite report's audit placeholder marker; treat it as no audit.
 - Keep the specification, measurement JSON, source bindings, and journey state internal unless explicitly requested.
 - Use the [audit renderer](../../eval-author/references/conversations/audit.md) for conversation checkpoints and verified report links.
 
@@ -36,14 +37,16 @@ tasks, fixtures, and verifiers, labels all run coverage unmeasured, and writes
 `measurement` lifecycle record. Do not describe it as a deferred or incomplete
 measured audit, or reuse historical run findings as current evidence.
 
-- Link the generated Markdown after a successful write. Report actual validation and rendering outcomes only.
+- After a successful render, the renderer refreshes the suite report itself, so `report.html` (Audit tab), the `report_markdown/` reports, and the generated section of `.eval-author/README.md` match the new audit. Do not run a separate refresh for it. Its result names `suite_report`; a `suite_report_error` means the audit Markdown is current but the HTML is not. Report that error to the user as it is.
+- Link the generated Markdown after a successful write. Link `report.html#audit` only when the result has no `suite_report_error`. When it does, link the current Markdown and say the HTML could not be refreshed, and pass the error to the conversation renderer as `suite_report_error`. Report actual validation and rendering outcomes only.
 - Preserve the existing report when inputs are invalid, stale, or unavailable.
 - Never interpret or merge direct Markdown edits. When the renderer reports `generated_output_modified`, make the requested correction in the field it names and rerun. To discard the edits instead, rerun with `--discard-edits <sha>` using the digest in the error. The edited copy is kept at `.eval-author/.working/audit/edited-report-<sha>.md`.
 - Leave hand-authored legacy reports readable until the user requests conversion. On conversion, author validated content from the reviewed facts and preserve stable IDs, decisions, and links. Pass the old Markdown's SHA-256 with `--convert-legacy <digest>` only for that explicit conversion. The renderer retains its original bytes outside the generated report.
-- Leave HTML, all READMEs, and the suite report generator unchanged.
+- Leave task READMEs, authored suite README content outside its generated markers, and the suite report generator unchanged. Never write `report.html` or the generated README section by hand.
 
 ## Inspect verifier behavior and retained controls
 
+- If a selected evaluation is neither a Harbor task nor a NeMo Gym environment, warn the user before inspecting it, following the shared [task format guidance](../../eval-author/references/task-format.md): the audit continues, but Eval Author can't check that evaluation for data leakage or isolate its hidden material. Record its verifier review as `evidence_limit` that names the unsupported format.
 - Inspect each selected task's reachable grading path and agent-visible inputs using the shared [simple-cheat screen](../../eval-author/references/task-validation.md#screen-simple-cheats).
 - Follow entry points and guards through assertions and reward writers. Include inspected code, mounts, expected data, and writable report paths in `suite_files` before scope approval.
 - Assess each cheat family, valid alternatives, and realistic wrong answers against the task. Link control definitions in the task README's Verifier section without editing it during an audit.
@@ -86,3 +89,62 @@ python <audit-skill-dir>/scripts/audit_spec/history.py --repo . \
 - Keep selection, construction, validation, control execution, agent execution, acceptance, and measured coverage as separate facts.
 - Reconcile historical `dataset-recommendations.md` entries into the authored content during requested conversion. Preserve IDs, decisions, evidence, and unresolved risks. Leave the historical file intact and rebase relative links.
 - Regenerate Markdown after authorized content changes. Never maintain another authored recommendation list or edit the generated report directly.
+
+## Selected improvement handoff and follow-through
+
+At findings review, use the report's stable recommendation IDs in conversation
+recommendation data (`id`, alongside `kind`, `label`, and `reason`). Keep IDs internal;
+present descriptive labels and resolve the user's selection to those IDs. Ask
+only when their description is ambiguous. Keep IDs when
+reordering or expanding recommendations; never reuse an ID for a different action.
+A recommendation's priority is advice until the user agrees it.
+
+When the user selects specific improvements, update the lifecycle's `next_action`
+with `kind: improve`, its current `findings_digest`, the reply's `source`, and a
+nonempty `recommendation_ids` list such as `["R1", "R3"]`. Use the normal
+revision-checked journey-state update after recording current findings. Findings
+need no user acceptance. Selection is checked against the bound report content,
+including its action types.
+`collect_evidence` and `fix_agent` may also record matching recommendation IDs;
+`finish` records no IDs. Recording findings alone records no new next action.
+
+The helper saves an `audit_handoff` in `scopes.expand` with the selected IDs,
+originating report/content references, findings digest, and decision source.
+Keep the audit scope intact: it retains source selections and exclusions,
+measurement, and review context. Reuse that scope and the report for findings,
+priorities, and limits rather than copying another recommendation list. An old
+`improve` decision without IDs needs only the unresolved specific selection.
+Never infer it or repeat onboarding to recover it.
+Expansion-scope updates with a retained handoff also require the latest
+`--expected-revision`; they preserve the handoff automatically. Change the
+selection through a new reviewed audit next-action decision, not by replacing
+the handoff directly.
+
+On entering `expand`, retain this handoff and reuse the confirmed Ethos and
+applicable prerequisites. Continue selected proposal work at task-create Step 1;
+Journey 3 still agrees its construction scope and execution separately. Additions,
+case revisions, and verifier repairs can all be selected. Automatic tool-gap
+eligibility limits implementation, not selection. If no supported authoring path
+can perform the chosen change, preserve the handoff and pending question, explain
+the missing capability, and stop before construction. Do not restart the audit.
+If selected IDs are absent from the evolved report or its source context differs,
+retain the original decision and ask only how to reconcile that missing context.
+
+Record follow-through on the same recommendation in authored content, using
+`follow_through.status` (`selected`, `in_progress`, `blocked`, or `implemented`),
+`summary` (what changed or remains), and `evidence` (bound source IDs, possibly
+empty before implementation). `implemented` requires evidence of the change;
+it does not claim validated grading, successful agent execution, or better
+coverage. Record those facts only when their own evidence exists. Do not add
+progress for unselected recommendations. Refresh the same report through the
+validator and renderer; a progress edit does not undo the originating selection.
+
+Leave freshness checks unchanged. If task files changed, earlier measurements
+cannot establish current coverage. Explain that limitation and retain the
+original findings and task revisions. Before refreshing, inspect and explicitly
+rebind changed report inputs, retaining old findings as historical and any old
+measurements as applicable only to their original revisions. Never silently
+update evidence digests or claim a current audit from stale measurements. If a
+valid refresh needs further review, retain the existing report and handoff and
+explain the blocker. Repeating the audit or running new controls is a separate
+request, not an automatic consequence of improving a task.

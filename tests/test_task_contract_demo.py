@@ -41,11 +41,11 @@ def test_cli_retains_bounded_source_scores_separate_from_static_crosswalk(tmp_pa
     assert summary["model_execution"] is False
     assert summary["human_adjudication"] is False
     cases = {row["id"]: row for row in summary["cases"] if row["kind"] == "task_contract"}
-    assert set(cases) == {"planted-summary", "clean-neighbor", "agent-only-review-pending"}
+    assert set(cases) == {"planted-summary", "clean-neighbor"}
     assert cases["planted-summary"]["observed"]["summary_required"] is True
     assert cases["clean-neighbor"]["observed"]["summary_required"] is False
     assert all(row["matched"] for row in cases.values())
-    assert cases["agent-only-review-pending"]["assessment_state"] == "human-review-pending"
+    assert cases["clean-neighbor"]["assessment_state"] == "human-review-pending"
     for case in cases.values():
         scores = dict.fromkeys(CRITERIA)
         strengths = dict.fromkeys(CRITERIA)
@@ -116,7 +116,7 @@ def test_ethos_variants_consume_real_measure_reports_and_bound_inputs(tmp_path):
         "ethos-missing-validator": ("unknown", None, ["ethos.validator_unavailable"]),
     }
     assert set(cases) == set(expected)
-    assert panel["case_count"] == panel["matched_count"] == 7
+    assert panel["case_count"] == panel["matched_count"] == 6
     for ident, (status, valid, codes) in expected.items():
         case = cases[ident]
         report = json.loads((output / case["report"]).read_text())
@@ -153,14 +153,54 @@ def test_demo_uses_semantic_task_contract_identities():
     assert list(demo["CRITERIA"]) == CRITERIA
 
 
-def test_structural_inspection_reads_summary_values_instead_of_echoing_expectations():
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        ("expected_total", "0.00"),
+        ("condition_count", 100),
+        ("summary_expected", {"currency": "EUR", "order_count": 9}),
+        ("fixture_total", "0.00"),
+        ("fixture_order_count", 99),
+        ("reward_rule", "different"),
+    ],
+)
+def test_demo_observations_follow_emitted_source_inspection(tmp_path, field, value):
     demo = runpy.run_path(str(CLI))
-    task = ROOT / "skills/eval-author-audit/evals/files/tasks/order-total"
-    scorer = (
-        (task / "tests/test.sh").read_text().replace("'USD'", "'EUR'").replace("'order_count': 3", "'order_count': 9")
-    )
-    observed = demo["inspect"](scorer, (task / "environment/orders.csv").read_text())
-    assert observed["summary_expected"] == {"currency": "EUR", "order_count": 9}
+    real_measure = demo["measure"]
+
+    def changed_measure(*args, **kwargs):
+        report, code = real_measure(*args, **kwargs)
+        row = report["items"].get("task-contract.discoverable-requirements")
+        if row:
+            row["source_inspection"][field] = value
+        return report, code
+
+    demo["contract_case"].__globals__["measure"] = changed_measure
+    panel = demo["collect"](tmp_path)
+    cases = [case for case in panel["cases"] if case["kind"] == "task_contract"]
+    assert all(not case["matched"] for case in cases)
+    assert all(case["observed"][field] == value for case in cases)
+
+
+@pytest.mark.parametrize(
+    "missing", ["source_inspection", "condition_count", "conditions", "expected_total", "summary_expected"]
+)
+def test_missing_emitted_source_inspection_cannot_match(tmp_path, missing):
+    demo = runpy.run_path(str(CLI))
+    real_measure = demo["measure"]
+
+    def changed_measure(*args, **kwargs):
+        report, code = real_measure(*args, **kwargs)
+        row = report["items"]["task-contract.discoverable-requirements"]
+        if missing == "source_inspection":
+            del row[missing]
+        else:
+            del row["source_inspection"][missing]
+        return report, code
+
+    demo["contract_case"].__globals__["measure"] = changed_measure
+    with pytest.raises(KeyError):
+        demo["collect"](tmp_path)
 
 
 def test_markdown_distinguishes_emitted_scores_from_authored_crosswalk(tmp_path):

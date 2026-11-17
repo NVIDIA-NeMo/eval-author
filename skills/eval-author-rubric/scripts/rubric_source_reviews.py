@@ -710,11 +710,7 @@ def apply(rows: dict[str, Any], measurement: dict[str, Any]) -> None:
     _accept(rows, measurement)
     for review in measurement["records"]:
         for decision in review["decisions"]:
-            ident = (
-                decision["check_id"].split(":", 1)[0]
-                if decision["check_id"].startswith("AC-")
-                else decision["check_id"].rsplit(".", 1)[0]
-            )
+            ident = decision["check_id"].rsplit(".", 1)[0]
             if ident in rows:
                 rows[ident].setdefault("recorded_source_reviews", []).append(
                     {

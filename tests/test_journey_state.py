@@ -12,6 +12,7 @@ import subprocess
 import sys
 from contextlib import nullcontext
 from pathlib import Path
+from types import ModuleType
 
 import pytest
 
@@ -1786,6 +1787,57 @@ def test_required_runtime_blocks_onboarding_until_resolved(
     confirmed = resolved if ethos_confirmed else ethos_ready(state, tmp_path)
     assert state.checklist(confirmed)[2]["current"]
     assert not state.checklist(confirmed)[2]["complete"]
+
+
+@pytest.mark.parametrize("agreed", [False, True])
+def test_expansion_scope_replacement_preserves_handoff_without_stale_decisions(
+    state: ModuleType, tmp_path: Path, agreed: bool
+) -> None:
+    setup_ready(state, tmp_path, journey="expand")
+    ethos_ready(state, tmp_path)
+    handoff = {
+        "recommendation_ids": ["R1", "R3"],
+        "findings_digest": state.digest(b"Reviewed audit findings"),
+        "report": {"path": ".eval-author/report_markdown/audits.md", "digest": state.digest(b"Audit report")},
+        "content": {"path": ".eval-author/report-content.json", "digest": state.digest(b"Structured audit report")},
+        "source": "User selected R1 and R3 after reviewing the audit",
+    }
+    original = save_legacy_state(
+        state,
+        tmp_path,
+        {
+            "scopes": {
+                "expand": {
+                    "audit_handoff": handoff,
+                    "cases": ["previous-case"],
+                    "confirmed": False,
+                    "needs_review": True,
+                    "pending_design": "Earlier scope question",
+                    "legacy_context": "Earlier expansion work",
+                },
+                "audit": {"traces": ["runs/audit.json"], "confirmed": False},
+            },
+            "journey_status": {"expand": "in_progress"},
+        },
+    )
+    scope = {"cases": ["agreed-case"], "confirmed": True} if agreed else {}
+    updated = state.update(
+        tmp_path,
+        {
+            "scopes": {"expand": scope},
+            "journey_status": {"expand": "complete" if agreed else "in_progress"},
+        },
+        expected_revision=original["revision"],
+    )
+    assert updated["scopes"]["expand"] == {"audit_handoff": handoff, **scope}
+    assert updated["scopes"]["audit"] == original["scopes"]["audit"]
+    assert state.checklist(updated)[2]["complete"] is agreed
+    reloaded = state.load_state(tmp_path)
+    resumed = state.initialize(tmp_path, journey="expand")
+    for saved in (reloaded, resumed):
+        assert saved["scopes"] == updated["scopes"]
+        assert saved["journey_status"] == updated["journey_status"]
+        assert state.checklist(saved)[2]["complete"] is agreed
 
 
 @pytest.mark.parametrize("input_source", ["file", "stdin"])

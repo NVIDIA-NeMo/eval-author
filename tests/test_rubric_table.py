@@ -182,7 +182,7 @@ def test_table_rejects_invalid_row_identity(case):
     assert spec and spec.loader
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
-    row = {"score": None, "check_results": [{"check_id": "AC-01:Probe", "outcome": "NOT_RUN"}]}
+    row = {"score": None, "check_results": [{"check_id": "AC-01.probe", "outcome": "NOT_RUN"}]}
     report = {"items": {"AC-01": row}}
     if case == "duplicate":
         row["check_results"] *= 2
@@ -477,8 +477,8 @@ def test_completed_review_keeps_pending_review_and_independent_requirements(outc
         "evidence_strength": "E2",
         "check_results": [
             {
-                "check_id": "AC-02:Review",
-                "method": "Review",
+                "check_id": "AC-02.review",
+                "method": "review",
                 "outcome": outcome,
                 "action": "Select the applicable controls.",
             },
@@ -494,7 +494,7 @@ def test_completed_review_keeps_pending_review_and_independent_requirements(outc
     before = json.dumps(row, sort_keys=True)
     output = module.render({"items": {"AC-02": row}})
     human = next(line for line in output.splitlines() if line.startswith("| Anticheat")).split(" | ")[8]
-    assert f"Completed review checks: AC-02:Review ({outcome})." in human
+    assert f"Completed review checks: AC-02.review ({outcome})." in human
     assert "Required review: Review the held-out attacks." in human
     assert "Select the applicable controls." not in human
     assert "Remaining requirements: Independent held-out attacks and alternatives are absent." in human

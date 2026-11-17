@@ -109,13 +109,13 @@ def human_action(row: dict[str, Any]) -> str:
         pending = [
             str(check.get("next_action") or check.get("action"))
             for check in row.get("check_results", [])
-            if check.get("method") in ("human_review", "Review")
+            if check.get("method") in ("human_review", "review")
             and check.get("outcome") not in ("PASS", "NOT_APPLICABLE")
             and (check.get("next_action") or check.get("action"))
         ]
         message = basis + " qualification accepted for this source review. No repeated owner decision is required."
         return message + (" Separate required review: " + " ".join(dict.fromkeys(pending)) if pending else "")
-    reviews = [check for check in row.get("check_results", []) if check.get("method") in ("human_review", "Review")]
+    reviews = [check for check in row.get("check_results", []) if check.get("method") in ("human_review", "review")]
     completed = [
         f"{check.get('check_id', check.get('id', check['method']))} ({check['outcome']})"
         for check in reviews
