@@ -175,7 +175,7 @@ def load_scenario(path: Path) -> UserSimScenario:
         value = yaml.load(text, Loader=_ScenarioLoader)
     except UserSimError:
         raise
-    except (yaml.YAMLError, ValueError, OverflowError) as error:
+    except (yaml.YAMLError, ValueError, OverflowError, KeyError, AttributeError, TypeError) as error:
         mark = getattr(error, "problem_mark", None)
         location = f" at line {mark.line + 1}, column {mark.column + 1}" if mark else ""
         raise UserSimError(f"Invalid or unsupported YAML{location}") from error

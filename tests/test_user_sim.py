@@ -205,12 +205,13 @@ def test_cli_failure_does_not_echo_yaml_source(tmp_path: Path) -> None:
     assert "PRIVATE-CUSTOMER-DETAIL" not in result.stderr
 
 
-def test_cli_scalar_conversion_failure_does_not_echo_facts(tmp_path: Path) -> None:
-    path = scenario_file(tmp_path, "user_facts: {quantity: !!int PRIVATE-CUSTOMER-DETAIL}\n")
+@pytest.mark.parametrize("tag", ["int", "bool", "timestamp"])
+def test_cli_scalar_conversion_failure_does_not_echo_facts(tmp_path: Path, tag: str) -> None:
+    path = scenario_file(tmp_path, f"user_facts: {{quantity: !!{tag} PRIVATE-CUSTOMER-DETAIL}}\n")
     result = run_cli(path)
     assert result.returncode == 2
     assert json.loads(result.stderr)["valid"] is False
-    assert "PRIVATE-CUSTOMER-DETAIL" not in result.stderr
+    assert "private-customer-detail" not in result.stderr.lower()
 
 
 def test_cli_reports_missing_file(tmp_path: Path) -> None:
