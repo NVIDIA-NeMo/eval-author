@@ -6,7 +6,7 @@ Review pull request {{PR_URL}} (#{{PR_NUMBER}}). Perform a detailed review of th
 You are running unattended in a disposable CI sandbox. Nobody will answer questions; never ask any.
 
 ## Environment
-- The PR head is checked out at /work/repo (detached HEAD, full history, every branch as `origin/*`). `uv sync --locked` already ran; use `uv run --locked …`. You may create worktrees, e.g. `git worktree add /tmp/omp-review/base <base_sha>` for before/after comparisons. Do not edit tracked files in /work/repo.
+- The PR head is checked out at /work/repo (detached HEAD, full history, every branch as `origin/*`). `uv sync --locked` already ran; use `uv run --locked …`. If /tmp/omp-review/uv-sync.exit is not 0, the sync failed (output in /tmp/omp-review/uv-sync.log): report it as a finding when the PR caused it, and say which checks it prevented. You may create worktrees, e.g. `git worktree add /tmp/omp-review/base <base_sha>` for before/after comparisons. Do not edit tracked files in /work/repo.
 - PR metadata: /work/context/pr.json (title, body, author, base/head refs and SHAs). Maintainer discussion: /work/context/discussion.json. Earlier automated findings: /work/context/prior-findings.json. Head commit check runs: /work/context/checks.json. Use these instead of `pr://`, `gh`, or the GitHub API; there are no GitHub credentials.
 - The full test suite is already running: output /tmp/omp-review/full-tests.log; its exit code appears in /tmp/omp-review/full-tests.exit when done. Never start another full run.
 - Network: PyPI and anonymous github.com reads work through the configured proxy; everything else is blocked and web_search is unavailable. Docker and model credentials are unavailable: say so when a check needs them instead of reporting it as a PR bug.

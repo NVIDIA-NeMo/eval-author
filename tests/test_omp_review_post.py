@@ -99,11 +99,29 @@ def test_verdict_counts_priority_two_as_incorrect():
     assert post.verdict([finding(priority=3)]) == "correct"
 
 
-def test_sanitize_neutralizes_mentions_images_and_markers():
-    text = post.sanitize("@user ![x](y) <!-- omp-review-finding -->")
-    assert "@user" not in text
-    assert "![" not in text
-    assert "<!--" not in text
+@pytest.mark.parametrize(
+    "text",
+    ["@user", "&#64;user", "&commat;user", "![x](y)", '<img src="y">', "<!-- omp-review-finding -->"],
+)
+def test_sanitize_neutralizes_prose(text: str):
+    sanitized = post.sanitize(f"See {text} here.")
+    assert text not in sanitized
+    assert sanitized.replace("\u200b", "") == f"See {text} here."
+
+
+def test_sanitize_keeps_suggestion_blocks_applicable():
+    suggestion = "```suggestion\n@pytest.fixture\n<!-- SPDX-License-Identifier: Apache-2.0 -->\n```"
+    assert post.sanitize(f"Use a fixture @user.\n{suggestion}") == f"Use a fixture @\u200buser.\n{suggestion}"
+
+
+def test_sanitize_neutralizes_fences_that_github_may_end_early():
+    # The indented fence ends with its list item on GitHub, so "@user" renders as prose there.
+    assert "@user" not in post.sanitize("- item\n  ```\n@user\n  ```")
+
+
+def test_sanitize_closes_unclosed_fence():
+    # Otherwise markdown that follows could close it and expose text treated here as code.
+    assert post.sanitize("~~~~\n@user") == "~~~~\n@user\n~~~~"
 
 
 def args_for(path: Path) -> list[str]:

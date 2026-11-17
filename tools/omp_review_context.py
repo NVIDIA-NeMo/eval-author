@@ -16,7 +16,9 @@ from typing import Any
 import omp_review_github as gh
 
 TEMPLATE = Path(__file__).resolve().parent / "omp-review" / "orchestrator.md"
-_SHA = re.compile(r"[0-9a-f]{40}")
+# Successful reviews end with this marker; failure reviews end with FAILURE_MARKER instead. Matching only the
+# trailer ignores markers quoted inside model-written code blocks.
+_REVIEW_TRAILER = re.compile(re.escape(gh.REVIEW_MARKER) + r"([0-9a-f]{40}) -->\s*\Z")
 
 
 def _trusted_human(item: dict[str, Any]) -> bool:
@@ -88,27 +90,25 @@ def _check_runs(repo: str, head_sha: str, token: str) -> list[dict[str, Any]]:
 def previous_review_sha(reviews: list[Any]) -> str | None:
     """Head SHA recorded by the newest successful omp review, if any."""
     for review in reversed(reviews):
-        body = review.get("body") or ""
         if (review.get("user") or {}).get("login") != gh.BOT_LOGIN:
             continue
-        if gh.REVIEW_MARKER not in body or gh.FAILURE_MARKER in body:
-            continue
-        match = _SHA.match(body.split(gh.REVIEW_MARKER, 1)[1])
+        match = _REVIEW_TRAILER.search(review.get("body") or "")
         if match:
-            return match.group(0)
+            return match.group(1)
     return None
 
 
-def render_prompt(template: str, pr_url: str, pr_number: int, rereview_sha: str | None) -> str:
+def render_prompt(template: str, pr_url: str, pr_number: int, previous_sha: str | None, head_sha: str) -> str:
     lines = template.splitlines(keepends=True)
     while lines and (lines[0].startswith("<!--") or not lines[0].strip()):
         lines.pop(0)
-    rereview = (
-        f" This is a re-review: focus on changes since commit {rereview_sha}; "
-        "the earlier review's findings are in /work/context/prior-findings.json."
-        if rereview_sha
-        else ""
-    )
+    findings = "the earlier review's findings are in /work/context/prior-findings.json."
+    if previous_sha == head_sha:
+        rereview = f" This is a re-review of the same commit as the earlier review; {findings}"
+    elif previous_sha:
+        rereview = f" This is a re-review: focus on changes since commit {previous_sha}; {findings}"
+    else:
+        rereview = ""
     return (
         "".join(lines)
         .replace("{{PR_URL}}", pr_url)
@@ -138,12 +138,8 @@ def collect(repo: str, pr: int, base_sha: str, head_sha: str, out: Path, token: 
         "head_sha": head_sha,
         "labels": [label.get("name") for label in pull.get("labels") or []],
     }
-    previous = previous_review_sha(reviews)
     prompt = render_prompt(
-        TEMPLATE.read_text(encoding="utf-8"),
-        str(pull.get("html_url")),
-        pr,
-        previous if previous and previous != head_sha else None,
+        TEMPLATE.read_text(encoding="utf-8"), str(pull.get("html_url")), pr, previous_review_sha(reviews), head_sha
     )
 
     out.mkdir(parents=True, exist_ok=True)

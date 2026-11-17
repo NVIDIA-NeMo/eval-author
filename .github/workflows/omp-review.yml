@@ -51,6 +51,8 @@ jobs:
           OMP_REVIEW_INFERENCE_HUB_API_KEY: ${{ secrets.OMP_REVIEW_INFERENCE_HUB_API_KEY }}
           OMP_REVIEW_MODEL: ${{ vars.OMP_REVIEW_MODEL }}
           OMP_REVIEW_MODEL_API: ${{ vars.OMP_REVIEW_MODEL_API }}
+          OMP_REVIEW_CONTEXT_WINDOW: ${{ vars.OMP_REVIEW_CONTEXT_WINDOW }}
+          OMP_REVIEW_MAX_TOKENS: ${{ vars.OMP_REVIEW_MAX_TOKENS }}
         run: bash trusted/tools/omp-review/run.sh --repo "$GITHUB_WORKSPACE/pr" --context "$RUNNER_TEMP/omp-review/context" --out "$RUNNER_TEMP/omp-review/out"
       - if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4

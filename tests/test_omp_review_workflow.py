@@ -46,7 +46,7 @@ def test_review_runs_only_for_trusted_same_repo_humans():
     assert '"COLLABORATOR"' in condition
 
 
-def test_host_steps_never_execute_pr_code():
+def test_host_run_steps_skip_pr_checkout_and_inline_expressions():
     for step in STEPS:
         run = step.get("run", "")
         assert "pr/" not in run.replace('--repo "$GITHUB_WORKSPACE/pr"', ""), step.get("name")

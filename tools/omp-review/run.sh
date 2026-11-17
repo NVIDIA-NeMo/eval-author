@@ -25,6 +25,8 @@ done
 fail_input() { echo "run.sh: $1" >&2; exit 2; }
 [ -n "${OMP_REVIEW_INFERENCE_HUB_API_KEY:-}" ] || fail_input "OMP_REVIEW_INFERENCE_HUB_API_KEY is empty"
 [[ "${OMP_REVIEW_MODEL:-}" =~ ^[A-Za-z0-9._:/-]{1,200}$ ]] || fail_input "OMP_REVIEW_MODEL is missing or invalid"
+[[ "${OMP_REVIEW_CONTEXT_WINDOW:-}" =~ ^[1-9][0-9]{0,8}$ ]] || fail_input "OMP_REVIEW_CONTEXT_WINDOW must be a positive integer"
+[[ "${OMP_REVIEW_MAX_TOKENS:-}" =~ ^[1-9][0-9]{0,8}$ ]] || fail_input "OMP_REVIEW_MAX_TOKENS must be a positive integer"
 case "${OMP_REVIEW_MODEL_API:-}" in
   anthropic-messages | openai-completions) ;;
   *) fail_input "OMP_REVIEW_MODEL_API must be anthropic-messages or openai-completions" ;;
@@ -45,13 +47,20 @@ mkdir -p "$WORK/home" "$WORK/tmp" "$WORK/render"
 SELECTOR="inference-hub/$OMP_REVIEW_MODEL:high"
 MODEL_PROXY_IMAGE="nginx:1.31.8-alpine@sha256:fed7e14be83cbd2661a75cdc5b872d936cf155d46c327084d30b8df19ae88d72"
 
+# The agent can write /work/out, and the host uploads it as an artifact; upload-artifact follows symlinks,
+# so only regular files and directories may leave the sandbox.
 cleanup() {
+  find "$OUT" -mindepth 1 ! -type f ! -type d -delete 2>/dev/null || true
   docker rm -f "$ID-model" "$ID-egress" >/dev/null 2>&1 || true
   docker network rm "$ID-int" "$ID-ext" >/dev/null 2>&1 || true
   docker image rm "omp-review-agent:$ID" "omp-review-egress:$ID" >/dev/null 2>&1 || true
   rm -rf "$WORK" 2>/dev/null || true
 }
 trap cleanup EXIT
+
+# Mount a throwaway copy: host-side git (actions/checkout's post step) later runs in $REPO, and a .git/config
+# written by the sandbox (core.fsmonitor, hooks) would execute there.
+cp -a "$REPO" "$WORK/repo"
 
 if [ "$OMP_REVIEW_MODEL_API" = anthropic-messages ]; then
   base_url=http://model-proxy:8080
@@ -71,11 +80,11 @@ providers:
     apiKey: OMP_REVIEW_PROXY_PLACEHOLDER
     models:
       - id: "$OMP_REVIEW_MODEL"
-        name: Claude Opus 5.5 (Inference Hub)
+        name: "$OMP_REVIEW_MODEL (Inference Hub)"
         reasoning: true
         input: [text, image]
-        contextWindow: 1000000
-        maxTokens: 128000
+        contextWindow: $OMP_REVIEW_CONTEXT_WINDOW
+        maxTokens: $OMP_REVIEW_MAX_TOKENS
         thinking: $thinking
 ${compat}
 EOF
@@ -117,7 +126,7 @@ agent_run() {
     -e http_proxy=http://egress-proxy:3128 -e https_proxy=http://egress-proxy:3128 \
     -e NO_PROXY=model-proxy,localhost,127.0.0.1 -e no_proxy=model-proxy,localhost,127.0.0.1 \
     -e OMP_REVIEW_PROXY_PLACEHOLDER=proxy-injected -e OMP_REVIEW_SELECTOR="$SELECTOR" \
-    -v "$REPO":/work/repo -v "$CONTEXT":/work/context:ro -v "$OUT":/work/out \
+    -v "$WORK/repo":/work/repo -v "$CONTEXT":/work/context:ro -v "$OUT":/work/out \
     -v "$SCRIPT_DIR":/work/config:ro -v "$WORK/render":/work/render:ro \
     -v "$WORK/home":/home/reviewer -v "$WORK/tmp":/tmp \
     "omp-review-agent:$ID" "$@"

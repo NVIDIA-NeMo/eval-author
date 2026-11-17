@@ -23,6 +23,10 @@ MAX_BODY = 60000
 TRUNCATED = "\n\n(truncated; see the run artifact)"
 
 _HUNK = re.compile(r"^@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@")
+_MENTION = re.compile(r"@(?=[A-Za-z0-9])")
+_ENTITY = re.compile(r"&(?=#|[A-Za-z])")
+_HTML = re.compile(r"<(?=[A-Za-z/!?])")
+_FENCE_OPEN = re.compile(r"(`{3,})[^`]*|(~{3,}).*")
 
 
 def _is_int(value: Any) -> bool:
@@ -113,14 +117,43 @@ def diff_files(repo: str, base_sha: str, head_sha: str, token: str) -> dict[str,
     return {entry["filename"]: hunk_lines(entry.get("patch") or "") for entry in compare.get("files") or []}
 
 
+def neutralize(text: str) -> str:
+    """Defang mentions (including entity-encoded ones), images, and raw HTML such as comment markers."""
+    text = _MENTION.sub("@\u200b", text)
+    text = _ENTITY.sub("&\u200b", text)
+    text = _HTML.sub("<\u200b", text)
+    return text.replace("![", "!\u200b[")
+
+
 def sanitize(text: str) -> str:
-    text = re.sub(r"@(?=[A-Za-z0-9])", "@\u200b", text)
-    return text.replace("![", "!\u200b[").replace("<!--", "<\u200b!--")
+    """Neutralize model markdown except fenced code, so ```suggestion blocks apply verbatim.
+
+    Only fences opened at column 0 are exempt: GitHub renders those as code whatever precedes them, whereas an
+    indented fence can end with its list item and expose its content. An unclosed fence is closed so it cannot
+    swallow, or be closed by, markdown that follows this text.
+    """
+    out: list[str] = []
+    closing: re.Pattern[str] | None = None
+    marker = ""
+    for line in text.replace("\r\n", "\n").replace("\r", "\n").split("\n"):
+        if closing is not None:
+            out.append(line)
+            if closing.fullmatch(line):
+                closing = None
+        elif opening := _FENCE_OPEN.fullmatch(line):
+            marker = opening.group(1) or opening.group(2)
+            closing = re.compile(rf" {{0,3}}{re.escape(marker[0])}{{{len(marker)},}}[ \t]*")
+            out.append(line)
+        else:
+            out.append(neutralize(line))
+    if closing is not None:
+        out.append(marker)
+    return "\n".join(out)
 
 
 def comment_body(finding: dict[str, Any]) -> str:
     return (
-        f"**[P{finding['priority']}] {sanitize(finding['title'])}**\n\n"
+        f"**[P{finding['priority']}] {neutralize(finding['title'])}**\n\n"
         f"{sanitize(finding['body'])}\n\n"
         f"<sub>omp review · confidence {finding['confidence']:.2f}</sub>\n"
         f"{gh.FINDING_MARKER}"
@@ -128,9 +161,9 @@ def comment_body(finding: dict[str, Any]) -> str:
 
 
 def _finding_entry(finding: dict[str, Any]) -> str:
-    location = sanitize(f"{finding['file_path']}:{finding['line_start']}-{finding['line_end']}")
-    body = "\n".join(f"  {line}" if line else "" for line in sanitize(finding["body"]).splitlines())
-    return f"- **[P{finding['priority']}] {sanitize(finding['title'])}** — `{location}`\n{body}"
+    location = neutralize(f"{finding['file_path']}:{finding['line_start']}-{finding['line_end']}")
+    body = "\n".join(f"  {line}" if line else "" for line in sanitize(finding["body"]).split("\n"))
+    return f"- **[P{finding['priority']}] {neutralize(finding['title'])}** — `{location}`\n\n{body}"
 
 
 def _with_marker(content: str, head_sha: str) -> str:
@@ -193,7 +226,7 @@ def fallback_request(review: dict[str, Any], head_sha: str, run_url: str) -> dic
 def failure_request(reason: str, head_sha: str, run_url: str) -> dict[str, Any]:
     body = (
         "### omp review did not complete\n\n"
-        f"{sanitize(reason)} · head {head_sha[:7]} · [run]({run_url})\n"
+        f"{neutralize(reason)} · head {head_sha[:7]} · [run]({run_url})\n"
         f"{gh.REVIEW_MARKER}{head_sha} -->\n"
         f"{gh.FAILURE_MARKER}"
     )

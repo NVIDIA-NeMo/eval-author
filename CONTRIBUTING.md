@@ -145,7 +145,22 @@ administrator bypass. PR checks do not receive this credential. These controls
 must be configured in GitHub settings, not only in workflow YAML. Fork PRs are
 excluded. Keep unrelated secrets, cloud credentials, self-hosted runners, and
 internal application access out of these jobs. Do not use
-`pull_request_target` or a privileged `workflow_run` to execute PR code.
+`pull_request_target` or a privileged `workflow_run` to execute PR code, except
+in the omp review workflow below.
+
+The omp review workflow (`.github/workflows/omp-review.yml`) runs on
+`pull_request_target` for same-repository PRs by human owners, members, and
+collaborators when a PR is opened, reopened, or marked
+ready for review, and again when someone adds the `omp-review` label. PR code
+runs only inside the `tools/omp-review/` sandbox: a non-root, read-only
+container on a copy of the checkout, whose only network exits are a model proxy
+that holds the inference key and forwards only model requests, and a proxy that
+allows only PyPI and GitHub. A separate job without secrets posts one
+comment-only review. The workflow needs the `omp-review` environment limited to
+`main`, the `OMP_REVIEW_INFERENCE_HUB_API_KEY` secret, and the
+`OMP_REVIEW_MODEL`, `OMP_REVIEW_MODEL_API`, `OMP_REVIEW_CONTEXT_WINDOW`, and
+`OMP_REVIEW_MAX_TOKENS` variables. Its artifacts, including the agent
+transcript and test log, are public for 14 days.
 
 The same-repository job condition is defense in depth, not an access control:
 a PR can modify workflow YAML. CODEOWNERS routes review requests to ASE; it
