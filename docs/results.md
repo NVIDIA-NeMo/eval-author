@@ -11,10 +11,25 @@ limitations before deciding what to change.
 
 Rubric selections use `rubric_scope` for source-backed inventories. Package demo
 observations use `retained_credit`, `retained_credit_controls`, and `coverage` to
-identify their consumers. The provenance panel uses `rubric-provenance-demo-v1`
-with `rubric-provenance-expectations-v1` expectations; the version remains 1.
-Update integrations to these current names and rebuild older demo outputs rather
-than relying on former field or schema names; no compatibility aliases are kept.
+identify their consumers. The provenance panel uses `rubric-provenance-demo-v2`
+with `rubric-provenance-expectations-v1` expectations.
+Criterion IDs name their area, such as `provenance.grading-path` or
+`task-contract.scoring-authority`. Each check ID adds its method, such as
+`.deterministic-1` or `.llm-judge`. Result rows and check results keep the source
+rubric's IDs in `source` and `source_id`. Result rows omit the former top-level
+`skill_id` field; source metadata retains the original skill attribution.
+Rubric definitions use `4.1-draft`, measurement reports use
+`rubric-measurements-v3`, and identity mutation panels use
+`rubric-mutation-panel-v4`. The overall showcase, criterion scoring demo and task
+contract demo use `rubric-showcase-v2`, `criterion-scoring-demo-v2` and
+`task-contract-demo-v2`. Reports preserve canonical criterion and check order.
+The three demos are new in this change; their version numbers distinguish
+pre-merge development formats, not previously shipped releases. Existing
+measurement, identity-mutation and provenance outputs must be rebuilt when their
+schemas change. Update integrations to the current names; no compatibility aliases
+are kept.
+Keep old source-bound receipts under their original identifiers instead of
+renaming or resealing them as evidence for the new source bytes.
 See the [rubric measurements](determinism-checks.md#rubric-identity-measurements)
 and [provenance demo](determinism-checks.md#provenance-demo) for commands.
 

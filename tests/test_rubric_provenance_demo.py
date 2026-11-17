@@ -32,6 +32,28 @@ def provenance_demo_process():
     return invoke()
 
 
+@pytest.mark.parametrize("contract", ["version", "order"])
+def test_provenance_cli_preserves_canonical_report_contract(provenance_demo_process, contract):
+    process = provenance_demo_process
+    assert process.returncode == 0, process.stderr
+    panel = json.loads(process.stdout)
+    if contract == "version":
+        assert panel["schema"] == "rubric-provenance-demo-v2"
+        assert all(case["report"]["schema"] == "rubric-measurements-v3" for case in panel["cases"])
+        return
+    definitions = json.loads(
+        (ROOT / "skills/eval-author-rubric/references/artifact-configuration-provenance.json").read_text()
+    )
+    for case in panel["cases"]:
+        assert list(case["report"]["items"]) == [item["id"] for item in definitions["items"]]
+        for definition in definitions["items"]:
+            row = case["report"]["items"][definition["id"]]
+            assert row["rubric_version"] == definitions["rubric_version"]
+            assert [check["check_id"] for check in row["check_results"]] == [
+                check["id"] for check in definition["checks"]
+            ]
+
+
 def test_reconstruction_recovered_binds_exact_source_step(provenance_demo_process):
     process = deepcopy(provenance_demo_process)
     assert process.returncode == 0, process.stdout + process.stderr
@@ -144,6 +166,7 @@ def test_retained_demo_repeats_bytes_and_replays_cli(tmp_path):
     assert first.stdout == second.stdout
     panel = json.loads(first.stdout)
     assert json.loads((tmp_path / "first/panel.json").read_text()) == panel
+    assert (tmp_path / "first/panel.json").read_text() == first.stdout
     for case in panel["cases"]:
         directory = tmp_path / "first" / case["id"]
         for name, digest in case["input_digests"].items():
@@ -192,6 +215,7 @@ def test_retained_demo_repeats_bytes_and_replays_cli(tmp_path):
         assert not replay.stderr
         assert json.loads(replay.stdout) == case["report"]
         assert json.loads((directory / "report.json").read_text()) == case["report"]
+        assert (directory / "report.json").read_text() == replay.stdout
         baseline_selection = json.loads((directory / "baseline-selection.json").read_text())
         assert baseline_selection == {key: value for key, value in selection.items() if key != "reconstruction"}
         baseline_argv = replay.args.copy()
