@@ -168,3 +168,38 @@ def test_missing_review_posts_failure_and_removes_label(tmp_path: Path, monkeypa
     posts = [body for method, _, body in calls if method == "POST"]
     assert len(posts) == 1 and gh.FAILURE_MARKER in posts[0]["body"]
     assert ("DELETE", "/repos/o/r/issues/7/labels/omp-review", None) in calls
+
+
+@pytest.mark.parametrize(
+    "raw",
+    [
+        json.dumps(dict(review(), overall_correctness=[])),
+        json.dumps(dict(review(), overall_correctness={})),
+        "[" * 100_000 + "]" * 100_000,
+    ],
+    ids=["list-correctness", "dict-correctness", "deep-nesting"],
+)
+def test_malformed_review_posts_failure_review(tmp_path: Path, monkeypatch, raw: str):
+    path = tmp_path / "review.json"
+    path.write_text(raw)
+    calls: list[tuple[str, str, Any]] = []
+    monkeypatch.setattr(gh, "api", fake_api([200], calls))
+    monkeypatch.setenv("GITHUB_TOKEN", "t")
+
+    assert post.main(args_for(path)) == 1
+
+    posts = [body for method, _, body in calls if method == "POST"]
+    assert len(posts) == 1 and gh.FAILURE_MARKER in posts[0]["body"]
+
+
+def test_failure_review_reports_sandbox_status(tmp_path: Path):
+    status = {"phase": "review", "exit_code": 1, "seconds": 2843, "timed_out": True}
+    path = tmp_path / "status.json"
+    path.write_text(json.dumps(dict(status, spent_usd=15.02, budget_usd=15, refused=3)))
+    body = post.failure_request("review.json is missing", HEAD, "https://run", post.load_status(path))["body"]
+    assert "sandbox phase review · exit 1 · 47 min · time limit reached" in body
+    assert "model spend $15.02 of $15.00 · 3 model calls refused at the budget" in body
+
+    path.write_text(json.dumps(dict(status, phase="elsewhere")))
+    assert post.load_status(path) is None
+    assert "No sandbox status" in post.failure_request("x", HEAD, "https://run", None)["body"]

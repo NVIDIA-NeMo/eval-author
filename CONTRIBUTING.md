@@ -156,14 +156,24 @@ and the PR author has write access, both checked with GitHub's permission API.
 PR code runs only inside the `tools/omp-review/` sandbox: a non-root,
 read-only, CPU- and memory-limited gVisor container on a copy of the checkout, whose
 writable storage is a fixed-size filesystem and whose only network exits are a
-model proxy that holds the inference key and forwards only model requests, and
-a proxy that allows only PyPI and GitHub. Only the review's `review.json` leaves
-the sandbox; transcripts and test logs are discarded. A separate job without
-secrets posts one comment-only review. The workflow needs the `omp-review`
-environment limited to `main`, the `OMP_REVIEW_INFERENCE_HUB_API_KEY` secret,
-and the `OMP_REVIEW_MODEL`, `OMP_REVIEW_MODEL_API`,
-`OMP_REVIEW_CONTEXT_WINDOW`, and `OMP_REVIEW_MAX_TOKENS` variables. To debug a
-review, run `tools/omp-review/run.sh --keep-work` locally.
+model proxy and a proxy that allows only PyPI and GitHub. The model proxy holds
+the inference key, forwards only Anthropic Messages calls for the configured
+model, and stops forwarding once a run's metered spend reaches its budget
+(currently $15). Only the review's `review.json` leaves the sandbox;
+transcripts and logs are discarded. A separate job without secrets posts one
+comment-only review, with the run's phase, exit code, duration, and model spend
+when the review did not complete. PR code can write `review.json` itself, so a
+posted review is advisory; it never approves or requests changes.
+
+The workflow needs the `omp-review` environment limited to `main`, the
+`OMP_REVIEW_INFERENCE_HUB_API_KEY` secret, and the `OMP_REVIEW_MODEL`,
+`OMP_REVIEW_CONTEXT_WINDOW`, `OMP_REVIEW_MAX_TOKENS`, and `OMP_REVIEW_PRICES`
+variables. `OMP_REVIEW_PRICES` gives the model's USD prices per million tokens,
+for example `input=4,output=20,cache_write_5m=5,cache_write_1h=8,cache_read=0.2`.
+GitHub blocks `pull_request_target` in public repositories from December 2,
+2026 unless an Actions event policy allows it, so the repository needs a policy
+that allows it for this workflow file. To debug a review, run
+`tools/omp-review/run.sh --keep-work` locally.
 
 The same-repository job condition is defense in depth, not an access control:
 a PR can modify workflow YAML. CODEOWNERS routes review requests to ASE; it

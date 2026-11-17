@@ -11,8 +11,17 @@ sync_status=0
 # Bounded so a hanging build hook cannot hold the job past its timeout.
 timeout 15m uv sync --locked >/tmp/omp-review/uv-sync.log 2>&1 || sync_status=$?
 echo "$sync_status" >/tmp/omp-review/uv-sync.exit
+# The agent gets what is left of run.sh's deadline, capped at 50 minutes, keeping 3 minutes to shut down.
+minutes=$(((OMP_REVIEW_DEADLINE - $(date +%s)) / 60 - 3))
+[ "$minutes" -le 50 ] || minutes=50
+[ "$minutes" -ge 5 ] || { echo "only $minutes minutes left for the agent" >&2; exit 124; }
+started=$(date +%s)
 status=0
 omp -p --mode json --model "$OMP_REVIEW_SELECTOR" --thinking high --config /work/render/omp-config.yml \
-  --session-dir /tmp/omp-review/sessions --no-lsp --no-title --approval-mode yolo --max-time 50m --cwd /work/repo \
-  </work/context/prompt.md >/tmp/omp-review/events.jsonl 2>/tmp/omp-review/omp.stderr || status=$?
-[ "$status" -eq 0 ] && [ -s /work/out/review.json ] || { echo "omp exit $status; review.json missing or empty" >&2; exit 1; }
+  --session-dir /tmp/omp-review/sessions --no-lsp --no-title --approval-mode yolo --max-time "${minutes}m" \
+  --cwd /work/repo </work/context/prompt.md >/tmp/omp-review/events.jsonl 2>/tmp/omp-review/omp.stderr || status=$?
+[ "$status" -eq 0 ] && [ -s /work/out/review.json ] && exit 0
+echo "omp exit $status; review.json missing or empty" >&2
+# 124 tells run.sh's status that the agent ran out of time rather than failed.
+[ $(($(date +%s) - started)) -lt $((minutes * 60 - 30)) ] || exit 124
+exit 1

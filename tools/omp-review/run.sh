@@ -3,36 +3,41 @@
 # SPDX-License-Identifier: Apache-2.0
 
 # Launch the sandboxed omp PR review: an agent container on an internal network that can reach only a
-# key-injecting model proxy and an allowlisting egress proxy. The model key never enters the agent container.
+# key-holding, budget-metering model proxy and an allowlisting egress proxy. The model key never enters the agent.
 set -euo pipefail
 
 usage() {
-  echo "usage: run.sh --repo DIR --context DIR --out DIR [--selftest-only] [--keep-work]" >&2
+  echo "usage: run.sh --repo DIR --context DIR --out DIR [--status FILE] [--selftest-only] [--keep-work]" >&2
   exit 2
 }
 
-REPO="" CONTEXT="" OUT="" SELFTEST_ONLY=0 KEEP_WORK=0
+REPO="" CONTEXT="" OUT="" STATUS_FILE="" SELFTEST_ONLY=0 KEEP_WORK=0
 while [ $# -gt 0 ]; do
   case "$1" in
     --repo) REPO="${2:-}"; shift 2 ;;
     --context) CONTEXT="${2:-}"; shift 2 ;;
     --out) OUT="${2:-}"; shift 2 ;;
+    # Run status (phase, exit code, duration, model spend) for the review poster; written outside the sandbox.
+    --status) STATUS_FILE="${2:-}"; shift 2 ;;
     --selftest-only) SELFTEST_ONLY=1; shift ;;
-    # Local debugging: keep the scratch directory (repo copy, transcript, test logs) instead of deleting it.
+    # Local debugging: keep the scratch directory (repo copy, transcript, logs) instead of deleting it.
     --keep-work) KEEP_WORK=1; shift ;;
     *) usage ;;
   esac
 done
 
+START=$(date +%s)
+PHASE=setup
 fail_input() { echo "run.sh: $1" >&2; exit 2; }
 [ -n "${OMP_REVIEW_INFERENCE_HUB_API_KEY:-}" ] || fail_input "OMP_REVIEW_INFERENCE_HUB_API_KEY is empty"
 [[ "${OMP_REVIEW_MODEL:-}" =~ ^[A-Za-z0-9._:/-]{1,200}$ ]] || fail_input "OMP_REVIEW_MODEL is missing or invalid"
 [[ "${OMP_REVIEW_CONTEXT_WINDOW:-}" =~ ^[1-9][0-9]{0,8}$ ]] || fail_input "OMP_REVIEW_CONTEXT_WINDOW must be a positive integer"
 [[ "${OMP_REVIEW_MAX_TOKENS:-}" =~ ^[1-9][0-9]{0,8}$ ]] || fail_input "OMP_REVIEW_MAX_TOKENS must be a positive integer"
-case "${OMP_REVIEW_MODEL_API:-}" in
-  anthropic-messages | openai-completions) ;;
-  *) fail_input "OMP_REVIEW_MODEL_API must be anthropic-messages or openai-completions" ;;
-esac
+[[ "${OMP_REVIEW_BUDGET_USD:-}" =~ ^[0-9]{1,6}(\.[0-9]{1,2})?$ ]] || fail_input "OMP_REVIEW_BUDGET_USD must be a dollar amount"
+[ -n "${OMP_REVIEW_PRICES:-}" ] || fail_input "OMP_REVIEW_PRICES is empty"
+# Wall-clock budget for the whole sandbox run; the workflow step timeout must leave room beyond it.
+[[ "${OMP_REVIEW_MINUTES:=60}" =~ ^[1-9][0-9]{0,3}$ ]] || fail_input "OMP_REVIEW_MINUTES must be a positive integer"
+DEADLINE=$((START + OMP_REVIEW_MINUTES * 60))
 # CI runs the agent under gVisor (runsc); runc is the local default where gVisor is not installed.
 RUNTIME="${OMP_REVIEW_RUNTIME:-runc}"
 case "$RUNTIME" in
@@ -46,17 +51,46 @@ mkdir -p "$OUT" || fail_input "cannot create --out"
 REPO=$(cd "$REPO" && pwd)
 CONTEXT=$(cd "$CONTEXT" && pwd)
 OUT=$(cd "$OUT" && pwd)
-export OMP_REVIEW_INFERENCE_HUB_API_KEY
+export OMP_REVIEW_INFERENCE_HUB_API_KEY OMP_REVIEW_MODEL OMP_REVIEW_MAX_TOKENS OMP_REVIEW_BUDGET_USD OMP_REVIEW_PRICES
 
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+TOOLS_DIR=$(cd "$SCRIPT_DIR/.." && pwd)
 ID="omp-review-${GITHUB_RUN_ID:-local}-$$"
 WORK=$(mktemp -d)
 mkdir -p "$WORK/home" "$WORK/tmp" "$WORK/render"
 SELECTOR="inference-hub/$OMP_REVIEW_MODEL:high"
-MODEL_PROXY_IMAGE="nginx:1.31.8-alpine@sha256:fed7e14be83cbd2661a75cdc5b872d936cf155d46c327084d30b8df19ae88d72"
+# The model proxy runs on the agent image's base image.
+PROXY_IMAGE="python:3.12.16-slim-trixie@sha256:5e2bdb1b0d542d5039cffb8181c65930093949194a65c365dfb1b0fe13a4fa5b"
+
+# Ask the model proxy for its metered spend and record the run status for the review poster.
+write_status() {
+  local code=$1 timed_out=0
+  [ "$code" -eq 124 ] && timed_out=1
+  local fields=(--phase "$PHASE" --code "$code" --seconds "$(($(date +%s) - START))" --timed-out "$timed_out")
+  # shellcheck disable=SC2016 # Python source, not shell
+  local summary='import json, sys, urllib.request
+args = dict(zip(sys.argv[1::2], sys.argv[2::2]))
+try:
+    spend = json.load(urllib.request.urlopen("http://127.0.0.1:8080/omp-review/spend", timeout=5))
+except OSError:
+    spend = {}
+status = {"phase": args["--phase"], "exit_code": int(args["--code"]), "seconds": int(args["--seconds"]),
+          "timed_out": args["--timed-out"] == "1", "spent_usd": spend.get("spent_usd"),
+          "budget_usd": spend.get("budget_usd"), "refused": spend.get("refused"), "requests": spend.get("requests"),
+          "hub_key_spend_delta_usd": spend.get("hub_key_spend_delta_usd")}
+print(json.dumps(status))'
+  local status
+  status=$(docker exec "$ID-model" python3 -c "$summary" "${fields[@]}" 2>/dev/null) \
+    || status=$(printf '{"phase": "%s", "exit_code": %d, "seconds": %d, "timed_out": %s}' \
+      "$PHASE" "$code" "$(($(date +%s) - START))" "$([ "$timed_out" -eq 1 ] && echo true || echo false)")
+  echo "run.sh: status $status" >&2
+  [ -z "$STATUS_FILE" ] || printf '%s\n' "$status" >"$STATUS_FILE"
+}
 
 # Every container carries the omp-review label so the workflow can stop them even if this script is killed.
 cleanup() {
+  local code=$?
+  write_status "$code" || true
   docker rm -f "$ID-model" "$ID-egress" >/dev/null 2>&1 || true
   docker network rm "$ID-int" "$ID-ext" >/dev/null 2>&1 || true
   docker image rm "omp-review-agent:$ID" "omp-review-egress:$ID" >/dev/null 2>&1 || true
@@ -65,6 +99,7 @@ cleanup() {
   else
     rm -rf "$WORK" 2>/dev/null || true
   fi
+  exit "$code"
 }
 trap cleanup EXIT
 
@@ -72,20 +107,11 @@ trap cleanup EXIT
 # written by the sandbox (core.fsmonitor, hooks) would execute there.
 cp -a "$REPO" "$WORK/repo"
 
-if [ "$OMP_REVIEW_MODEL_API" = anthropic-messages ]; then
-  base_url=http://model-proxy:8080
-  thinking='{ mode: anthropic-adaptive, efforts: [low, medium, high, xhigh, max] }'
-  compat=""
-else
-  base_url=http://model-proxy:8080/v1
-  thinking='{ mode: effort, efforts: [low, medium, high] }'
-  compat="        compat: { supportsReasoningEffort: true }"
-fi
 cat >"$WORK/render/models.yml" <<EOF
 providers:
   inference-hub:
-    baseUrl: $base_url
-    api: $OMP_REVIEW_MODEL_API
+    baseUrl: http://model-proxy:8080
+    api: anthropic-messages
     auth: apiKey
     apiKey: OMP_REVIEW_PROXY_PLACEHOLDER
     models:
@@ -95,9 +121,9 @@ providers:
         input: [text, image]
         contextWindow: $OMP_REVIEW_CONTEXT_WINDOW
         maxTokens: $OMP_REVIEW_MAX_TOKENS
-        thinking: $thinking
-${compat}
+        thinking: { mode: anthropic-adaptive, efforts: [low, medium, high, xhigh, max] }
 EOF
+# Nobody can answer the ask tool in CI; deny it rather than let a question end the run.
 cat >"$WORK/render/omp-config.yml" <<EOF
 modelRoles:
   default: "$SELECTOR"
@@ -110,6 +136,8 @@ async:
   enabled: false
 tools:
   approvalMode: yolo
+  approval:
+    ask: deny
 EOF
 
 docker build -q -t "omp-review-agent:$ID" -f "$SCRIPT_DIR/agent.Dockerfile" "$SCRIPT_DIR" >/dev/null
@@ -118,10 +146,12 @@ docker build -q -t "omp-review-egress:$ID" -f "$SCRIPT_DIR/egress.Dockerfile" "$
 docker network create --internal "$ID-int" >/dev/null
 docker network create "$ID-ext" >/dev/null
 
-docker run -d --name "$ID-model" --label omp-review --network "$ID-ext" --security-opt no-new-privileges \
-  -e OMP_REVIEW_INFERENCE_HUB_API_KEY \
-  -v "$SCRIPT_DIR/model-proxy.conf.template:/etc/nginx/templates/default.conf.template:ro" \
-  "$MODEL_PROXY_IMAGE" >/dev/null
+docker run -d --name "$ID-model" --label omp-review --network "$ID-ext" --user 65534:65534 --read-only \
+  --cap-drop ALL --security-opt no-new-privileges \
+  -e OMP_REVIEW_INFERENCE_HUB_API_KEY -e OMP_REVIEW_MODEL -e OMP_REVIEW_MAX_TOKENS -e OMP_REVIEW_BUDGET_USD \
+  -e OMP_REVIEW_PRICES -e PYTHONUNBUFFERED=1 -e PYTHONDONTWRITEBYTECODE=1 \
+  -v "$TOOLS_DIR/omp_review_model_proxy.py:/proxy/omp_review_model_proxy.py:ro" \
+  "$PROXY_IMAGE" python3 /proxy/omp_review_model_proxy.py >/dev/null
 docker network connect --alias model-proxy "$ID-int" "$ID-model"
 docker run -d --name "$ID-egress" --label omp-review --network "$ID-ext" --security-opt no-new-privileges \
   "omp-review-egress:$ID" >/dev/null
@@ -145,6 +175,7 @@ agent_run() {
     -e http_proxy=http://egress-proxy:3128 -e https_proxy=http://egress-proxy:3128 \
     -e NO_PROXY=model-proxy,localhost,127.0.0.1 -e no_proxy=model-proxy,localhost,127.0.0.1 \
     -e OMP_REVIEW_PROXY_PLACEHOLDER=proxy-injected -e OMP_REVIEW_SELECTOR="$SELECTOR" \
+    -e OMP_REVIEW_DEADLINE="$DEADLINE" \
     -v "$WORK/repo":/work/repo -v "$CONTEXT":/work/context:ro -v "$OUT":/work/out \
     -v "$SCRIPT_DIR":/work/config:ro -v "$WORK/render":/work/render:ro \
     -v "$WORK/home":/home/reviewer -v "$WORK/tmp":/tmp \
@@ -168,6 +199,7 @@ if [ "$ready" -ne 1 ]; then
   exit 1
 fi
 
+PHASE=selftest
 pass() { echo "selftest: PASS $1"; }
 fail() { echo "selftest: FAIL $1" >&2; exit 1; }
 
@@ -185,7 +217,7 @@ pass allowlist-enforced
   || fail model-proxy-restricted
 pass model-proxy-restricted
 
-agent_env=$(agent_run sh -c 'env; cat /proc/self/environ') || fail no-key-in-agent
+agent_env=$(agent_run sh -c 'env; tr "\0" "\n" </proc/self/environ') || fail no-key-in-agent
 if grep -F -q -- "$OMP_REVIEW_INFERENCE_HUB_API_KEY" <<<"$agent_env"; then
   fail no-key-in-agent
 fi
@@ -209,6 +241,7 @@ if [ "$SELFTEST_ONLY" -eq 1 ]; then
   exit 0
 fi
 
+PHASE=review
 status=0
 agent_run bash /work/config/agent-entrypoint.sh || status=$?
 exit "$status"

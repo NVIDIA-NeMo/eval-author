@@ -7,9 +7,11 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import os
 import re
 import sys
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -20,7 +22,9 @@ FINDING_KEYS = {"title", "body", "priority", "confidence", "file_path", "line_st
 MAX_FINDINGS = 50
 MAX_SPAN = 9
 MAX_BODY = 60000
-TRUNCATED = "\n\n(truncated; see the run artifact)"
+TRUNCATED = "\n\n(truncated)"
+# Sandbox phases recorded by tools/omp-review/run.sh.
+PHASES = ("setup", "selftest", "review")
 
 _HUNK = re.compile(r"^@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@")
 _MENTION = re.compile(r"@(?=[A-Za-z0-9])")
@@ -29,12 +33,29 @@ _HTML = re.compile(r"<(?=[A-Za-z/!?])")
 _FENCE_OPEN = re.compile(r"(`{3,})[^`]*|(~{3,}).*")
 
 
+@dataclass(frozen=True)
+class RunStatus:
+    """What run.sh recorded about the sandbox run; written on the host, outside the sandbox's reach."""
+
+    phase: str
+    exit_code: int
+    seconds: int
+    timed_out: bool
+    spent_usd: float | None
+    budget_usd: float | None
+    refused: int | None
+
+
 def _is_int(value: Any) -> bool:
     return isinstance(value, int) and not isinstance(value, bool)
 
 
 def _is_unit(value: Any) -> bool:
     return isinstance(value, (int, float)) and not isinstance(value, bool) and 0 <= value <= 1
+
+
+def _is_dollars(value: Any) -> bool:
+    return isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value) and value >= 0
 
 
 def _check_finding(index: int, finding: Any) -> None:
@@ -60,19 +81,30 @@ def _check_finding(index: int, finding: Any) -> None:
 
 
 def load_review(path: Path, head_sha: str) -> dict[str, Any]:
+    """Parse and validate review.json; every way it can be wrong raises ValueError so a failure review is posted."""
     try:
         review = json.loads(path.read_text(encoding="utf-8"))
     except FileNotFoundError:
         raise ValueError("review.json is missing") from None
-    except (OSError, UnicodeDecodeError, ValueError) as error:
+    except (OSError, UnicodeDecodeError, ValueError, RecursionError) as error:
         raise ValueError(f"review.json is not valid JSON ({type(error).__name__})") from None
+    try:
+        _check_review(review, head_sha)
+    except ValueError:
+        raise
+    except Exception as error:  # review.json is untrusted sandbox output; any validation crash means it is invalid.
+        raise ValueError(f"review.json failed validation ({type(error).__name__})") from None
+    return review
+
+
+def _check_review(review: Any, head_sha: str) -> None:
     if not isinstance(review, dict) or set(review) != REVIEW_KEYS:
         raise ValueError(f"review.json must have exactly the keys {sorted(REVIEW_KEYS)}")
     if review["version"] != 1 or isinstance(review["version"], bool):
         raise ValueError("review.json version must be 1")
     if review["head_sha"] != head_sha:
         raise ValueError("review.json head_sha does not match the reviewed commit")
-    if review["overall_correctness"] not in {"correct", "incorrect"}:
+    if review["overall_correctness"] not in ("correct", "incorrect"):  # a tuple, so unhashable values compare unequal
         raise ValueError("overall_correctness must be correct or incorrect")
     if not isinstance(review["explanation"], str) or not 1 <= len(review["explanation"]) <= 1000:
         raise ValueError("explanation must be 1-1000 characters")
@@ -83,7 +115,47 @@ def load_review(path: Path, head_sha: str) -> dict[str, Any]:
         raise ValueError(f"findings must be a list of at most {MAX_FINDINGS}")
     for index, finding in enumerate(findings):
         _check_finding(index, finding)
-    return review
+
+
+def load_status(path: Path | None) -> RunStatus | None:
+    """The sandbox run status, or None when run.sh never wrote one (killed, timed out, or never started)."""
+    if path is None:
+        return None
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, ValueError, RecursionError):
+        return None
+    if not isinstance(data, dict):
+        return None
+    phase, code, seconds, timed_out = (
+        data.get("phase"),
+        data.get("exit_code"),
+        data.get("seconds"),
+        data.get("timed_out"),
+    )
+    spent, budget, refused = data.get("spent_usd"), data.get("budget_usd"), data.get("refused")
+    if phase not in PHASES or not _is_int(code) or not 0 <= code <= 255 or not _is_int(seconds) or seconds < 0:
+        return None
+    if not isinstance(timed_out, bool) or not all(value is None or _is_dollars(value) for value in (spent, budget)):
+        return None
+    if refused is not None and (not _is_int(refused) or refused < 0):
+        return None
+    return RunStatus(phase, code, seconds, timed_out, spent, budget, refused)
+
+
+def status_line(status: RunStatus | None) -> str:
+    if status is None:
+        return (
+            "No sandbox status: the review job stopped before the sandbox finished (failure, timeout, or cancellation)."
+        )
+    parts = [f"sandbox phase {status.phase}", f"exit {status.exit_code}", f"{status.seconds // 60} min"]
+    if status.timed_out:
+        parts.append("time limit reached")
+    if status.spent_usd is not None and status.budget_usd is not None:
+        parts.append(f"model spend ${status.spent_usd:.2f} of ${status.budget_usd:.2f}")
+    if status.refused:
+        parts.append(f"{status.refused} model calls refused at the budget")
+    return " · ".join(parts)
 
 
 def verdict(findings: list[dict[str, Any]]) -> str:
@@ -173,15 +245,23 @@ def _with_marker(content: str, head_sha: str) -> str:
     return content + marker
 
 
-def review_body(review: dict[str, Any], listed: list[dict[str, Any]], heading: str, head_sha: str, run_url: str) -> str:
+def review_body(
+    review: dict[str, Any],
+    listed: list[dict[str, Any]],
+    heading: str,
+    head_sha: str,
+    run_url: str,
+    status: RunStatus | None = None,
+) -> str:
     findings = review["findings"]
     counts = " · ".join(f"P{p} {sum(f['priority'] == p for f in findings)}" for p in range(4))
+    spend = f" · model spend ${status.spent_usd:.2f}" if status and status.spent_usd is not None else ""
     parts = [
         f"### omp review: {verdict(findings).capitalize()}",
         "",
         sanitize(review["explanation"]),
         "",
-        f"Confidence {review['confidence']:.2f} · {counts} · reviewed {head_sha[:7]} · [run]({run_url})",
+        f"Confidence {review['confidence']:.2f} · {counts} · reviewed {head_sha[:7]}{spend} · [run]({run_url})",
     ]
     if listed:
         parts += ["", heading, ""] + [_finding_entry(finding) for finding in listed]
@@ -202,31 +282,38 @@ def inline_comment(finding: dict[str, Any]) -> dict[str, Any]:
 
 
 def review_request(
-    review: dict[str, Any], files: dict[str, list[set[int]]], head_sha: str, run_url: str
+    review: dict[str, Any],
+    files: dict[str, list[set[int]]],
+    head_sha: str,
+    run_url: str,
+    status: RunStatus | None = None,
 ) -> dict[str, Any]:
     placed = [finding for finding in review["findings"] if placeable(finding, files)]
     unplaced = [finding for finding in review["findings"] if not placeable(finding, files)]
     return {
         "commit_id": head_sha,
         "event": "COMMENT",
-        "body": review_body(review, unplaced, "#### Findings outside the diff", head_sha, run_url),
+        "body": review_body(review, unplaced, "#### Findings outside the diff", head_sha, run_url, status),
         "comments": [inline_comment(finding) for finding in placed],
     }
 
 
-def fallback_request(review: dict[str, Any], head_sha: str, run_url: str) -> dict[str, Any]:
+def fallback_request(
+    review: dict[str, Any], head_sha: str, run_url: str, status: RunStatus | None = None
+) -> dict[str, Any]:
     return {
         "commit_id": head_sha,
         "event": "COMMENT",
-        "body": review_body(review, review["findings"], "#### Findings", head_sha, run_url),
+        "body": review_body(review, review["findings"], "#### Findings", head_sha, run_url, status),
         "comments": [],
     }
 
 
-def failure_request(reason: str, head_sha: str, run_url: str) -> dict[str, Any]:
+def failure_request(reason: str, head_sha: str, run_url: str, status: RunStatus | None = None) -> dict[str, Any]:
     body = (
         "### omp review did not complete\n\n"
-        f"{neutralize(reason)} · head {head_sha[:7]} · [run]({run_url})\n"
+        f"{neutralize(reason)} · head {head_sha[:7]} · [run]({run_url})\n\n"
+        f"{status_line(status)}\n"
         f"{gh.REVIEW_MARKER}{head_sha} -->\n"
         f"{gh.FAILURE_MARKER}"
     )
@@ -239,10 +326,11 @@ def _post(repo: str, pr: int, request: dict[str, Any], token: str) -> int:
 
 
 def run(args: argparse.Namespace, token: str) -> int:
+    run_status = load_status(args.status)
     try:
         review = load_review(args.review, args.head_sha)
     except ValueError as error:
-        request = failure_request(str(error), args.head_sha, args.run_url)
+        request = failure_request(str(error), args.head_sha, args.run_url, run_status)
         if args.dry_run:
             print(json.dumps(request, indent=2))
         elif (status := _post(args.repo, args.pr, request, token)) not in {200, 201}:
@@ -251,13 +339,13 @@ def run(args: argparse.Namespace, token: str) -> int:
         return 1
 
     files = diff_files(args.repo, args.base_sha, args.head_sha, token)
-    request = review_request(review, files, args.head_sha, args.run_url)
+    request = review_request(review, files, args.head_sha, args.run_url, run_status)
     if args.dry_run:
         print(json.dumps(request, indent=2))
         return 0
     status = _post(args.repo, args.pr, request, token)
     if status == 422:
-        status = _post(args.repo, args.pr, fallback_request(review, args.head_sha, args.run_url), token)
+        status = _post(args.repo, args.pr, fallback_request(review, args.head_sha, args.run_url, run_status), token)
     if status not in {200, 201}:
         raise RuntimeError(f"posting the review returned {status}")
     return 0
@@ -271,6 +359,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--head-sha", required=True)
     parser.add_argument("--review", required=True, type=Path)
     parser.add_argument("--run-url", required=True)
+    parser.add_argument("--status", type=Path, help="run status JSON written by tools/omp-review/run.sh")
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args(argv)
     token = os.environ.get("GITHUB_TOKEN")
