@@ -154,7 +154,7 @@ marked ready for review, and again when someone adds the `omp-review` label.
 It runs only when the person who triggered it has the maintain or admin role
 and the PR author has write access, both checked with GitHub's permission API.
 PR code runs only inside the `tools/omp-review/` sandbox: a non-root,
-read-only, CPU- and memory-limited container on a copy of the checkout, whose
+read-only, CPU- and memory-limited gVisor container on a copy of the checkout, whose
 writable storage is a fixed-size filesystem and whose only network exits are a
 model proxy that holds the inference key and forwards only model requests, and
 a proxy that allows only PyPI and GitHub. Only the review's `review.json` leaves

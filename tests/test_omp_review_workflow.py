@@ -60,6 +60,13 @@ def test_only_staged_review_json_is_uploaded():
     assert steps.index(stage) == steps.index(upload) - 1
 
 
+def test_agent_runs_under_pinned_gvisor():
+    steps = {step.get("name"): step for step in JOBS["review"]["steps"]}
+    install = steps["Install gVisor"]
+    assert "sha512sum -c" in install["run"] and len(install["env"]["GVISOR_SHA512"]) == 128
+    assert steps["Run sandboxed review"]["env"]["OMP_REVIEW_RUNTIME"] == "runsc"
+
+
 def test_host_run_steps_skip_pr_checkout_and_inline_expressions():
     for step in STEPS:
         run = step.get("run", "")

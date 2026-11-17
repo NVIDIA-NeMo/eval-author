@@ -81,6 +81,16 @@ jobs:
           mkdir "$RUNNER_TEMP/omp-scratch"
           sudo mount -o loop,nosuid,nodev "$RUNNER_TEMP/omp-scratch.img" "$RUNNER_TEMP/omp-scratch"
           sudo chown "$(id -u):$(id -g)" "$RUNNER_TEMP/omp-scratch"
+      - name: Install gVisor
+        env:
+          GVISOR_RELEASE: "20261116.0"
+          GVISOR_SHA512: a34261504066142b6c1cc4d1813bb2d092761675416e350edc98c4cc66469b63b6f41acdeed09681b6c717c00e80e437f5f2f9c8d37705b8a9260632867c2b7d
+        run: |
+          curl -fsSLo "$RUNNER_TEMP/gvisor.tar.zstd" "https://storage.googleapis.com/gvisor/releases/release/$GVISOR_RELEASE/x86_64/gvisor.tar.zstd"
+          echo "$GVISOR_SHA512  $RUNNER_TEMP/gvisor.tar.zstd" | sha512sum -c -
+          sudo tar --zstd -xf "$RUNNER_TEMP/gvisor.tar.zstd" -C /usr/local/bin
+          sudo /usr/local/bin/runsc install
+          sudo systemctl reload docker
       - name: Run sandboxed review
         # Leaves room for the always() steps below inside the job timeout.
         timeout-minutes: 65
@@ -90,6 +100,7 @@ jobs:
           OMP_REVIEW_MODEL_API: ${{ vars.OMP_REVIEW_MODEL_API }}
           OMP_REVIEW_CONTEXT_WINDOW: ${{ vars.OMP_REVIEW_CONTEXT_WINDOW }}
           OMP_REVIEW_MAX_TOKENS: ${{ vars.OMP_REVIEW_MAX_TOKENS }}
+          OMP_REVIEW_RUNTIME: runsc
           TMPDIR: ${{ runner.temp }}/omp-scratch
         run: bash trusted/tools/omp-review/run.sh --repo "$GITHUB_WORKSPACE/pr" --context "$RUNNER_TEMP/omp-review/context" --out "$RUNNER_TEMP/omp-scratch/out"
       # Runs even if run.sh was killed before its own cleanup: stop every sandbox container (the model proxy holds

@@ -33,6 +33,12 @@ case "${OMP_REVIEW_MODEL_API:-}" in
   anthropic-messages | openai-completions) ;;
   *) fail_input "OMP_REVIEW_MODEL_API must be anthropic-messages or openai-completions" ;;
 esac
+# CI runs the agent under gVisor (runsc); runc is the local default where gVisor is not installed.
+RUNTIME="${OMP_REVIEW_RUNTIME:-runc}"
+case "$RUNTIME" in
+  runc | runsc) ;;
+  *) fail_input "OMP_REVIEW_RUNTIME must be runc or runsc" ;;
+esac
 [ -n "$REPO" ] && [ -d "$REPO" ] || fail_input "--repo must be an existing directory"
 [ -n "$CONTEXT" ] && [ -d "$CONTEXT" ] || fail_input "--context must be an existing directory"
 [ -n "$OUT" ] || fail_input "--out is required"
@@ -120,11 +126,18 @@ docker network connect --alias model-proxy "$ID-int" "$ID-model"
 docker run -d --name "$ID-egress" --label omp-review --network "$ID-ext" --security-opt no-new-privileges \
   "omp-review-egress:$ID" >/dev/null
 docker network connect --alias egress-proxy "$ID-int" "$ID-egress"
+# gVisor cannot reach Docker's embedded DNS on user-defined networks, so pin the sidecar names in /etc/hosts.
+sidecar_ip() { docker inspect -f "{{(index .NetworkSettings.Networks \"$ID-int\").IPAddress}}" "$1"; }
+MODEL_IP=$(sidecar_ip "$ID-model")
+EGRESS_IP=$(sidecar_ip "$ID-egress")
 
 # The only place the agent container's flags live; the model key is never passed here.
+# gVisor uses about two host PIDs per sandboxed process, hence the PID limit.
 agent_run() {
-  docker run --rm --label omp-review --network "$ID-int" --user "$(id -u):$(id -g)" --read-only --cap-drop ALL \
-    --security-opt no-new-privileges --pids-limit 4096 --memory "${OMP_REVIEW_MEMORY:-12g}" \
+  docker run --rm --label omp-review --runtime "$RUNTIME" --network "$ID-int" \
+    --add-host "model-proxy:$MODEL_IP" --add-host "egress-proxy:$EGRESS_IP" \
+    --user "$(id -u):$(id -g)" --read-only --cap-drop ALL \
+    --security-opt no-new-privileges --pids-limit 8192 --memory "${OMP_REVIEW_MEMORY:-12g}" \
     --cpus "${OMP_REVIEW_CPUS:-3}" \
     -e HOME=/home/reviewer -e PI_CODING_AGENT_DIR=/home/reviewer/.omp/agent -e TMPDIR=/tmp \
     -e UV_CACHE_DIR=/home/reviewer/.cache/uv \
