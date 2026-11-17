@@ -142,8 +142,11 @@ to implemented flow renderers. Duplicate registrations are rejected. Implemented
 flows are [onboarding.py](../scripts/conversation_flows/onboarding.py),
 [first_eval.py](../scripts/conversation_flows/first_eval.py),
 [audit.py](../scripts/conversation_flows/audit.py), and
-[expansion.py](../scripts/conversation_flows/expansion.py), with copy in their
-respective `_templates.py` modules.
+[expansion.py](../scripts/conversation_flows/expansion.py). Flow-specific fixed
+copy lives in the corresponding `_templates.py` modules where needed.
+[expansion_templates.py](../scripts/conversation_flows/expansion_templates.py)
+supplies the improvement entry menu rendered by onboarding; expansion continuation
+uses shared labels and the saved pending question.
 Shared formatting and escaping live in
 [conversation_formatting.py](../scripts/conversation_formatting.py).
 
