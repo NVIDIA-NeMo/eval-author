@@ -75,7 +75,7 @@ a native Harbor `run.yaml` and private simulator prompt files in a separate
 directory under `.eval-author/.working/`. It preserves the selected target,
 environment, and verifier settings. Each scenario gets a separate configuration.
 
-Authored task reviews retain the selected test type and identify the neutral
+Authored task reviews retain the selected interaction type and identify the neutral
 scenario. Execution settings identify the simulator and the limits on the whole
 conversation. Tasks, input examples, and attempts keep their existing counts.
 The neutral user does not add a persona or another input example.

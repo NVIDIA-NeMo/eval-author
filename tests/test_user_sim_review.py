@@ -28,8 +28,7 @@ def design() -> list[dict]:
         {
             "id": "refund",
             "example_ids": ["refund-1"],
-            "test_type": "user_sim",
-            "test_type_reason": "Confirm the agent's actual proposed return.",
+            "interaction_type": "user_sim",
             "state_requirements": "Keep the same customer session.",
             "conversation_scenario": "Provide the order when asked, then confirm the correct return.",
         }
@@ -243,7 +242,7 @@ def test_user_sim_execution_rejects_multi_task_scope_without_dropping_authored_w
     translated = translated_inputs(tmp_path)
     planned = design()
     if extra_type is not None:
-        second = {**design()[0], "id": "policy", "example_ids": ["policy-1"], "test_type": extra_type}
+        second = {**design()[0], "id": "policy", "example_ids": ["policy-1"], "interaction_type": extra_type}
         planned.append(second)
     value = creation.ready(modules, tmp_path, examples=planned)
     assert creation.facts(modules, tmp_path)["suite_approved"]
@@ -269,7 +268,7 @@ def test_user_sim_execution_rejects_multi_task_scope_without_dropping_authored_w
     assert modules[0].state_path(tmp_path).read_bytes() == before
 
 
-def test_authored_report_and_review_keep_test_type_and_bound_neutral_scenario(modules, tmp_path):
+def test_authored_report_and_review_keep_interaction_type_and_bound_neutral_scenario(modules, tmp_path):
     translated_inputs(tmp_path)
     value = creation.start(modules, tmp_path, examples=design())
     creation.approve(modules, tmp_path, value)
@@ -290,7 +289,7 @@ def test_authored_report_and_review_keep_test_type_and_bound_neutral_scenario(mo
     state = creation.save(modules, tmp_path, value)
     snapshot = report.refresh(tmp_path)
     row = snapshot["tasks"][0]
-    assert row["test_type"] == "user_sim" and row["user_sim_scenario"]["user_type"] == "neutral"
+    assert row["interaction_type"] == "user_sim" and row["user_sim_scenario"]["user_type"] == "neutral"
     table = importlib.import_module("first_eval_table_data")
     rows = table.authored_rows(tmp_path, state, ["refund"])
     observed = modules[1].observe(tmp_path, state)
@@ -351,7 +350,7 @@ def test_settings_and_results_show_simulator_identity_without_adding_example_cou
     assert "Neutral, using simulator / configured-user-model" in settings
     assert "Conversation limits" in settings and "180 seconds total" in settings
     result = renderer.render(conversations.payload(rendering, "results", **conversations.result_facts(rendering)))
-    assert "**Test type:** User-sim" in result and "**Neutral scenario:** refund" in result
+    assert "**Interaction type:** User-sim" in result and "**Neutral scenario:** refund" in result
     assert "**Simulator:** simulator / configured-user-model" in result
     assert "1/1 completed attempts" in result
     assert "persona variants" not in result

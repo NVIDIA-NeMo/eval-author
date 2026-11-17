@@ -122,15 +122,14 @@ def adapter_task(record: dict, task: dict) -> dict:
         "path": record["tasks"].get(task["id"], {}).get("path"),
     }
     for field in (
-        "test_type",
-        "test_type_reason",
+        "interaction_type",
         "state_requirements",
         "prerequisite_checks",
         "conversation_scenario",
     ):
         if field in task:
             context[field] = task[field]
-    if task.get("test_type") == "user_sim" and context["path"]:
+    if task.get("interaction_type") == "user_sim" and context["path"]:
         context["expected_scenario_path"] = str(PurePosixPath(context["path"]) / "user-sim.yaml")
     return context
 
@@ -153,7 +152,7 @@ def adapter_handoff(state: dict, reason: str) -> str:
         "tasks": [adapter_task(record, task) for task in record["plan"]["tasks"]] if record and approved else [],
         "missing_connection": reason,
     }
-    if record and approved and any(task.get("test_type") == "user_sim" for task in record["plan"]["tasks"]):
+    if record and approved and any(task.get("interaction_type") == "user_sim" for task in record["plan"]["tasks"]):
         settings = first_eval_state.execution_settings(record)
         if "user_sim" in settings:
             context["simulator_settings"] = settings["user_sim"]
@@ -259,8 +258,7 @@ def authored_rows(record: dict, facts: dict, observed: dict, task_ids: list[str]
                 "expected_outcome",
                 "verifier_type",
                 "scoring_rule",
-                "test_type",
-                "test_type_reason",
+                "interaction_type",
                 "user_sim_scenario",
             },
         )
@@ -269,10 +267,10 @@ def authored_rows(record: dict, facts: dict, observed: dict, task_ids: list[str]
         if row["task_sha256"] != record["tasks"][task_id]["sha256"]:
             raise ValueError("Authored task rows must describe current task files")
         design = planned[task_id]
-        if any(row.get(field) != design.get(field) for field in ("test_type", "test_type_reason")):
-            raise ValueError("Authored task types must match the saved design")
+        if row.get("interaction_type") != design.get("interaction_type"):
+            raise ValueError("Authored interaction types must match the saved design")
         scenario = row.get("user_sim_scenario")
-        if design.get("test_type") == "user_sim":
+        if design.get("interaction_type") == "user_sim":
             scenario = mapping(scenario, "neutral scenario identity", {"task_id", "user_type", "path", "digest"})
             if (
                 scenario.get("task_id") != task_id
@@ -749,11 +747,11 @@ def results(record: dict, progress: dict, facts: dict, journey: str) -> str:
         )
     )
     design = next(task for task in record["plan"]["tasks"] if task["id"] == attempt["task_id"])
-    if design.get("test_type") is not None:
-        from task_types import test_type_label
+    if design.get("interaction_type") is not None:
+        from interaction_types import interaction_type_label
 
-        parts.append(copy.RESULT_TEST_TYPE.format(label=test_type_label(design["test_type"])))
-    if design.get("test_type") == "user_sim":
+        parts.append(copy.RESULT_INTERACTION_TYPE.format(label=interaction_type_label(design["interaction_type"])))
+    if design.get("interaction_type") == "user_sim":
         simulation = selected["user_sim"]
         settings = first_eval_state.execution_settings(record)["user_sim"]
         parts.append(

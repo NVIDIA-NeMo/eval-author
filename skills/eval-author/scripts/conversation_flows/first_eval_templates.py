@@ -135,7 +135,7 @@ SIMULATOR_SETTINGS_PENDING = (
     "- **User simulation:** Neutral user. Simulator identity and conversation limits remain unresolved."
 )
 SIMULATOR_SETTINGS = "- **Simulated user:** Neutral, using {agent_model}\n- **Conversation limits:** {limits}"
-RESULT_TEST_TYPE = "**Test type:** {label}."
+RESULT_INTERACTION_TYPE = "**Interaction type:** {label}."
 RESULT_USER_SIM = (
     "**Neutral scenario:** {task_id} ({path}). **Simulator:** {agent_model}. **Conversation limits:** {limits}."
 )

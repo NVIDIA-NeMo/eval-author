@@ -112,7 +112,7 @@ def _user_sim_settings(value: object) -> bool:
 
 
 def user_sim_tasks(value: dict) -> set[str]:
-    return {task["id"] for task in value["plan"]["tasks"] if task.get("test_type") == "user_sim"}
+    return {task["id"] for task in value["plan"]["tasks"] if task.get("interaction_type") == "user_sim"}
 
 
 def bind_user_sim_translation(repo: Path, translation: dict) -> UserSimBindings:

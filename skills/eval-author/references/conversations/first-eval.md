@@ -581,7 +581,7 @@ This release executes one approved task per User-sim suite. A suite with multipl
 User-sim tasks or a mix of User-sim and other task types may still be authored and
 reviewed, but it cannot become an execution selection. Explain this limit and
 use a separate or explicitly revised one-task suite. Do not silently omit tasks
-from the approved plan or convert their test types to fit the runtime.
+from the approved plan or convert their interaction types to fit the runtime.
 
 Retain native `runs` with their stable IDs, selected task revisions, native
 attempt identities, statuses, rewards, and evidence. Explicitly save

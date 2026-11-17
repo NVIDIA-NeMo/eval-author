@@ -78,11 +78,11 @@ def authored_rows(repo: Path, state: dict, task_ids: list[str]) -> list[dict]:
             "scoring_rule": item.get("scoring_rule") or "Not documented",
         }
         design = planned[task_id]
-        if design.get("test_type") is not None:
-            if item.get("test_type") != design["test_type"]:
-                raise ValueError(f"Report test type for {task_id} is stale; refresh the report")
-            row.update(test_type=design["test_type"], test_type_reason=design["test_type_reason"])
-        if design.get("test_type") == "user_sim":
+        if design.get("interaction_type") is not None:
+            if item.get("interaction_type") != design["interaction_type"]:
+                raise ValueError(f"Report interaction type for {task_id} is stale; refresh the report")
+            row["interaction_type"] = design["interaction_type"]
+        if design.get("interaction_type") == "user_sim":
             identity = report.user_sim_identity(repo, task_id, saved["path"])
             if (
                 item.get("user_sim_scenario") != identity
