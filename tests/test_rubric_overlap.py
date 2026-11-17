@@ -72,6 +72,9 @@ def test_siblings_from_metadata_share_repository_and_commit(tmp_path: Path) -> N
     result = check_overlap(tmp_path, {"splits": {"development": [dev], "test": [test]}, "required": REQUIRED})
 
     assert kinds(result) == [("sibling", "repository-commit", ["tasks/fix-a", "tasks/fix-b"])]
+    # Siblings share a codebase, not a task: they need review, not a failure.
+    assert result["status"] == "unknown"
+    assert result["diagnostics"] == [{"code": "overlap.sibling", "subject": "tasks/fix-b", "status": "unknown"}]
 
 
 def test_siblings_from_the_environment_git_commands(tmp_path: Path) -> None:
@@ -160,3 +163,17 @@ def test_measure_reports_overlap(tmp_path: Path) -> None:
     )
 
     assert json.loads(completed.stdout)["measurements"]["overlap"]["counts"] == {"duplicate": 1, "sibling": 0}
+
+
+def test_multi_step_tasks_compare_their_step_instructions(tmp_path: Path) -> None:
+    for name in ("dev", "test"):
+        task = tmp_path / "tasks" / name
+        (task / "steps" / "one").mkdir(parents=True)
+        (task / "task.toml").write_text('[[steps]]\nname = "one"\n', encoding="utf-8")
+        (task / "steps" / "one" / "instruction.md").write_text("Add two numbers.\n", encoding="utf-8")
+
+    result = check_overlap(
+        tmp_path, {"splits": {"development": ["tasks/dev"], "test": ["tasks/test"]}, "required": REQUIRED}
+    )
+
+    assert kinds(result) == [("duplicate", "exact-instruction", ["tasks/dev", "tasks/test"])]

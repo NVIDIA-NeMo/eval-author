@@ -12,7 +12,7 @@
       "role": "reference",
       "attack_class": null,
       "criteria": [
-        "AUD-03"
+        "AUDIT-03"
       ],
       "expected_reward": {
         "sound": 1,
@@ -25,7 +25,7 @@
       "role": "attack",
       "attack_class": "early exit",
       "criteria": [
-        "AUD-03"
+        "AUDIT-03"
       ],
       "expected_reward": {
         "sound": 0,
@@ -38,7 +38,7 @@
       "role": "attack",
       "attack_class": "fabricated success claim",
       "criteria": [
-        "AUD-03"
+        "AUDIT-03"
       ],
       "expected_reward": {
         "sound": 0,
@@ -51,8 +51,8 @@
       "role": "attack",
       "attack_class": "forbidden answer access",
       "criteria": [
-        "AUD-03",
-        "AUD-05-B"
+        "AUDIT-03",
+        "AUDIT-05-B"
       ],
       "expected_reward": {
         "sound": 0,
@@ -65,7 +65,7 @@
       "role": "attack",
       "attack_class": "hang",
       "criteria": [
-        "AUD-03"
+        "AUDIT-03"
       ],
       "expected_reward": {
         "sound": 0,
@@ -78,7 +78,7 @@
       "role": "attack",
       "attack_class": "boolean output for integers",
       "criteria": [
-        "AUD-03"
+        "AUDIT-03"
       ],
       "expected_reward": {
         "sound": 0,

@@ -1,37 +1,34 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Find benchmark-specific private content added to prompts, skills, or harness code.
+"""Find private benchmark content in the agent's prompts, skills, or harness code.
 
-Someone reviews benchmark results and edits a skill. If the edit adds a task's
-expected value, a hidden test name, or a line of its grader, the answer now reaches
-the agent through the skill instead of through the task. This reads the added
-lines of a git diff, not the author's description of the change.
+The agent's prompts and skills exist before an evaluation starts, so any task's
+expected value, hidden test name, or grader line in them reaches the agent
+whatever the task hides. This reads the current contents of every selected file.
 """
 
 from __future__ import annotations
 
-import re
-import subprocess
+import os
 from pathlib import Path, PurePosixPath
 from typing import Literal, TypedDict
 
-from rubric_identity import diagnostic, finish, text
-from rubric_layout import label_task
+from rubric_identity import MAX_SOURCE_BYTES, diagnostic, finish, read_selected, text
+from rubric_layout import MAX_LAYOUT_FILES, label_task
 from rubric_leakage import bounded, hint_lines, json_values, normalize, read_texts, test_names
 
 Kind = Literal["expected-value", "private-line", "test-name", "task-id"]
+KINDS: tuple[Kind, ...] = ("expected-value", "private-line", "test-name", "task-id")
 MIN_TASK_ID_CHARS = 6
 _FAILING_KINDS = frozenset({"expected-value", "private-line"})
-_HUNK = re.compile(r"^@@ -\d+(?:,\d+)? \+(?P<start>\d+)(?:,\d+)? @@")
-_GIT_TIMEOUT_SEC = 60
 
 
 class Finding(TypedDict):
     kind: Kind
     task: str
     private: str | None
-    changed: str
+    file: str
     line: int
 
 
@@ -45,100 +42,79 @@ class _Needle(TypedDict):
 def _needles(root: Path, task_path: str) -> tuple[str, list[_Needle], list[dict]]:
     layout = label_task(root, {"task": task_path})
     task = layout["task"]
-    if layout["format"] != "harbor":
-        return task, [], [diagnostic("reuse.task_not_harbor", task, "unknown")]
-    texts, unscanned = read_texts(root, layout)
+    # Any layout problem means some private file may be missing from the search.
     diagnostics = [
-        diagnostic("reuse.private_unscanned", path, "unknown")
-        for path in unscanned
-        if "/tests/" in path or "/solution/" in path
+        {**row, "code": row["code"].replace("layout.", "reuse.layout_", 1), "status": "unknown"}
+        for row in layout["diagnostics"]
     ]
+    if layout["format"] != "harbor":
+        return task, [], diagnostics
+    texts, unscanned = read_texts(root, layout)
+    private = {row["path"] for row in layout["files"] if row["visibility"] == "private"}
+    diagnostics.extend(diagnostic("reuse.private_unscanned", path, "unknown") for path in unscanned if path in private)
     needles: list[_Needle] = []
     name = PurePosixPath(task).name
     if len(name) >= MIN_TASK_ID_CHARS:
         needles.append({"kind": "task-id", "task": task, "private": None, "value": name})
-    for private in texts["private"]:
-        source = private["path"]
-        needles.extend(
-            {"kind": "expected-value", "task": task, "private": source, "value": value}
-            for value in json_values(private["content"])
+    for row in texts["private"]:
+        source = row["path"]
+        groups: tuple[tuple[Kind, list[str]], ...] = (
+            ("expected-value", json_values(row["content"])),
+            ("test-name", test_names(row)),
+            ("private-line", hint_lines(row["content"])),
         )
-        needles.extend(
-            {"kind": "test-name", "task": task, "private": source, "value": value} for value in test_names(private)
-        )
-        needles.extend(
-            {"kind": "private-line", "task": task, "private": source, "value": value}
-            for value in hint_lines(private["content"])
-        )
+        for kind, values in groups:
+            needles.extend({"kind": kind, "task": task, "private": source, "value": value} for value in values)
     return task, needles, diagnostics
 
 
-def _git(root: Path, *args: str) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(
-        ["git", "-c", "core.quotepath=off", "-C", str(root), *args],
-        capture_output=True,
-        text=True,
-        errors="replace",
-        timeout=_GIT_TIMEOUT_SEC,
-        check=False,
-    )
+def _selected_files(root: Path, paths: list[str], excluded: list[str]) -> tuple[list[str], list[dict]]:
+    """Return root-relative files under the selected paths, skipping the selected tasks."""
+    files: set[str] = set()
+    diagnostics = []
+    for selected in paths:
+        relative = PurePosixPath(selected)
+        if relative.is_absolute() or ".." in relative.parts or "\\" in selected:
+            raise ValueError("invalid reuse selection")
+        start = root / relative
+        if start.is_symlink() or not start.exists():
+            diagnostics.append(diagnostic("reuse.path_unavailable", selected, "unknown"))
+            continue
+        if start.is_file():
+            files.add(relative.as_posix())
+            continue
+
+        def failed(error: OSError, selected: str = selected) -> None:
+            diagnostics.append(diagnostic("reuse.directory_unreadable", selected, "unknown"))
+
+        for current, directories, names in os.walk(start, followlinks=False, onerror=failed):
+            directories.sort()
+            base = Path(current)
+            for name in [*names, *(entry for entry in directories if (base / entry).is_symlink())]:
+                files.add((base / name).relative_to(root).as_posix())
+    kept = sorted(path for path in files if not any(path == task or path.startswith(task + "/") for task in excluded))
+    if len(kept) > MAX_LAYOUT_FILES:
+        diagnostics.append(diagnostic("reuse.too_many_files", "paths", "unknown"))
+        kept = kept[:MAX_LAYOUT_FILES]
+    return kept, diagnostics
 
 
-def added_lines(root: Path, base: str, head: str | None, paths: list[str]) -> list[tuple[str, int, str]]:
-    """Return ``(file, new line number, text)`` for every line the diff adds."""
-    revisions = [base] if head is None else [base, head]
-    completed = _git(
-        root,
-        "diff",
-        "--no-ext-diff",
-        "--no-color",
-        "--no-renames",
-        "--unified=0",
-        "--relative",
-        *revisions,
-        "--",
-        *paths,
-    )
-    if completed.returncode != 0:
-        raise ValueError("diff failed")
-    rows: list[tuple[str, int, str]] = []
-    current: str | None = None
-    line = 0
-    for raw in completed.stdout.splitlines():
-        if raw.startswith("+++ "):
-            target = raw[4:]
-            current = target[2:] if target.startswith("b/") else None
-        elif (match := _HUNK.match(raw)) is not None:
-            line = int(match["start"])
-        elif raw.startswith("+") and current is not None:
-            rows.append((current, line, raw[1:]))
-            line += 1
-    return rows
-
-
-def _matches(needle: _Needle, added: str) -> bool:
+def _matches(needle: _Needle, line: str) -> bool:
     if needle["kind"] == "private-line":
-        return needle["value"] in normalize(added)
+        return needle["value"] in normalize(line)
     if needle["kind"] in ("test-name", "task-id"):
-        return bounded(added, needle["value"])
-    return needle["value"] in added
-
-
-def _revision(root: Path, value: object) -> bool:
-    if not text(value) or not isinstance(value, str) or value.startswith("-"):
-        raise ValueError("invalid reuse selection")
-    return _git(root, "rev-parse", "--verify", "--quiet", value + "^{commit}").returncode == 0
+        return bounded(line, needle["value"])
+    return needle["value"] in line
 
 
 def check_reuse(root: Path, selected: object) -> dict:
-    """Scan a git change for private content from the selected benchmark tasks.
+    """Scan the agent's files for private content from the selected benchmark tasks.
 
-    ``selected`` is ``{"tasks": [<task directory>], "base": <revision>, "head":
-    <revision or null for the working tree>, "paths": [<pathspec>]}``. ``paths``
-    names the prompts, skills, and harness code to check; changes inside the
-    selected task directories are ignored.
+    ``selected`` is ``{"tasks": [<task directory>], "paths": [<file or directory>]}``
+    with paths relative to the root. ``paths`` names the prompts, skills, and
+    harness code the agent uses. Files inside the selected tasks are skipped.
     """
-    if not isinstance(selected, dict) or set(selected) != {"tasks", "base", "head", "paths"}:
+    if not isinstance(selected, dict) or set(selected) != {"tasks", "paths"}:
         raise ValueError("invalid reuse selection")
     tasks, paths = selected["tasks"], selected["paths"]
     if (
@@ -147,61 +123,63 @@ def check_reuse(root: Path, selected: object) -> dict:
         or not all(text(task) for task in tasks)
         or not isinstance(paths, list)
         or not paths
-        or not all(text(path) and not str(path).startswith("-") for path in paths)
+        or not all(text(path) for path in paths)
     ):
         raise ValueError("invalid reuse selection")
     root = Path(root).resolve(strict=True)
-    result: dict = {"base": selected["base"], "head": selected["head"], "findings": [], "counts": {}}
-    unresolved = [
-        name
-        for name, value in (("base", selected["base"]), ("head", selected["head"]))
-        if value is not None and not _revision(root, value)
-    ]
-    if unresolved:
-        return {**result, **_status([diagnostic("reuse.revision_unresolved", name, "unknown") for name in unresolved])}
     diagnostics: list[dict] = []
     needles: list[_Needle] = []
     task_dirs = []
     for task_path in tasks:
         task, found, problems = _needles(root, task_path)
-        task_dirs.append(task + "/")
+        if task == ".":
+            # The agent's files must sit outside the task, so the root can't be the task.
+            raise ValueError("invalid reuse selection")
+        task_dirs.append(task)
         needles.extend(found)
         diagnostics.extend(problems)
-    try:
-        lines = added_lines(root, selected["base"], selected["head"], paths)
-    except (OSError, ValueError, subprocess.TimeoutExpired):
-        return {**result, **_status([*diagnostics, diagnostic("reuse.diff_unavailable", "diff", "unknown")])}
+    files, problems = _selected_files(root, paths, task_dirs)
+    diagnostics.extend(problems)
     findings: list[Finding] = []
-    seen = set()
-    for changed, line, added in lines:
-        if any(changed.startswith(prefix) for prefix in task_dirs):
+    scanned = 0
+    for path in files:
+        data, _ = read_selected(root, path, MAX_SOURCE_BYTES)
+        try:
+            content = data.decode("utf-8") if data is not None else None
+        except UnicodeDecodeError:
+            content = None
+        if content is None:
+            diagnostics.append(diagnostic("reuse.file_unscanned", path, "unknown"))
             continue
-        for needle in needles:
-            key = (needle["kind"], needle["task"], needle["private"], changed, line)
-            if key not in seen and _matches(needle, added):
-                seen.add(key)
-                findings.append(
-                    {
-                        "kind": needle["kind"],
-                        "task": needle["task"],
-                        "private": needle["private"],
-                        "changed": changed,
-                        "line": line,
-                    }
-                )
+        scanned += 1
+        seen = set()
+        for number, line in enumerate(content.splitlines(), 1):
+            for needle in needles:
+                key = (needle["kind"], needle["task"], needle["private"], number)
+                if key not in seen and _matches(needle, line):
+                    seen.add(key)
+                    findings.append(
+                        {
+                            "kind": needle["kind"],
+                            "task": needle["task"],
+                            "private": needle["private"],
+                            "file": path,
+                            "line": number,
+                        }
+                    )
     for finding in findings:
         status = "fail" if finding["kind"] in _FAILING_KINDS else "unknown"
-        diagnostics.append(diagnostic(f"reuse.{finding['kind']}", finding["changed"], status))
-    result["findings"] = findings
-    result["counts"] = {
-        "added_lines": len(lines),
-        "private_strings": len(needles),
-        **{
-            kind: sum(row["kind"] == kind for row in findings)
-            for kind in ("expected-value", "private-line", "test-name", "task-id")
+        diagnostics.append(diagnostic(f"reuse.{finding['kind']}", finding["file"], status))
+    return {
+        "findings": findings,
+        "counts": {
+            "files": len(files),
+            "scanned_files": scanned,
+            "private_strings": len(needles),
+            **{kind: sum(row["kind"] == kind for row in findings) for kind in KINDS},
         },
+        **_status(diagnostics),
     }
-    return {**result, **_status(diagnostics)}
 
 
 def _status(diagnostics: list[dict]) -> dict:

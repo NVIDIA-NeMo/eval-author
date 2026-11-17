@@ -4,7 +4,9 @@
 """Flag Harbor tasks shared between declared development and held-out splits.
 
 Only the declared task lists are compared. A split that isn't declared, or a
-task that can't be read, leaves the result unknown rather than clean.
+task that can't be read, leaves the result unknown rather than clean. A duplicate
+fails; a sibling, a different task from the same repository and commit, is
+reported for review.
 """
 
 from __future__ import annotations
@@ -13,11 +15,11 @@ import hashlib
 import re
 import tomllib
 from itertools import combinations
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Literal, TypedDict
 
 from rubric_identity import diagnostic, finish, read_selected, text
-from rubric_layout import label_task
+from rubric_layout import join, label_task
 
 Kind = Literal["duplicate", "sibling"]
 _REPO_KEYS = ("repo", "repository", "repo_url", "source_repo", "github_repo")
@@ -68,7 +70,7 @@ def task_origin(root: Path, layout: dict) -> tuple[str | None, list[dict]]:
     task = layout["task"]
     repo = commit = None
     diagnostics = []
-    data, _ = read_selected(root, f"{task}/task.toml")
+    data, _ = read_selected(root, join(task, "task.toml"))
     if data is not None:
         try:
             repo, commit = _metadata_origin(tomllib.loads(data.decode("utf-8")))
@@ -76,7 +78,7 @@ def task_origin(root: Path, layout: dict) -> tuple[str | None, list[dict]]:
             diagnostics.append(diagnostic("overlap.task_config_invalid", task, "unknown"))
     if not (repo and commit):
         for record in layout["files"]:
-            if not record["path"].startswith(f"{task}/environment/") or "ockerfile" not in record["path"]:
+            if not record["relative"].startswith("environment/") or "ockerfile" not in record["relative"]:
                 continue
             content, _ = read_selected(root, record["path"])
             source = content.decode("utf-8", "replace") if content is not None else ""
@@ -93,13 +95,21 @@ def _read_task(root: Path, split: str, task: str) -> tuple[_Task, list[dict]]:
     entry: _Task = {"split": split, "task": layout["task"], "instruction": None, "normalized": None, "origin": None}
     if layout["format"] != "harbor":
         return entry, [diagnostic("overlap.task_not_harbor", layout["task"], "unknown")]
-    data, _ = read_selected(root, f"{layout['task']}/instruction.md")
-    try:
-        content = data.decode("utf-8") if data is not None else None
-    except UnicodeDecodeError:
-        content = None
-    if content is None:
+    instructions = sorted(
+        record["path"]
+        for record in layout["files"]
+        if record["visibility"] == "public" and PurePosixPath(record["relative"]).name == "instruction.md"
+    )
+    parts = []
+    for path in instructions:
+        data, _ = read_selected(root, path)
+        try:
+            parts.append(data.decode("utf-8") if data is not None else None)
+        except UnicodeDecodeError:
+            parts.append(None)
+    if not parts or None in parts:
         return entry, [diagnostic("overlap.instruction_unreadable", layout["task"], "unknown")]
+    content = "\n".join(part for part in parts if part is not None)
     entry["instruction"] = hashlib.sha256(content.encode()).hexdigest()
     entry["normalized"] = hashlib.sha256(normalize(content).encode()).hexdigest()
     entry["origin"], diagnostics = task_origin(root, layout)
@@ -154,7 +164,12 @@ def check_overlap(root: Path, selected: object) -> dict:
         for first, second in combinations(tasks, 2)
         if first["split"] != second["split"] and (finding := _compare(first, second)) is not None
     ]
-    diagnostics.extend(diagnostic(f"overlap.{row['kind']}", row["tasks"][1]["task"]) for row in findings)
+    diagnostics.extend(
+        diagnostic(
+            f"overlap.{row['kind']}", row["tasks"][1]["task"], "fail" if row["kind"] == "duplicate" else "unknown"
+        )
+        for row in findings
+    )
     summary = finish([], diagnostics)
     return {
         "status": summary["status"],

@@ -18,7 +18,9 @@ defined once in [the provenance subset](artifact-configuration-provenance.json);
 apply them, and the result-row, check-accounting, assessment-state,
 defect-precedence, and evidence-strength rules in
 [assessment and evidence](artifact-configuration-provenance.md#assessment-and-evidence),
-unchanged. METHOD-J1 (judge trust boundaries) belongs to this area but has no
+unchanged. These IDs use the `AUDIT-` prefix where the source rubric writes
+`AUD-`; the definitions are otherwise unchanged. METHOD-J1 (judge trust
+boundaries) belongs to this area but has no
 canonical definition yet; report it as unassessed and name the missing
 definition.
 
@@ -28,9 +30,9 @@ follows and report the canonical ID:
 
 | Anti-cheat criterion | Canonical criteria |
 | --- | --- |
-| AC-01, protected information | AUD-05-B, CREATE-02, and AUD-03's forbidden-answer-access control |
-| AC-02, shortcuts | AUD-03 |
-| AC-03, current trusted results | AUD-03 |
+| AC-01, protected information | AUDIT-05-B, CREATE-02, and AUDIT-03's forbidden-answer-access control |
+| AC-02, shortcuts | AUDIT-03 |
+| AC-03, current trusted results | AUDIT-03 |
 | AC-04, prior trials | ENV-03-S01 |
 
 ## Measurements
@@ -41,14 +43,15 @@ specific checks and never assign a criterion score.
 
 | Measurement | Supports | What it covers |
 | --- | --- | --- |
-| [`layout`](identity.md#harbor-task-layout-labels) | AUD-05-B-C01 | Public and private files from the Harbor layout |
-| [`leakage`](identity.md#internal-answer-leakage) | AUD-05-B-C01, CREATE-02-C01 | Private content in public files and instruction references |
-| [`overlap`](identity.md#development-and-test-overlap) | AUD-05-B-C01, AUD-05-S03-C01 | Duplicate and sibling tasks across declared splits |
-| [`external`](identity.md#published-sources-the-agent-can-reach) | AUD-05-B-C01 | Published task sources the agent's network can reach |
-| [`reuse`](identity.md#benchmark-content-in-prompts-and-skills) | AUD-05-S03-C01 | Private task content added to prompts, skills, or harness code |
+| [`layout`](identity.md#harbor-task-layout-labels) | AUDIT-05-B-C01 | Public and private files from the Harbor layout |
+| [`leakage`](identity.md#internal-answer-leakage) | AUDIT-05-B-C01, CREATE-02-C01, AUDIT-03-C01 | Private content in public files, file names, and instructions; hidden-case classification |
+| [`overlap`](identity.md#development-and-test-overlap) | AUDIT-05-B-C01, AUDIT-05-S03-C01 | Duplicate and sibling tasks across declared splits |
+| [`external`](identity.md#published-sources-the-agent-can-reach) | AUDIT-05-B-C01 | The task's source repository, when any agent phase can reach it |
+| [`reuse`](identity.md#benchmark-content-in-prompts-and-skills) | AUDIT-05-S03-C01 | Private task content in the agent's prompts, skills, or harness code |
 
-The cheating evaluation set's hidden-case read is the forbidden-answer-access
-control for AUD-03-C02. It counts as a defense only when its `read_boundary` is
+For forbidden answer access, `leakage` classifies each task's hidden tests as
+`protected`, `exposed`, or `unknown` from its files. The cheating evaluation
+set's hidden-case read is the executed control for AUDIT-03-C02. It counts as a defense only when its `read_boundary` is
 `protected`: the private read was denied and the paired read of the agent's own
 file succeeded.
 
@@ -74,7 +77,8 @@ Keep four kinds of finding apart, each under its own heading:
 - **Sensitive-data exposure:** secrets, credentials, or personal data found
   while reviewing. Report them without copying values; TRACE-04-A has no
   measurement yet.
-- **Development and test overlap:** `overlap`.
+- **Development and test overlap:** `overlap`. Duplicates are defects; siblings
+  need review.
 - **Benchmark-result reuse:** `reuse`.
 
 Data contamination means a model memorized the answer during training. None of
@@ -86,20 +90,21 @@ Author repository's `evals/verifier-cheats/manifest.json`, which the evidence
 collector reads. Grader regression work reuses that file
 rather than copying controls or rewards.
 
-## AUD-03 — Forbidden-credit resistance
+## AUDIT-03 — Forbidden-credit resistance
 
 [Canonical definition](leakage-and-credit.json#/items/0)
 
 **Methods and evidence:** Select attack classes with the shared
 [simple-cheat screen](../../eval-author/references/task-validation.md#screen-simple-cheats)
-and the AC-02 and AC-03 guidance. Use the hidden-case read and its paired read
-for forbidden answer access.
+and the AC-02 and AC-03 guidance. For forbidden answer access, use `leakage`'s
+`hidden_cases` for each task and the hidden-case read with its paired read as the
+executed control.
 
 **Assessment limit:** The fake-success control covers one forged-success form.
 Stale success files, agent-written reports, and wrong-version results have no
 controls yet; keep those classes unresolved.
 
-## AUD-04-B — Exploit containment
+## AUDIT-04-B — Exploit containment
 
 [Canonical definition](leakage-and-credit.json#/items/1)
 
@@ -108,7 +113,7 @@ findings from the other criteria as candidates for containment.
 
 **Assessment limit:** Leave it `NOT_ASSESSED`; don't propose a repair as verified.
 
-## AUD-05-B — Exposure disclosure
+## AUDIT-05-B — Exposure disclosure
 
 [Canonical definition](leakage-and-credit.json#/items/2)
 
@@ -119,12 +124,12 @@ over exposed subsets has no measurement yet.
 **Assessment limit:** These measurements inspect local tasks and declared
 settings. They can't support a claim about training-data exposure.
 
-## AUD-05-S03 — Adaptive selection and confirmation
+## AUDIT-05-S03 — Adaptive selection and confirmation
 
 [Canonical definition](leakage-and-credit.json#/items/3)
 
-**Methods and evidence:** Use `reuse` for task content added to prompts, skills,
-or harness code since the chosen base revision, and `overlap` for split lineage.
+**Methods and evidence:** Use `reuse` for private task content anywhere in the
+agent's prompts, skills, or harness code, and `overlap` for split lineage.
 
 **Assessment limit:** No decision ledger is reconciled. A clean `reuse` result
 doesn't show that results weren't used to tune the agent.

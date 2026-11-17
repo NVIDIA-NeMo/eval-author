@@ -11,7 +11,7 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "skills/eval-author/scripts"))
-from rubric_external import agent_network, check_external  # noqa: E402
+from rubric_external import agent_networks, check_external  # noqa: E402
 
 CLI = ROOT / "skills/eval-author-rubric/scripts/measure.py"
 ORIGIN = '[metadata]\nrepo = "https://github.com/acme/parser"\nbase_commit = "abc1234"\n'
@@ -31,23 +31,50 @@ def codes(result: dict) -> list[str]:
 @pytest.mark.parametrize(
     ("toml", "expected"),
     [
-        ("", {"mode": "public", "allowed_hosts": [], "source": "default"}),
+        ("", {"phase": "task", "mode": "public", "allowed_hosts": [], "source": "default"}),
         (
             '[environment]\nnetwork_mode = "no-network"\n',
-            {"mode": "no-network", "allowed_hosts": [], "source": "environment"},
+            {"phase": "task", "mode": "no-network", "allowed_hosts": [], "source": "environment"},
         ),
         (
             "[environment]\nallow_internet = false\n",
-            {"mode": "no-network", "allowed_hosts": [], "source": "environment"},
+            {"phase": "task", "mode": "no-network", "allowed_hosts": [], "source": "environment"},
         ),
         (
             '[environment]\nnetwork_mode = "no-network"\n[agent]\nnetwork_mode = "public"\n',
-            {"mode": "public", "allowed_hosts": [], "source": "agent"},
+            {"phase": "task", "mode": "public", "allowed_hosts": [], "source": "agent"},
         ),
     ],
 )
 def test_agent_network_follows_harbor_precedence(toml: str, expected: dict) -> None:
-    assert agent_network(tomllib.loads(toml)) == expected
+    assert agent_networks(tomllib.loads(toml)) == [expected]
+
+
+def test_step_agent_policy_overrides_the_task(tmp_path: Path) -> None:
+    write_task(
+        tmp_path,
+        ORIGIN
+        + '[agent]\nnetwork_mode = "no-network"\n'
+        + '[[steps]]\nname = "quiet"\n'
+        + '[[steps]]\nname = "open"\n[steps.agent]\nnetwork_mode = "public"\n',
+    )
+
+    result = check_external(tmp_path, {"task": "task"})
+
+    assert [(row["phase"], row["mode"]) for row in result["networks"]] == [
+        ("task", "no-network"),
+        ("step:quiet", "no-network"),
+        ("step:open", "public"),
+    ]
+    assert result["source_reachable"] is True
+    assert result["status"] == "fail"
+
+
+@pytest.mark.parametrize("host", ["GITHUB.COM", " github.com ", "github.com."])
+def test_allowed_hosts_are_normalized_like_harbor(tmp_path: Path, host: str) -> None:
+    write_task(tmp_path, ORIGIN + f'[agent]\nnetwork_mode = "allowlist"\nallowed_hosts = ["{host}"]\n')
+
+    assert check_external(tmp_path, {"task": "task"})["source_reachable"] is True
 
 
 def test_public_repository_with_open_network_fails(tmp_path: Path) -> None:
@@ -91,13 +118,14 @@ def test_open_network_without_a_known_source_is_unknown(tmp_path: Path) -> None:
     assert codes(result) == ["external.network_open"]
 
 
-def test_private_host_is_not_assumed_published(tmp_path: Path) -> None:
-    write_task(tmp_path, ORIGIN.replace("github.com", "git.internal.example") + '[agent]\nnetwork_mode = "public"\n')
+def test_any_reachable_source_host_counts(tmp_path: Path) -> None:
+    write_task(tmp_path, ORIGIN.replace("github.com", "git.internal.example"))
 
     result = check_external(tmp_path, {"task": "task"})
 
-    assert result["source_reachable"] is None
-    assert codes(result) == ["external.network_open"]
+    assert result["origin_host"] == "git.internal.example"
+    assert result["source_reachable"] is True
+    assert result["status"] == "fail"
 
 
 def test_non_harbor_directory_is_unknown(tmp_path: Path) -> None:

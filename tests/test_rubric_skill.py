@@ -81,7 +81,7 @@ CANONICAL_AREAS = {
     ),
     "task-contract-authority": (["CREATE-03", "CREATE-04", "CREATE-05-A"], 9, {"rubric_version", "items"}),
     "leakage-and-credit": (
-        ["AUD-03", "AUD-04-B", "AUD-05-B", "AUD-05-S03", "TRACE-04-A", "ENV-03-S01", "CREATE-02"],
+        ["AUDIT-03", "AUDIT-04-B", "AUDIT-05-B", "AUDIT-05-S03", "TRACE-04-A", "ENV-03-S01", "CREATE-02"],
         23,
         {"rubric_version", "items"},
     ),

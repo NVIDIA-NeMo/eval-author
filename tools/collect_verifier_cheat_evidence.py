@@ -247,6 +247,8 @@ def public_summary(report):
             value = check.get(key)
             if type(value) in (int, float) and math.isfinite(value) and 0 <= value <= maximum and int(value) == value:
                 safe[key] = int(value)
+        if check.get("read_boundary") in ("protected", "exposed", "unknown"):
+            safe["read_boundary"] = check["read_boundary"]
         public["checks"].append(safe)
     return public
 

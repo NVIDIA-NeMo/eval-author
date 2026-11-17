@@ -17,19 +17,23 @@ from pathlib import Path, PurePosixPath
 from typing import Literal, TypedDict
 
 from rubric_identity import diagnostic, finish, read_selected, text
-from rubric_layout import label_task
+from rubric_layout import join, label_task
 
 # Shorter content matches too much ordinary text to be worth a reviewer's time.
 MIN_FULL_CHARS = 8
 MIN_HINT_CHARS = 24
 MIN_VALUE_CHARS = 6
+# File names are short, so a shorter value still identifies an answer there.
+MIN_NAME_VALUE_CHARS = 4
+MAX_ANSWER_LINE_CHARS = 64
 GENERIC_NAMES = frozenset({"test.sh", "solve.sh", "run.sh", "test.py", "tests.py", "conftest.py", "__init__.py"})
 NORMALIZATION = (
     "Normalized comparisons collapse whitespace runs to one space and lowercase text. "
     "JSON comparisons use sorted keys and compact separators."
 )
 
-Kind = Literal["full", "hint", "reference"]
+Kind = Literal["full", "hint", "reference", "filename"]
+HiddenCases = Literal["protected", "exposed", "unknown"]
 
 
 class Finding(TypedDict):
@@ -88,7 +92,7 @@ def _normalized_lines(public: str, private: str) -> list[int] | None:
     return None
 
 
-def json_values(content: str) -> list[str]:
+def json_values(content: str, minimum: int = MIN_VALUE_CHARS) -> list[str]:
     """Return distinctive scalar values from a JSON document, as text."""
     try:
         document = json.loads(content)
@@ -106,9 +110,18 @@ def json_values(content: str) -> list[str]:
             continue
         elif isinstance(node, (int, float, str)):
             value = str(node)
-            if len(value.strip()) >= MIN_VALUE_CHARS:
+            if len(value.strip()) >= minimum:
                 values.append(value.strip())
     return sorted(set(values))
+
+
+def answer_values(private: TaskText) -> list[str]:
+    """Return values short enough to appear in a file name: JSON scalars and a one-line plain answer."""
+    values = set(json_values(private["content"], MIN_NAME_VALUE_CHARS))
+    stripped = private["content"].strip()
+    if "\n" not in stripped and MIN_NAME_VALUE_CHARS <= len(stripped) <= MAX_ANSWER_LINE_CHARS:
+        values.add(stripped)
+    return sorted(values)
 
 
 def hint_lines(private: str) -> list[str]:
@@ -187,7 +200,7 @@ def read_texts(root: Path, layout: dict) -> tuple[dict[str, list[TaskText]], lis
         texts[record["visibility"]].append(
             {
                 "path": record["path"],
-                "relative": record["path"][len(layout["task"]) + 1 :],
+                "relative": record["relative"],
                 "content": content,
                 "digest": record["digest"],
             }
@@ -206,7 +219,7 @@ def _allowed(selection: object, task: str) -> dict[tuple[str, str], str]:
             or not all(text(entry[key]) for key in entry)
         ):
             raise ValueError("invalid leakage selection")
-        allowed[(f"{task}/{entry['private']}", f"{task}/{entry['public']}")] = entry["reason"]
+        allowed[(join(task, entry["private"]), join(task, entry["public"]))] = entry["reason"]
     return allowed
 
 
@@ -218,6 +231,28 @@ def _generated_digests(reconstruction: dict | None) -> set[str]:
         for record in reconstruction.get("records", [])
         if record.get("declaration") == "generated" and text(record.get("artifact_digest"))
     }
+
+
+def _is_test(relative: str) -> bool:
+    parts = PurePosixPath(relative).parts
+    return parts[0] == "tests" or (parts[0] == "steps" and len(parts) > 3 and parts[2] == "tests")
+
+
+def hidden_cases(layout: dict, unscanned: list[str], findings: list[Finding]) -> HiddenCases:
+    """Classify whether the task's hidden tests stay private.
+
+    ``protected``: the Harbor layout keeps every test file private and no public
+    file holds a test's content. ``exposed``: a public file holds a full copy of a
+    test file. ``unknown``: anything the scan couldn't settle, including layout
+    exceptions, unreadable files, and partial matches awaiting review.
+    """
+    tests = {row["path"] for row in layout["files"] if row["visibility"] == "private" and _is_test(row["relative"])}
+    findings = [row for row in findings if row["private"] in tests and not row["allowed"]]
+    if any(row["kind"] == "full" for row in findings):
+        return "exposed"
+    if layout["format"] != "harbor" or layout["diagnostics"] or unscanned or not tests or findings:
+        return "unknown"
+    return "protected"
 
 
 def scan_task(root: Path, selected: object, reconstruction: dict | None = None) -> dict:
@@ -235,10 +270,13 @@ def scan_task(root: Path, selected: object, reconstruction: dict | None = None) 
     result: dict = {
         "task": task,
         "normalization": NORMALIZATION,
+        "hidden_cases": "unknown",
+        "generated_files_checked": reconstruction is not None,
         "findings": [],
         "unscanned": [],
         "counts": dict.fromkeys(
-            ("public_files", "private_files", "unscanned_files", "full", "hint", "reference", "allowed"), 0
+            ("public_files", "private_files", "unscanned_files", "full", "hint", "reference", "filename", "allowed"),
+            0,
         ),
     }
     diagnostics = [
@@ -249,7 +287,8 @@ def scan_task(root: Path, selected: object, reconstruction: dict | None = None) 
     texts, result["unscanned"] = read_texts(root, layout)
     generated = _generated_digests(reconstruction)
     findings: list[Finding] = []
-    instruction = next((row for row in texts["public"] if row["relative"] == "instruction.md"), None)
+    instructions = [row for row in texts["public"] if PurePosixPath(row["relative"]).name == "instruction.md"]
+    public_paths = [row for row in layout["files"] if row["visibility"] == "public"]
     for private in texts["private"]:
         for public in texts["public"]:
             pair = (private["path"], public["path"])
@@ -269,22 +308,16 @@ def scan_task(root: Path, selected: object, reconstruction: dict | None = None) 
                         "allowed_reason": reason,
                     }
                 )
-        if instruction is not None:
+        for instruction in instructions:
             for name in private_names(private):
                 lines = _exact_lines(instruction["content"], name)
                 if lines and bounded(instruction["content"], name):
-                    findings.append(
-                        {
-                            "kind": "reference",
-                            "method": "private-name",
-                            "private": private["path"],
-                            "public": instruction["path"],
-                            "lines": lines,
-                            "allowed": False,
-                            "allowed_reason": None,
-                        }
-                    )
+                    findings.append(_finding("reference", "private-name", private["path"], instruction["path"], lines))
                     break
+        values = answer_values(private)
+        for record in public_paths:
+            if any(_in_name(record["relative"], value) for value in values):
+                findings.append(_finding("filename", "value-in-path", private["path"], record["path"], None))
     result["findings"] = findings
     result["counts"].update(
         public_files=sum(row["visibility"] == "public" for row in layout["files"]),
@@ -293,9 +326,10 @@ def scan_task(root: Path, selected: object, reconstruction: dict | None = None) 
         allowed=sum(row["allowed"] for row in findings),
         **{
             kind: sum(row["kind"] == kind and not row["allowed"] for row in findings)
-            for kind in ("full", "hint", "reference")
+            for kind in ("full", "hint", "reference", "filename")
         },
     )
+    result["hidden_cases"] = hidden_cases(layout, result["unscanned"], findings)
     for finding in findings:
         if finding["allowed"]:
             continue
@@ -304,6 +338,23 @@ def scan_task(root: Path, selected: object, reconstruction: dict | None = None) 
     if result["unscanned"]:
         diagnostics.append(diagnostic("leakage.unscanned_files", task, "unknown"))
     return {**result, **_status(diagnostics)}
+
+
+def _finding(kind: Kind, method: str, private: str, public: str, lines: list[int] | None) -> Finding:
+    return {
+        "kind": kind,
+        "method": method,
+        "private": private,
+        "public": public,
+        "lines": lines,
+        "allowed": False,
+        "allowed_reason": None,
+    }
+
+
+def _in_name(path: str, value: str) -> bool:
+    """True when ``value`` appears in a path between non-alphanumeric characters, as in ``total_4213.csv``."""
+    return re.search(rf"(?<![A-Za-z0-9]){re.escape(value)}(?![A-Za-z0-9])", path, re.IGNORECASE) is not None
 
 
 def bounded(content: str, name: str) -> bool:

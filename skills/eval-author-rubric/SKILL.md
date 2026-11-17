@@ -75,7 +75,7 @@ the area or criterion IDs explicitly requested by the user:
   and provenance opt-in does not select anti-cheat.
 - **Data leakage and forged credit:** use
   [the leakage and credit assessment](references/leakage-and-credit.md) for
-  AUD-03, AUD-04-B, AUD-05-B, AUD-05-S03, TRACE-04-A, ENV-03-S01, and CREATE-02.
+  AUDIT-03, AUDIT-04-B, AUDIT-05-B, AUDIT-05-S03, TRACE-04-A, ENV-03-S01, and CREATE-02.
   It maps the anti-cheat AC criteria to these IDs; selecting it selects no
   other area.
 - **Task contract and scoring authority:** use

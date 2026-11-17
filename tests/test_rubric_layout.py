@@ -3,6 +3,7 @@
 
 import hashlib
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -135,3 +136,66 @@ def test_measure_reports_layout_labels(tmp_path: Path) -> None:
     report = json.loads(completed.stdout)
     assert report["measurements"]["layout"]["counts"]["private"] == 1
     assert report["measurements"]["layout"]["status"] == "pass"
+
+
+def test_trajectory_and_declared_steps_are_labeled(tmp_path: Path) -> None:
+    task = tmp_path / "tasks" / "add"
+    files = {
+        "task.toml": '[[steps]]\nname = "first"\n',
+        "trajectory.json": "{}",
+        "steps/first/instruction.md": "Step one.\n",
+        "steps/first/trajectory.json": "{}",
+        "steps/first/workdir/seed.txt": "1\n",
+        "steps/first/tests/test.sh": "pytest\n",
+        "steps/first/solution/solve.sh": "echo 1\n",
+        "steps/first/notes.md": "x\n",
+    }
+    for relative, content in files.items():
+        (task / relative).parent.mkdir(parents=True, exist_ok=True)
+        (task / relative).write_text(content, encoding="utf-8")
+
+    result = label_task(tmp_path, {"task": "tasks/add"})
+
+    assert result["format"] == "harbor"
+    assert labels(result) == {
+        "tasks/add/task.toml": "configuration",
+        "tasks/add/trajectory.json": "public",
+        "tasks/add/steps/first/instruction.md": "public",
+        "tasks/add/steps/first/trajectory.json": "public",
+        "tasks/add/steps/first/workdir/seed.txt": "public",
+        "tasks/add/steps/first/tests/test.sh": "private",
+        "tasks/add/steps/first/solution/solve.sh": "private",
+        "tasks/add/steps/first/notes.md": "unlabeled",
+    }
+
+
+def test_task_without_instruction_or_steps_is_not_harbor(tmp_path: Path) -> None:
+    (tmp_path / "task.toml").write_text('[metadata]\nname = "x"\n', encoding="utf-8")
+
+    assert label_task(tmp_path, {"task": "."})["format"] is None
+
+
+def test_task_at_the_selected_root_uses_plain_paths(tmp_path: Path) -> None:
+    task = write_task(tmp_path, {"tests/test.sh": "pytest\n"})
+
+    result = label_task(task, {"task": "."})
+
+    assert result["status"] == "pass"
+    assert labels(result)["tests/test.sh"] == "private"
+    assert {record["relative"] for record in result["files"]} == set(labels(result))
+
+
+@pytest.mark.skipif(sys.platform == "win32" or os.geteuid() == 0, reason="needs an unprivileged POSIX user")
+def test_unreadable_directory_is_unknown(tmp_path: Path) -> None:
+    task = write_task(tmp_path, {"tests/test.sh": "pytest\n"})
+    (task / "tests").chmod(0)
+    try:
+        result = label_task(tmp_path, {"task": "tasks/add"})
+    finally:
+        (task / "tests").chmod(0o755)
+
+    assert result["status"] == "unknown"
+    assert {"code": "layout.directory_unreadable", "subject": "tasks/add/tests", "status": "unknown"} in result[
+        "diagnostics"
+    ]
+    assert result["counts"]["private"] == 0

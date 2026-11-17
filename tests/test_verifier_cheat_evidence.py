@@ -486,4 +486,15 @@ def test_manifest_is_the_single_source_for_controls_and_rewards():
     assert all(
         row["criteria"] and (row["role"] == "reference") == (row["attack_class"] is None) for row in controls.values()
     )
-    assert "AUD-05-B" in controls["hidden-case-read"]["criteria"]
+    assert "AUDIT-05-B" in controls["hidden-case-read"]["criteria"]
+
+
+def test_public_summary_keeps_the_read_boundary():
+    module = collector()
+    check = {"name": "sound--hidden-case-read", "status": "passed", "reward": 0, "read_boundary": "protected"}
+    report = {"status": "passed", "checks": [check, {**check, "name": "sound--hang", "read_boundary": "/secret"}]}
+
+    public = {row["name"]: row for row in module.public_summary(report)["checks"]}
+
+    assert public["sound--hidden-case-read"]["read_boundary"] == "protected"
+    assert "read_boundary" not in public["sound--hang"]

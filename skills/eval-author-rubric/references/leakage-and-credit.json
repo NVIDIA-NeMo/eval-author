@@ -2,7 +2,7 @@
   "rubric_version": "4.0-draft",
   "items": [
     {
-      "id": "AUD-03",
+      "id": "AUDIT-03",
       "skill_id": "audit",
       "title": "Forbidden-credit resistance",
       "question": "Do healthy anti-cheat controls receive only their declared credit?",
@@ -20,21 +20,21 @@
           "action": "Approve controls for no-work/early-exit, all-failure, inert reference text, hardcoded/copied answers, forged/stale success, scorer/test tampering and forbidden answer access; distinguish valid inaction and realistic wrong answers from NOP.",
           "expected_evidence": "Attack applicability matrix with expected per-check credit",
           "when": "During assessment of the declared revision",
-          "id": "AUD-03-C01"
+          "id": "AUDIT-03-C01"
         },
         {
           "method": "probe",
           "action": "Submit every applicable control through the actual scoring path while collecting trusted reach and health receipts.",
           "expected_evidence": "Native control outputs, health and reach evidence",
           "when": "Only in authorized isolated control execution",
-          "id": "AUD-03-C02"
+          "id": "AUDIT-03-C02"
         },
         {
           "method": "deterministic",
           "action": "Compare each affected reward and total with expected credit; separate healthy forbidden-credit results from control errors or missing runs.",
           "expected_evidence": "Per-check mismatch table and coverage counts",
           "when": "During assessment of the declared revision",
-          "id": "AUD-03-C03"
+          "id": "AUDIT-03-C03"
         }
       ],
       "scoring": {
@@ -64,7 +64,7 @@
       "implementation_task": "Build an anti-cheat control panel and reward comparator that blocks qualification on healthy forbidden credit."
     },
     {
-      "id": "AUD-04-B",
+      "id": "AUDIT-04-B",
       "skill_id": "audit",
       "title": "Exploit containment",
       "question": "Are confirmed exploits contained and fixes verified on retained affected tasks?",
@@ -82,21 +82,21 @@
           "action": "Approve quarantine or bounded use of affected results and record residual risk for each confirmed mechanism.",
           "expected_evidence": "Containment/disposition register",
           "when": "During assessment of the declared revision",
-          "id": "AUD-04-B-C01"
+          "id": "AUDIT-04-B-C01"
         },
         {
           "method": "probe",
           "action": "Replay known mechanisms against repaired retained affected tasks and new tasks; include independent attacks for stronger assurance.",
           "expected_evidence": "Revision-bound containment and regression results",
           "when": "After authorized repair in an isolated execution scope",
-          "id": "AUD-04-B-C02"
+          "id": "AUDIT-04-B-C02"
         },
         {
           "method": "deterministic",
           "action": "Reconcile confirmed affected revisions with isolation and replay outcomes; flag accepted uncontained exploits.",
           "expected_evidence": "Unresolved containment report",
           "when": "During assessment of the declared revision",
-          "id": "AUD-04-B-C03"
+          "id": "AUDIT-04-B-C03"
         }
       ],
       "scoring": {
@@ -124,7 +124,7 @@
       "implementation_task": "Build a containment acceptance checklist and replay regression panel that retains previously affected tasks."
     },
     {
-      "id": "AUD-05-B",
+      "id": "AUDIT-05-B",
       "skill_id": "audit",
       "title": "Exposure disclosure",
       "question": "Does the contamination statement match what is known and unknown about task and answer exposure?",
@@ -141,21 +141,21 @@
           "action": "Inventory public tasks/solutions, exposure timestamps, known corpus overlap and accessible answer artifacts with source identities.",
           "expected_evidence": "Exposure inventory and searched/unknown corpus list",
           "when": "During assessment of the declared revision",
-          "id": "AUD-05-B-C01"
+          "id": "AUDIT-05-B-C01"
         },
         {
           "method": "human_review",
           "action": "Review whether observed overlap supports the claimed exposure conclusion and whether inaccessible training provenance remains explicitly unknown.",
           "expected_evidence": "Bounded exposure statement with cited dispositions",
           "when": "During assessment of the declared revision",
-          "id": "AUD-05-B-C02"
+          "id": "AUDIT-05-B-C02"
         },
         {
           "method": "deterministic",
           "action": "Recompute reported outcomes under predeclared exposed-subset exclusions or bounds, retaining the original population report.",
           "expected_evidence": "Exposure sensitivity results",
           "when": "During assessment of the declared revision",
-          "id": "AUD-05-B-C03"
+          "id": "AUDIT-05-B-C03"
         }
       ],
       "scoring": {
@@ -171,7 +171,7 @@
         "Sensitivity results"
       ],
       "on_gap": "Collect more evidence or narrow statistical/cleanliness claims; lack of observed leakage is not proof of no contamination",
-      "boundary": "This defines the formerly inherited contamination_exposure subscore. No detection is not proof of cleanliness; detector qualification is AUD-05-S05. Missing or unrun evidence is NOT_ASSESSED, not 0; justified exclusions are NOT_APPLICABLE. Referenced code is supporting material, not verified runnable integration. Execute interventions only with approval; qualify any material judge/classifier and routing dependency before using its verdict.",
+      "boundary": "This defines the formerly inherited contamination_exposure subscore. No detection is not proof of cleanliness; detector qualification is AUDIT-05-S05. Missing or unrun evidence is NOT_ASSESSED, not 0; justified exclusions are NOT_APPLICABLE. Referenced code is supporting material, not verified runnable integration. Execute interventions only with approval; qualify any material judge/classifier and routing dependency before using its verdict.",
       "code_references": [
         "skills/eval-author-audit/scripts/audit_spec/report.py",
         "skills/eval-author/references/authoring-context.md"
@@ -182,7 +182,7 @@
       "implementation_task": "Build an exposure disclosure register and sensitivity report with explicit unknown-training fields."
     },
     {
-      "id": "AUD-05-S03",
+      "id": "AUDIT-05-S03",
       "skill_id": "audit",
       "title": "Adaptive selection and confirmation",
       "question": "Is confirmation independent of development feedback, or valid under the actual reuse mechanism?",
@@ -200,21 +200,21 @@
           "action": "Reconcile the chronological candidate/revision ledger with feedback source, partition/family, revealed information, actor, modification, selection reason and all evaluated alternatives; inspect holdout access logs and split lineage.",
           "expected_evidence": "Decision ledger and exposure report",
           "when": "During assessment of the declared revision",
-          "id": "AUD-05-S03-C01"
+          "id": "AUDIT-05-S03-C01"
         },
         {
           "method": "human_review",
           "action": "Approve a frozen analysis/acceptance rule and untouched family-aware confirmation set, or justify a reuse guarantee against actual access, assumptions and budget.",
           "expected_evidence": "Confirmation or adaptive-reuse contract",
           "when": "During assessment of the declared revision",
-          "id": "AUD-05-S03-C02"
+          "id": "AUDIT-05-S03-C02"
         },
         {
           "method": "probe",
           "action": "Run authorized untouched confirmation or test reuse-budget exhaustion and feedback side channels.",
           "expected_evidence": "Confirmation outcomes or boundary-control receipts",
           "when": "Only when confirmation or reuse controls are authorized",
-          "id": "AUD-05-S03-C03"
+          "id": "AUDIT-05-S03-C03"
         }
       ],
       "scoring": {
@@ -415,8 +415,8 @@
         "Paired outcomes and health",
         "Confound decisions"
       ],
-      "on_gap": "remove cue, repair measure or narrow claim; route prohibited mechanisms to AUD-03/AUD-04-A / AUD-04-B without double-counting.",
-      "boundary": "Correlation alone is not proof. Preserve task-relevant evidence and legitimate shortcuts; a score drop may reflect changed difficulty. Route forbidden mechanisms to AUD-03/AUD-04-A / AUD-04-B without duplicate credit. Missing or unrun evidence is NOT_ASSESSED, not 0; justified exclusions are NOT_APPLICABLE. Referenced code is supporting material, not verified runnable integration. Execute interventions only with approval; qualify any material judge/classifier and routing dependency before using its verdict.",
+      "on_gap": "remove cue, repair measure or narrow claim; route prohibited mechanisms to AUDIT-03/AUDIT-04-A / AUDIT-04-B without double-counting.",
+      "boundary": "Correlation alone is not proof. Preserve task-relevant evidence and legitimate shortcuts; a score drop may reflect changed difficulty. Route forbidden mechanisms to AUDIT-03/AUDIT-04-A / AUDIT-04-B without duplicate credit. Missing or unrun evidence is NOT_ASSESSED, not 0; justified exclusions are NOT_APPLICABLE. Referenced code is supporting material, not verified runnable integration. Execute interventions only with approval; qualify any material judge/classifier and routing dependency before using its verdict.",
       "code_references": [],
       "source_ids": [
         31,

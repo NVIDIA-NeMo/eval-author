@@ -217,3 +217,89 @@ def test_measure_reports_leakage(tmp_path: Path) -> None:
     report = json.loads(completed.stdout)
     assert report["measurements"]["leakage"]["status"] == "fail"
     assert completed.returncode == 1
+
+
+def test_answer_in_a_public_file_name_is_flagged(tmp_path: Path) -> None:
+    write_task(
+        tmp_path,
+        {
+            "tests/expected.txt": "4213\n",
+            "environment/data/expected_total_4213.csv": "id,amount\n",
+            "environment/data/INV-20931/notes.txt": "notes\n",
+            "environment/data/total_42130.csv": "id\n",
+        },
+    )
+
+    result = scan_task(tmp_path, {"task": "task"})
+
+    flagged = {(row["private"], row["public"]) for row in result["findings"] if row["kind"] == "filename"}
+    assert flagged == {
+        ("task/tests/expected.txt", "task/environment/data/expected_total_4213.csv"),
+        ("task/tests/expected.json", "task/environment/data/INV-20931/notes.txt"),
+    }
+    assert {row["lines"] for row in result["findings"] if row["kind"] == "filename"} == {None}
+    assert {
+        "code": "leakage.filename",
+        "subject": "task/environment/data/expected_total_4213.csv",
+        "status": "unknown",
+    } in result["diagnostics"]
+
+
+def test_hidden_cases_are_protected_in_a_clean_layout(tmp_path: Path) -> None:
+    write_task(tmp_path, {"environment/invoice.txt": "Invoice for a different customer\n"})
+
+    assert scan_task(tmp_path, {"task": "task"})["hidden_cases"] == "protected"
+
+
+def test_hidden_cases_are_exposed_by_a_full_copy(tmp_path: Path) -> None:
+    write_task(tmp_path, {"environment/copy/test_outputs.py": TEST_CODE})
+
+    assert scan_task(tmp_path, {"task": "task"})["hidden_cases"] == "exposed"
+
+
+@pytest.mark.parametrize(
+    "files",
+    [
+        {"environment/docker-compose.yaml": "services:\n  main:\n    volumes:\n      - ../tests:/tests\n"},
+        {"environment/blob.bin": b"\xff\xfe"},
+        {"instruction.md": "Make test_total_matches_ledger pass.\n"},
+    ],
+)
+def test_hidden_cases_are_unknown_when_the_scan_cannot_settle_them(tmp_path: Path, files: dict) -> None:
+    write_task(tmp_path, files)
+
+    assert scan_task(tmp_path, {"task": "task"})["hidden_cases"] == "unknown"
+
+
+def test_trajectory_and_step_files_are_scanned(tmp_path: Path) -> None:
+    write_task(
+        tmp_path,
+        {
+            "trajectory.json": '{"steps": [{"message": "' + EXPECTED.strip().replace('"', '\\"') + '"}]}\n',
+            "steps/second/instruction.md": "Now check tests/test_outputs.py.\n",
+            "steps/second/tests/expected.json": '{"step": "SECOND-ANSWER-77"}\n',
+            "steps/second/workdir/seed.txt": "SECOND-ANSWER-77\n",
+        },
+    )
+
+    result = scan_task(tmp_path, {"task": "task"})
+
+    publics = {(row["kind"], row["public"]) for row in result["findings"] if not row["allowed"]}
+    assert ("hint", "task/trajectory.json") in publics
+    assert ("reference", "task/steps/second/instruction.md") in publics
+    assert ("hint", "task/steps/second/workdir/seed.txt") in publics
+
+
+def test_task_at_the_selected_root(tmp_path: Path) -> None:
+    write_task(tmp_path, {"environment/cache/answer.json": EXPECTED})
+
+    result = scan_task(tmp_path / "task", {"task": "."})
+
+    assert ("full", "exact", "tests/expected.json", "environment/cache/answer.json") in unallowed(result)
+
+
+def test_reports_whether_generated_files_were_checked(tmp_path: Path) -> None:
+    write_task(tmp_path, {})
+
+    assert scan_task(tmp_path, {"task": "task"})["generated_files_checked"] is False
+    assert scan_task(tmp_path, {"task": "task"}, reconstruction={"records": []})["generated_files_checked"] is True
