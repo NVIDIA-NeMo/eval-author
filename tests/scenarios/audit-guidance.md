@@ -607,8 +607,12 @@ Reply: “Let's work on the first recommendation.” The agent retains that sele
 and follows the selected audit continuation without another recommendation pass.
 It checks the applicable construction path, reuses agreed scope, and asks only
 for missing construction decisions. If implementation is unsupported, it explains
-the limit instead of offering another written repair proposal. Selection alone
-does not approve construction or agent execution.
+the limit instead of offering another written repair proposal. For an unsupported
+grader repair, it leads with the canonical `UNSUPPORTED_GRADER_REPAIR` copy in
+the [expansion templates](../../skills/eval-author/scripts/conversation_flows/expansion_templates.py),
+without a bookkeeping preamble or a blanket source-edit prohibition. Any
+report-update failure appears in a separate paragraph. Selection alone does not
+approve construction or agent execution.
 
 **Explicit proposal-only request:** Reply instead: “Please expand the first
 recommendation into a detailed proposal.” The agent enters
