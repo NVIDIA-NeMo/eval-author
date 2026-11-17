@@ -4,11 +4,13 @@
 from __future__ import annotations
 
 import copy
+import hashlib
 import json
 import os
 import subprocess
 import sys
 from pathlib import Path
+from typing import cast
 
 import pytest
 import yaml
@@ -94,6 +96,10 @@ def test_native_translation_preserves_selection_and_scenario(inputs: tuple) -> N
     assert (scenario.read_bytes(), config.read_bytes()) == source_bytes
     assert result.working_directory == Path.cwd()
     assert result.to_dict()["runtime_ready"] is False
+    assert result.input_digests == {
+        str(path): hashlib.sha256(path.read_bytes()).hexdigest() for path in result.input_paths
+    }
+    assert result.to_dict()["input_digests"] == dict(result.input_digests)
     assert set(result.input_paths) == {
         scenario,
         config,
@@ -313,6 +319,45 @@ def test_native_task_alias_is_not_hidden_by_path_resolution(inputs: tuple) -> No
     with pytest.raises(HarborTranslationError, match="symlink"):
         translate(scenario, config, output)
     assert not output.exists()
+
+
+def test_translation_snapshot_stays_frozen_when_source_changes(inputs: tuple) -> None:
+    scenario, config, output, _ = inputs
+    result = translate(scenario, config, output)
+    original_digest = result.input_digests[str(scenario)]
+    saved = result.to_dict()
+    changed = yaml.safe_load(scenario.read_text())
+    changed["start_prompt"] = "A different opening request"
+    scenario.write_text(yaml.safe_dump(changed))
+    assert result.input_digests[str(scenario)] == original_digest
+    assert result.input_digests[str(scenario)] != hashlib.sha256(scenario.read_bytes()).hexdigest()
+    assert saved["input_digests"] == result.to_dict()["input_digests"]
+    assert json.loads((output / "persona.txt").read_text())["start_prompt"] != changed["start_prompt"]
+    with pytest.raises(TypeError):
+        cast(dict[str, str], result.input_digests)[str(scenario)] = "new"
+
+
+@pytest.mark.parametrize("input_name", ["scenario", "base", "external"])
+def test_mixed_source_versions_fail_before_return(
+    inputs: tuple, monkeypatch: pytest.MonkeyPatch, input_name: str
+) -> None:
+    scenario, config, output, data = inputs
+    external = Path.cwd() / "acpx.json"
+    external.write_text('{"timeout": 10}')
+    data["user_agent"]["bridge"] = {"kind": "acp", "kwargs": {"acpx_config_path": str(external)}}
+    config.write_text(yaml.safe_dump(data))
+    selected = {"scenario": scenario, "base": config, "external": external}[input_name]
+    original_write = Path.write_text
+
+    def write_text(path: Path, text: str) -> int:
+        result = original_write(path, text)
+        if path == output / "run.yaml":
+            original_write(selected, selected.read_text() + "\n")
+        return result
+
+    monkeypatch.setattr(Path, "write_text", write_text)
+    with pytest.raises(HarborTranslationError, match="changed during"):
+        translate(scenario, config, output)
 
 
 @pytest.mark.parametrize("content", ['{"agents": {}}', '{"defaultAgent": "other"}', "[]"])

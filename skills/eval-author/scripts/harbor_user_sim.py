@@ -9,12 +9,15 @@ import argparse
 import copy
 import json
 import sys
+from collections.abc import Mapping
 from dataclasses import dataclass
 from importlib.metadata import version
 from pathlib import Path
+from types import MappingProxyType
 from typing import TYPE_CHECKING, Any
 
 import yaml
+from eval_author_shared.task_evidence import digest
 from user_sim import UserSimError, UserSimScenario, load_scenario
 
 if TYPE_CHECKING:
@@ -62,6 +65,7 @@ class TranslationResult:
     run_config_path: Path
     working_directory: Path
     input_paths: tuple[Path, ...]
+    input_digests: Mapping[str, str]
 
     def to_dict(self) -> dict[str, object]:
         return {
@@ -71,6 +75,7 @@ class TranslationResult:
             "run_config_path": str(self.run_config_path),
             "working_directory": str(self.working_directory),
             "input_paths": [str(path) for path in self.input_paths],
+            "input_digests": dict(self.input_digests),
             "runtime_ready": False,
         }
 
@@ -151,8 +156,6 @@ def _bound_input_path(path: Path) -> Path:
 
 
 def _external_inputs(native: JobConfig) -> tuple[Path, ...]:
-    from harbor.bridges.acp import validate_acpx_config
-
     assert native.user_agent is not None
     paths = [path.expanduser() for path in native.extra_instruction_paths]
     paths.extend(path.expanduser() for path in native.environment.extra_docker_compose)
@@ -169,13 +172,28 @@ def _external_inputs(native: JobConfig) -> tuple[Path, ...]:
         paths.append(Path(target_prompt))
     acpx_path = native.user_agent.bridge.kwargs.get("acpx_config_path")
     if acpx_path is not None:
-        path = Path(acpx_path)
-        config = json.loads(path.read_text())
+        paths.append(Path(acpx_path))
+    return tuple(_bound_input_path(path) for path in paths)
+
+
+def _validate_acpx_input(native: JobConfig) -> None:
+    from harbor.bridges.acp import validate_acpx_config
+
+    assert native.user_agent is not None
+    path = native.user_agent.bridge.kwargs.get("acpx_config_path")
+    if path is not None:
+        config = json.loads(Path(path).read_text())
         if not isinstance(config, dict):
             raise HarborTranslationError("ACPX overrides must contain an object")
         validate_acpx_config(config)
-        paths.append(path)
-    return tuple(_bound_input_path(path) for path in paths)
+
+
+def _snapshot_input(path: Path, snapshots: dict[str, str]) -> None:
+    observed = digest(path)
+    key = str(path)
+    if key in snapshots and snapshots[key] != observed:
+        raise HarborTranslationError("A translation input changed during preparation; generate a fresh bundle")
+    snapshots[key] = observed
 
 
 def _validate_task(native: JobConfig, scenario: UserSimScenario, output_dir: Path) -> None:
@@ -204,6 +222,7 @@ def translate(scenario_path: Path, config_path: Path, output_dir: Path) -> Trans
     if output_dir.exists() or output_dir.is_symlink():
         raise HarborTranslationError("Choose a new output directory to preserve earlier translated inputs")
     scenario_path, config_path, output_dir = (path.resolve() for path in (scenario_path, config_path, output_dir))
+    snapshots = {str(path): digest(path) for path in (scenario_path, config_path)}
     scenario = load_scenario(scenario_path)
     data = _selected_job(config_path)
     _configure_user(data, output_dir)
@@ -212,6 +231,9 @@ def translate(scenario_path: Path, config_path: Path, output_dir: Path) -> Trans
     TrialConfig.model_validate({"task": native.tasks[0], "agent": native.agents[0], "user_agent": native.user_agent})
     _validate_task(native, scenario, output_dir)
     external_inputs = _external_inputs(native)
+    for path in external_inputs:
+        _snapshot_input(path, snapshots)
+    _validate_acpx_input(native)
     template = USER_TEMPLATE.format(neutral=NEUTRAL_BEHAVIOR.read_text())
     validate_user_prompt_template(template, source="Eval Author", persona_path=output_dir / "persona.txt")
     files = {
@@ -223,6 +245,9 @@ def translate(scenario_path: Path, config_path: Path, output_dir: Path) -> Trans
     output_dir.mkdir(mode=0o700, parents=True, exist_ok=False)
     for name, content in files.items():
         (output_dir / name).write_text(content)
+        _snapshot_input(output_dir / name, snapshots)
+    for path in (scenario_path, config_path, *external_inputs):
+        _snapshot_input(path, snapshots)
     return TranslationResult(
         task_id=scenario.task_id,
         user_type=scenario.user_type,
@@ -231,6 +256,7 @@ def translate(scenario_path: Path, config_path: Path, output_dir: Path) -> Trans
         input_paths=tuple(
             dict.fromkeys((scenario_path, config_path, *(output_dir / name for name in files), *external_inputs))
         ),
+        input_digests=MappingProxyType(snapshots),
     )
 
 

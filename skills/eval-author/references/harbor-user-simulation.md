@@ -37,7 +37,11 @@ template. These files belong to the simulator and host runtime, not the target's
 starting environment. Never copy the output directory into the task image.
 
 The JSON result lists the native config path, required working directory, and
-input paths for evidence binding. It includes the source scenario and base
+input paths with their translation-time SHA-256 digests for evidence binding.
+Binding must compare those saved digests with current bytes. Rehashing changed
+sources must not authorize an older generated bundle. Translation checks source
+inputs before parsing and after writing outputs, and fails if they changed.
+It includes the source scenario and base
 config, emitted files, declared external instruction and target prompt files,
 ACP configuration, extra Docker Compose files, and file-valued native `config`
 options for both agent roles. Inline native configuration stays in `run.yaml`.
