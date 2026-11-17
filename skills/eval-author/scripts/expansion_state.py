@@ -8,11 +8,25 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+from typing import Literal, NotRequired, TypedDict, cast
 
 
-def record(state: dict) -> dict | None:
+class PendingDecision(TypedDict):
+    question: str
+    source: str
+
+
+class EntryRecord(TypedDict):
+    schema_version: Literal[1]
+    setup: NotRequired[Literal["gym", "harbor"]]
+    ethos_digest: str
+    handoff_digest: str | None
+    pending: PendingDecision
+
+
+def record(state: dict) -> EntryRecord | None:
     scope = state["scopes"].get("expand", {})
-    return scope.get("lifecycle") if isinstance(scope, dict) else None
+    return cast(EntryRecord | None, scope.get("lifecycle")) if isinstance(scope, dict) else None
 
 
 def handoff_digest(state: dict) -> str | None:
@@ -23,7 +37,7 @@ def handoff_digest(state: dict) -> str | None:
     return hashlib.sha256(json.dumps(handoff, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
 
 
-def validate(value: dict) -> None:
+def validate(value: object) -> None:
     if not isinstance(value, dict) or set(value) - {"setup"} != {
         "schema_version",
         "ethos_digest",
@@ -48,8 +62,8 @@ def validate(value: dict) -> None:
         raise ValueError("Expansion question and source must be bounded nonempty text")
 
 
-def new_record(state: dict, *, question: str, source: str) -> dict:
-    value = {
+def new_record(state: dict, *, question: str, source: str) -> EntryRecord:
+    value: EntryRecord = {
         "schema_version": 1,
         "setup": state["setup"],
         "ethos_digest": state["ethos"]["confirmed_digest"],
