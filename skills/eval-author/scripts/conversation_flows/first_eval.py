@@ -237,7 +237,9 @@ def task_table(tasks: list[dict]) -> str:
                 task_id=literal(identity["task_id"], "scenario task ID", table=True),
                 path=literal(identity["path"], "scenario path", table=True),
             )
-        rows.append(f"| {interaction}**{task_id}** - {behavior}{scenario} | {expected} | **{verifier_type}** {scoring} |")
+        rows.append(
+            f"| {interaction}**{task_id}** - {behavior}{scenario} | {expected} | **{verifier_type}** {scoring} |"
+        )
     return "\n".join(rows)
 
 

@@ -296,7 +296,8 @@ def test_authored_report_and_review_keep_interaction_type_and_bound_neutral_scen
     flow = importlib.import_module("conversation_flows.first_eval")
     checked = flow.authored_rows(value, {"task_rows": rows}, observed, ["refund"])
     output = flow.task_table(checked)
-    assert "User-sim" in output and "Neutral scenario: refund" in output
+    assert "**User Simulation**<br>**refund**" in output
+    assert "Neutral scenario: refund" in output
     assert ".eval-author/tasks/refund/user-sim.yaml" in output
     assert "PRIVATE-ORDER-2084" not in output
     markdown = (tmp_path / ".eval-author/report_markdown/tasks.md").read_text()
@@ -350,7 +351,7 @@ def test_settings_and_results_show_simulator_identity_without_adding_example_cou
     assert "Neutral, using simulator / configured-user-model" in settings
     assert "Conversation limits" in settings and "180 seconds total" in settings
     result = renderer.render(conversations.payload(rendering, "results", **conversations.result_facts(rendering)))
-    assert "**Interaction type:** User-sim" in result and "**Neutral scenario:** refund" in result
+    assert "**Interaction type:** User Simulation" in result and "**Neutral scenario:** refund" in result
     assert "**Simulator:** simulator / configured-user-model" in result
     assert "1/1 completed attempts" in result
     assert "persona variants" not in result
