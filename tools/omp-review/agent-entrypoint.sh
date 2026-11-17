@@ -11,7 +11,6 @@ sync_status=0
 # Bounded so a hanging build hook cannot hold the job past its timeout.
 timeout 15m uv sync --locked >/tmp/omp-review/uv-sync.log 2>&1 || sync_status=$?
 echo "$sync_status" >/tmp/omp-review/uv-sync.exit
-( uv run --locked pytest -q -n auto -p no:cacheprovider >/tmp/omp-review/full-tests.log 2>&1; echo $? >/tmp/omp-review/full-tests.exit ) &
 status=0
 omp -p --mode json --model "$OMP_REVIEW_SELECTOR" --thinking high --config /work/render/omp-config.yml \
   --session-dir /tmp/omp-review/sessions --no-lsp --no-title --approval-mode yolo --max-time 50m --cwd /work/repo \
