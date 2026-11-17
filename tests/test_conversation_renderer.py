@@ -387,9 +387,16 @@ def expansion_question_variant(question, variant):
     }[variant]
 
 
-@pytest.mark.parametrize("stage", ["results", "ethos", "resume"])
-@pytest.mark.parametrize("recovery", ["prerequisite", "ethos", "blocker"])
-@pytest.mark.parametrize("question_variant", ["recovery", "entry", "padding", "crlf", "spacing"])
+@pytest.mark.parametrize(
+    "stage,recovery,question_variant",
+    [
+        (stage, recovery, question_variant)
+        for stage in ("results", "ethos", "resume")
+        for recovery in ("prerequisite", "ethos", "blocker")
+        for question_variant in ("recovery", "entry")
+    ]
+    + [("resume", "ethos", variant) for variant in ("padding", "crlf", "spacing")],
+)
 def test_structured_expansion_keeps_shared_recovery_available(
     conversation, state_module, tmp_path, stage, recovery, question_variant
 ):

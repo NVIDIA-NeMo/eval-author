@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Expansion entry decisions bound to confirmed intent and retained audit context."""
+"""Expansion entry decisions bound to provider, confirmed intent, and retained audit context."""
 
 from __future__ import annotations
 
@@ -24,10 +24,17 @@ def handoff_digest(state: dict) -> str | None:
 
 
 def validate(value: dict) -> None:
-    if not isinstance(value, dict) or set(value) != {"schema_version", "ethos_digest", "handoff_digest", "pending"}:
+    if not isinstance(value, dict) or set(value) - {"setup"} != {
+        "schema_version",
+        "ethos_digest",
+        "handoff_digest",
+        "pending",
+    }:
         raise ValueError("Expansion entry requires versioned context bindings and a pending decision")
     if type(value["schema_version"]) is not int or value["schema_version"] != 1:
         raise ValueError("Unsupported expansion lifecycle version")
+    if "setup" in value and value["setup"] not in ("gym", "harbor"):
+        raise ValueError("Expansion entry requires a supported provider")
     for field in ("ethos_digest", "handoff_digest"):
         digest = value[field]
         if digest is None and field == "handoff_digest":
@@ -44,6 +51,7 @@ def validate(value: dict) -> None:
 def new_record(state: dict, *, question: str, source: str) -> dict:
     value = {
         "schema_version": 1,
+        "setup": state["setup"],
         "ethos_digest": state["ethos"]["confirmed_digest"],
         "handoff_digest": handoff_digest(state),
         "pending": {"question": question, "source": source},
@@ -79,6 +87,8 @@ def derive(state: dict, observed: object) -> dict | None:
         raise ValueError("Supply expansion observations from the current repository and revision")
     current = (
         state["ethos"]["stage"] == "complete"
+        and "setup" in value
+        and value["setup"] == state["setup"]
         and value["ethos_digest"] == state["ethos"]["confirmed_digest"] == observed["ethos_digest"]
         and value["handoff_digest"] == handoff_digest(state)
     )
@@ -125,7 +135,7 @@ def transition(repo, previous: dict, updated: dict) -> None:
         if not entry_ready(updated):
             raise ValueError("Expansion entry requires its journey, shared prerequisites, and confirmed Ethos")
         if not progress["context_current"]:
-            raise ValueError("Bind the expansion question to the current confirmed intent and handoff")
+            raise ValueError("Bind the expansion question to the current provider, confirmed intent, and handoff")
         if updated["pending_question"] != progress["pending_question"]:
             raise ValueError("Save the expansion entry question as the pending question")
     if (
