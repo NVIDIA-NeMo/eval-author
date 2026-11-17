@@ -18,8 +18,7 @@ def test_proposed_interaction_is_visible_without_claiming_execution(modules, tmp
         {
             "id": "refund",
             "example_ids": ["refund-1"],
-            "test_type": "user_sim",
-            "test_type_reason": "Choose among the agent's offered refund options.",
+            "interaction_type": "user_sim",
             "state_requirements": "Keep the customer session.",
             "conversation_scenario": "Request a refund, choose an offered option, and confirm.",
         }
@@ -27,21 +26,11 @@ def test_proposed_interaction_is_visible_without_claiming_execution(modules, tmp
     creation.start(modules, tmp_path, examples=design)
     data = report.refresh(tmp_path)
     row = data["tasks"][0]
-    assert row["planned_interaction"] == "User-sim: Choose among the agent's offered refund options."
+    assert row["planned_interaction"] == "User-sim"
     assert row["status"] == "proposed"
     assert data["plan_counts"]["executed"] == 0
     assert row["planned_interaction"] in (tmp_path / ".eval-author/report_markdown/tasks.md").read_text()
     assert "task.planned_interaction" in (tmp_path / ".eval-author/report.html").read_text()
-
-
-def test_long_interaction_reason_does_not_break_report_refresh(modules, tmp_path):
-    value = creation.start(modules, tmp_path)
-    value["plan"]["tasks"][0].update(test_type="single_turn", test_type_reason="Reason " * 500)
-    creation.save(modules, tmp_path, value)
-    data = report.refresh(tmp_path)
-    row = next(task for task in data["tasks"] if task["plan_task_id"] == "refund")
-    assert row["planned_interaction"].startswith("Single-turn: Reason")
-    assert len(row["planned_interaction"]) <= 2000
 
 
 @pytest.fixture

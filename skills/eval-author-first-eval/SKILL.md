@@ -132,7 +132,9 @@ when saving each proposed task's verifier type and scoring rule, before resolvin
 its validation setup.
 Choose and retain each task's interaction type using
 [coverage planning](../eval-author/references/coverage-planning.md#choose-the-interaction-type)
-before saving the proposal. Explain the choice in its task row.
+before saving the proposal. Show the interaction type beneath the behavior in
+the Task cell, as in the linked table contract's example. List the type without
+adding a reason for choosing it.
 
 Reuse prerequisite findings and the selected source to make the proposal.
 Read only the additional agent interface or selected evidence needed to describe

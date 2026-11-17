@@ -38,10 +38,10 @@ from urllib.parse import quote, unquote
 # Isolated Python invocations must resolve the bundled sibling, never cwd code.
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import first_eval_state  # noqa: E402
+from interaction_types import interaction_type_label  # noqa: E402
 from journey_state import load_state, task_digest, task_lifecycle  # noqa: E402
 from journey_state import state_path as journey_state_path
 from search_tasks import search_tasks, within_task_scope  # noqa: E402
-from task_types import test_type_label  # noqa: E402
 from working_paths import working_path  # noqa: E402
 
 MAX_FILE_BYTES = 8 * 1024 * 1024
@@ -830,10 +830,8 @@ def project_plan(repo: Path, state: dict, tasks: list[dict], metadata: dict) -> 
             tasks.extend(matches)
         for task in matches:
             task["plan_task_id"] = task_id
-            if task["status"] == "proposed" and planned.get("test_type") is not None:
-                task["planned_interaction"] = design_text(
-                    test_type_label(planned["test_type"]) + ": " + planned["test_type_reason"]
-                )
+            if task["status"] == "proposed" and planned.get("interaction_type") is not None:
+                task["planned_interaction"] = interaction_type_label(planned["interaction_type"])
     return counts
 
 

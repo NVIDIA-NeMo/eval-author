@@ -13,7 +13,7 @@ from collections import Counter
 from itertools import chain
 from pathlib import PurePosixPath
 
-from task_types import validate_interaction_plan
+from interaction_types import validate_interaction_plan
 
 BUILD_STEPS = ("environment", "environment_check", "grading", "artifacts")
 REMAINING_STEPS = ("tasks", "environment_check", "validation", "artifacts")

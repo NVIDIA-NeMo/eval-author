@@ -117,17 +117,16 @@ def observations(record):
 def test_proposal_displays_selected_interaction_without_inferring_legacy_type(creation):
     _, record, _, renderer, _ = creation
     record["plan"]["tasks"][0].update(
-        test_type="user_sim",
-        test_type_reason="Choose from the offered options | then answer <confirm>.",
+        interaction_type="user_sim",
         state_requirements="Keep the same customer session.",
-        conversation_scenario="Ask for a return and answer the agent's clarification before confirming.",
+        conversation_scenario="Ask for a return | then answer <confirm>.",
     )
     output = renderer.render(payload(creation, "proposal"))
-    assert "**User-sim:** Choose from the offered options &#124; then answer &lt;confirm&gt;." in output
+    assert "<br>**Interaction type:** User-sim |" in output
     assert "**State carried between requests:** Keep the same customer session." in output
-    assert "**Conversation scenario:** Ask for a return" in output
-    assert "**Single-turn:**" not in output
-    assert "**Scripted multi-step:**" not in output
+    assert "**Conversation scenario:** Ask for a return &#124; then answer &lt;confirm&gt;." in output
+    assert "**Interaction type:** Single-turn" not in output
+    assert "**Interaction type:** Scripted multi-step" not in output
 
 
 def payload(creation, stage, **facts):

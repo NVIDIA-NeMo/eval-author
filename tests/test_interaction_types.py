@@ -18,7 +18,7 @@ SCRIPTS = Path(__file__).resolve().parents[1] / "skills/eval-author/scripts"
 @pytest.fixture
 def interaction_types(monkeypatch: pytest.MonkeyPatch) -> ModuleType:
     monkeypatch.syspath_prepend(str(SCRIPTS))
-    return importlib.import_module("task_types")
+    return importlib.import_module("interaction_types")
 
 
 def test_legacy_plan_does_not_gain_an_inferred_type(interaction_types: ModuleType) -> None:
@@ -26,7 +26,7 @@ def test_legacy_plan_does_not_gain_an_inferred_type(interaction_types: ModuleTyp
     original = deepcopy(plan)
     interaction_types.validate_interaction_plan(plan)
     assert plan == original
-    assert interaction_types.test_type_label(plan.get("test_type")) == "Not documented"
+    assert interaction_types.interaction_type_label(plan.get("interaction_type")) == "Not documented"
 
 
 @pytest.mark.parametrize(
@@ -34,15 +34,13 @@ def test_legacy_plan_does_not_gain_an_inferred_type(interaction_types: ModuleTyp
     [
         (
             {
-                "test_type": "single_turn",
-                "test_type_reason": "All order and return facts are present in the initial request.",
+                "interaction_type": "single_turn",
             },
             "Single-turn",
         ),
         (
             {
-                "test_type": "scripted_multi_step",
-                "test_type_reason": "A fixed correction request tests the order created in the first stage.",
+                "interaction_type": "scripted_multi_step",
                 "state_requirements": "Keep the same cart and conversation between requests.",
                 "prerequisite_checks": ["The requested item exists in the cart before requesting its removal."],
             },
@@ -50,8 +48,7 @@ def test_legacy_plan_does_not_gain_an_inferred_type(interaction_types: ModuleTyp
         ),
         (
             {
-                "test_type": "user_sim",
-                "test_type_reason": "The customer must choose between the replacement options actually offered.",
+                "interaction_type": "user_sim",
                 "state_requirements": "Preserve the current order and the agent's latest offer.",
                 "conversation_scenario": "Ask for a replacement, then accept the least expensive offered equivalent.",
             },
@@ -65,19 +62,18 @@ def test_supported_plans_keep_their_authored_meaning(
     original = deepcopy(plan)
     interaction_types.validate_interaction_plan(plan)
     assert plan == original
-    assert interaction_types.test_type_label(plan["test_type"]) == label
+    assert interaction_types.interaction_type_label(plan["interaction_type"]) == label
 
 
 @pytest.mark.parametrize("kind", [None, "multi_turn", "User-sim", "", True, 1, [], {}])
 def test_invalid_explicit_type_cannot_be_treated_as_legacy(interaction_types: ModuleType, kind: object) -> None:
-    with pytest.raises(ValueError, match="test_type"):
-        interaction_types.validate_interaction_plan({"test_type": kind, "test_type_reason": "A proposed interaction."})
+    with pytest.raises(ValueError, match="interaction_type"):
+        interaction_types.validate_interaction_plan({"interaction_type": kind})
 
 
 @pytest.mark.parametrize(
     ("field", "value"),
     [
-        ("test_type_reason", "The next turn depends on the reply."),
         ("state_requirements", "Keep the order."),
         ("prerequisite_checks", ["The order exists."]),
         ("conversation_scenario", "Request a replacement."),
@@ -86,14 +82,8 @@ def test_invalid_explicit_type_cannot_be_treated_as_legacy(interaction_types: Mo
 def test_orphaned_interaction_details_need_an_explicit_type(
     interaction_types: ModuleType, field: str, value: object
 ) -> None:
-    with pytest.raises(ValueError, match="require test_type"):
+    with pytest.raises(ValueError, match="require interaction_type"):
         interaction_types.validate_interaction_plan({field: value})
-
-
-@pytest.mark.parametrize("reason", [None, "", " \n ", 12, ["adaptive"]])
-def test_type_without_a_usable_rationale_is_rejected(interaction_types: ModuleType, reason: object) -> None:
-    with pytest.raises(ValueError, match="test_type_reason"):
-        interaction_types.validate_interaction_plan({"test_type": "single_turn", "test_type_reason": reason})
 
 
 @pytest.mark.parametrize("kind", ["scripted_multi_step", "user_sim"])
@@ -101,8 +91,7 @@ def test_multi_request_plan_requires_state_continuity(interaction_types: ModuleT
     with pytest.raises(ValueError, match="state_requirements"):
         interaction_types.validate_interaction_plan(
             {
-                "test_type": kind,
-                "test_type_reason": "The final request acts on the earlier cart.",
+                "interaction_type": kind,
                 "prerequisite_checks": ["The cart contains the requested item."],
                 "conversation_scenario": "Remove the item that was just added.",
             }
@@ -116,8 +105,7 @@ def test_scripted_path_cannot_advance_without_usable_prerequisite_checks(
     with pytest.raises(ValueError, match="prerequisite|prerequisites"):
         interaction_types.validate_interaction_plan(
             {
-                "test_type": "scripted_multi_step",
-                "test_type_reason": "Reach a known cart state before testing its removal.",
+                "interaction_type": "scripted_multi_step",
                 "state_requirements": "Keep the cart between requests.",
                 "prerequisite_checks": checks,
             }
@@ -128,8 +116,7 @@ def test_adaptive_plan_must_describe_the_conversation(interaction_types: ModuleT
     with pytest.raises(ValueError, match="conversation_scenario"):
         interaction_types.validate_interaction_plan(
             {
-                "test_type": "user_sim",
-                "test_type_reason": "The customer must respond to the offered options.",
+                "interaction_type": "user_sim",
                 "state_requirements": "Preserve the order and current offer.",
             }
         )
@@ -139,8 +126,7 @@ def test_single_turn_plan_cannot_hide_malformed_optional_details(interaction_typ
     with pytest.raises(ValueError, match="prerequisite_checks"):
         interaction_types.validate_interaction_plan(
             {
-                "test_type": "single_turn",
-                "test_type_reason": "All required facts are supplied initially.",
+                "interaction_type": "single_turn",
                 "prerequisite_checks": "none",
             }
         )

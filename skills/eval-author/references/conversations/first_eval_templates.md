@@ -27,10 +27,17 @@ Store the proposed rule before asking for design approval. Keep
 `example_ids` and the actual input in the saved design even though the table
 doesn't display them.
 
-Include `test_type` and `test_type_reason` using the shared
+Include `interaction_type` using the shared
 [interaction planning rules](../coverage-planning.md#choose-the-interaction-type).
-The renderer places the type and reason below the behavior in the Task cell.
-It shows state requirements, prerequisite checks, and conversation scenarios
+The renderer places the type label below the behavior in the Task cell. Don't
+store or display a reason for choosing the type. For example, a proposed row
+renders as:
+
+| Task | Expected outcome | Verifier |
+|---|---|---|
+| **INV-01-exact-sku-lookup** - Look up the requested SKU.<br>**Interaction type:** Single-turn | Return the matching SKU and its stock count. | **Custom code** Pass at 1 when the requested SKU and count match exactly, otherwise score 0. |
+
+The renderer shows state requirements, prerequisite checks, and conversation scenarios
 below the table so the user can review the proposed exchange before authoring.
 Keep the state requirements, prerequisite checks, and conversation scenario in
 the saved task fields when applicable. Older plans without a recorded type stay

@@ -46,50 +46,79 @@ evaluation runs are new evidence with their own run IDs; they do not silently
 enlarge or replace the source corpus. If corpus membership changes, update the
 agreement and identify affected plans, fixtures, and coverage claims for review.
 
+## Choose the interaction type
+
+- Choose an interaction type for each task before saving or reviewing its
+  proposal. Save `interaction_type` alongside the request, expected behavior,
+  and grading rule. Don't store a separate reason for choosing the type.
+- For both Scripted multi-step and User-sim, save `state_requirements`. Describe
+  which session, conversation history, and environment state must continue
+  between requests and what resets between attempts.
+- Follow the field requirements validated by
+  [`interaction_types.py`](../scripts/interaction_types.py).
+- Choose based on the user input needed to exercise the behavior. Conversation
+  length, tool-call count, and a conversational interface alone don't justify
+  User-sim.
+
+### Single-turn
+
+- Use `single_turn` when one user request can exercise the behavior. The agent
+  may make several tool calls to complete it.
+- For example, a delivery-date request that includes the order number and
+  postcode can require order lookup, carrier tracking, and policy checks without
+  needing another user message.
+
+### Scripted multi-step
+
+- Use `scripted_multi_step` when predefined requests and checked intermediate
+  outcomes lead to the behavior under test. The expected progression must be
+  predictable, even if the agent's wording varies.
+- Use this type for critical paths that an adaptive conversation might miss.
+  For example, add a specified item to a cart, verify that it's there, then
+  request its removal. The removal request stays the same across valid replies.
+- Save a nonempty `prerequisite_checks` list. Each check must establish the
+  state needed by a later request. A failed prerequisite counts as a failure
+  and leaves the later behavior unexercised. A fixed script can't guarantee
+  that the agent reaches that behavior.
+
+### User-sim
+
+- Use `user_sim` when later user messages must respond to what the agent
+  actually asks, offers, or does. The next message depends on the meaning of
+  the response, not just its wording. For example:
+  - The agent may ask for the order number or damage description first. The
+    simulator supplies the requested fact and keeps the other fact available.
+  - The agent may offer different replacement items as stock and prices change.
+    The simulator chooses an eligible item from the actual offer, within the
+    user's budget, and confirms that item's identifier.
+  - The agent may find that a requested appointment is no longer available.
+    The simulator accepts a suitable alternative or asks for another time based
+    on the user's availability and the agent's actual response.
+- Save `conversation_scenario` to describe the adaptive exchange, user-known
+  facts, allowed reactions, and observable agent behavior to check. Include any
+  delayed disclosure that the target behavior requires.
+- Reuse the task goal and fixtures. Start with a neutral user and shared behavior
+  defaults. Add disclosure or stopping rules only when the target behavior needs
+  them. Persona generation is outside this stage.
+
+### Ground the design in available evidence
+
+- When selected traces are available, identify turns where the next user input
+  depends on an earlier response. Cite the selected trace and turn identifiers
+  in the proposal's evidence. Distinguish choices among offered options from
+  wording differences or incidental chatter.
+- Treat traces as evidence of observed paths. Use Ethos and policy to establish
+  intended behavior. Without enough trace evidence, label the scenario synthetic
+  or uncertain. Don't invent observed exchanges.
+- Keep interaction type separate from execution stages and runner capabilities.
+  Missing runtime support leaves execution blocked. It doesn't change the
+  intended interaction type or establish that simulation ran.
+- Preserve task-create's existing source-mode and automatic tool-gap eligibility.
+- Leave legacy plans without a type unspecified until reviewed. Don't infer
+  Single-turn. A change to the interaction type or scenario changes the proposed
+  design and requires review of the affected agreement.
+
 ## Plan breadth per behavior
-
-### Choose the interaction type
-
-Choose a type for each task before saving or reviewing its proposal. Follow the
-requirements validated by [`task_types.py`](../scripts/task_types.py). Save
-`test_type` and a concrete `test_type_reason` alongside the task's existing
-request, expected behavior, and grading rule:
-
-| Value | Use when |
-| --- | --- |
-| `single_turn` | One user request can exercise the behavior. The agent may make several tool calls. |
-| `scripted_multi_step` | Predefined requests and checked intermediate outcomes lead to a specific behavior. Earlier interactions have predictable expected progression, even if their wording varies. |
-| `user_sim` | Later user messages must adapt to the agent's questions, offers, or actions. Name the dependency that requires adaptation. |
-
-For scripted multi-step and user-sim, save `state_requirements`: which session,
-conversation history, and environment state must continue between requests, and
-what resets between attempts. For scripted multi-step, also save a nonempty
-`prerequisite_checks` list. Each check must establish the state needed by a later
-request. A failed prerequisite is a failure and leaves later behavior
-unexercised. A fixed script cannot guarantee that the agent reaches that behavior.
-Use this type for critical paths that an adaptive conversation might miss.
-
-For user-sim, save `conversation_scenario` describing the adaptive exchange,
-relevant user-known facts, any delayed disclosure, allowed reactions, and the
-observable agent behavior to check. Reuse the task goal and fixtures. Start with
-a neutral user and shared behavior defaults. Add disclosure or stopping rules
-only when the target behavior needs them. Persona generation is outside this stage.
-
-When selected traces are available, identify the turns where the next user input
-depends on a previous response. Separate semantic dependencies, such as choosing
-among offered options, from wording differences or incidental chatter. Cite the
-selected trace and turn identifiers supporting the choice. Traces demonstrate
-observed paths, not the correct policy or the only possible paths. Without enough
-trace evidence, ground the proposal in Ethos and policy and label the scenario
-synthetic or uncertain. Don't invent observed exchanges.
-
-Conversation length, tool-call count, or a conversational agent interface alone
-doesn't justify user-sim. Keep the interaction choice separate from execution
-stages and runner capabilities. Missing runtime support leaves execution blocked,
-without changing the intended test type or claiming that simulation ran.
-Preserve task-create's existing source-mode and automatic tool-gap eligibility.
-Legacy plans without a type remain unspecified until reviewed, never implicitly
-single-turn. Changing the type or scenario changes the proposed design.
 
 Explain the counting units before discussing scope:
 

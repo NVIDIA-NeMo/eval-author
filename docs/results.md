@@ -114,12 +114,27 @@ item rerun commands, and known execution blockers.
 
 ## First evaluations
 
-New task proposals show an interaction type and why it fits the behavior:
-**Single-turn**, **Scripted multi-step**, or **User-sim**. Scripted tasks describe
-the prerequisites needed to reach later behavior. User-sim proposals describe
-how later user messages depend on the agent's responses. These are design
-choices, not evidence that a compatible runner is available or that a task ran.
-Older saved plans can remain without a documented type until reviewed.
+Your first evaluations give you a small starting suite that you can expand over
+time. You agree on one to three evaluation tasks, then Eval Author builds one
+draft for you to review. Check that it tests the behavior you care about and
+grades the outcome fairly. Once you're happy with that first task, Eval Author
+builds and validates the remaining tasks in your agreed set. You review the
+suite before running it, then use the results to decide whether to add coverage.
+
+Each proposed task shows an **interaction type** beneath its description:
+
+- **Single-turn** uses one user request. The agent can make several tool calls
+  to complete it.
+- **Scripted multi-step** uses predefined requests and checks intermediate
+  outcomes before continuing. For example, add an item to a cart, check that
+  it's there, then request its removal.
+- **User-sim** adapts later user messages to the agent's responses. For example,
+  a simulated customer chooses among the replacement items the agent actually
+  offers, then confirms the selected item.
+
+The interaction type describes the task's design. Runtime readiness and actual
+execution are tracked separately. Older saved plans can remain without a
+documented type until reviewed.
 
 The HTML report and `report_markdown/tasks.md` show proposed, authored, validated, and
 executed task totals for your full saved plan. Use the
