@@ -190,8 +190,13 @@ Use this choice for first-time users and users returning after a prior journey;
 do not inspect saved state before it or assume shared work already exists.
 
 Selecting starter expansion supplies readiness for the shared checks below.
-Trace-derived authoring keeps its scoped trace-source route below. Save the choice and provenance
-in the existing expansion scope once state operations are permitted. Selecting
+Trace-derived authoring keeps its scoped trace-source route below. Once state
+operations are permitted, save `scopes.expand.entry_choice` as
+`{"kind": "starter", "source": "<user choice reference>"}` (or `kind: trace`)
+through `--state-only update` with the latest `--expected-revision`, before
+prerequisite checks can block. Reuse that choice on fresh-chat resume; it records
+routing only, without scope agreement, construction approval, or execution
+authorization. Selecting
 an audit instead follows the [audit entry procedure](references/shared-prerequisites.md#return-to-an-audit)
 and its approach choice before audit checks. Do not add a separate readiness
 question. A requested path, selected audit improvements, or an active pending

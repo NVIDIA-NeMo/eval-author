@@ -381,7 +381,7 @@ def render(payload: dict) -> str:
             parts.append(copy.NEXT_ACTIONS[lifecycle["next_action"]["kind"]])
             action = lifecycle["next_action"]
             if action["kind"] == "improve" and not action.get("recommendation_ids"):
-                parts.append(copy.LEGACY_SELECTION)
+                parts.append(copy.MISSING_RECOMMENDATION_SELECTION)
         elif pending and (recommended := recommendation_section(facts)):
             parts.append(recommended)
     if stage in {"suites", "traces", "measurement"} and "report_action" in facts:

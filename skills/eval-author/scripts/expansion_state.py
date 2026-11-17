@@ -8,6 +8,25 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+from typing import Literal, TypedDict, cast
+
+
+class EntryChoice(TypedDict):
+    kind: Literal["starter", "trace"]
+    source: str
+
+
+def validate_entry_choice(value: object) -> EntryChoice:
+    if (
+        not isinstance(value, dict)
+        or set(value) != {"kind", "source"}
+        or value["kind"] not in ("starter", "trace")
+        or not isinstance(value["source"], str)
+        or not value["source"].strip()
+        or len(value["source"]) > 4000
+    ):
+        raise ValueError("Expansion entry_choice requires a supported kind and bounded nonempty source")
+    return cast(EntryChoice, value)
 
 
 def record(state: dict) -> dict | None:

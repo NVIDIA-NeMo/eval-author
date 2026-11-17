@@ -635,6 +635,9 @@ into the existing scope. These observations persist even when prerequisites are
 blocked. It also accepts the revision-checked `scopes.audit.mode` decision from
 the [approach procedure](#choose-the-audit-approach). Changing approaches reopens
 check and findings approval without reading artifacts or changing source selections.
+For expansion, the revision-checked path choice is the other permitted scope
+metadata update; use the [expansion entry procedure](../SKILL.md#expansion-handoff)
+to save and resume it before prerequisites finish.
 Case, corpus, and approval updates remain forbidden in this mode.
 
 Save agreed decisions in the selected journey's `scopes` entry.
