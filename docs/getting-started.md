@@ -185,7 +185,7 @@ Skills CLI. You need Git, access to this GitHub repository, a POSIX shell with
    workflows out. Manual copies are independent of the checkout; updating the
    checkout does not update installed copies.
 
-4. Verify all nine installed skill directories match the checkout:
+4. Verify all ten installed skill directories match the checkout:
 
    ```bash
    (
