@@ -34,6 +34,7 @@ from harbor.agents.base import BaseAgent
 from harbor.agents.factory import AgentFactory
 from harbor.agents.protocols import ACPAgentMixin
 from harbor.bridges.acp import ACPBridgeKwargs, validate_acpx_config
+from harbor.cli.config_sources import load_config_source as load_config_source
 from harbor.environments.factory import EnvironmentFactory
 from harbor.job import Job
 from harbor.models.bridge import BridgeKind

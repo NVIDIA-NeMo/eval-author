@@ -14,9 +14,8 @@ from pathlib import Path
 
 async def preflight(repo: Path, config_path: Path) -> dict[str, object]:
     from _checks import required_failures
-    from harbor.cli.config_sources import load_config_source
     from providers.harbor._explore import ConfigCandidate
-    from providers.harbor._judge import judge_config
+    from providers.harbor._judge import judge_config, load_config_source
     from yaml import YAMLError
 
     try:
