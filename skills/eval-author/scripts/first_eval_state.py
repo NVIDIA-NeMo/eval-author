@@ -147,10 +147,22 @@ def bind_user_sim_translation(repo: Path, translation: dict) -> UserSimBindings:
     working_directory = relative(translation.get("working_directory"), directory=True)
     if config not in selected:
         raise ValueError("The translated run configuration must be retained among its inputs")
-    references: dict[str, EvidenceReference] = {
-        path: {"path": path, "digest": _file_digest(_task_local_path(repo, path), MAX_TASK_BYTES)[0]}
-        for path in dict.fromkeys(selected)
-    }
+    digests = translation.get("input_digests")
+    if not isinstance(digests, dict) or set(digests) != set(paths) or len(set(selected)) != len(paths):
+        raise ValueError("Retain the exact input paths and frozen digests from the translation receipt")
+    for checksum in digests.values():
+        _digest(checksum)
+    references: dict[str, EvidenceReference] = {}
+    for original, path in zip(paths, selected, strict=True):
+        try:
+            current_digest = _file_digest(_task_local_path(repo, path), MAX_TASK_BYTES)[0]
+        except (OSError, ValueError) as exc:
+            raise ValueError(
+                "User-sim translation is stale. Regenerate it from the current inputs before binding."
+            ) from exc
+        if current_digest != digests[original]:
+            raise ValueError("User-sim translation is stale. Regenerate it from the current inputs before binding.")
+        references[path] = {"path": path, "digest": digests[original]}
     scenarios = [ref for path, ref in references.items() if PurePosixPath(path).name == "user-sim.yaml"]
     if len(scenarios) != 1:
         raise ValueError("Retain exactly one task-local user-sim.yaml input")
@@ -333,6 +345,13 @@ def validate(value: dict) -> None:
         if selection is not None:
             _evidence([selection["config"], *selection.get("inputs", [])])
             simulation = selection.get("user_sim")
+            if (user_sim_tasks(value) or simulation is not None) and (
+                len(planned) != 1 or len(selection["cases"]) != 1
+            ):
+                raise ValueError(
+                    "User-sim execution supports exactly one approved task in this release. "
+                    "Use a separate or explicitly revised one-task suite. Do not silently drop approved tasks."
+                )
             if simulation is not None:
                 if not isinstance(simulation, dict) or set(simulation) != {
                     "task_id",

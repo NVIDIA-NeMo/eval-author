@@ -56,6 +56,7 @@ def translated_inputs(repo: Path) -> dict:
         "run_config_path": str(repo / paths[2]),
         "working_directory": str(repo),
         "input_paths": [str(repo / path) for path in paths],
+        "input_digests": {str(repo / path): hashlib.sha256((repo / path).read_bytes()).hexdigest() for path in paths},
     }
 
 
@@ -80,6 +81,49 @@ def test_translation_binding_covers_config_and_consumed_inputs_without_runtime_a
     assert binding["user_sim"]["working_directory"] == "."
     assert binding["user_sim"]["scenario"] in binding["inputs"]
     assert "authorization" not in binding and "bridge" not in binding
+
+
+@pytest.mark.parametrize("changed", ["scenario", "run_config", "new_external_input"])
+def test_translation_receipt_cannot_bind_changed_sources_or_generated_configuration(modules, tmp_path, changed):
+    translated = translated_inputs(tmp_path)
+    scenario = tmp_path / ".eval-author/tasks/refund/user-sim.yaml"
+    if changed == "scenario":
+        scenario.write_text(SCENARIO.replace("I want to return my headphones.", "I need a replacement instead."))
+        creation.ready(modules, tmp_path, examples=design())
+        assert creation.facts(modules, tmp_path)["first_task_approved"]
+    else:
+        config = Path(translated["run_config_path"])
+        if changed == "new_external_input":
+            extra = tmp_path / "prompts/new-target.md"
+            extra.write_text("New target instructions")
+            config.write_text(
+                "agents:\n  - name: installed-target\n    kwargs:\n      prompt_template_path: prompts/new-target.md\n"
+            )
+            assert str(extra) not in translated["input_paths"]
+        else:
+            config.write_text("n_attempts: 9\n")
+    before = copy.deepcopy(translated)
+    with pytest.raises(ValueError, match="translation is stale.*Regenerate"):
+        modules[1].bind_user_sim_translation(tmp_path, translated)
+    assert translated == before
+
+
+@pytest.mark.parametrize("invalid", ["missing", "omitted_input", "extra_digest", "duplicate_path", "invalid_digest"])
+def test_translation_receipt_requires_exact_input_inventory_and_frozen_digests(modules, tmp_path, monkeypatch, invalid):
+    translated = translated_inputs(tmp_path)
+    if invalid == "missing":
+        translated.pop("input_digests")
+    elif invalid == "omitted_input":
+        translated["input_digests"].pop(translated["input_paths"][0])
+    elif invalid == "extra_digest":
+        translated["input_digests"][str(tmp_path / "unexpected.txt")] = "a" * 64
+    elif invalid == "duplicate_path":
+        translated["input_paths"].append(translated["input_paths"][0])
+    else:
+        translated["input_digests"][translated["input_paths"][0]] = "invalid"
+    monkeypatch.setattr(modules[0], "_file_digest", lambda *_: pytest.fail("Read before validating the frozen receipt"))
+    with pytest.raises(ValueError, match="translation receipt|SHA-256 digest"):
+        modules[1].bind_user_sim_translation(tmp_path, translated)
 
 
 @pytest.mark.parametrize("location", ["input", "working_directory", "symlink"])
@@ -162,6 +206,41 @@ def test_simulator_display_settings_require_identity_and_conversation_limits(mod
         creation.save(modules, tmp_path, value)
 
 
+@pytest.mark.parametrize(
+    "extra_type,selected_count", [("single_turn", 2), ("user_sim", 2), ("single_turn", 1), (None, 2)]
+)
+def test_user_sim_execution_rejects_multi_task_scope_without_dropping_authored_work(
+    modules, tmp_path, extra_type, selected_count
+):
+    translated = translated_inputs(tmp_path)
+    planned = design()
+    if extra_type is not None:
+        second = {**design()[0], "id": "policy", "example_ids": ["policy-1"], "test_type": extra_type}
+        planned.append(second)
+    value = creation.ready(modules, tmp_path, examples=planned)
+    assert creation.facts(modules, tmp_path)["suite_approved"]
+    before = modules[0].state_path(tmp_path).read_bytes()
+    saved_tasks = copy.deepcopy(value["tasks"])
+    binding = modules[1].bind_user_sim_translation(tmp_path, translated)
+    value["selection"] = {
+        **binding,
+        "agent": "actual-agent",
+        "model": "target-model",
+        "source": "Attempted multi-task execution",
+        "cases": [
+            {"task_id": item["id"], "example_ids": item["example_ids"], "attempts": 1}
+            for item in planned[:selected_count]
+        ],
+    }
+    if len(value["selection"]["cases"]) < selected_count:
+        value["selection"]["cases"].append({"task_id": "unapproved", "example_ids": ["extra"], "attempts": 1})
+    with pytest.raises(ValueError, match="exactly one approved task.*Do not silently drop approved tasks"):
+        creation.save(modules, tmp_path, value)
+    loaded = modules[1].record(modules[0].load_state(tmp_path))
+    assert loaded["tasks"] == saved_tasks and loaded["selection"] is None
+    assert modules[0].state_path(tmp_path).read_bytes() == before
+
+
 def test_authored_report_and_review_keep_test_type_and_bound_neutral_scenario(modules, tmp_path):
     translated_inputs(tmp_path)
     value = creation.start(modules, tmp_path, examples=design())
@@ -205,11 +284,17 @@ def test_authored_report_and_review_keep_test_type_and_bound_neutral_scenario(mo
         table.authored_rows(tmp_path, state, ["refund"])
 
 
-def test_settings_and_results_show_simulator_identity_without_adding_example_counts(rendering):
+def test_settings_and_results_show_simulator_identity_without_adding_example_counts(rendering, monkeypatch):
     state, record, helper, renderer, _ = rendering
+    record["plan"]["tasks"] = record["plan"]["tasks"][:1]
     record["plan"]["tasks"][0].update(
         {key: value for key, value in design()[0].items() if key not in {"id", "example_ids"}}
     )
+    build = conversations.built
+    monkeypatch.setattr(
+        conversations, "built", lambda fixture, **kwargs: build(fixture, **{**kwargs, "all_tasks": False})
+    )
+    record["execution_settings"]["attempts"] = "1 per task, 1 total attempt"
     conversations.finished(rendering)
     record["execution_settings"]["user_sim"] = SIMULATOR_SETTINGS.copy()
     selection = record["selection"]
@@ -240,9 +325,9 @@ def test_settings_and_results_show_simulator_identity_without_adding_example_cou
     result = renderer.render(conversations.payload(rendering, "results", **conversations.result_facts(rendering)))
     assert "**Test type:** User-sim" in result and "**Neutral scenario:** refund" in result
     assert "**Simulator:** simulator / configured-user-model" in result
-    assert "2/2 completed attempts" in result
+    assert "1/1 completed attempts" in result
     assert "persona variants" not in result
     record["execution_settings"]["user_sim"]["agent_model"] = "new-simulator-model"
     stale = renderer.render(conversations.payload(rendering, "results", **conversations.result_facts(rendering)))
     assert "Saved review identity" in stale and "new-simulator-model" not in stale
-    assert "0/2 completed attempts" in stale
+    assert "0/1 completed attempts" in stale

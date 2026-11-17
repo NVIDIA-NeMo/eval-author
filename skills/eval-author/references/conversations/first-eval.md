@@ -558,7 +558,10 @@ For a User-sim task, use
 `first_eval_state.bind_user_sim_translation(repo, translation.to_dict())` to bind
 the translator's retained configuration and every consumed input. Merge its
 `config`, `inputs`, and `user_sim` fields into the existing selection. The helper
-requires paths inside the target repository and preserves the native working
+requires the translator's original `input_digests` receipt and rejects changed
+sources or generated files. Regenerate the translation after any input change.
+Do not replace receipt digests with freshly computed values to reuse old prompts.
+It also requires paths inside the target repository and preserves the native working
 directory. If a consumed prompt is outside the repository, retain a local copy
 and regenerate the native configuration to consume that copy before binding.
 Keep each run's translated files outside the task tree and retain them with its
@@ -573,6 +576,12 @@ existing `{source, evidence}` shape. This proof must show opening-request
 fidelity, session continuity, participant identity, and the required information
 visibility. Translated files, interface declarations, and synthetic controls do
 not establish this proof. Missing settings or proof keeps execution blocked.
+
+This release executes one approved task per User-sim suite. A suite with multiple
+User-sim tasks or a mix of User-sim and other task types may still be authored and
+reviewed, but it cannot become an execution selection. Explain this limit and
+use a separate or explicitly revised one-task suite. Do not silently omit tasks
+from the approved plan or convert their test types to fit the runtime.
 
 Retain native `runs` with their stable IDs, selected task revisions, native
 attempt identities, statuses, rewards, and evidence. Explicitly save

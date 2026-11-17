@@ -79,6 +79,9 @@ Authored task reviews retain the selected test type and identify the neutral
 scenario. Execution settings identify the simulator and the limits on the whole
 conversation. Tasks, input examples, and attempts keep their existing counts.
 The neutral user does not add a persona or another input example.
+This release executes one approved task per User-sim suite. You can still author
+and review a larger suite, but running it requires a separate or explicitly
+revised one-task scope.
 
 Changing the scenario reopens task review. Changing simulator settings, translated
 prompts, selected configuration, or a consumed external prompt makes earlier runs
