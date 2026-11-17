@@ -729,7 +729,13 @@ task review rather than appending the handoff to those checkpoints.
 
 The prompt takes its context from the saved repository, actual agent, confirmed
 `ETHOS.md` path, selected provider or configured Gym–Harbor path, and agreed task
-and example IDs. Include the actual retained paths for already created selected
+and example IDs, plus each agreed interaction type, state requirements,
+prerequisite checks, and conversation scenario. Expected scenario paths are
+locations to verify, not proof that files exist. For user-sim, carry the saved
+simulator settings and the execution input bindings when they belong to the
+current plan. The handoff retains the requirements for opening-message fidelity,
+continuing sessions, information visibility, termination, reset, and separate
+target/simulator evidence. Include the actual retained paths for already created selected
 tasks; planned tasks have no invented paths. Unrelated task directories are not
 selected by membership. Keep existing tasks, graders, source selections,
 construction declarations, and evidence intact. The user can copy the prompt

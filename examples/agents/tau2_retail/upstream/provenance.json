@@ -1,0 +1,31 @@
+{
+  "repository": "https://github.com/sierra-research/tau2-bench",
+  "revision": "c06b07dd7c4d4ec61ba6ff9bcdf0b15dd7ef36d4",
+  "files": [
+    {
+      "path": "upstream/react_agent.py",
+      "source": "examples/agents/react_agent.py",
+      "sha256": "c88540a5f3e8836c274666aa5e4310b04f382811ed199968d92492d539747721"
+    },
+    {
+      "path": "upstream/LICENSE",
+      "source": "LICENSE",
+      "sha256": "e67c5aa0074dfcaefd3c3a1aedb94cb539234aecd15d5a972574e3200e6252fe"
+    },
+    {
+      "path": "data/tau2/domains/retail/policy.md",
+      "source": "data/tau2/domains/retail/policy.md",
+      "sha256": "2c9652afbce57d6e087768d37cda64d31c53d50b3e3225cfdb791bac66466467"
+    },
+    {
+      "path": "data/tau2/domains/retail/db.json",
+      "source": "data/tau2/domains/retail/db.json",
+      "sha256": "413a65160adbdb5fde0ffc0015c49b6d70250b10c18128de169b597af7766765"
+    }
+  ],
+  "baseline_dependencies": {
+    "path": "runtime-constraints.txt",
+    "source": "baseline_100/.eval-author/.working/environments/react_agent/build/requirements.txt",
+    "sha256": "ee2dc4d67f0308a07675500a37bbf0c39ae5a0e4c57ed17b4bbbd818201b149a"
+  }
+}

@@ -60,9 +60,13 @@ testpaths = ["tests", "skills/eval-author-trace-environment/evals/tests"]
 
 [tool.ruff]
 line-length = 120
+extend-exclude = ["examples/agents/tau2_retail/upstream/react_agent.py"]
 
 [tool.ruff.lint]
 select = ["E4", "E7", "E9", "F", "W291", "W292", "W293", "I001", "I002"]
+
+[tool.ty.src]
+exclude = ["examples/agents/tau2_retail/upstream/react_agent.py"]
 
 [tool.ty.environment]
 # Scripts and tests add these standalone directories to sys.path at runtime.

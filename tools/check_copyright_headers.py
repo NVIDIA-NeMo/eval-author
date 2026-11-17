@@ -20,6 +20,11 @@ HTML_SUFFIXES = {".md"}
 HASH_FILENAMES = {".env.example", ".gitignore", "Makefile"}
 # Templates copied verbatim into users' repositories carry no header.
 HEADERLESS_TEMPLATES = {"team-skills/ethos/ethos-write/references/templates/ETHOS.md"}
+# These upstream MIT files retain their original bytes and have a hash manifest.
+UPSTREAM_TAU2_FILES = {
+    "examples/agents/tau2_retail/upstream/react_agent.py",
+    "examples/agents/tau2_retail/data/tau2/domains/retail/policy.md",
+}
 # NVSkills CI generates and signs these reports. Adding local headers would
 # invalidate the signatures, so preserve their bytes in check and fix modes.
 # Keep this list explicit: other files in these skills still require headers.
@@ -92,7 +97,7 @@ def check_headers(*, fix_nvidia: bool) -> list[Path]:
         if style is None or not path.is_file():
             continue
         relative_path = path.relative_to(PROJECT_ROOT).as_posix()
-        if relative_path in HEADERLESS_TEMPLATES or relative_path in SIGNED_NVSKILLS_REPORTS:
+        if relative_path in HEADERLESS_TEMPLATES | SIGNED_NVSKILLS_REPORTS | UPSTREAM_TAU2_FILES:
             continue
 
         content = path.read_text(encoding="utf-8")

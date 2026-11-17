@@ -1961,6 +1961,52 @@ def test_adapter_handoff_uses_saved_agent_provider_ethos_and_only_agreed_task_pa
     assert "unselected-old-task" not in output
 
 
+@pytest.mark.parametrize("test_type", ["single_turn", "scripted_multi_step", "user_sim"])
+def test_adapter_handoff_carries_approved_interaction_requirements(creation, test_type):
+    state, record, _, renderer, _ = creation
+    task = record["plan"]["tasks"][0]
+    task.update(test_type=test_type, test_type_reason="Exercise the agreed interaction.")
+    if test_type != "single_turn":
+        task["state_requirements"] = "Keep the same cart and conversation. Reset between attempts."
+    if test_type == "scripted_multi_step":
+        task["prerequisite_checks"] = ["Confirm the cart contains one item before removal."]
+    if test_type == "user_sim":
+        task["conversation_scenario"] = "Select an option actually offered, then confirm it."
+        record["execution_settings"]["user_sim"] = {
+            "agent_model": "neutral-simulator / chosen-model",
+            "conversation_limits": "120 seconds",
+        }
+    built(creation)
+    state["blockers"] = [{"id": "agent-integration", "phase": "create", "message": "Needs an interactive adapter"}]
+    output = renderer.render(payload(creation, "blockers"))
+    context = adapter_context(output)
+    row = context["tasks"][0]
+    assert row["test_type"] == test_type
+    assert row["test_type_reason"] == task["test_type_reason"]
+    if test_type == "scripted_multi_step":
+        assert row["prerequisite_checks"] == task["prerequisite_checks"]
+    if test_type == "user_sim":
+        assert row["conversation_scenario"] == task["conversation_scenario"]
+        assert row["expected_scenario_path"] == ".eval-author/tasks/refund/user-sim.yaml"
+        assert context["simulator_settings"] == record["execution_settings"]["user_sim"]
+    assert "one continuing session" in output
+    assert "Simulator messages are not target actions" in output
+
+
+def test_adapter_handoff_does_not_leak_unapproved_scenario_requirements(creation):
+    state, record, _, renderer, _ = creation
+    record["plan"]["tasks"][0].update(
+        test_type="user_sim",
+        test_type_reason="Requires another reply",
+        state_requirements="Keep session",
+        conversation_scenario="UNAPPROVED_SCENARIO",
+    )
+    state["blockers"] = [{"id": "agent-integration", "phase": "create", "message": "Needs a connection"}]
+    output = renderer.render(payload(creation, "blockers"))
+    assert adapter_context(output)["tasks"] == []
+    assert "UNAPPROVED_SCENARIO" not in output
+
+
 @pytest.mark.parametrize("change", ["provider", "design"])
 def test_stale_bridge_design_cannot_override_the_current_provider_in_adapter_handoff(creation, change):
     state, record, _, renderer, _ = creation
