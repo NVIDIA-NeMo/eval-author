@@ -134,13 +134,6 @@ preview: workflows, skills, and saved artifacts may change between releases.
   read succeeds. Evidence uses `nemo.eval_author.verifier_cheat_evidence.v3` and
   `harbor-verifier-cheats-v3`; don't combine it with v2 counts.
 
-### Security
-
-- LiteLLM now requires 1.110.0 or later (locked at 1.110.0), fixing
-  CVE-2026-40217, remote code execution through `/guardrails/test_custom_code`.
-  OpenTelemetry API and SDK are locked at 1.45.2, fixing CVE-2026-126360,
-  excessive CPU use when parsing a malformed `traceparent`.
-
 ## 0.1.0
 
 Initial research-preview release, tested with Harbor 0.20.0 and NeMo Gym v0.6.0.
