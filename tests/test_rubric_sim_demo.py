@@ -30,11 +30,8 @@ def _scores(ev: dict[str, Any]) -> dict[str, Any]:
 
 
 def _dropped(base: dict[str, Any], other: dict[str, Any]) -> set[str]:
-    def eff(value: Any) -> int:
-        return 3 if value == "N/A" else value
-
-    assert all(eff(other[k]) <= eff(base[k]) for k in base), "a mutation must not raise any row"
-    return {k for k in base if eff(other[k]) < eff(base[k])}
+    assert all(checks.rank(other[k]) <= checks.rank(base[k]) for k in base), "a mutation must not raise any row"
+    return {k for k in base if checks.rank(other[k]) < checks.rank(base[k])}
 
 
 @pytest.fixture(scope="module")
@@ -62,7 +59,8 @@ def test_base_scores_twenty_threes_and_one_trigger_na(base_evidence):
 
 def test_real_scorer_exploit_drops_only_forbidden_credit_rows(base_evidence, tmp_path):
     mutated = run_demo.collect("approval-after-effect", tmp_path, use_agents=True, offline=True)
-    assert _dropped(_scores(base_evidence), _scores(mutated)) == {"AUDIT-03", "AUDIT-04-B"}
+    # Held-out confirmation also stops corroborating, so AUDIT-05-S03 falls from 3 to 2.
+    assert _dropped(_scores(base_evidence), _scores(mutated)) == {"AUDIT-03", "AUDIT-04-B", "AUDIT-05-S03"}
 
 
 def _with(ev: dict[str, Any], change) -> dict[str, Any]:
@@ -87,6 +85,33 @@ def _with(ev: dict[str, Any], change) -> dict[str, Any]:
 )
 def test_each_demo_mutation_drops_only_its_row(base_evidence, mutation, change, row):
     assert _dropped(_scores(base_evidence), _scores(_with(base_evidence, change))) == {row}, mutation
+
+
+@pytest.mark.parametrize("case", ["contradictory-contract-reworded", "style-advantage"])
+def test_ported_mutations_are_detected_by_observation(base_evidence, tmp_path, case):
+    # Reworded text has no recipe to match: the contract reviewer must find the contradiction itself.
+    target = {
+        "contradictory-contract-reworded": "task-contract.clear-contract",
+        "style-advantage": "provenance.comparison-fairness",
+    }[case]
+    mutated = _scores(run_demo.collect(case, tmp_path, use_agents=True, offline=True))
+    assert mutated[target] == 0
+    assert target in _dropped(_scores(base_evidence), mutated)
+
+
+def test_missing_evidence_is_unassessed_not_low(base_evidence):
+    withheld = _with(base_evidence, lambda ev: ev.update(heldout=None))
+    assert _scores(withheld)["AUDIT-05-S03"] == checks.U
+    no_owner = _scores(_with(base_evidence, lambda ev: ev.update(policy=None)))
+    assert no_owner["task-contract.scoring-authority"] == checks.U
+
+
+def test_confirmation_must_agree_for_top_anchor(base_evidence):
+    def disagree(ev):
+        for result in ev["heldout"].values():
+            result["mismatch_total"] = True
+
+    assert _scores(_with(base_evidence, disagree))["AUDIT-05-S03"] == 2
 
 
 def test_without_independent_review_top_anchors_cap_at_two(base_evidence):

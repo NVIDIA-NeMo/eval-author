@@ -100,36 +100,51 @@ stale-packet invalidation and bundled-source drift. They are not the full suite.
 
 ## Rubric mutation demo
 
-`tools/rubric_sim_demo/run_demo.py` scores the refund base and 16 mutations on all
+`tools/rubric_sim_demo/run_demo.py` scores the refund base and 21 mutations on all
 21 rubric rows. The base scores 3 on 20 rows. AUDIT-04-B is N/A because no exploit
-is confirmed. Every mutation scores lower on at least one row and higher on none.
+is confirmed. Every mutation ranks below the base: no row rises, and at least one
+row drops or becomes Unassessed.
 
 ```bash
 .venv/bin/python tools/rubric_sim_demo/run_demo.py --output "$HOME/rubric-sim-1" --offline
 ```
 
-The command writes `summary.md` (the score table and the reason for each drop),
-`summary.json` and `runs.json`. It runs the scoring three times and fails if the
-results differ, if the base misses its target, or if a mutation does not rank lower.
+The command writes `summary.md`, `summary.json` and `runs.json`. `summary.md` starts
+with one row per mutation: its intended change, target criterion, base and observed
+scores, the reason, and any collateral changes. The full 21-row matrix follows.
+The command scores everything three times. It fails if the results differ, if the
+base misses its target, or if a mutation does not rank lower.
 
 - **Real execution:** the refund scorer, the socket ledger and the Harbor task parser
   run locally. No Docker or network access is needed.
 - **One check per row:** `checks.py` names one tool for each criterion. Each control
-  feeds only one row. Only a row's own tool can give a 0. A missing prerequisite gives a 1.
+  feeds only one row. Only a row's own tool can give a 0.
+- **Missing evidence is `U` (Unassessed), not a low score.** A withheld, unrun or
+  blocked input leaves the row Unassessed. `U` ranks below an established score, but
+  the report keeps it apart from a measured drop.
+- **Scores come from observations, not recipes.** For example, a reworded
+  contradiction scores the same as the original wording, because the contract
+  reviewer has to find the contradiction in the text.
 - **Independent review:** restricted `claude -p` sessions with no tools, no MCP
-  servers and no settings. Each session receives only the files that `agents.py`
-  passes inline, and their hashes are recorded. Answers are cached in `agent_cache/`.
-  `--offline` replays the cache. Without `--offline`, a cache miss calls the model.
+  servers and no settings. They are the blind solver, held-out attack author,
+  independent reviewer, contract reviewer, adjudicator, trace labeler and exposure
+  reviewer. Each session receives only the files that `agents.py` passes inline,
+  and their hashes are recorded. Answers are cached in `agent_cache/`. `--offline`
+  replays the cache. Without `--offline`, a cache miss calls the model.
   `--no-agents` caps the independent rows at 2.
 - **Owner decisions:** `policy.json` is a simulated one-time owner declaration.
-  `heldout.freeze.json` freezes the agent-authored held-out attacks.
+  `heldout.freeze.json` freezes the agent-authored held-out attacks. AUDIT-05-S03
+  reaches 3 only when that frozen set reproduces every expected result.
 
 Mutation kinds:
 
-- Task mutations: the recipes in `examples/refund/mutations/`, plus trace-secret,
-  answer-exposure, unpinned-image and invalid-manifest.
-- Evidence mutations: withhold-reference, withhold-heldout, heldout-tuned and stale-evidence.
-- Review mutations: no-independent-review and no-owner-review.
+- Task mutations (15): the 7 recipes in `examples/refund/mutations/`, plus
+  trace-secret, answer-exposure, unpinned-image, invalid-manifest,
+  contradictory-contract, its reworded variant, ambiguous-contract and
+  style-advantage.
+- Evidence mutations (4): withhold-reference, withhold-heldout, heldout-tuned and
+  stale-evidence.
+- Review mutations (2): no-independent-review and no-owner-review.
 
 The agents and the policy file are not human approval. The demo does not qualify the rubric.
 

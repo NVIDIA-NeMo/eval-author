@@ -33,7 +33,7 @@ sys.path.insert(0, str(ROOT / "skills/eval-author-rubric/scripts"))
 sys.path.insert(0, str(HERE))
 import agents  # noqa: E402
 import example_fixtures as fx  # noqa: E402
-from checks import CHECKS, PARTITION  # noqa: E402
+from checks import CHECKS, NA, PARTITION, U, rank  # noqa: E402
 
 EXPECTED = json.loads((fx.EXAMPLE / "expectations/controls.json").read_text())
 CONTROLS = json.loads((fx.EXAMPLE / "controls.json").read_text())["cases"]
@@ -55,12 +55,87 @@ DEMO_MUTATIONS = [
     "answer-exposure",
     "unpinned-image",
     "invalid-manifest",
+    "contradictory-contract",
+    "contradictory-contract-reworded",
+    "ambiguous-contract",
+    "style-advantage",
     "heldout-tuned",
     "stale-evidence",
 ]
 EVIDENCE_MUTATIONS = ["withhold-reference", "withhold-heldout", "no-independent-review", "no-owner-review"]
 ALL_CASES = ["base", *RECIPE_MUTATIONS, *DEMO_MUTATIONS, *EVIDENCE_MUTATIONS]
 FAKE_KEY = "AKIA" + "Q" * 16  # synthetic credential shape for the trace-secret mutation
+
+# Intended change and the row it targets, for the summary table. Expectations are presentation only;
+# scores always come from the checks in checks.py.
+MUTATIONS: dict[str, tuple[str, str, str]] = {
+    "completion-only": ("task", "verify.py selects the completion-only grader", "AUDIT-03"),
+    "approval-after-effect": ("task", "scorer accepts approval after the refund", "AUDIT-03"),
+    "ledger-omission": ("task", "scorer stops reconciling the ledger", "AUDIT-03"),
+    "hidden-completion": (
+        "task",
+        "scorer makes the optional completion point mandatory",
+        "task-contract.discoverable-requirements",
+    ),
+    "tax-drift": ("task", "public tax policy changes after expectations were authored", "provenance.external-state"),
+    "missing-contract": ("task", "contract.json removed from the task", "provenance.task-artifact-access"),
+    "disabled-ledger": (
+        "task",
+        "image entrypoint sleeps instead of starting the ledger",
+        "provenance.observed-configuration",
+    ),
+    "trace-secret": ("task", "a fake AWS key appears in an agent trace", "TRACE-04-A"),
+    "answer-exposure": ("task", "instruction states the answer", "AUDIT-05-B"),
+    "unpinned-image": ("task", "base image no longer pinned by digest", "provenance.declared-configuration"),
+    "invalid-manifest": ("task", "task.toml carries an invalid network mode", "provenance.runtime-route"),
+    "contradictory-contract": (
+        "task",
+        "amendment forbids any refund while refunds stay mandatory",
+        "task-contract.clear-contract",
+    ),
+    "contradictory-contract-reworded": (
+        "task",
+        "the same contradiction in different words",
+        "task-contract.clear-contract",
+    ),
+    "ambiguous-contract": (
+        "task",
+        "amendment leaves optional vs mandatory completion unresolved",
+        "task-contract.clear-contract",
+    ),
+    "style-advantage": (
+        "task",
+        "scorer gives the completion point only when the ledger action comes last",
+        "provenance.comparison-fairness",
+    ),
+    "heldout-tuned": ("evidence", "held-out set edited after results, still presented as frozen", "AUDIT-05-S03"),
+    "stale-evidence": (
+        "evidence",
+        "base-revision results reused on a changed scorer",
+        "provenance.evidence-revision-consistency",
+    ),
+    "withhold-reference": ("evidence", "reference control result removed", "task-contract.scoring-authority"),
+    "withhold-heldout": ("evidence", "held-out confirmation not run", "AUDIT-05-S03"),
+    "no-independent-review": ("review", "restricted-input agents disabled", "AUDIT-03"),
+    "no-owner-review": ("review", "owner policy file absent", "AUDIT-03"),
+}
+CONTRADICTION = (
+    "\nBinding amendment: Do not create any refund effect. Full credit requires zero refund effects. "
+    "This amendment and all prior mandatory requirements apply simultaneously.\n"
+)
+CONTRADICTION_REWORDED = (
+    "\nPolicy update for this run: leave the ledger exactly as you found it. Any refund action forfeits all "
+    "credit. Every earlier rule in this document still applies in full.\n"
+)
+AMBIGUITY = (
+    "\nUnresolved policy amendment: the completion signal may be a mandatory acceptance gate rather than "
+    "optional credit. The two interpretations remain open; neither takes precedence until the owner resolves "
+    "this amendment. Other refund requirements remain binding.\n"
+)
+SCORER_FAIR = '"completion_signal": candidate["success"] is True,'
+SCORER_ADVANTAGED = (
+    '"completion_signal": candidate["success"] is True and bool(events) and events[-1]["kind"] == "ledger",'
+)
 
 SECRET = re.compile(
     r"(AKIA[0-9A-Z]{16}|-----BEGIN [A-Z ]*PRIVATE KEY|ghp_[A-Za-z0-9]{30,}|xox[bp]-[A-Za-z0-9-]+|sk-[A-Za-z0-9]{20,})"
@@ -294,8 +369,23 @@ def contract_lint(contract: dict, instruction: str) -> list[str]:
 # --------------------------------------------------------------------------- collection
 
 
-def _apply_demo_mutation(case: str, task: Path) -> None:
-    if case == "answer-exposure":
+def _apply_demo_mutation(case: str, task: Path, files: dict | None = None) -> None:
+    appended = {
+        "contradictory-contract": CONTRADICTION,
+        "contradictory-contract-reworded": CONTRADICTION_REWORDED,
+        "ambiguous-contract": AMBIGUITY,
+    }
+    if case in appended:
+        p = task / "instruction.md"
+        p.write_text(p.read_text() + appended[case])
+    elif case == "style-advantage":
+        p = task / "tests/refund_scorer.py"
+        raw = p.read_text()
+        assert raw.count(SCORER_FAIR) == 1, "scorer completion rule moved"
+        p.write_text(raw.replace(SCORER_FAIR, SCORER_ADVANTAGED))
+        if files is not None:
+            files["tests/refund_scorer.py"] = (p.read_bytes(), files["tests/refund_scorer.py"][1])
+    elif case == "answer-exposure":
         p = task / "instruction.md"
         p.write_text(p.read_text() + "\nFor reference, the correct total refund is 8000 cents.\n")
     elif case == "unpinned-image":
@@ -336,7 +426,7 @@ def collect(case: str, work: Path, *, use_agents: bool, offline: bool) -> dict:
     except (ValueError, KeyError, OSError) as exc:
         ledger = {"ran": False, "reason": str(exc) or type(exc).__name__}
 
-    _apply_demo_mutation(case, task)
+    _apply_demo_mutation(case, task, files)
     task_sha = fx.tree_identity(task)
     s = inspect(task, files)
     contract = s.pop("contract")
@@ -451,6 +541,7 @@ def collect(case: str, work: Path, *, use_agents: bool, offline: bool) -> dict:
                     "reference-candidate.json": json.dumps({"events": _ref_events(), "success": True}),
                 },
             )
+            ev["agents"]["contract-reviewer"] = A("contract-reviewer", public)
     if case == "trace-secret":
         traces.append(f"tool_output: export AWS_ACCESS_KEY_ID={FAKE_KEY}")
     ev["trace_hits"] = sum(len(SECRET.findall(t)) for t in traces)
@@ -524,8 +615,8 @@ def score(ev: dict) -> dict[str, dict]:
 # --------------------------------------------------------------------------- driver and table
 
 
-def _eff(v: Any) -> int:
-    return 3 if v == "N/A" else v
+def _cell(value: Any) -> str:
+    return str(value).replace("|", "/")
 
 
 def render(runs: list[dict], out: Path) -> dict:
@@ -533,18 +624,23 @@ def render(runs: list[dict], out: Path) -> dict:
     cases = list(runs[0])
     vec = {c: [runs[0][c]["scores"][k]["score"] for k in ids] for c in cases}
     consistent = all([r[c]["scores"][k]["score"] for k in ids] == vec[c] for r in runs for c in cases)
-    base = vec["base"]
-    pref: dict[str, dict[str, Any]] = {
-        c: {
+    base = dict(zip(ids, vec["base"]))
+    reasons = {c: {k: runs[0][c]["scores"][k]["reason"] for k in ids} for c in cases}
+    pref: dict[str, dict[str, Any]] = {}
+    for c in cases:
+        if c == "base":
+            continue
+        row = dict(zip(ids, vec[c]))
+        lowered = [k for k in ids if row[k] != U and rank(row[k]) < rank(base[k])]
+        unassessed = [k for k in ids if row[k] == U and base[k] != U]
+        pref[c] = {
             "threes": sum(v == 3 for v in vec[c]),
-            "dominated": all(_eff(b) >= _eff(m) for b, m in zip(base, vec[c]))
-            and any(_eff(b) > _eff(m) for b, m in zip(base, vec[c])),
-            "dropped": [k for k, b, m in zip(ids, base, vec[c]) if _eff(m) < _eff(b)],
+            "dominated": all(rank(row[k]) <= rank(base[k]) for k in ids) and bool(lowered or unassessed),
+            "lowered": lowered,
+            "unassessed": unassessed,
+            "dropped": lowered + unassessed,
         }
-        for c in cases
-        if c != "base"
-    }
-    base_ok = all(v == 3 or (k == "AUDIT-04-B" and v == "N/A") for k, v in zip(ids, base))
+    base_ok = all(v == 3 or (k == "AUDIT-04-B" and v == NA) for k, v in base.items())
     summary: dict[str, Any] = {
         "criteria": ids,
         "runs": len(runs),
@@ -554,30 +650,43 @@ def render(runs: list[dict], out: Path) -> dict:
         "scores": vec,
         "preference": pref,
         "partition": {k: list(v) for k, v in PARTITION.items()},
-        "reasons": {c: {k: runs[0][c]["scores"][k]["reason"] for k in ids} for c in cases},
+        "reasons": reasons,
     }
     (out / "summary.json").write_text(json.dumps(summary, indent=2))
     (out / "runs.json").write_text(json.dumps(runs, indent=1, default=str))
+    mutations = [c for c in cases if c != "base"]
     lines = [
         "# Rubric simulation demo",
         "",
         f"Runs: {len(runs)} · consistent: **{consistent}** · base 20×3 + AUDIT-04-B N/A: **{base_ok}** "
-        f"· every mutation strictly lower: **{summary['every_mutation_lower']}**",
+        f"· {len(mutations)} mutations, every one ranks below the base: **{summary['every_mutation_lower']}**",
         "",
-        "Executable evidence is real. Independent review is restricted-input agents. Owner decisions are a SIMULATED policy file.",
+        "Executable evidence is real. Independent review is restricted-input agents. Owner decisions are a "
+        "SIMULATED policy file. `U` = Unassessed (evidence missing, unrun or blocked), never a low score.",
+        "",
+        "## Per mutation",
+        "",
+        "| Mutation | Kind | Intended change | Criterion | Base | Observed | Reason | Collateral changes |",
+        "|---|---|---|---|---:|---:|---|---|",
+    ]
+    for c in mutations:
+        kind, change, target = MUTATIONS.get(c, ("", "", ""))
+        row = dict(zip(ids, vec[c]))
+        collateral = [f"{k} {_cell(base[k])}→{_cell(row[k])}" for k in pref[c]["dropped"] if k != target]
+        lines.append(
+            f"| `{c}` | {kind} | {change} | {target} | {_cell(base.get(target, ''))} | {_cell(row.get(target, ''))} "
+            f"| {_cell(reasons[c].get(target, ''))} | {'; '.join(collateral) or 'none'} |"
+        )
+    lines += [
+        "",
+        "## Full matrix",
         "",
         "| Criterion | Tool | " + " | ".join(cases) + " |",
         "|---|---|" + "---:|" * len(cases),
     ]
-    for j, c in enumerate(CHECKS):
-        lines.append(f"| {c.criterion} | {c.tool} | " + " | ".join(str(vec[k][j]) for k in cases) + " |")
+    for j, check in enumerate(CHECKS):
+        lines.append(f"| {check.criterion} | {check.tool} | " + " | ".join(_cell(vec[k][j]) for k in cases) + " |")
     lines.append("| **rows at 3** | | " + " | ".join(f"**{sum(v == 3 for v in vec[k])}**" for k in cases) + " |")
-    lines += ["", "## Drops per mutation", ""]
-    for c, p in pref.items():
-        lines.append(
-            f"- `{c}` ({p['threes']} at 3): "
-            + "; ".join(f"{k}→{vec[c][ids.index(k)]} ({summary['reasons'][c][k]})" for k in p["dropped"])
-        )
     (out / "summary.md").write_text("\n".join(lines) + "\n")
     return summary
 

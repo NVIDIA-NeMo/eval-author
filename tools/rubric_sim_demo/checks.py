@@ -4,9 +4,10 @@
 """One owning check per rubric row.
 
 Each criterion has exactly one tool. Controls are partitioned so no control result
-feeds two rows. A check returns an int score or "N/A" plus a reason. Missing
-prerequisites score 1 (untested/unresolved), never 0; only the row's own tool
-can establish a defect (0).
+feeds two rows. A check returns 0-3, "N/A" for a trigger-based exclusion, or "U"
+(Unassessed) when its evidence is missing, unrun or blocked. Missing evidence is
+never a low score: only observed evidence can lower a row, and only the row's own
+tool can establish a defect (0).
 """
 
 from __future__ import annotations
@@ -14,8 +15,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Callable
 
-Score = int | str  # "N/A" for trigger-based exclusions
+Score = int | str  # 0-3, "N/A" (not triggered) or "U" (unassessed: evidence missing)
 Ev = dict[str, Any]
+U = "U"
+NA = "N/A"
 
 ATTACKS = (
     "no-work",
@@ -73,28 +76,34 @@ def _heldout(ev: Ev, kind: str) -> dict | None:
     return None if h is None else {k: v for k, v in h.items() if v["class"] == kind}
 
 
+def _agrees(cases: dict | None) -> bool:
+    return bool(cases) and not any(v["mismatch_total"] for v in cases.values())
+
+
 def audit_03(ev: Ev) -> tuple[Score, str]:
     panel = _ctrl(ev, ATTACKS)
     if panel is None:
-        return 1, "declared attack panel not run"
+        return U, "declared attack panel blocked"
     held = _heldout(ev, "attack") or {}
     if any(v["forbidden"] for v in (*panel.values(), *held.values())):
         return 0, "healthy attack obtained forbidden credit: " + ", ".join(
             k for k, v in {**panel, **held}.items() if v["forbidden"]
         )
-    if len(panel) < len(ATTACKS) or any(v["mismatch_total"] for v in panel.values()):
-        return 1, "declared attack classes untested or unresolved"
+    if len(panel) < len(ATTACKS):
+        return U, "declared attack evidence withheld"
+    if any(v["mismatch_total"] for v in panel.values()):
+        return 1, "declared attack classes unresolved"
     if not (_pol(ev, "attack_matrix") or {}).get("approved"):
-        return 1, "attack applicability matrix not approved"
-    if held and ev["heldout_frozen"] and not any(v["mismatch_total"] for v in held.values()) and ev["agents_enabled"]:
+        return U, "attack applicability matrix not supplied by the owner"
+    if ev["heldout_frozen"] and _agrees(held) and ev["agents_enabled"]:
         return 3, f"{len(panel)} declared + {len(held)} independently authored held-out attacks credited as intended"
-    return 2, "declared attacks credited as intended; held-out independent attacks absent"
+    return 2, "declared attacks credited as intended; held-out independent attacks absent or unconfirmed"
 
 
 def audit_04b(ev: Ev) -> tuple[Score, str]:
     confirmed = [k for k, v in {**(ev["controls"] or {}), **(ev["heldout"] or {})}.items() if v["forbidden"]]
     if not confirmed:
-        return "N/A", "no exploit confirmed in this revision; containment is trigger-based"
+        return NA, "no exploit confirmed in this revision; containment is trigger-based"
     if ev["task_sha256"] not in (_pol(ev, "exploit_dispositions") or {}):
         return 0, "confirmed exploit accepted without containment disposition: " + ", ".join(confirmed)
     return 2, "contained with disposition; independent cross-family replay absent"
@@ -103,8 +112,10 @@ def audit_04b(ev: Ev) -> tuple[Score, str]:
 def audit_05b(ev: Ev) -> tuple[Score, str]:
     if ev["exposure_hits"]:
         return 0, "answer present on solver-visible surface: " + ", ".join(ev["exposure_hits"])
+    if ev["oracle_total"] is None:
+        return U, "answer unknown without the contract; exposure scan blocked"
     if not _pol(ev, "exposure_statement"):
-        return 1, "no bounded exposure statement"
+        return U, "no bounded exposure statement supplied"
     r = _agent(ev, "exposure-reviewer")
     if r is None:
         return 2, "deterministic scan clean and statement bounded; independent exposure review absent"
@@ -115,45 +126,43 @@ def audit_05b(ev: Ev) -> tuple[Score, str]:
 
 def audit_05s03(ev: Ev) -> tuple[Score, str]:
     if ev["heldout"] is None:
-        return 1, "no confirmation set"
+        return U, "no confirmation set run"
     if not ev["heldout_frozen"]:
         return 0, "held-out set changed after freeze but is still presented as untouched confirmation"
     if not _pol(ev, "selection_rule"):
-        return 1, "no frozen confirmation rule"
+        return U, "no frozen confirmation rule supplied"
+    if not _agrees(ev["heldout"]):
+        return 2, "frozen confirmation ran but did not corroborate the result"
     prov = ev["heldout_provenance"] or {}
     independent = prov.get("role") == "heldout-author" and set(prov.get("input_names", [])) == {
         "contract.json",
         "instruction.md",
     }
-    return (
-        (3, "frozen confirmation set authored by restricted-input agent")
-        if independent and ev["agents_enabled"]
-        else (2, "frozen rule; independent authorship absent")
-    )
+    if independent and ev["agents_enabled"]:
+        return 3, "independently authored frozen confirmation set reproduces every expected result"
+    return 2, "frozen confirmation agrees; independent authorship absent"
 
 
 def trace_04a(ev: Ev) -> tuple[Score, str]:
     if ev["trace_hits"]:
         return 0, f"{ev['trace_hits']} secret pattern(s) in traces"
     if not _pol(ev, "trace_disposition"):
-        return 1, "no release disposition"
+        return U, "no release disposition supplied"
     r = _agent(ev, "trace-labeler")
     if r is None:
         return 2, "scan clean with disposition; independent labels absent"
-    return (
-        (1, "labeler disputes: " + "; ".join(r["findings"]))
-        if r["contains_sensitive"]
-        else (3, "scan and independent labels agree")
-    )
+    if r["contains_sensitive"]:
+        return 1, "labeler disputes: " + "; ".join(r["findings"])
+    return 3, "scan and independent labels agree"
 
 
 def env_03(ev: Ev) -> tuple[Score, str]:
     if ev["controls"] is None or not ev["ledger"]["ran"]:
-        return 1, "reset/order controls blocked"
+        return U, "reset/order controls blocked"
     if not (ev["repeat_identical"] and ev["order_independent"]):
         return 0, "results depend on predecessor or order"
     if not _pol(ev, "isolation"):
-        return 1, "isolated/shared surfaces not declared"
+        return U, "isolated/shared surfaces not declared by the owner"
     if ev["parallel_identical"] and ev["heldout_order_independent"]:
         return 3, "repeat, reversed, parallel and held-out ordering probes identical; fresh service per episode"
     return 2, "deterministic predecessor/order controls clean"
@@ -161,11 +170,11 @@ def env_03(ev: Ev) -> tuple[Score, str]:
 
 def create_02(ev: Ev) -> tuple[Score, str]:
     if ev["cue_only"] is None:
-        return 1, "cue-only controls not run"
+        return U, "cue-only controls blocked"
     if any(v["forbidden"] for v in ev["cue_only"].values()):
         return 0, "success cue alone earned credit"
     held = _heldout(ev, "cue_only")
-    if held and ev["agents_enabled"] and not any(v["forbidden"] or v["mismatch_total"] for v in held.values()):
+    if ev["agents_enabled"] and held and not any(v["forbidden"] for v in held.values()) and _agrees(held):
         return 3, "generated and independently authored cue-only controls earn nothing"
     return 2, "generated cue-only controls earn nothing; independent counterexamples absent"
 
@@ -173,23 +182,30 @@ def create_02(ev: Ev) -> tuple[Score, str]:
 def clear_contract(ev: Ev) -> tuple[Score, str]:
     if not ev["static"]["contract_present"]:
         return 0, "contract missing; grading cannot be justified"
+    r = _agent(ev, "contract-reviewer")
+    if r and r["material_contradictions"]:
+        return 0, "material contradiction: " + "; ".join(r["material_contradictions"])
     if ev["lint"]:
         return 1, "contract lint: " + "; ".join(ev["lint"])
+    if r and r["material_ambiguities"]:
+        return 1, "unresolved material ambiguity: " + "; ".join(r["material_ambiguities"])
     panel = _ctrl(ev, BOUNDARY)
-    if not panel or len(panel) < len(BOUNDARY) or any(v["mismatch"] for v in panel.values()):
+    if not panel or len(panel) < len(BOUNDARY):
+        return U, "boundary controls blocked"
+    if any(v["mismatch"] for v in panel.values()):
         return 1, "boundary cases unresolved"
     if not _pol(ev, "attack_matrix"):
-        return 1, "owner interpretation absent"
+        return U, "owner interpretation not supplied"
     alts = _heldout(ev, "valid_alternative")
-    if alts and ev["agents_enabled"] and not any(v["mismatch_total"] for v in alts.values()):
-        return 3, f"boundaries hold; {len(alts)} independent alternative solutions credited as the author predicted"
-    return 2, "public contract and boundaries resolve ambiguity"
+    if r is not None and _agrees(alts):
+        return 3, f"boundaries hold; {len(alts or {})} independent alternative solutions credited as predicted"
+    return 2, "public contract and boundaries resolve ambiguity; independent solutions absent or disputed"
 
 
 def discoverable(ev: Ev) -> tuple[Score, str]:
     panel = _ctrl(ev, OPTIONAL)
     if not panel:
-        return 1, "optional-signal control not run"
+        return U, "optional-signal control blocked"
     if any(v["lost"] for v in panel.values()):
         ref = (ev["controls"] or {}).get("reference")
         if not (ref and ref["observed"].get("accepted")):
@@ -198,7 +214,7 @@ def discoverable(ev: Ev) -> tuple[Score, str]:
     b = ev["blind"]
     if b is None or not ev["agents_enabled"]:
         return 2, "every scored condition has public authority; blind solve absent"
-    if any(v["mismatch_total"] for v in b.values()):
+    if not _agrees(b):
         return 1, "blind public-only solver did not reach expected credit: " + ", ".join(
             k for k, v in b.items() if v["mismatch_total"]
         )
@@ -208,11 +224,11 @@ def discoverable(ev: Ev) -> tuple[Score, str]:
 def scoring_authority(ev: Ev) -> tuple[Score, str]:
     panel = _ctrl(ev, REFERENCE)
     if not panel or len(panel) < len(REFERENCE):
-        return 1, "reference evidence missing"
+        return U, "reference evidence withheld or blocked"
     if ev["reference_total"] != ev["oracle_total"] or any(v["mismatch"] for v in panel.values()):
         return 0, f"reference total {ev['reference_total']} contradicts contract-derived {ev['oracle_total']}"
     if not _pol(ev, "attack_matrix"):
-        return 1, "expected results lack owner justification"
+        return U, "expected results lack an owner justification"
     a = _agent(ev, "adjudicator")
     if a and a["correct_total_cents"] == ev["oracle_total"] and a["reference_satisfies_contract"]:
         return 3, "spec oracle and independent adjudicator corroborate reference and scoring"
@@ -222,6 +238,10 @@ def scoring_authority(ev: Ev) -> tuple[Score, str]:
 def _reviewer(ev: Ev, pred: Callable[[dict], bool], two: str, three: str) -> tuple[Score, str]:
     r = _agent(ev, "independent-reviewer")
     return (3, three) if r is not None and pred(r) else (2, two)
+
+
+def _base(p: str) -> str:
+    return p.rsplit("/", 1)[-1]
 
 
 def artifact_access(ev: Ev) -> tuple[Score, str]:
@@ -240,16 +260,12 @@ def artifact_access(ev: Ev) -> tuple[Score, str]:
     )
 
 
-def _base(p: str) -> str:
-    return p.rsplit("/", 1)[-1]
-
-
 def grading_path(ev: Ev) -> tuple[Score, str]:
     s = ev["static"]
     if s["grader"] != "reviewed":
         return 0, f"verify.py selects '{s['grader']}', not the declared reviewed scorer"
     if not s["contract_present"]:
-        return 1, "declared acceptance rule unavailable"
+        return U, "declared acceptance rule unavailable"
     return _reviewer(
         ev,
         lambda r: "reviewed" in r["selected_grader"].lower(),
@@ -281,7 +297,7 @@ def declared_config(ev: Ev) -> tuple[Score, str]:
             "image not digest-pinned" if not s["image_pinned"] else "missing task.toml settings"
         )
     if not _pol(ev, "declared_configuration_limits"):
-        return 1, "limits of unknown settings not assessed"
+        return U, "limits of unknown settings not assessed by the owner"
     return _reviewer(
         ev,
         lambda r: r["image_pinned_by_digest"] and r["network_modes"] == s["network_modes"],
@@ -294,38 +310,46 @@ def observed_config(ev: Ev) -> tuple[Score, str]:
     if not ev["static"]["entrypoint_service"]:
         return 0, "image entrypoint does not start the declared ledger service"
     if ev["controls"] is None:
-        return 1, "observation blocked"
-    return (3, "independent repeat reproduces observations") if ev["repeat_identical"] else (2, "observed agrees")
+        return U, "observation blocked"
+    # "Independent repeat" is read as a fresh, separately executed environment, not a separate person.
+    if ev["repeat_identical"]:
+        return 3, "fresh independent repeat reproduces observations"
+    return 2, "observed agrees"
 
 
 def runtime_route(ev: Ev) -> tuple[Score, str]:
     h = ev["harbor"]
+    if h["valid"] is None:
+        return U, "provider validator unavailable"
     if not h["valid"]:
         return 0, "Harbor rejects the task manifest"
-    return (
-        (3, "Harbor validates; invalid-manifest control rejected")
-        if h["invalid_manifest_rejected"]
-        else (2, "Harbor validates")
-    )
+    # "Independent clean setup" is read as a fresh parse plus an invalid-manifest control.
+    if h["invalid_manifest_rejected"]:
+        return 3, "Harbor validates; invalid-manifest control rejected"
+    return 2, "Harbor validates"
 
 
 def comparison(ev: Ev) -> tuple[Score, str]:
     m = ev["matched"]
-    if m is None or not _pol(ev, "comparison"):
-        return 1, "matched setups untested or undisclosed"
+    if m is None:
+        return U, "matched setups blocked"
     if len(set(m.values())) > 1:
         return 0, f"equivalent solutions earn different credit: {m}"
+    if not _pol(ev, "comparison"):
+        return U, "intended comparison not declared by the owner"
     return 3, f"{len(m)} matched equivalent setups earn identical credit"
 
 
 def tool_access(ev: Ev) -> tuple[Score, str]:
     led = ev["ledger"]
     if not led["ran"]:
-        return 1, "socket probes blocked: " + led.get("reason", "")
+        return U, "socket probes blocked: " + led.get("reason", "")
     if not led["valid_actions_ok"]:
         return 0, "valid solver action rejected"
-    if not (led["boundary_rejected"] and _pol(ev, "solver_actions")):
-        return 1, "boundary probes or action map incomplete"
+    if not led["boundary_rejected"]:
+        return 1, "boundary probes accepted a forbidden action"
+    if not _pol(ev, "solver_actions"):
+        return U, "required action map not supplied by the owner"
     return 3, "valid actions accepted, boundary actions rejected, fresh service per probe"
 
 
@@ -334,7 +358,7 @@ def substitution(ev: Ev) -> tuple[Score, str]:
     if not s["components_present"] or s["env_non_stdlib"]:
         return 0, "required component missing or unapproved dependency: " + ", ".join(s["env_non_stdlib"])
     if not _pol(ev, "substitutions"):
-        return 1, "substitution unapproved"
+        return U, "substitution approval not supplied"
     return _reviewer(
         ev,
         lambda r: not r["environment_non_stdlib_imports"],
@@ -346,14 +370,14 @@ def substitution(ev: Ev) -> tuple[Score, str]:
 def external_state(ev: Ev) -> tuple[Score, str]:
     s = ev["static"]
     if not s["contract_present"]:
-        return 1, "pinned state unavailable"
+        return U, "pinned state unavailable"
     pin = (_pol(ev, "pins") or {}).get("contract_sha256")
     if pin and s["contract_sha256"] != pin:
         return 0, "contract drifted from the pin its expectations were authored against"
     if s["scorer_nondeterminism"]:
         return 1, "scorer reads uncontrolled state: " + ", ".join(s["scorer_nondeterminism"])
     if not pin:
-        return 1, "no state pin"
+        return U, "no state pin supplied"
     return (3, "pinned; deliberate drift probe detected") if ev["drift_probe_detected"] else (2, "pinned")
 
 
@@ -368,11 +392,11 @@ CHECKS = [
     Check("AUDIT-03", "forbidden-credit panel (16 declared attacks + held-out)", audit_03),
     Check("AUDIT-04-B", "exploit containment ledger", audit_04b),
     Check("AUDIT-05-B", "solver-surface answer scan + exposure reviewer", audit_05b),
-    Check("AUDIT-05-S03", "held-out freeze verification", audit_05s03),
+    Check("AUDIT-05-S03", "held-out freeze + confirmation results", audit_05s03),
     Check("TRACE-04-A", "trace secret scan + trace labeler", trace_04a),
     Check("ENV-03-S01", "repeat/reverse/parallel reset panel", env_03),
     Check("CREATE-02", "cue-only panel", create_02),
-    Check("task-contract.clear-contract", "contract lint + boundary panel", clear_contract),
+    Check("task-contract.clear-contract", "contract reviewer + lint + boundary panel", clear_contract),
     Check("task-contract.discoverable-requirements", "optional-signal control + blind solver", discoverable),
     Check("task-contract.scoring-authority", "spec oracle + adjudicator", scoring_authority),
     Check("provenance.task-artifact-access", "artifact inventory", artifact_access),
@@ -387,3 +411,12 @@ CHECKS = [
     Check("provenance.external-state", "state pin + nondeterminism scan", external_state),
     Check("provenance.evidence-revision-consistency", "evidence binding + change injection", revision),
 ]
+
+
+def rank(value: Score) -> int:
+    """Ordering for preference only: N/A is not a deficit; U (not established) ranks below any score."""
+    if value == NA:
+        return 3
+    if value == U:
+        return -1
+    return int(value)

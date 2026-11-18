@@ -112,6 +112,20 @@ ROLES: dict[str, tuple[str, dict[str, Any]]] = {
             "required": ["correct_total_cents", "reference_satisfies_contract", "reason"],
         },
     ),
+    "contract-reviewer": (
+        "You review a task's public instruction and contract before any solving. Report only MATERIAL problems: "
+        "contradictions (requirements that cannot all be satisfied at once) and unresolved ambiguities (the text "
+        "explicitly leaves open which of two incompatible readings governs grading, so correct credit cannot be "
+        "determined). Do not report stylistic issues, details with one reasonable reading, or simulation caveats.",
+        {
+            "type": "object",
+            "properties": {
+                "material_contradictions": {"type": "array", "items": {"type": "string"}},
+                "material_ambiguities": {"type": "array", "items": {"type": "string"}},
+            },
+            "required": ["material_contradictions", "material_ambiguities"],
+        },
+    ),
     "trace-labeler": (
         "You label agent traces for release review. Report whether any trace contains a secret (credential, "
         "API key, private key, token) or proprietary non-synthetic data. Synthetic ids like customer-A are fine.",
