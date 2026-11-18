@@ -338,7 +338,9 @@ def ethos_or_authority_matches(observation, case):
 
 def canonical_checks(report, definitions, expected=None):
     items = report.get("items", {})
-    if set(items) != {item["id"] for item in definitions["items"]}:
+    if report.get("schema") != "rubric-measurements-v3":
+        return False
+    if list(items) != [item["id"] for item in definitions["items"]]:
         return False
     seen = {}
     for definition in definitions["items"]:
@@ -346,9 +348,9 @@ def canonical_checks(report, definitions, expected=None):
         checks = item.get("check_results", [])
         if not set(definitions["result_template"]) <= set(item):
             return False
-        if len(checks) != len(definition["checks"]) or {check["check_id"] for check in checks} != {
-            check["id"] for check in definition["checks"]
-        }:
+        if item["rubric_version"] != definitions["rubric_version"]:
+            return False
+        if [check["check_id"] for check in checks] != [check["id"] for check in definition["checks"]]:
             return False
         by_id = {check["id"]: check for check in definition["checks"]}
         for check in checks:
@@ -882,7 +884,7 @@ def run_panel():
     package = package_acceptance(cases["package_acceptance"])
     return {
         "package_acceptance": package,
-        "schema": "rubric-mutation-panel-v3",
+        "schema": "rubric-mutation-panel-v4",
         "measurement": "synthetic-local-mutations",
         "status": "passed"
         if rows
@@ -914,11 +916,16 @@ def summary(result):
     lines = [
         f"Rubric handcrafted assessment demo: {result['status']}",
         f"Raw measurement regressions: {sum(row['matches_expectations'] for row in result['cases'])}/{len(result['cases'])} matched",
-        "Variant | DISC-01-A | DISC-01-B | DISC-01-C | expected match",
+        "Variant | provenance.task-artifact-access | provenance.grading-path | provenance.grading-dependency-access | expected match",
     ]
     for case in result["assessments"]:
         values = [
-            json.dumps(case["observed"]["items"][key]["score"]) for key in ("DISC-01-A", "DISC-01-B", "DISC-01-C")
+            json.dumps(case["observed"]["items"][key]["score"])
+            for key in (
+                "provenance.task-artifact-access",
+                "provenance.grading-path",
+                "provenance.grading-dependency-access",
+            )
         ]
         lines.append(" | ".join([case["id"], *values, str(case["matches_expectations"])]))
     lines.extend(
@@ -949,5 +956,5 @@ if __name__ == "__main__":
     parser.add_argument("--format", choices=("json", "text"), default="json")
     args = parser.parse_args()
     result = run_panel()
-    print(summary(result) if args.format == "text" else json.dumps(result, sort_keys=True, indent=2, allow_nan=False))
+    print(summary(result) if args.format == "text" else json.dumps(result, indent=2, allow_nan=False))
     raise SystemExit(0 if result["status"] == "passed" else 1)

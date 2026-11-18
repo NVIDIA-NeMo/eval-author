@@ -290,3 +290,11 @@ Evidence JSON bullet says how to measure it. It never shows revision digests.
 ## Definitions
 
 Fixed copy. Use these terms consistently in every field above.
+
+### Follow-through on a selected recommendation
+
+Keep the recommendation layout and labels unchanged, with IDs internal. For
+selected work, author only the optional `follow_through` record according to
+[selected improvement handoff and follow-through](coverage-report.md#selected-improvement-handoff-and-follow-through).
+Its progress and evidence appear under that recommendation without changing the
+report layout or measurement results. Retain the original finding and limits.

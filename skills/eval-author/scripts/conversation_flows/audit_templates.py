@@ -109,11 +109,12 @@ LIMITS_HEADING = "**Evidence limits**"
 RECOMMENDATIONS_HEADING = "**Recommended next actions**"
 NEXT_OFFER = "You can finish here or choose a recommended next action."
 REVIEW_ACCEPTED = "The audit findings are recorded."
+MISSING_RECOMMENDATION_SELECTION = "The saved improvement decision does not identify specific report recommendations. Resolve that selection before continuing."
 AUDIT_COMPLETE = "The audit is complete for the reviewed scope."
 AUDIT_LIMITED = "The limited findings review is complete; the full measured audit remains incomplete."
 NEXT_ACTIONS = {
     "finish": "You chose to finish here.",
-    "improve": "You chose to plan evaluation improvements. The next step is to review their scope and grading before implementation.",
+    "improve": "You chose to work on the selected audit recommendations.",
     "create": "You chose to plan your first evaluations from the reviewed findings.",
     "collect_evidence": "You chose to gather the missing evidence. The selected source and any new runs still need their applicable authorization.",
     "fix_agent": "You chose to address the observed agent behavior before changing the evaluations.",
