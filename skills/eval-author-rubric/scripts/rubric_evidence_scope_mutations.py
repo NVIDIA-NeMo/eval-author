@@ -558,11 +558,14 @@ def project_numeric(root: Path, selection: dict[str, Any], report: dict[str, Any
         if variant == "completion-only":
             result["AC-03"] = deepcopy(finding)
     sources = Sources(root, selection["artifacts"])
-    if example["task_config_accessible"]:
-        import tomllib
-
+    try:
         from harbor.models.task.config import TaskConfig
         from pydantic import ValidationError
+    except ImportError:
+        # File-only review needs no evaluation runtime; without Harbor the route row stays Unassessed.
+        TaskConfig = None
+    if example["task_config_accessible"] and TaskConfig is not None:
+        import tomllib
 
         raw_config = sources.source(example["task_config"])
         if raw_config is None:

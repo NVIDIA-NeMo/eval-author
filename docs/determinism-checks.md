@@ -527,8 +527,8 @@ SUITE_NATIVE=/absolute/suite-native-recovery-current/native-run
 
 Repeat `--registry` for every required original registry. `--original-finish` is
 separate from `--reuse-current`, `--refresh-decisions` and `--reviewed-companions`;
-do not combine them. `--defer-replay` is required by this completion CLI, not an
-optional performance flag. This finite path needs
+do not combine them. This completion CLI never replays; replay is a separate final
+gate, and `--defer-replay` is accepted but has no effect. This finite path needs
 the original containment source-equivalence package and byte-pinned historical
 orchestration snapshots beside the private integration output. It is path-bound,
 not a portable collector or a renewed launch authorization.

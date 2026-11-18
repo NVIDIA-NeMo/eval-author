@@ -403,7 +403,7 @@ current `--matrix`, original `--source-freeze`, explicit
 localhost-assessment-operator-v1`, trusted `--registry`, and a new `--output`
 inside the original base root. Set `PYTHONDONTWRITEBYTECODE=1` and `TMPDIR` to an
 existing private nonsymlink scratch directory; use the exact collection Python.
-Use `--defer-replay` when final deduplicated replay is reserved for a later gate.
+This command never replays; run the final deduplicated replay as a separate gate.
 
 This command checks matrix lineage, selected bytes, canonical definitions, frozen
 native/CREATE-02 identities, native mutation admission and stored decisions. It

@@ -620,15 +620,19 @@ def reports(bundle, registry, output, base_matrix):
             status = rubric_table.main(["--root", str(root), "--task", task, "--output", str(dest)])
             replay = rubric_table.main(["--root", str(root), "--verify-existing", str(dest)])
         collector.require(status == replay and status in (0, 1))
-        actual = json.loads((dest / "assessment.json").read_text())["report"]["items"]
+        saved_report = json.loads((dest / "assessment.json").read_text())["report"]
+        actual = saved_report["items"]
+        # Current-scope reconciliation moves legacy AC-* rows out of the canonical items.
+        emitted = {**saved_report.get("legacy_evidence_items", {}), **actual}
         for criterion, (expected, reason) in findings(projection, case).items():
             extension["rows"].append(
                 {
                     "case": case,
                     "criterion": criterion,
                     "expected": expected,
-                    "actual": actual[criterion]["score"],
-                    "matched": expected == actual[criterion]["score"],
+                    "actual": emitted[criterion]["score"],
+                    # The hook injects the native finding; this confirms it survived table reconciliation.
+                    "survived_reconciliation": expected == emitted[criterion]["score"],
                     "base": matrix["base_scores"][criterion] if matrix else None,
                     "reason": reason,
                     "report": str(dest / "assessment.json"),
@@ -637,7 +641,7 @@ def reports(bundle, registry, output, base_matrix):
                     "collateral_scores": {k: v["score"] for k, v in actual.items() if k != criterion},
                 }
             )
-    collector.require(len(extension["rows"]) == 7 and all(r["matched"] for r in extension["rows"]))
+    collector.require(len(extension["rows"]) == 7 and all(r["survived_reconciliation"] for r in extension["rows"]))
     write(output / "matrix-extension.json", extension)
     lines = [
         "# Native numeric matrix extension",
@@ -697,7 +701,7 @@ def main(argv=None):
                 {
                     "rows": len(result["rows"]),
                     "reports": str(args.reports),
-                    "all_matched": all(r["matched"] for r in result["rows"]),
+                    "all_survived_reconciliation": all(r["survived_reconciliation"] for r in result["rows"]),
                 }
             )
         )

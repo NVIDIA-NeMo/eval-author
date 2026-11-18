@@ -541,7 +541,8 @@ def main() -> int:
     parser.add_argument(
         "--upper-evidence-root", type=Path, help="Optional retained supporting packet, never inherited as base credit"
     )
-    parser.add_argument("--defer-replay", action="store_true", required=True)
+    # This CLI never replays; replay is always a separate final gate. Accepted for older commands.
+    parser.add_argument("--defer-replay", action="store_true", help=argparse.SUPPRESS)
     args = parser.parse_args()
     os.umask(0o077)
     if args.provenance_release_review_root:
