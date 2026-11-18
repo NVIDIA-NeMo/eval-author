@@ -15,12 +15,13 @@ from typing import cast
 import pytest
 import yaml
 from harbor.models.job.config import JobConfig
+from harbor.models.trajectories.trajectory import Trajectory
 from harbor.trial.simulated_user import render_user_prompt
 
 SCRIPTS = Path(__file__).resolve().parents[1] / "skills/eval-author/scripts"
 sys.path.insert(0, str(SCRIPTS))
 
-from harbor_user_sim import NEUTRAL_BEHAVIOR, HarborTranslationError, translate  # noqa: E402
+from harbor_user_sim import NEUTRAL_PERSONA, HarborTranslationError, translate  # noqa: E402
 
 
 @pytest.fixture
@@ -86,7 +87,7 @@ def test_native_translation_preserves_selection_and_scenario(inputs: tuple) -> N
         native.user_agent.user_prompt_template_path,
         native.user_agent.user_persona_path,
     )
-    assert NEUTRAL_BEHAVIOR.read_text() in prompt
+    assert NEUTRAL_PERSONA.read_text() in prompt
     assert "{{ not_a_template_variable }}" in prompt
     assert "Public task context" in prompt
     assert "Give the order identifier when asked." in prompt
@@ -161,6 +162,47 @@ def test_scenario_identity_and_multistep_are_checked(inputs: tuple) -> None:
     assert not output.exists()
 
 
+@pytest.mark.parametrize("target", ["claude-code", "codex"])
+@pytest.mark.parametrize("symlink", [False, True])
+def test_task_trajectory_fails_before_writing(inputs: tuple, target: str, symlink: bool) -> None:
+    scenario, config, output, data = inputs
+    data["agents"][0]["name"] = target
+    config.write_text(yaml.safe_dump(data))
+    trajectory = Trajectory.model_validate(
+        {
+            "agent": {"name": target, "version": "test"},
+            "steps": [{"step_id": 1, "source": "user", "message": "Earlier request"}],
+        }
+    )
+    path = scenario.parent / "trajectory.json"
+    if symlink:
+        source = Path.cwd() / "prior.json"
+        source.write_text(trajectory.model_dump_json())
+        path.symlink_to(source)
+    else:
+        path.write_text(trajectory.model_dump_json())
+    source_bytes = path.read_bytes(), config.read_bytes()
+    with pytest.raises(HarborTranslationError, match=r"Task-provided trajectory\.json"):
+        translate(scenario, config, output)
+    assert not output.exists()
+    assert (path.read_bytes(), config.read_bytes()) == source_bytes
+
+
+@pytest.mark.parametrize("target", ["claude-code", "codex"])
+def test_target_prompt_template_fails_before_writing(inputs: tuple, target: str) -> None:
+    scenario, config, output, data = inputs
+    template = Path.cwd() / "target.md"
+    template.write_text("Apply the selected target policy. {{ instruction }}")
+    data["agents"][0]["name"] = target
+    data["agents"][0]["kwargs"] = {"prompt_template_path": str(template)}
+    config.write_text(yaml.safe_dump(data))
+    source_bytes = template.read_bytes(), config.read_bytes()
+    with pytest.raises(HarborTranslationError, match="Target prompt_template_path"):
+        translate(scenario, config, output)
+    assert not output.exists()
+    assert (template.read_bytes(), config.read_bytes()) == source_bytes
+
+
 def test_private_inputs_cannot_be_written_into_task(inputs: tuple) -> None:
     scenario, config, _, _ = inputs
     with pytest.raises(HarborTranslationError, match="outside"):
@@ -188,15 +230,13 @@ def test_existing_output_and_symlink_are_not_overwritten(inputs: tuple) -> None:
 def test_external_inputs_remain_bound_and_preserved(inputs: tuple) -> None:
     scenario, config, output, original = inputs
     data = copy.deepcopy(original)
-    for name in ("extra.md", "target.md"):
-        Path(name).write_text("Extra target context")
+    Path("extra.md").write_text("Extra target context")
     for name in ("target-config.json", "user-config.json"):
         Path(name).write_text('{"instructions": "Role-specific behavior"}')
     Path("overlay.yaml").write_text("services: {}\n")
     Path("acpx.json").write_text('{"timeout": 17}')
     data["extra_instruction_paths"] = ["extra.md"]
     data["agents"][0]["kwargs"] = {
-        "prompt_template_path": "target.md",
         "config": "target-config.json",
         "unchanged_option": "value",
     }
@@ -207,7 +247,7 @@ def test_external_inputs_remain_bound_and_preserved(inputs: tuple) -> None:
     result = translate(scenario, config, output)
     assert {
         Path(name).resolve()
-        for name in ("extra.md", "target.md", "acpx.json", "target-config.json", "user-config.json", "overlay.yaml")
+        for name in ("extra.md", "acpx.json", "target-config.json", "user-config.json", "overlay.yaml")
     } <= set(result.input_paths)
     generated = yaml.safe_load(result.run_config_path.read_text())
     assert generated["agents"] == data["agents"]
@@ -371,11 +411,33 @@ def test_acpx_cannot_replace_the_selected_target(inputs: tuple, content: str) ->
     assert not output.exists()
 
 
-def test_wrong_harbor_version_is_explicit(inputs: tuple, monkeypatch: pytest.MonkeyPatch) -> None:
+@pytest.mark.parametrize("installed_version", ["0.9.0", "0.23.0", "0.24.0rc1"])
+def test_older_harbor_version_is_explicit(
+    inputs: tuple, monkeypatch: pytest.MonkeyPatch, installed_version: str
+) -> None:
     scenario, config, output, _ = inputs
-    monkeypatch.setattr("harbor_user_sim.version", lambda _: "0.23.0")
-    with pytest.raises(HarborTranslationError, match="0.24.0"):
+    monkeypatch.setattr("harbor_user_sim.version", lambda _: installed_version)
+    with pytest.raises(HarborTranslationError, match=r"0\.24\.0 or later"):
         translate(scenario, config, output)
+
+
+@pytest.mark.parametrize("installed_version", ["0.24.0", "0.24.1", "0.25.0", "0.100.0", "1.0.0"])
+def test_compatible_harbor_versions_translate(
+    inputs: tuple, monkeypatch: pytest.MonkeyPatch, installed_version: str
+) -> None:
+    scenario, config, output, _ = inputs
+    monkeypatch.setattr("harbor_user_sim.version", lambda _: installed_version)
+    result = translate(scenario, config, output)
+    assert result.run_config_path.is_file()
+    assert result.to_dict()["runtime_ready"] is False
+
+
+def test_invalid_harbor_version_is_explicit(inputs: tuple, monkeypatch: pytest.MonkeyPatch) -> None:
+    scenario, config, output, _ = inputs
+    monkeypatch.setattr("harbor_user_sim.version", lambda _: "invalid")
+    with pytest.raises(HarborTranslationError, match="Could not determine the installed Harbor version"):
+        translate(scenario, config, output)
+    assert not output.exists()
 
 
 def test_cli_has_safe_summary_and_sanitized_errors(inputs: tuple) -> None:

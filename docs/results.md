@@ -89,6 +89,9 @@ After you select execution settings, Eval Author can translate one scenario into
 a native Harbor `run.yaml` and private simulator prompt files in a separate
 directory under `.eval-author/.working/`. It preserves the selected target,
 environment, and verifier settings. Each scenario gets a separate configuration.
+Translation rejects tasks with `trajectory.json` and target
+`kwargs.prompt_template_path` settings because Harbor's ACP flow cannot preserve
+their behavior with user simulation.
 
 An interactive runner and checked information boundaries are still required
 before execution. The generated prompt requests the exact opening message, but

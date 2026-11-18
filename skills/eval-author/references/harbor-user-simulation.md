@@ -6,7 +6,9 @@
 Read the [scenario contract](../../eval-author-user-sim/references/scenario-contract.md)
 for the input format, neutral behavior, and information boundaries.
 
-Use `harbor_user_sim.py` with Harbor 0.24.0 in the selected Python environment.
+Use `harbor_user_sim.py` with Harbor 0.24.0 or later in the selected Python environment.
+Validated against 0.24.0. Newer versions must pass the installed native schema
+and interface checks below before execution.
 It translates one agreed neutral scenario into native job and prompt inputs.
 It doesn't install adapters, call models, start an environment, or run a trial.
 
@@ -45,7 +47,7 @@ Binding must compare those saved digests with current bytes. Rehashing changed
 sources must not authorize an older generated bundle. Translation checks source
 inputs before parsing and after writing outputs, and fails if they changed.
 It includes the source scenario and base
-config, emitted files, declared external instruction and target prompt files,
+config, emitted files, declared external instruction files,
 ACP configuration, extra Docker Compose files, and file-valued native `config`
 options for both agent roles. Inline native configuration stays in `run.yaml`.
 Bind these bytes alongside the task tree before execution. Task paths, extra
@@ -61,7 +63,8 @@ repository-local evidence.
 
 The helper validates with Harbor's job, trial, task, bridge-option, and prompt
 validators. It rejects mismatched task identity, multiple or remote task sources,
-multi-step tasks, source-job regrading or comparison, existing simulator prompt
+multi-step tasks, task-provided `trajectory.json`, source-job regrading or
+comparison, target `kwargs.prompt_template_path`, existing simulator prompt
 overrides, and existing output directories. Agent `skills` entries are also
 deferred because local directories and remote sources need tree bindings that
 this translator doesn't supply. Declared external files must be regular files.
@@ -78,7 +81,10 @@ The simulator must support the shell interaction used by `acpx`. Verify both
 roles' model access and the actual target's policy, tools, and state continuity.
 Use one single-step Harbor task containing the adaptive conversation. Harbor
 rejects user-agent bridges on tasks with `[[steps]]` and rejects a target
-`load_trajectory` together with a user agent.
+`load_trajectory` together with a user agent. The translator also rejects the
+implicit task trajectory route, which bypasses the simulator in Harbor 0.24.0,
+and target prompt templates, which ACP does not apply. Do not remove required
+prior context or target policy just to make translation pass.
 
 Harbor's stock ACP bridge asks the simulator to send the first message. The
 generated prompt instructs it to send the exact `start_prompt`, but translation
