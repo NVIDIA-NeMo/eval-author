@@ -508,7 +508,17 @@ def main() -> int:
         type=Path,
         help="Separately admit the closed full-Trial viability companion; no launches or score transfer",
     )
-    parser.add_argument("--matrix", required=True, type=Path)
+    parser.add_argument(
+        "--contract-review-root",
+        type=Path,
+        help="Attach the exact nonblind original-B corroboration; method qualification requires scoped owner readback",
+    )
+    parser.add_argument(
+        "--provenance-release-review-root",
+        type=Path,
+        help="Targeted original exposure/restricted-release corroboration only; no full assessment",
+    )
+    parser.add_argument("--matrix", type=Path)
     parser.add_argument(
         "--reuse-current",
         action="store_true",
@@ -536,6 +546,16 @@ def main() -> int:
     parser.add_argument("--defer-replay", action="store_true", required=True)
     args = parser.parse_args()
     os.umask(0o077)
+    if args.provenance_release_review_root:
+        if args.original_finish or args.reuse_current or args.refresh_decisions or args.matrix:
+            parser.error("targeted provenance/release review is separate from full/reuse/refresh workflows")
+        from current_rubric_finish import run_provenance_review
+
+        return run_provenance_review(args)
+    if args.matrix is None:
+        parser.error("--matrix is required outside targeted provenance/release review")
+    if args.contract_review_root and not (args.original_finish and args.suite_native_root):
+        parser.error("--contract-review-root requires --original-finish and --suite-native-root")
     if args.suite_native_root and not args.original_finish:
         parser.error("--suite-native-root requires --original-finish")
     if args.original_finish:

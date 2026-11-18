@@ -1001,8 +1001,712 @@ def apply(report: dict[str, Any], value: dict[str, Any], *, root: Path, selectio
     return result
 
 
+CONTRACT_REVIEW = RUNS / "finish-contract-review-current"
+CONTRACT_QUESTION_SHA = "aa58a7ea0fc0bfd17bf9c6fec8ee989cd957abfad3f094a457e9c23e3b051e69"
+CONTRACT_ID = "task-contract.scoring-authority"
+CONTRACT_METHOD = CONTRACT_ID + ".corroboration-method"
+CONTRACT_OWNER_QUESTION = (
+    "For the original refund simulation only, do you accept the exact review packet "
+    "32dcb90ec1d4ea26ef384972d7079e29d9430aff9e44389b9442182294ff361c "
+    "as an alternative scoring-authority corroboration method, with local retention until revoked? "
+    "The reviewer separately derived the full contract and recomputed retained results, but used the same "
+    "model/public specification and read the accepted crosswalk before freezing its comparisons. "
+    "Acceptance retains those limitations and dissent; it does not approve a score, blind discovery, "
+    "held-out evidence, companion-task qualification, or new execution. Proposed rationale: the separate "
+    "derivation and per-check comparison provide bounded corroboration of this deterministic contract, "
+    "not independent case authorship."
+)
+
+
+def contract_review_sources(directory: Path) -> dict[str, Any]:
+    require(directory == CONTRACT_REVIEW, "unsupported contract review packet")
+    packet = json.loads(pin(directory / "method-qualification-request.json", CONTRACT_QUESTION_SHA))
+    for name, expected in packet["evidence_files_sha256"].items():
+        require(Path(name).name == name, "unsafe contract review component")
+        pin(directory / name, expected)
+    manifest = load(directory / "input-manifest.json")
+    for name, entry in manifest.items():
+        path = Path(name)
+        pin(path, entry["sha256"])
+        require(
+            path.stat().st_size == entry["bytes"] and path.stat().st_mode & 0o777 == entry["mode"],
+            "contract review input identity changed",
+        )
+    task = ROOT / "runtime/task"
+    expected_task = {
+        str(Path(name).relative_to(task)): {"sha256": entry["sha256"], "mode": entry["mode"]}
+        for name, entry in manifest.items()
+        if Path(name).is_relative_to(task)
+    }
+    require(inventory(task) == expected_task, "contract review task inventory changed")
+    previous = load(RUNS / "parallel-source-intake/contract-request.json")
+    require(previous["binding"] == packet["original_request_binding"], "original crosswalk binding differs")
+    for row in previous["crosswalk"]["rows"]:
+        for span in row["exact_spans"]:
+            source = pin(task / span["path"], span["sha256"]).decode()
+            require(
+                "".join(source.splitlines(keepends=True)[span["start_line"] - 1 : span["end_line"]]) == span["quote"],
+                "contract review citation changed",
+            )
+    return packet
+
+
+def contract_review_request(directory: Path = CONTRACT_REVIEW) -> dict[str, Any]:
+    packet = contract_review_sources(directory)
+    return {
+        "schema": "current-original-contract-method-request-v1",
+        "question_id": "B-CONTRACT-CORROBORATION",
+        # This is the exact packet identity presented to the owner, not a new scope.
+        "binding": packet["packet_binding"],
+        "packet": str(directory / "method-qualification-request.json"),
+        "packet_sha256": CONTRACT_QUESTION_SHA,
+        "scopes": {CONTRACT_METHOD: CONTRACT_OWNER_QUESTION},
+        "question": CONTRACT_OWNER_QUESTION,
+        "subject": packet["subject"],
+        "retention_scope": "Local assessment-operator retention until revoked, exact B method only.",
+        "exclusions": deepcopy(packet["exclusions"]),
+        "known_dissent": deepcopy(packet["known_dissent"]),
+        "boundary": OPERATOR_BOUNDARY,
+    }
+
+
+def validate_contract_request(request: dict[str, Any], root: Path, selection: dict[str, Any]) -> None:
+    check_population(root, selection, packet_inputs())
+    require(
+        encoded(request) == encoded(contract_review_request()), "contract method request is not exact current packet"
+    )
+
+
+def record_contract_decision(
+    request: dict[str, Any],
+    root: Path,
+    selection: dict[str, Any],
+    observed_decision: Callable[[dict[str, Any]], dict[str, Any] | None],
+) -> Path:
+    """Route exact method intake through the existing record/read/revoke boundary."""
+    validate_contract_request(request, root, selection)
+    previous = globals()["current_request"]
+    try:
+        globals()["current_request"] = validate_contract_request
+        return record_decision(request, root, selection, observed_decision)
+    finally:
+        globals()["current_request"] = previous
+
+
+def contract_comparison(directory: Path) -> dict[str, Any]:
+    rows = load(directory / "original-native-comparison.json")
+    native_rows = load(SCOPE / "native-outcomes.json")["rows"]
+    require(len({r["trial_uuid"] for r in rows}) == len(rows) == len(native_rows), "contract review population differs")
+    indexed = {r["trial_uuid"]: r for r in native_rows}
+    healthy = 0
+    original_healthy = 0
+    errors = 0
+    for row in rows:
+        native = indexed[row["trial_uuid"]]
+        require(
+            row["result"] == native["result_path"]
+            and row["checks_path"] == native["checks_path"]
+            and row["population"] == native["population"],
+            "contract review native identity differs",
+        )
+        result = json.loads(pin(Path(row["result"]), native["result_sha256"]))
+        actual = load(Path(row["checks_path"]))
+        require(encoded(actual) == encoded(row["actual"]) == encoded(native["actual"]), "contract review checks differ")
+        require(
+            encoded(row["reward"]) == encoded((result.get("verifier_result") or {}).get("rewards"))
+            and encoded(row["exception"]) == encoded(result.get("exception_info")),
+            "contract review health differs",
+        )
+        derived = row["independently_derived"]
+        if actual["health"] != "ok":
+            require(
+                derived is None and row["reward"] is None and actual["total_credit"] is None,
+                "contract review error counted as corroboration",
+            )
+            errors += 1
+            continue
+        require(
+            derived is not None and row["differences"] == {} and row["reward_match"] is True,
+            "contract review comparison incomplete",
+        )
+        require(
+            all(
+                encoded(derived[key]) == encoded(actual[key])
+                for key in ("checks", "raw_credit", "total_credit", "max_credit", "accepted")
+            )
+            and derived["replayed_state_matches"] is True,
+            "contract review derivation differs",
+        )
+        require(
+            row["reward"]["reward"] == derived["total_credit"] / derived["max_credit"], "contract review reward differs"
+        )
+        healthy += 1
+        original_healthy += row["population"] == "original-Harbor"
+    verification = load(directory / "verification.json")
+    require(
+        healthy == verification["original_derived"]
+        and errors == verification["original_errors"]
+        and verification["original_mismatches"] == verification["original_missing_snapshot"] == []
+        and verification["crosswalk_citation_failures"] == [],
+        "contract review verification differs",
+    )
+    return {
+        "original_healthy_comparisons": original_healthy,
+        "original_operational_errors": errors,
+        "separate_zero_balance_comparisons": healthy - original_healthy,
+        "crosswalk_groups": verification["accepted_crosswalk_groups"],
+        "cited_spans": verification["crosswalk_citation_count"],
+        "comparisons": str(directory / "original-native-comparison.json"),
+        "source_derivation": "Retained separately implemented semantic review, not a newly executed independent experiment.",
+    }
+
+
+def validate_contract_review(
+    directory: Path, root: Path, selection: dict[str, Any], report: dict[str, Any]
+) -> dict[str, Any]:
+    request = contract_review_request(directory)
+    check_population(root, selection, packet_inputs())
+    comparison = contract_comparison(directory)
+    owner = report["measurements"]["scoped_reviews"]["contract"]
+    prior_receipt = owner["receipt"]
+    old_request = load(RUNS / "parallel-source-intake/contract-request.json")
+    from rubric_general_review import read as read_contract
+
+    current_owner = read_contract(ROOT / "runtime/task", kind="contract")
+    require(
+        current_owner is not None
+        and prior_receipt is not None
+        and current_owner["digest"] == prior_receipt["digest"]
+        and current_owner["event"]["request"] == old_request
+        and current_owner["revoked"] is prior_receipt["revoked"],
+        "contract lower-anchor owner readback differs",
+    )
+    assert current_owner is not None
+    row = report["items"][CONTRACT_ID]
+    automatic = owner["automatic"][CONTRACT_ID]
+    lower = (
+        row["score"] == 2
+        and row["assessment_state"] == "ASSESSED"
+        and {c["check_id"] for c in row["check_results"]}
+        == {CONTRACT_ID + suffix for suffix in (".human-review", ".llm-judge", ".deterministic")}
+        and all(c["outcome"] == "PASS" for c in row["check_results"])
+        and automatic["ready"] is True
+        and automatic["controls_match"] is True
+        and automatic["coverage"]["supported"] == automatic["coverage"]["total"] == comparison["crosswalk_groups"]
+        and current_owner["revoked"] is False
+        and current_owner["event"]["decisions"][CONTRACT_ID]["decision"] == "approve"
+    )
+    receipt = read_decision(request, root, selection)
+    qualified = bool(
+        receipt and not receipt["revoked"] and receipt["event"]["decisions"][CONTRACT_METHOD]["decision"] == "approve"
+    )
+    return {
+        "schema": "current-original-contract-corroboration-v1",
+        "request": request,
+        "receipt": receipt,
+        "comparison": comparison,
+        "input_report_sha256": digest(report),
+        "original_source_inspection": deepcopy(row.get("source_inspection")),
+        "lower_anchor_satisfied": lower,
+        "method_qualified": qualified,
+        "promotion_ready": lower and qualified,
+        "reviewer_kind": "agent",
+        "independence": "Same-model, nonblind, shared public specification, post-crosswalk comparison freeze; no independent case authorship.",
+        "policy_basis": {
+            "anchor": "Independent sources and adjudicators corroborate the material reference and scoring contract.",
+            "alternative": "A qualified alternative may replace an unavailable method, with rationale retained.",
+            "scope": "Owner-qualified bounded corroboration alternative only; literal independence is not asserted.",
+        },
+        "findings": deepcopy(request["known_dissent"]),
+        "source_report": str(directory / "REPORT.md"),
+        "packet_evidence": load(directory / "method-qualification-request.json")["evidence_files_sha256"],
+    }
+
+
+def project_contract_review(report: dict[str, Any], value: dict[str, Any], reference: Path) -> dict[str, Any]:
+    require(digest(report) == value["input_report_sha256"], "contract projection input differs")
+    require(encoded(load(reference)) == encoded(value), "contract linked artifact differs")
+    output = deepcopy(report)
+    require("contract_corroboration" not in output["measurements"], "contract review already attached")
+    output["measurements"]["contract_corroboration"] = {
+        "path": str(reference),
+        "sha256": hashlib.sha256(raw(reference)).hexdigest(),
+        "binding": value["request"]["binding"],
+        "method_qualified": value["method_qualified"],
+        "scope": "Original B scoring-authority only; same-model/nonblind/post-crosswalk exposure retained.",
+        "findings": deepcopy(value["findings"]),
+    }
+    row = output["items"][CONTRACT_ID]
+    require(
+        encoded(row.get("source_inspection")) == encoded(value["original_source_inspection"]),
+        "contract source inspection differs",
+    )
+    row["source_inspection"] = {
+        "measurement": "contract_corroboration",
+        "pointer": "/original_source_inspection",
+        "note": "Unchanged source inspection linked once; historical independence labels are not current qualification.",
+    }
+    row["evidence_refs"].append({"measurement": "contract_corroboration", "binding": value["request"]["binding"]})
+    row.setdefault("limitations", []).append(value["independence"])
+    row.setdefault("approval_refs", []).append(
+        {"measurement": "contract_corroboration", "method_qualified": value["method_qualified"]}
+    )
+    if value["promotion_ready"]:
+        require(
+            value["lower_anchor_satisfied"]
+            and value["method_qualified"]
+            and row["score"] == 2
+            and all(c["outcome"] == "PASS" for c in row["check_results"]),
+            "contract promotion predicates absent",
+        )
+        row.update(score=3, evidence_strength="E3")
+        # Preserve historical absence prose explicitly rather than deleting evidence.
+        row["historical_pre_corroboration_gaps"] = row["remaining_gaps"]
+        row["remaining_gaps"] = []
+        if "upper_anchor_companion" in row:
+            row["historical_pre_corroboration_companion"] = row.pop("upper_anchor_companion")
+        row["qualified_corroboration"] = {
+            "measurement": "contract_corroboration",
+            "basis": value["policy_basis"],
+            "qualification": "Exact owner-accepted alternative, not newly independent sources or case authorship.",
+        }
+    else:
+        row["remaining_gaps"].append(
+            "Completed nonblind contract corroboration is attached. Exact method decision/retention is pending, "
+            "rejected or revoked, or lower-anchor predicates are unmet; no score promotion."
+        )
+    return output
+
+
+def apply_contract_review(
+    report: dict[str, Any], value: dict[str, Any], reference: Path, *, root: Path, selection: dict[str, Any]
+) -> dict[str, Any]:
+    result = project_contract_review(report, value, reference)
+    require(
+        encoded(validate_contract_review(CONTRACT_REVIEW, root, selection, report)) == encoded(value),
+        "contract admission changed during projection",
+    )
+    require(
+        all(result["items"][key] == row for key, row in report["items"].items() if key != CONTRACT_ID),
+        "contract changed another criterion",
+    )
+    return result
+
+
+PROVENANCE_REVIEW = RUNS / "finish-provenance-release-review-current"
+PROVENANCE_PACKET_SHA = "30f4c607ef12716ee1ee3068b2e1ec8305c2e9a0ec8bf1293da5b32a481c1958"
+PROVENANCE_BINDING = "aa93cb7b326e0274e72eb4ec4e7b9e671913b1936536bae991429c00da913b0f"
+PROVENANCE_BASELINE = RUNS / "finish-contract-integration-current/targeted-final/assessment.json"
+PROVENANCE_BASELINE_SHA = "3bca876c3d871508dc6f8126667f7ef05da9a107d66dd7130f410c8a952cdc22"
+PROVENANCE_IDS = ("AUDIT-05-B", "TRACE-04-A")
+TRACE_METHOD = "TRACE-04-A.corroboration-method"
+TRACE_OWNER_QUESTION = (
+    "For TRACE-04-A on the original 194 private simulation projections only, accept packet "
+    "aa93cb7b326e0274e72eb4ec4e7b9e671913b1936536bae991429c00da913b0f as bounded alternative "
+    "corroboration, with local retention until revoked? It supplies separately performed material labels, "
+    "contextual-negative/embedded-answer review and an exact restricted-release audit. The reviewer used "
+    "the same model and saw prior labels/conclusions; it is not blind authorship, general secret clearance "
+    "or a host-wide disclosure audit. Proposed rationale: these substantive per-material comparisons "
+    "corroborate the existing category restrictions within this finite scope. Acceptance does not approve "
+    "a score or change recipients/use, and permits no new release or execution."
+)
+
+
+def provenance_review_sources(directory: Path = PROVENANCE_REVIEW) -> dict[str, Any]:
+    require(directory == PROVENANCE_REVIEW, "unsupported provenance/release packet")
+    packet = json.loads(pin(directory / "packet.json", PROVENANCE_PACKET_SHA))
+    require(
+        digest(packet["components"]) == packet["components_sha256"] == PROVENANCE_BINDING,
+        "provenance component binding differs",
+    )
+    require(
+        len({entry["path"] for entry in packet["components"]}) == len(packet["components"]) == 15,
+        "provenance component inventory differs",
+    )
+    for entry in packet["components"]:
+        require(Path(entry["path"]).name == entry["path"], "unsafe provenance component")
+        data = pin(directory / entry["path"], entry["sha256"])
+        require(len(data) == entry["bytes"], "provenance component size differs")
+    manifest = load(directory / "source-hashes-final.json")
+    require(len(manifest["files"]) == manifest["count"], "provenance source inventory differs")
+    for entry in manifest["files"]:
+        path = Path(entry["path"])
+        if entry["roles"] == ["shared reviewer exposure"]:
+            # Skills were read as exposure history, never executed or used by the
+            # comparison. Their historical hashes are not current source pins.
+            require(
+                path
+                in {
+                    Path("/Users/asutermorris/.hermes/skills") / name / "SKILL.md"
+                    for name in ("rubric-mutation-reconciliation", "engineering-operating-defaults")
+                },
+                "unknown historical exposure source",
+            )
+            continue
+        if path == Path(__file__).resolve():
+            # This inspected, unexecuted adapter is the only moving input. Keep its
+            # exact historical bytes; the new consumer gets a separate identity.
+            path = RUNS / "finish-provenance-release-integration-current/historical-orchestration" / path.name
+        data = pin(path, entry["sha256"])
+        require(
+            path.stat().st_size == entry["bytes"] and path.stat().st_mode & 0o777 == entry["mode"],
+            "provenance source size/mode differs",
+        )
+    return packet
+
+
+def provenance_review_request() -> dict[str, Any]:
+    packet = provenance_review_sources()
+    return {
+        "schema": "current-original-trace-corroboration-request-v1",
+        "question_id": "B-TRACE-CORROBORATION",
+        "binding": PROVENANCE_BINDING,
+        "packet": str(PROVENANCE_REVIEW / "packet.json"),
+        "packet_sha256": PROVENANCE_PACKET_SHA,
+        "subject": packet["subject"],
+        "scopes": {TRACE_METHOD: TRACE_OWNER_QUESTION},
+        "question": TRACE_OWNER_QUESTION,
+        "original_review_question": packet["qualified_alternative_request"]["question"],
+        "retention_scope": "Exact original 194 private simulation projections; existing local workflow until revoked.",
+        "boundary": OPERATOR_BOUNDARY,
+        "exclusions": packet["prohibited_inferences"],
+    }
+
+
+def validate_provenance_request(request: dict[str, Any], root: Path, selection: dict[str, Any]) -> None:
+    check_population(root, selection, packet_inputs())
+    require(
+        encoded(request) == encoded(provenance_review_request()), "trace method request is not exact current packet"
+    )
+
+
+def record_provenance_decision(
+    request: dict[str, Any],
+    root: Path,
+    selection: dict[str, Any],
+    observed_decision: Callable[[dict[str, Any]], dict[str, Any] | None],
+) -> Path:
+    validate_provenance_request(request, root, selection)
+    previous = globals()["current_request"]
+    try:
+        globals()["current_request"] = validate_provenance_request
+        return record_decision(request, root, selection, observed_decision)
+    finally:
+        globals()["current_request"] = previous
+
+
+def provenance_comparison() -> dict[str, Any]:
+    """Recompute the fixed reviewed documentary comparison, not evidence-selected code."""
+    packet = provenance_review_sources()
+    path = PROVENANCE_REVIEW / "review.py"
+    expected = next(e["sha256"] for e in packet["components"] if e["path"] == path.name)
+    source = pin(path, expected)
+    module = ModuleType("admitted_provenance_release_comparison")
+    module.__file__ = str(path)
+    exec(compile(source, str(path), "exec"), module.__dict__)
+    previous_argv = sys.argv
+    try:
+        # The allowlisted main has no writes without --write; never inherit argv.
+        sys.argv = [str(path)]
+        with contextlib.redirect_stdout(io.StringIO()):
+            status = module.main()
+    finally:
+        sys.argv = previous_argv
+    saved = load(PROVENANCE_REVIEW / "verification-final.json")
+    require(status == 0 and saved["failed_comparisons"] == [], "provenance substantive comparison failed")
+    require(encoded(module.COMPARISONS) == encoded(saved["comparisons"]), "provenance comparison results differ")
+    require(len(module.COMPARISONS) == saved["comparison_count"], "provenance comparison count differs")
+    labels = load(PROVENANCE_REVIEW / "trace-label-comparison-final.json")
+    units = load(SCOPE / "TRACE-04-A-scope.json")["eligible_material"]
+    require(len(labels["labels"]) == labels["count"] == len(units), "trace label coverage differs")
+    for index, (label, unit) in enumerate(zip(labels["labels"], units, strict=True)):
+        require(
+            label["unit"] == index
+            and all(
+                label[k] == unit[k]
+                for k in ("source", "pointer", "source_sha256", "material_sha256", "bytes", "channel")
+            ),
+            "trace label material binding differs",
+        )
+        require(
+            label["unknown_vocabulary"] == [] and bool(label["reviewer_labels"]), "trace contextual review incomplete"
+        )
+    require(saved["release_audit"]["material_manifest_sha256"] == digest(units), "release material digest differs")
+    return {
+        "comparison_count": saved["comparison_count"],
+        "failed_comparisons": saved["failed_comparisons"],
+        "release_audit": saved["release_audit"],
+        "sensitivity": {k: v for k, v in saved["sensitivity"].items() if k != "native_records"},
+        "exposure": saved["exposure"],
+        "labels_ref": str(PROVENANCE_REVIEW / "trace-label-comparison-final.json"),
+        "verification_ref": str(PROVENANCE_REVIEW / "verification-final.json"),
+        "initial_failure_ref": str(PROVENANCE_REVIEW / "verification.json"),
+        "initial_failures": load(PROVENANCE_REVIEW / "verification.json")["failed_comparisons"],
+        "current_consumer_disagreements": saved["current_consumer_disagreements"],
+    }
+
+
+def validate_provenance_review(
+    directory: Path, root: Path, selection: dict[str, Any], report: dict[str, Any]
+) -> dict[str, Any]:
+    packet = provenance_review_sources(directory)
+    packets = packet_inputs()
+    check_population(root, selection, packets)
+    require(
+        packet["subject"] in load(HISTORY / "arithmetic.json")["sensitivity"]["original_subject_ids"],
+        "review subject differs",
+    )
+    original = report["measurements"]["original_finish"]
+    native, trace = outcome_inventory(packets), trace_inventory()
+    require(
+        encoded(native) == encoded(original["observations"]["native"])
+        and encoded(trace) == encoded(original["observations"]["trace"]),
+        "owning original observations differ",
+    )
+    queries = requests(packets, original["observations"])
+    receipts = {}
+    for question in ("OBH-Q1", "OBS-TRACE04A"):
+        request = next(r for r in queries if r["question_id"] == question)
+        receipt = read_decision(request, root, selection)
+        require(receipt is not None, "current original owner readback unavailable")
+        assert receipt is not None
+        compact = deepcopy(receipt)
+        retained_request = compact["event"].pop("request")
+        compact["event"]["request_ref"] = {"binding": retained_request["binding"], "path": "../requests.json"}
+        require(encoded(compact) == encoded(original["receipts"][question]), "original owner readback differs")
+        receipts[question] = receipt
+    comparison = provenance_comparison()
+    require(comparison["sensitivity"]["recomputed_original_controls"] == native["counts"], "owning sensitivity differs")
+    release = comparison["release_audit"]
+    require(
+        release["recipients"] == trace["recipients"]
+        and release["use"] == trace["use"]
+        and release["material_manifest_sha256"] == trace["material_manifest_sha256"],
+        "owning release scope differs",
+    )
+    request = provenance_review_request()
+    method_receipt = read_decision(request, root, selection)
+    definitions = completion.runner.canonical_definitions()
+    predicates = {}
+    for ident, question in zip(PROVENANCE_IDS, ("OBH-Q1", "OBS-TRACE04A"), strict=True):
+        row = report["items"][ident]
+        checks = row["check_results"]
+        expected = definitions[ident]["checks"]
+        canonical = len(checks) == len(expected) and all(
+            c["check_id"] == e["id"] and all(c[k] == e[k] for k in ("action", "method", "expected_evidence"))
+            for c, e in zip(checks, expected, strict=False)
+        )
+        receipt = receipts[question]
+        lower = (
+            row["score"] == 2
+            and row["assessment_state"] == "ASSESSED"
+            and canonical
+            and all(c["outcome"] == "PASS" for c in checks[:2])
+            and not any(c["outcome"] in {"FAIL", "ERROR"} for c in checks)
+            and not receipt["revoked"]
+            and receipt["event"]["decisions"][ident]["decision"] == "approve"
+        )
+        if ident == "AUDIT-05-B":
+            # C03's exact stale NOT_RUN is a consumption gap, not missing execution.
+            lower = (
+                lower
+                and checks[-1]["outcome"] == "NOT_RUN"
+                and checks[-1]["remaining_gap"]
+                == (
+                    "Retrospective sensitivity is measured, but a predeclared exclusion alternative has not been separately qualified."
+                )
+            )
+            qualified = (
+                receipt["event"]["decisions"][ident + ".provenance-method"]["decision"] == "approve"
+                and not receipt["revoked"]
+            )
+        else:
+            lower = lower and checks[-1]["outcome"] == "PASS"
+            qualified = bool(
+                method_receipt
+                and not method_receipt["revoked"]
+                and method_receipt["event"]["decisions"][TRACE_METHOD]["decision"] == "approve"
+            )
+        predicates[ident] = {
+            "lower_anchor_satisfied": lower,
+            "method_qualified": qualified,
+            "promotion_ready": lower and qualified,
+            "canonical_lower": definitions[ident]["scoring"]["2"],
+            "canonical_upper": definitions[ident]["scoring"]["3"],
+        }
+    return {
+        "schema": "current-original-provenance-release-corroboration-v1",
+        "input_report_sha256": digest(report),
+        "request": request,
+        "receipt": method_receipt,
+        "original_receipts": receipts,
+        "predicates": predicates,
+        "comparison": comparison,
+        "packet_sha256": PROVENANCE_PACKET_SHA,
+        "components_sha256": PROVENANCE_BINDING,
+        "historical_rows": {ident: deepcopy(report["items"][ident]) for ident in PROVENANCE_IDS},
+        "independence": "Separately performed nonblind shared-model documentary review; prior labels/conclusions visible. Qualified bounded alternatives only, not blind or independent authorship.",
+        "limits": packet["prohibited_inferences"],
+        "policy_basis": "A qualified alternative may replace an unavailable method, with rationale retained; dependent pipeline stages are not independent corroboration.",
+    }
+
+
+def project_provenance_review(report: dict[str, Any], value: dict[str, Any], reference: Path) -> dict[str, Any]:
+    require(digest(report) == value["input_report_sha256"], "provenance projection input differs")
+    require(encoded(load(reference)) == encoded(value), "provenance linked artifact differs")
+    output = deepcopy(report)
+    require("provenance_release_corroboration" not in output["measurements"], "provenance review already attached")
+    output["measurements"]["provenance_release_corroboration"] = {
+        "path": str(reference),
+        "sha256": hashlib.sha256(raw(reference)).hexdigest(),
+        "binding": PROVENANCE_BINDING,
+        "predicates": deepcopy(value["predicates"]),
+        "scope": "Exact original exposure statement and 194 restricted private projections only.",
+    }
+    for ident in PROVENANCE_IDS:
+        row = output["items"][ident]
+        row["evidence_refs"].append({"measurement": "provenance_release_corroboration"})
+        row.setdefault("limitations", []).append(value["independence"])
+        if not value["predicates"][ident]["promotion_ready"]:
+            row["remaining_gaps"].append(
+                "Actual bounded corroboration attached; exact method qualification or lower-anchor predicates unmet. No score promotion."
+            )
+            continue
+        require(
+            row["score"] == 2 and not any(c["outcome"] in {"FAIL", "ERROR"} for c in row["check_results"]),
+            "provenance promotion predicates absent",
+        )
+        row.update(score=3, evidence_strength="E3", execution_state="COMPLETED")
+        row["historical_pre_corroboration"] = {
+            "measurement": "provenance_release_corroboration",
+            "pointer": "/historical_rows/" + ident,
+        }
+        row["remaining_gaps"] = []
+        if ident == "AUDIT-05-B":
+            stale = "Inspectable local exposure inventory; known broader provenance gaps are not yet bounded by a reviewed statement."
+            row["findings"] = [f for f in row["findings"] if f != stale]
+            row["findings"].append(
+                "The exact retained OBH-Q1 bounded statement and contextual provenance/arithmetic alternative are qualified; exposure and training unknowns remain explicit."
+            )
+            row["check_results"][-1].update(outcome="PASS", remaining_gap=None, next_action=None)
+            row["check_results"][-1]["evidence_refs"].append(
+                {"measurement": "provenance_release_corroboration", "pointer": "/comparison/sensitivity"}
+            )
+        else:
+            row["limitations"] = [
+                x for x in row["limitations"] if x != "Independent labels and exact-release audit remain absent."
+            ]
+        row["qualified_corroboration"] = {
+            "measurement": "provenance_release_corroboration",
+            "basis": value["policy_basis"],
+            "literal_independence": False,
+        }
+    return output
+
+
+def apply_provenance_review(
+    report: dict[str, Any], value: dict[str, Any], reference: Path, *, root: Path, selection: dict[str, Any]
+) -> dict[str, Any]:
+    result = project_provenance_review(report, value, reference)
+    require(
+        encoded(validate_provenance_review(PROVENANCE_REVIEW, root, selection, report)) == encoded(value),
+        "provenance admission changed during projection",
+    )
+    require(
+        all(result["items"][k] == row for k, row in report["items"].items() if k not in PROVENANCE_IDS)
+        and all(result["measurements"][k] == v for k, v in report["measurements"].items()),
+        "provenance changed neighbor or prior measurement",
+    )
+    return result
+
+
+def run_provenance_review(args: Any) -> int:
+    require(
+        args.source_review_operator_store and args.source_review_operator_trust,
+        "provenance review requires explicit operator store/trust",
+    )
+    require(args.source_report == PROVENANCE_BASELINE, "unsupported provenance baseline")
+    baseline = json.loads(pin(args.source_report, PROVENANCE_BASELINE_SHA))
+    out = args.output.absolute()
+    require(not out.exists() and not any(p.is_symlink() for p in (out, *out.parents)), "new nonsymlink output required")
+    out.mkdir(mode=0o700, parents=True)
+    before = support.store_inventory(args.source_review_operator_store)
+    with support.trust_environment(args.source_review_operator_store.absolute(), args.source_review_operator_trust, []):
+        value = validate_provenance_review(
+            args.provenance_release_review_root, ROOT, baseline["selection"], baseline["report"]
+        )
+        reference = out / "provenance-release-corroboration.json"
+        completion.save(reference, value)
+        projected = apply_provenance_review(
+            baseline["report"], value, reference, root=ROOT, selection=baseline["selection"]
+        )
+        packet = deepcopy(baseline)
+        packet["report"] = projected
+        (out / "assessment.json").write_bytes(encoded(packet) + b"\n")
+        markdown = audit_adapter.table.render(projected)
+        (out / "results.md").write_text(markdown)
+        (out / "results.html").write_text(audit_adapter.table.render_html(markdown))
+        require(encoded(load(out / "assessment.json")) == encoded(packet), "provenance emitted readback differs")
+        require(
+            encoded(validate_provenance_review(PROVENANCE_REVIEW, ROOT, baseline["selection"], baseline["report"]))
+            == encoded(value),
+            "provenance final readback changed",
+        )
+    require(
+        support.store_inventory(args.source_review_operator_store) == before, "operator store changed during projection"
+    )
+    verification = {
+        "scope": "Targeted owning two-anchor admission/projection and ordinary renderers; no full assessment or replay.",
+        "baseline": str(args.source_report),
+        "baseline_sha256": PROVENANCE_BASELINE_SHA,
+        "score_delta": {
+            ident: [baseline["report"]["items"][ident]["score"], projected["items"][ident]["score"]]
+            for ident in PROVENANCE_IDS
+        },
+        "unchanged_neighbors": sum(
+            projected["items"][k] == v for k, v in baseline["report"]["items"].items() if k not in PROVENANCE_IDS
+        ),
+        "prior_measurements_unchanged": len(baseline["report"]["measurements"]),
+        "status_counts": dict(
+            Counter(
+                "NOT_APPLICABLE"
+                if row["assessment_state"] == "NOT_APPLICABLE"
+                else "Unassessed"
+                if row["score"] is None
+                else str(row["score"])
+                for row in projected["items"].values()
+            )
+        ),
+        "source_hashes": {
+            str(p): hashlib.sha256(raw(p)).hexdigest()
+            for p in (
+                Path(__file__),
+                Path(completion.__file__),
+                HERE.parents[1] / "tests/test_current_rubric_finish.py",
+            )
+        },
+        "report_sha256": hashlib.sha256(raw(out / "assessment.json")).hexdigest(),
+        "operator_store_unchanged": True,
+        "native_launches": 0,
+        "model_launches": 0,
+        "new_owner_events": 0,
+        "full_assessment": "not_run",
+        "full_replay": "not_run",
+        "predicates": value["predicates"],
+    }
+    completion.save(out / "verification.json", verification)
+    completion.save(out / "trace-method-request.json", value["request"])
+    print(json.dumps(verification, sort_keys=True))
+    return 0
+
+
 @contextlib.contextmanager
-def table_hook(suite_root: Path | None = None, suite_reference: Path | None = None):
+def table_hook(
+    suite_root: Path | None = None,
+    suite_reference: Path | None = None,
+    contract_review_root: Path | None = None,
+    contract_reference: Path | None = None,
+):
     """Install last, after existing Audit/upper hooks; never call table recursively."""
     table: Any = audit_adapter.table
     previous = table.assess_table
@@ -1016,7 +1720,15 @@ def table_hook(suite_root: Path | None = None, suite_reference: Path | None = No
             return report
         value = validate(root, selected, report)
         result = apply(report, value, root=root, selection=selected)
-        return apply_suite_native(result, validate_suite_native(suite_root), suite_reference) if suite_root else result
+        if suite_root:
+            result = apply_suite_native(result, validate_suite_native(suite_root), suite_reference)
+        if contract_review_root:
+            require(contract_reference is not None, "contract companion reference required")
+            assert contract_reference is not None
+            contract = validate_contract_review(contract_review_root, root, selected, result)
+            completion.save(contract_reference, contract)
+            result = apply_contract_review(result, contract, contract_reference, root=root, selection=selected)
+        return result
 
     table.assess_table = assess
     try:
@@ -1049,6 +1761,9 @@ def run(args) -> int:
     completion.save(selection_path, saved["selection"])
     before = support.store_inventory(args.source_review_operator_store)
     suite_root = getattr(args, "suite_native_root", None)
+    contract_root = getattr(args, "contract_review_root", None)
+    require(not contract_root or suite_root, "contract review requires the current original suite context")
+    contract_reference = out / "contract-corroboration.json" if contract_root else None
     suite: dict[str, Any] = {}
     suite_reference = out / "suite-native.json" if suite_root else None
     if suite_root:
@@ -1057,7 +1772,10 @@ def run(args) -> int:
     original_context = suite_original_context() if suite_root else contextlib.nullcontext()
     with original_context, audit_adapter.companion_context(options):
         closures = support.closure_check(args.source_freeze)
-        with table_hook(suite_root, suite_reference), contextlib.redirect_stdout(io.StringIO()) as captured:
+        with (
+            table_hook(suite_root, suite_reference, contract_root, contract_reference),
+            contextlib.redirect_stdout(io.StringIO()) as captured,
+        ):
             status = audit_adapter.table.main(
                 ["--root", str(ROOT), "--selection", str(selection_path), "--output", str(out / "report")]
             )
@@ -1107,6 +1825,32 @@ def run(args) -> int:
         previous_path = RUNS / "containment-admission-finish-current/ordinary-v4/report/assessment.json"
         previous = json.loads(pin(previous_path, "00665769bc1b4d99310fafd3eac97fb33c6d416c5ddb0c2c5158c115ca71f0d7"))
         current_report = deepcopy(packet["report"])
+        if contract_root:
+            assert contract_reference is not None
+            contract_value = load(contract_reference)
+            reference = current_report["measurements"].pop("contract_corroboration")
+            require(
+                reference["sha256"] == hashlib.sha256(raw(contract_reference)).hexdigest(),
+                "contract report link differs",
+            )
+            require(
+                all(
+                    current_report["items"][k] == row
+                    for k, row in previous["report"]["items"].items()
+                    if k != CONTRACT_ID
+                ),
+                "contract neighbor changed",
+            )
+            current_report["items"][CONTRACT_ID] = deepcopy(previous["report"]["items"][CONTRACT_ID])
+            completion.save(out / "contract-method-request.json", contract_value["request"])
+            verification["contract_corroboration"] = {
+                "binding": contract_value["request"]["binding"],
+                "method_qualified": contract_value["method_qualified"],
+                "lower_anchor_satisfied": contract_value["lower_anchor_satisfied"],
+                "promoted": contract_value["promotion_ready"],
+                "neighbor_rows_unchanged": len(current_report["items"]) - 1,
+                "baseline": str(RUNS / "suite-native-integration-current/ordinary-final/report/assessment.json"),
+            }
         linked = current_report["measurements"].pop("suite_native_viability")
         require(
             linked["path"] == str(suite_reference)
@@ -1132,7 +1876,7 @@ def run(args) -> int:
                 else "Unassessed"
                 if r["score"] is None
                 else str(r["score"])
-                for r in current_report["items"].values()
+                for r in packet["report"]["items"].values()
             )
         )
     completion.save(out / "verification.json", verification)
@@ -1190,6 +1934,34 @@ def run(args) -> int:
                 f"| {row['family']} | {row['control']} | {row['task_credit']}/{row['max_credit']} | {row['reward']} | [result]({row['raw_result']}) |"
             )
         text += ["", *suite["limits"], ""]
+    if contract_root:
+        assert contract_reference is not None
+        contract_value = load(contract_reference)
+        text += [
+            "",
+            "## Original B full-contract corroboration",
+            "",
+            "[Actual review](" + contract_value["source_report"] + ") · "
+            "[Source-bound comparison and receipt](contract-corroboration.json) · "
+            "[Exact method intake request](contract-method-request.json)",
+            "",
+            "Method qualified: "
+            + str(contract_value["method_qualified"])
+            + "; lower anchor satisfied: "
+            + str(contract_value["lower_anchor_satisfied"])
+            + "; emitted scoring-authority: "
+            + str(packet["report"]["items"][CONTRACT_ID]["score"])
+            + ".",
+            "",
+            contract_value["independence"],
+            "",
+            "Qualification is scoped method acceptance, not score approval. Canonical predicates remain separate.",
+            "",
+            "### Retained findings (S is outside qualification)",
+            "",
+            *["- " + finding for finding in contract_value["findings"]],
+            "",
+        ]
     (out / "REPORT.md").write_text("\n".join(text) + "\n")
     print(
         json.dumps(

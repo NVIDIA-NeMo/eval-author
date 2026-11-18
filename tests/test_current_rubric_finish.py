@@ -301,6 +301,254 @@ def test_suite_corruption_rejected_without_touching_frozen_inputs(finish, monkey
             finish.suite_trial(root, episode, receipt, attempt, images)
 
 
+@pytest.fixture
+def contract_packet(finish):
+    path = finish.RUNS / "suite-native-integration-current/ordinary-final/report/assessment.json"
+    return finish.load(path)
+
+
+def test_actual_contract_packet_sources_and_comparisons(finish):
+    request = finish.contract_review_request()
+    assert request["binding"] == "32dcb90ec1d4ea26ef384972d7079e29d9430aff9e44389b9442182294ff361c"
+    assert list(request["scopes"]) == [finish.CONTRACT_METHOD]
+    assert "before freezing" in request["question"]
+    value = finish.contract_comparison(finish.CONTRACT_REVIEW)
+    assert value["original_healthy_comparisons"] == 54
+    assert value["original_operational_errors"] == 1
+    assert value["separate_zero_balance_comparisons"] == 2
+    assert value["crosswalk_groups"] == 15
+    assert value["cited_spans"] == 39
+
+
+@pytest.mark.parametrize("name", ["REPORT.md", "exposure.md", "original-native-comparison.json", "input-manifest.json"])
+def test_contract_review_packet_drift_rejected(finish, monkeypatch, name):
+    original = finish.raw
+    monkeypatch.setattr(
+        finish, "raw", lambda p: original(p) + b" " if p == finish.CONTRACT_REVIEW / name else original(p)
+    )
+    with pytest.raises(ValueError, match="changed"):
+        finish.contract_review_request()
+
+
+@pytest.mark.parametrize(
+    "decision,revoked,score",
+    [(None, False, 2), ("reject", False, 2), ("defer", False, 2), ("approve", True, 2), ("approve", False, 3)],
+)
+def test_contract_qualification_is_exact_conditional_and_narrow(
+    finish, monkeypatch, tmp_path, contract_packet, decision, revoked, score
+):
+    import rubric_general_review
+
+    report = contract_packet["report"]
+    selection = contract_packet["selection"]
+    prior = deepcopy(report["measurements"]["scoped_reviews"]["contract"]["receipt"])
+    prior["event"]["request"] = finish.load(finish.RUNS / "parallel-source-intake/contract-request.json")
+    monkeypatch.setattr(rubric_general_review, "read", lambda *a, **kw: prior)
+    receipt = (
+        None
+        if decision is None
+        else {
+            "revoked": revoked,
+            "event": {"decisions": {finish.CONTRACT_METHOD: {"decision": decision}}},
+        }
+    )
+    monkeypatch.setattr(finish, "read_decision", lambda *a: receipt)
+    value = finish.validate_contract_review(finish.CONTRACT_REVIEW, finish.ROOT, selection, report)
+    ref = tmp_path / "review.json"
+    finish.completion.save(ref, value)
+    original = deepcopy(report)
+    result = finish.apply_contract_review(report, value, ref, root=finish.ROOT, selection=selection)
+    assert result["items"][finish.CONTRACT_ID]["score"] == score
+    assert all(result["items"][k] == v for k, v in report["items"].items() if k != finish.CONTRACT_ID)
+    assert all(result["measurements"][k] == v for k, v in report["measurements"].items())
+    assert result["items"][finish.CONTRACT_ID]["check_results"] == report["items"][finish.CONTRACT_ID]["check_results"]
+    assert report == original
+    changed = deepcopy(value)
+    changed["method_qualified"] = not value["method_qualified"]
+    monkeypatch.setattr(finish, "validate_contract_review", lambda *a: changed)
+    with pytest.raises(ValueError, match="changed during projection"):
+        finish.apply_contract_review(report, value, ref, root=finish.ROOT, selection=selection)
+
+
+def test_contract_intake_uses_existing_boundary_without_scope_transfer(finish, monkeypatch, tmp_path, contract_packet):
+    store = tmp_path / "operator"
+    store.mkdir()
+    monkeypatch.setattr(finish, "_operator_root", lambda: store)
+    request = finish.contract_review_request()
+    event = {
+        "request": request,
+        "decisions": {
+            finish.CONTRACT_METHOD: {
+                "decision": "approve",
+                "content": "Synthetic test only",
+                "rationale": "Synthetic bounded alternative",
+            }
+        },
+        "retained_scopes": [finish.CONTRACT_METHOD],
+        "retention_consent": "Synthetic test retention",
+        "save_authorized": True,
+    }
+    selection = contract_packet["selection"]
+    original_validator = finish.current_request
+    path = finish.record_contract_decision(request, finish.ROOT, selection, lambda actual: deepcopy(event))
+    assert finish.current_request is original_validator
+    assert finish.read_decision(request, finish.ROOT, selection)["event"] == event
+    assert path.name.endswith(".original-finish.json")
+    wrong = deepcopy(request)
+    wrong["scopes"]["S"] = "Unauthorized broader scope"
+    with pytest.raises(ValueError, match="exact current packet"):
+        finish.record_contract_decision(wrong, finish.ROOT, selection, lambda actual: event)
+    finish.revoke_decision(request, finish.ROOT, selection)
+    assert finish.read_decision(request, finish.ROOT, selection)["revoked"] is True
+
+
+@pytest.mark.parametrize("change", ["failed-check", "missing-check", "coverage", "revoked-lower", "lower-score"])
+def test_contract_method_acceptance_cannot_replace_lower_anchor(finish, monkeypatch, contract_packet, change):
+    import rubric_general_review
+
+    report = deepcopy(contract_packet["report"])
+    owner = report["measurements"]["scoped_reviews"]["contract"]
+    prior = deepcopy(owner["receipt"])
+    prior["event"]["request"] = finish.load(finish.RUNS / "parallel-source-intake/contract-request.json")
+    if change == "failed-check":
+        report["items"][finish.CONTRACT_ID]["check_results"][0]["outcome"] = "FAIL"
+    elif change == "missing-check":
+        report["items"][finish.CONTRACT_ID]["check_results"].pop()
+    elif change == "coverage":
+        owner["automatic"][finish.CONTRACT_ID]["coverage"]["supported"] -= 1
+    elif change == "revoked-lower":
+        owner["receipt"]["revoked"] = prior["revoked"] = True
+    else:
+        report["items"][finish.CONTRACT_ID]["score"] = 1
+    monkeypatch.setattr(rubric_general_review, "read", lambda *a, **kw: prior)
+    monkeypatch.setattr(
+        finish,
+        "read_decision",
+        lambda *a: {"revoked": False, "event": {"decisions": {finish.CONTRACT_METHOD: {"decision": "approve"}}}},
+    )
+    value = finish.validate_contract_review(finish.CONTRACT_REVIEW, finish.ROOT, contract_packet["selection"], report)
+    assert value["method_qualified"] is True
+    assert value["promotion_ready"] is False
+
+
+@pytest.fixture
+def provenance_packet(finish, monkeypatch):
+    monkeypatch.setenv("EVAL_AUTHOR_SOURCE_REVIEW_OPERATOR_STORE", str(finish.RUNS / "leakage-current-operator-store"))
+    monkeypatch.setenv("EVAL_AUTHOR_SOURCE_REVIEW_OPERATOR_TRUST", "localhost-assessment-operator-v1")
+    return finish.load(finish.PROVENANCE_BASELINE)
+
+
+def test_actual_provenance_comparison_and_existing_audit_qualification(finish, provenance_packet):
+    value = finish.validate_provenance_review(
+        finish.PROVENANCE_REVIEW, finish.ROOT, provenance_packet["selection"], provenance_packet["report"]
+    )
+    assert value["comparison"]["comparison_count"] == 1161
+    assert len(value["comparison"]["initial_failures"]) == 1
+    assert value["comparison"]["release_audit"]["eligible_count"] == 194
+    assert value["comparison"]["sensitivity"]["exclusion_effect"] is None
+    assert value["predicates"]["AUDIT-05-B"]["promotion_ready"] is True
+    assert value["historical_rows"]["AUDIT-05-B"]["check_results"][-1]["outcome"] == "NOT_RUN"
+
+
+@pytest.mark.parametrize("name", ["packet.json", "semantic-review-basis.json", "verification-final.json"])
+def test_provenance_drift_rejected(finish, monkeypatch, name):
+    original = finish.raw
+    monkeypatch.setattr(
+        finish, "raw", lambda p: original(p) + b" " if p == finish.PROVENANCE_REVIEW / name else original(p)
+    )
+    with pytest.raises(ValueError, match="changed"):
+        finish.provenance_review_sources()
+
+
+@pytest.mark.parametrize(
+    "decision,revoked,expected",
+    [(None, False, 2), ("defer", False, 2), ("reject", False, 2), ("approve", True, 2), ("approve", False, 3)],
+)
+def test_provenance_scoped_method_and_neighbor_preservation(
+    finish, monkeypatch, tmp_path, provenance_packet, decision, revoked, expected
+):
+    real_read = finish.read_decision
+    receipt = (
+        None
+        if decision is None
+        else {"revoked": revoked, "event": {"decisions": {finish.TRACE_METHOD: {"decision": decision}}}}
+    )
+    monkeypatch.setattr(
+        finish,
+        "read_decision",
+        lambda request, *a: receipt if request["question_id"] == "B-TRACE-CORROBORATION" else real_read(request, *a),
+    )
+    report = provenance_packet["report"]
+    value = finish.validate_provenance_review(
+        finish.PROVENANCE_REVIEW, finish.ROOT, provenance_packet["selection"], report
+    )
+    reference = tmp_path / "corroboration.json"
+    finish.completion.save(reference, value)
+    output = finish.apply_provenance_review(
+        report, value, reference, root=finish.ROOT, selection=provenance_packet["selection"]
+    )
+    assert output["items"]["AUDIT-05-B"]["score"] == 3
+    assert output["items"]["TRACE-04-A"]["score"] == expected
+    assert all(output["items"][k] == v for k, v in report["items"].items() if k not in finish.PROVENANCE_IDS)
+    assert all(output["measurements"][k] == v for k, v in report["measurements"].items())
+    assert value["historical_rows"] == {k: report["items"][k] for k in finish.PROVENANCE_IDS}
+    assert output["items"]["TRACE-04-A"]["check_results"] == report["items"]["TRACE-04-A"]["check_results"]
+    changed = deepcopy(value)
+    changed["receipt"] = {"revoked": True}
+    monkeypatch.setattr(finish, "validate_provenance_review", lambda *a: changed)
+    with pytest.raises(ValueError, match="changed during projection"):
+        finish.apply_provenance_review(
+            report, value, reference, root=finish.ROOT, selection=provenance_packet["selection"]
+        )
+
+
+@pytest.mark.parametrize(
+    "ident,change", [(i, c) for i in ("AUDIT-05-B", "TRACE-04-A") for c in ("failed", "missing", "lower", "canonical")]
+)
+def test_provenance_permission_never_replaces_lower_anchor(finish, monkeypatch, provenance_packet, ident, change):
+    report = deepcopy(provenance_packet["report"])
+    row = report["items"][ident]
+    if change == "failed":
+        row["check_results"][0]["outcome"] = "FAIL"
+    elif change == "missing":
+        row["check_results"].pop()
+    elif change == "canonical":
+        row["check_results"][0]["action"] = "different scope"
+    else:
+        row["score"] = 1
+    value = finish.validate_provenance_review(
+        finish.PROVENANCE_REVIEW, finish.ROOT, provenance_packet["selection"], report
+    )
+    assert value["predicates"][ident]["promotion_ready"] is False
+
+
+def test_provenance_intake_retains_only_exact_scope(finish, monkeypatch, tmp_path, provenance_packet):
+    store = tmp_path / "operator"
+    store.mkdir()
+    monkeypatch.setattr(finish, "_operator_root", lambda: store)
+    request = finish.provenance_review_request()
+    event = {
+        "request": request,
+        "decisions": {
+            finish.TRACE_METHOD: {"decision": "approve", "content": "synthetic only", "rationale": "synthetic test"}
+        },
+        "retained_scopes": [finish.TRACE_METHOD],
+        "retention_consent": "synthetic test",
+        "save_authorized": True,
+    }
+    selection = provenance_packet["selection"]
+    path = finish.record_provenance_decision(request, finish.ROOT, selection, lambda actual: event)
+    original = path.read_bytes()
+    assert finish.read_decision(request, finish.ROOT, selection)["event"] == event
+    wrong = deepcopy(request)
+    wrong["scopes"]["AUDIT-05-B"] = "unauthorized transfer"
+    with pytest.raises(ValueError, match="exact current packet"):
+        finish.record_provenance_decision(wrong, finish.ROOT, selection, lambda actual: event)
+    finish.revoke_decision(request, finish.ROOT, selection)
+    assert finish.read_decision(request, finish.ROOT, selection)["revoked"] is True
+    assert path.read_bytes() == original
+
+
 def test_report_replacement_rejected(finish):
     report, value = fixture_value(finish)
     report["items"]["neighbor"]["score"] = 3
