@@ -80,8 +80,9 @@ into inferred jobs.
 
 ## User-simulation scenarios
 
-For an approved Harbor **User-sim** task, Eval Author writes `user-sim.yaml` in
-the task directory. It describes the neutral user's goal, opening request, known
+For an approved Harbor **User-sim** task with
+[experimental user simulation enabled](first-evals.md#enable-experimental-user-simulation),
+Eval Author writes `user-sim.yaml` in the task directory. It describes the neutral user's goal, opening request, known
 facts, and any task-specific conversation rules. The task README links this file
 and explains which parts of the exchange the verifier checks.
 

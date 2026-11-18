@@ -28,6 +28,7 @@ import audit_state  # noqa: E402
 import expansion_state  # noqa: E402
 import first_eval_state  # noqa: E402
 from conversation_templates import CHECKLIST_LABELS, JOURNEYS  # noqa: E402
+from interaction_types import user_simulation_enabled, validate_user_simulation  # noqa: E402
 from runtime_policy import load as runtime_policy  # noqa: E402
 from working_paths import (  # noqa: E402
     atomic_write_json,
@@ -266,6 +267,8 @@ def validate(state: dict, *, check_size: bool = True) -> None:
     for field in ("scopes", "journey_status"):
         if not isinstance(state[field], dict) or set(state[field]) - set(JOURNEYS):
             raise ValueError(f"Invalid {field}")
+    for journey in ("create", "expand"):
+        user_simulation_enabled(state, journey)
     creation_scope = state["scopes"].get("create", {})
     if isinstance(creation_scope, dict) and "first_eval" in creation_scope:
         first_eval_state.validate(creation_scope["first_eval"])
@@ -842,9 +845,21 @@ def update(repo: Path, patch: dict, *, expected_revision: int | None = None, sta
         or ("ethos" in patch and patch["ethos"] != {"stage": "review"})
     ):
         raise ValueError("State-only updates accept prerequisites, blockers, routing, and ethos.stage=review only")
+    simulation_scope: str | None = None
+    scopes = patch.get("scopes")
+    if isinstance(scopes, dict) and len(scopes) == 1:
+        selected = next(iter(scopes))
+        if selected in {"create", "expand"} and isinstance(scopes[selected], dict):
+            if set(scopes[selected]) == {"user_simulation"}:
+                validate_user_simulation(scopes[selected]["user_simulation"])
+                simulation_scope = selected
+                if expected_revision is None:
+                    raise ValueError("User simulation updates require --expected-revision from the latest show")
     if state_only and "scopes" in patch:
         scopes = patch["scopes"]
-        if (
+        if simulation_scope is not None:
+            pass
+        elif (
             isinstance(scopes, dict)
             and set(scopes) == {"expand"}
             and isinstance(scopes["expand"], dict)
@@ -861,7 +876,7 @@ def update(repo: Path, patch: dict, *, expected_revision: int | None = None, sta
             ):
                 raise ValueError(
                     "State-only updates accept only audit framework and framework_source observations or mode decisions, "
-                    "or expansion entry_choice"
+                    "or expansion entry_choice or a user_simulation decision"
                 )
             for field, value in scopes["audit"].items():
                 if field == "mode":
@@ -888,6 +903,8 @@ def update(repo: Path, patch: dict, *, expected_revision: int | None = None, sta
     with working_lock(working_path(repo, "journey-state.lock")):
         state = load_state(repo, state_only=state_only)
         previous = copy.deepcopy(state)
+        if simulation_scope is not None and state["journey"] != simulation_scope:
+            raise ValueError("Select the authoring journey before changing user simulation")
         create_patch = patch.get("scopes", {}).get("create") if isinstance(patch.get("scopes"), dict) else None
         if state["journey"] == "audit" and any(
             isinstance(patch.get(field), dict) and {"create", "expand"} & patch[field].keys()
@@ -982,7 +999,7 @@ def update(repo: Path, patch: dict, *, expected_revision: int | None = None, sta
         for field, value in patch.items():
             if state_only and field == "scopes":
                 # Metadata changes preserve source selections and historical decisions.
-                selected = "expand" if "expand" in value else "audit"
+                selected = next(iter(value))
                 prior_scope = state["scopes"].get(selected, {})
                 if not isinstance(prior_scope, dict):
                     prior_scope = {"legacy_context": prior_scope}
@@ -999,13 +1016,13 @@ def update(repo: Path, patch: dict, *, expected_revision: int | None = None, sta
                     field == "scopes"
                     and isinstance(expand_patch, dict)
                     and isinstance(prior_expand, dict)
-                    and (typed_expansion or "entry_choice" in expand_patch)
+                    and (typed_expansion or "entry_choice" in expand_patch or "user_simulation" in expand_patch)
                 ):
                     changes["expand"] = {**copy.deepcopy(prior_expand), **changes["expand"]}
                 if (
                     field == "scopes"
                     and isinstance(expand_patch, dict)
-                    and (typed_expansion or "entry_choice" in expand_patch)
+                    and (typed_expansion or "entry_choice" in expand_patch or "user_simulation" in expand_patch)
                     and not isinstance(prior_expand, dict)
                 ):
                     changes["expand"] = {"legacy_context": copy.deepcopy(prior_expand), **changes["expand"]}
@@ -1063,6 +1080,17 @@ def update(repo: Path, patch: dict, *, expected_revision: int | None = None, sta
         if not state_only and state["journey"] != "audit":
             first_eval_state.transition(repo, previous, state)
             expansion_state.transition(repo, previous, state)
+        if (simulation_scope == "create" or user_simulation_enabled(previous) != user_simulation_enabled(state)) and (
+            not user_simulation_enabled(previous) or not user_simulation_enabled(state)
+        ):
+            creation = first_eval_state.record(state)
+            if creation is not None and (
+                first_eval_state.user_sim_tasks(creation) or (creation["selection"] or {}).get("user_sim")
+            ):
+                creation["execution_settings_presented"] = None
+                if creation["selection"] is not None:
+                    creation["selection"].pop("authorization", None)
+        if not state_only and state["journey"] != "audit":
             creation = first_eval_state.progress(repo, state)
             if patch.get("journey_status", {}).get("create") == "complete" and creation and not creation["complete"]:
                 raise ValueError("Creation completion requires current selected native runs and their exact review")

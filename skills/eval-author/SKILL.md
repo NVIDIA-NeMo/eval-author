@@ -3,7 +3,7 @@ name: eval-author
 description: >-
   Use for "help me with my evals", "help me onboard to expand my evals",
   "what's the state of the eval suite here?", "what happened in this trace?",
-  or requests to create, discover, audit, or improve evaluations.
+  or requests to create, discover, audit, or improve evaluations, or "enable user simulation".
   For fresh full workflows, follow this skill's entry rules: general requests show
   rendered orientation before repository work; selected improvement paths carry
   forward. Scoped utilities keep their scope.
@@ -13,8 +13,8 @@ description: >-
   get a brief acknowledgment, then continue without another readiness pause.
   Build first evals from ETHOS.md, work on existing suites, inspect a NeMo Intake
   run, or derive a trace environment (experimental). Owns the evidence standard
-  for every Eval Author flow. Creating, auditing, and improving evals require
-  confirmed ETHOS.md and do not change the agent implementation.
+  for all flows. Creation, audits, and improvements require confirmed ETHOS.md
+  and keep agent code unchanged.
 triggers:
   - help me build evals for my agent
   - my agent has no evals yet
@@ -34,6 +34,8 @@ triggers:
   - what happened in this agent trace
   - create an evaluation environment from a trace
   - which eval author step do I need
+  - enable user simulation
+  - disable user simulation
 not-for:
   - eval-author-first-eval (use to establish Ethos and build first evals without prior coverage)
   - eval-author-discover (use to run the discovery pass and get a runnable verdict)
@@ -75,6 +77,10 @@ Work on repository-owned evaluation suites and understand agent traces. Route
 each request to the narrow sub-flow that owns it.
 
 ## Choose the entry route
+
+For “enable user simulation” or a request to enable or disable experimental user
+simulation, apply the scoped [simulation opt-in gate](references/coverage-planning.md#enable-experimental-user-simulation).
+This setting change keeps its scope and doesn't start the onboarding flow below.
 
 Use the requested outcome and prior answers before asking a question. Creating,
 auditing, and improving evals use the **Shared prerequisites and Ethos** flow

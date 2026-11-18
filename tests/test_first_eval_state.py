@@ -169,8 +169,16 @@ def review_first(modules, repo, value):
     return save(modules, repo, value)
 
 
-def ready(modules, repo, provider="harbor", examples=None):
+def ready(modules, repo, provider="harbor", examples=None, *, simulation=False):
     value = start(modules, repo, provider, examples)
+    if simulation:
+        state = modules[0]
+        state.update(
+            repo,
+            {"scopes": {"create": {"user_simulation": {"enabled": True, "source": "enable user simulation"}}}},
+            expected_revision=state.load_state(repo)["revision"],
+            state_only=True,
+        )
     approve(modules, repo, value)
     author(modules, repo, value, "refund")
     check(modules, repo, value, "refund", "environment")
@@ -1689,6 +1697,12 @@ def test_saved_design_revise_or_new_preserves_artifacts_runs_and_reopens_the_rig
         {"scopes": {"create": {"trace_choice": "none"}}},
         expected_revision=modules[0].load_state(tmp_path)["revision"],
     )
+    modules[0].update(
+        tmp_path,
+        {"scopes": {"create": {"user_simulation": {"enabled": True, "source": "enable user simulation"}}}},
+        expected_revision=modules[0].load_state(tmp_path)["revision"],
+        state_only=True,
+    )
     prior = copy.deepcopy(value)
     task_bytes = {
         key: (tmp_path / task["path"] / "instruction.md").read_bytes() for key, task in value["tasks"].items()
@@ -1706,6 +1720,7 @@ def test_saved_design_revise_or_new_preserves_artifacts_runs_and_reopens_the_rig
     assert facts(modules, tmp_path)["next_stage"] == ("traces" if decision == "new" else "proposal")
     assert not facts(modules, tmp_path)["execution_authorized"]
     assert (modules[1].trace_choice(updated) is None) is (decision == "new")
+    assert ("user_simulation" in updated["scopes"]["create"]) is (decision != "new")
     retained["plan"]["trace_choice"] = "none"
     save(modules, tmp_path, retained)
     approve(modules, tmp_path, retained)

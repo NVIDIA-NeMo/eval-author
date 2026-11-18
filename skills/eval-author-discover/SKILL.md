@@ -45,6 +45,10 @@ metadata:
 
 # Eval Author: discover
 
+Inspecting a native `user_agent` configuration doesn't enable simulation. Apply
+[the simulation opt-in gate](../eval-author/references/coverage-planning.md#enable-experimental-user-simulation)
+before continuing into simulation authoring or execution.
+
 ## Purpose
 
 The Eval Author discovery pass. Read `eval-author` for the shared standard,

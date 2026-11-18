@@ -3,6 +3,8 @@
 
 # Translate a scenario for Harbor
 
+Apply the selected suite's [simulation opt-in gate](coverage-planning.md#enable-experimental-user-simulation) before translation or execution.
+
 Read the [scenario contract](../../eval-author-user-sim/references/scenario-contract.md)
 for the input format, neutral behavior, and information boundaries.
 

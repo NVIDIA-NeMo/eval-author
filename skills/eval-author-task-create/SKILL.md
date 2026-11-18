@@ -60,8 +60,8 @@ For an approved `user_sim` task, call [user-sim authoring](../eval-author-user-s
 
 ## Purpose
 
-Use `eval-author` for shared evidence rules and `eval-author-audit` for measurement and aggregation.
-Use Step 1 for explicitly requested recommendations or planning across tools, capabilities,
+Apply the [simulation opt-in gate](../eval-author/references/coverage-planning.md#enable-experimental-user-simulation) before selecting interaction types, authoring scenarios, or executing simulation.
+Use `eval-author` for shared evidence rules and `eval-author-audit` for measurement and aggregation. Use Step 1 for explicitly requested recommendations or planning across tools, capabilities,
 and failure cases. Proposal-only requests stop after Step 1. Keep shared lifecycle decisions
 and pending work only in `.eval-author/.working/journey-state.json`.
 Recommendations remain user-facing and native evidence stays immutable.

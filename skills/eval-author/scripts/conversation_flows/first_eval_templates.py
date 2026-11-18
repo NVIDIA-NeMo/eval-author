@@ -316,3 +316,9 @@ LINK_LABELS = {
     "rerun": "saved run instructions",
     "task_rerun": "Task-specific run instructions",
 }
+
+
+SIMULATION_DISABLED = """User simulation is disabled for this suite. Saved tasks and results remain available.
+Say “enable user simulation” to make experimental simulation authoring and execution available,
+or revise the design to use Single Turn or Scripted Multi-step. Enabling simulation
+keeps the usual task review and execution authorization checks."""

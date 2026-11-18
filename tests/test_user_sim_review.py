@@ -61,7 +61,7 @@ def translated_inputs(repo: Path) -> dict:
 
 def selected_user_sim(modules, repo: Path) -> dict:
     translated = translated_inputs(repo)
-    value = creation.ready(modules, repo, examples=design())
+    value = creation.ready(modules, repo, examples=design(), simulation=True)
     bindings = modules[1].bind_user_sim_translation(repo, translated)
     bindings["bridge"] = {
         "source": "Synthetic proof fixture for state tests",
@@ -83,7 +83,7 @@ def test_native_namespaced_task_translates_and_binds_to_agreed_plan_id(modules, 
     config.write_text(
         "tasks:\n  - path: .eval-author/tasks/refund\nagents:\n  - name: claude-code\nuser_agent:\n  name: codex\n"
     )
-    value = creation.ready(modules, tmp_path, examples=design())
+    value = creation.ready(modules, tmp_path, examples=design(), simulation=True)
     receipt = translate(
         tmp_path / path / "user-sim.yaml", config, tmp_path / ".eval-author/.working/translation"
     ).to_dict()
@@ -116,7 +116,7 @@ def test_translation_receipt_cannot_bind_changed_sources_or_generated_configurat
     scenario = tmp_path / ".eval-author/tasks/refund/user-sim.yaml"
     if changed == "scenario":
         scenario.write_text(SCENARIO.replace("I want to return my headphones.", "I need a replacement instead."))
-        creation.ready(modules, tmp_path, examples=design())
+        creation.ready(modules, tmp_path, examples=design(), simulation=True)
         assert creation.facts(modules, tmp_path)["first_task_approved"]
     else:
         config = Path(translated["run_config_path"])
@@ -244,7 +244,7 @@ def test_user_sim_execution_rejects_multi_task_scope_without_dropping_authored_w
     if extra_type is not None:
         second = {**design()[0], "id": "policy", "example_ids": ["policy-1"], "interaction_type": extra_type}
         planned.append(second)
-    value = creation.ready(modules, tmp_path, examples=planned)
+    value = creation.ready(modules, tmp_path, examples=planned, simulation=True)
     assert creation.facts(modules, tmp_path)["suite_approved"]
     before = modules[0].state_path(tmp_path).read_bytes()
     saved_tasks = copy.deepcopy(value["tasks"])
@@ -271,6 +271,12 @@ def test_user_sim_execution_rejects_multi_task_scope_without_dropping_authored_w
 def test_authored_report_and_review_keep_interaction_type_and_bound_neutral_scenario(modules, tmp_path):
     translated_inputs(tmp_path)
     value = creation.start(modules, tmp_path, examples=design())
+    modules[0].update(
+        tmp_path,
+        {"scopes": {"create": {"user_simulation": {"enabled": True, "source": "enable user simulation"}}}},
+        expected_revision=modules[0].load_state(tmp_path, state_only=True)["revision"],
+        state_only=True,
+    )
     creation.approve(modules, tmp_path, value)
     task(tmp_path, name="refund")
     write(
@@ -314,6 +320,7 @@ def test_authored_report_and_review_keep_interaction_type_and_bound_neutral_scen
 
 def test_settings_and_results_show_simulator_identity_without_adding_example_counts(rendering, monkeypatch):
     state, record, helper, renderer, _ = rendering
+    state["scopes"]["create"]["user_simulation"] = {"enabled": True, "source": "enable user simulation"}
     record["plan"]["tasks"] = record["plan"]["tasks"][:1]
     record["plan"]["tasks"][0].update(
         {key: value for key, value in design()[0].items() if key not in {"id", "example_ids"}}
@@ -359,3 +366,108 @@ def test_settings_and_results_show_simulator_identity_without_adding_example_cou
     stale = renderer.render(conversations.payload(rendering, "results", **conversations.result_facts(rendering)))
     assert "Saved review identity" in stale and "new-simulator-model" not in stale
     assert "0/1 completed attempts" in stale
+
+
+@pytest.mark.parametrize("journey", ["create", "expand"])
+def test_simulation_setting_is_scoped_revision_checked_and_metadata_only(modules, tmp_path, monkeypatch, journey):
+    state_helper, _ = modules
+    state_helper.initialize(tmp_path, journey=journey, state_only=True)
+    before = state_helper.load_state(tmp_path, state_only=True)
+    patch = {"scopes": {journey: {"user_simulation": {"enabled": True, "source": "enable user simulation"}}}}
+    with pytest.raises(ValueError, match="expected-revision"):
+        state_helper.update(tmp_path, patch, state_only=True)
+    monkeypatch.setattr(state_helper, "ethos_digest", lambda *_: pytest.fail("Read Ethos for a setting change"))
+    monkeypatch.setattr(state_helper, "task_digest", lambda *_: pytest.fail("Read tasks for a setting change"))
+    updated = state_helper.update(tmp_path, patch, expected_revision=before["revision"], state_only=True)
+    loaded = state_helper.load_state(tmp_path, state_only=True)
+    from interaction_types import user_simulation_enabled
+
+    assert user_simulation_enabled(loaded, journey)
+    assert not user_simulation_enabled(loaded, "expand" if journey == "create" else "create")
+    assert loaded["scopes"][journey]["user_simulation"]["source"] == "enable user simulation"
+    assert all(updated[key] == before[key] for key in ("ethos", "prerequisites", "pending_question", "setup"))
+    with pytest.raises(ValueError, match="State changed"):
+        state_helper.update(tmp_path, patch, expected_revision=before["revision"], state_only=True)
+
+
+def test_disabling_retains_results_and_reenabling_requires_fresh_run_authorization(modules, tmp_path):
+    value = selected_user_sim(modules, tmp_path)
+    creation.run(modules, tmp_path, value)
+    creation.review_run(modules, tmp_path, value)
+    state_helper, helper = modules
+    before = state_helper.load_state(tmp_path)
+    historical = copy.deepcopy(helper.record(before))
+    for enabled, source in ((False, "disable user simulation"), (True, "enable user simulation")):
+        state_helper.update(
+            tmp_path,
+            {"scopes": {"create": {"user_simulation": {"enabled": enabled, "source": source}}}},
+            expected_revision=state_helper.load_state(tmp_path, state_only=True)["revision"],
+            state_only=True,
+        )
+        loaded = state_helper.load_state(tmp_path)
+        progress = helper.progress(tmp_path, loaded)
+        record = helper.record(loaded)
+        assert progress["user_simulation_blocked"] is (not enabled)
+        assert not progress["execution_authorized"]
+        assert record["execution_settings_presented"] is None
+        assert "authorization" not in record["selection"]
+        assert all(record[key] == historical[key] for key in ("plan", "tasks", "runs", "run_review"))
+        assert progress["scope_approved"] and progress["suite_approved"]
+        if not enabled:
+            assert progress["next_stage"] == "simulation_disabled"
+
+
+def test_legacy_simulation_suite_is_readable_but_off_without_explicit_choice(modules, tmp_path):
+    selected_user_sim(modules, tmp_path)
+    state = modules[0].load_state(tmp_path)
+    state["scopes"]["create"].pop("user_simulation")
+    before = copy.deepcopy(state)
+    progress = modules[1].progress(tmp_path, state)
+    assert progress["user_simulation_blocked"]
+    assert not progress["execution_authorized"] and not progress["selection_current"]
+    assert state == before
+
+
+def test_disabled_simulation_resume_explains_enable_trigger_without_authoring(rendering):
+    state, record, _, renderer, _ = rendering
+    record["plan"]["tasks"] = design()
+    before = copy.deepcopy(state)
+    output = renderer.render(conversations.payload(rendering, "simulation_disabled"))
+    assert "User simulation is disabled" in output
+    assert "enable user simulation" in output
+    assert state == before
+
+
+@pytest.mark.parametrize("interaction_type", ["single_turn", "scripted_multi_step"])
+def test_simulation_setting_does_not_change_ordinary_execution(modules, tmp_path, interaction_type):
+    planned = [
+        {
+            "id": "refund",
+            "example_ids": ["refund-1"],
+            "interaction_type": interaction_type,
+            "state_requirements": "Keep the same cart across requests.",
+            "prerequisite_checks": ["The requested item is in the cart before its removal."],
+        }
+    ]
+    value = creation.ready(modules, tmp_path, examples=planned)
+    creation.select(modules, tmp_path, value)
+    state_helper = modules[0]
+    before = copy.deepcopy(value)
+    for enabled in (True, False):
+        state_helper.update(
+            tmp_path,
+            {"scopes": {"create": {"user_simulation": {"enabled": enabled, "source": "User setting change"}}}},
+            expected_revision=state_helper.load_state(tmp_path, state_only=True)["revision"],
+            state_only=True,
+        )
+        assert creation.facts(modules, tmp_path)["execution_authorized"]
+        assert modules[1].record(state_helper.load_state(tmp_path)) == before
+
+
+def test_disabled_simulation_cannot_record_new_task_construction(modules, tmp_path):
+    value = creation.start(modules, tmp_path, examples=design())
+    creation.approve(modules, tmp_path, value)
+    before = modules[0].state_path(tmp_path).read_bytes()
+    with pytest.raises(ValueError, match="User simulation is disabled"):
+        creation.author(modules, tmp_path, value, "refund")
+    assert modules[0].state_path(tmp_path).read_bytes() == before

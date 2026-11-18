@@ -14,7 +14,7 @@ from itertools import chain
 from pathlib import Path, PurePosixPath
 from typing import Literal, TypedDict
 
-from interaction_types import validate_interaction_plan
+from interaction_types import user_simulation_enabled, validate_interaction_plan
 
 BUILD_STEPS = ("environment", "environment_check", "grading", "artifacts")
 REMAINING_STEPS = ("tasks", "environment_check", "validation", "artifacts")
@@ -704,6 +704,9 @@ def derive(state: dict, observed: object) -> dict | None:
     settings_digest = fingerprint({"plan_digest": plan_digest, "settings": execution_settings(value)})
     settings = execution_settings(value)
     simulation_tasks = user_sim_tasks(value)
+    simulation_blocked = bool(
+        (simulation_tasks or (value["selection"] or {}).get("user_sim")) and not user_simulation_enabled(state)
+    )
     settings_resolved = bool(
         _settings_fields(settings)
         and not settings["open_questions"]
@@ -733,6 +736,7 @@ def derive(state: dict, observed: object) -> dict | None:
     simulation_current = bool(
         simulation
         and value["provider"] == "harbor"
+        and not simulation_blocked
         and simulation_tasks == {simulation["task_id"]}
         and simulation["scenario"]["path"]
         == value["tasks"].get(simulation["task_id"], {}).get("path", "") + "/user-sim.yaml"
@@ -917,6 +921,8 @@ def derive(state: dict, observed: object) -> dict | None:
         if not trace_choice(state)
         else "proposal"
         if not approved
+        else "simulation_disabled"
+        if simulation_blocked
         else "validation_setup"
         if setup_needed
         else "prepare_first"
@@ -948,6 +954,7 @@ def derive(state: dict, observed: object) -> dict | None:
         else "ready_to_run"
     )
     return {
+        "user_simulation_blocked": simulation_blocked,
         "scope_approved": approved,
         "plan_approved": approved,
         "plan_digest": plan_digest,
@@ -1036,6 +1043,7 @@ def transition(repo, previous: dict, updated: dict) -> None:
                 if updated["next_handoff"] == "eval-author-audit":
                     updated["next_handoff"] = None
             if saved_review["decision"] == "new":
+                updated["scopes"]["create"].pop("user_simulation", None)
                 after["plan"].pop("trace_choice", None)
                 updated["scopes"]["create"].pop("trace_choice", None)
     old = progress(repo, previous) if before else None
@@ -1250,6 +1258,11 @@ def transition(repo, previous: dict, updated: dict) -> None:
         or task.get("validation") != prior_tasks[key].get("validation")
         and task.get("validation") is not None
     }
+    if now["user_simulation_blocked"] and (
+        changed_tasks & user_sim_tasks(after)
+        or any(after.get(key) != (before or {}).get(key) for key in ("first_task_build", "remaining_build"))
+    ):
+        raise ValueError("User simulation is disabled for this suite. Enable it before simulation authoring.")
     if changed_tasks and not setup_saved_ready:
         raise ValueError("Resolve and save grader validation setup before task creation or new grading checks")
     if (

@@ -118,7 +118,8 @@ def observations(record):
 
 
 def test_proposal_displays_selected_interaction_without_inferring_legacy_type(creation):
-    _, record, _, renderer, _ = creation
+    state, record, _, renderer, _ = creation
+    state["scopes"]["create"]["user_simulation"] = {"enabled": True, "source": "enable user simulation"}
     record["plan"]["tasks"][0].update(
         interaction_type="user_sim",
         state_requirements="Keep the same customer session.",

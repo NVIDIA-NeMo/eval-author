@@ -37,6 +37,7 @@ STAGES = {
         "results",
         "resume",
         "blockers",
+        "simulation_disabled",
     )
 }
 CONTENT_FIELDS = {
@@ -895,6 +896,10 @@ def render(payload: dict) -> str:
         assert record is not None
         if stage == "resume":
             stage = progress["next_stage"]
+        if progress["user_simulation_blocked"] and stage != "results":
+            return copy.SIMULATION_DISABLED + "\n"
+        if stage == "simulation_disabled":
+            raise ValueError("The selected suite has no disabled simulation work")
         if stage == "proposal":
             if progress["scope_approved"]:
                 raise ValueError("Scope is already approved; resume the saved next stage")

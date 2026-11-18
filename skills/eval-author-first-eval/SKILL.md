@@ -37,6 +37,9 @@ metadata:
 
 # Eval Author: first evaluations
 
+Apply the shared [simulation opt-in gate](../eval-author/references/coverage-planning.md#enable-experimental-user-simulation)
+when selecting interaction types and before simulation authoring or execution.
+
 ## A recorded trace as a starting source
 
 For a user-selected recorded trace, follow the shared [trace source handoff](../eval-author/references/trace-input.md).
