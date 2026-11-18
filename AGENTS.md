@@ -37,6 +37,9 @@ Review every change for repeated content: instructions, setup steps, workflow li
 - Search for existing coverage, fixtures, factories, and test helpers before adding another test or setup path. Extend or parameterize an existing test when the behavior is the same and only inputs or expected results differ.
 - Consolidate duplicate unit tests and repeated setup or assertions where practical. Share fixtures and helpers at the narrowest useful scope, keeping test intent and failures easy to understand.
 - Preserve distinct behavioral cases, edge cases, failure paths, and integration boundaries when deduplicating. Keep expected results independent of the production logic under test; do not compute expectations with the same helper being checked.
+- Keep unit tests focused: use the smallest valid fixture that exercises the behavior, rather than rebuilding a full demo or invoking a CLI for each field assertion. Retain dedicated integration and end-to-end tests for the real producer, CLI, and replay paths.
+- Reuse expensive read-only setup and generated artifacts through appropriately scoped fixtures where isolation and artifact identity allow it. Parameterization alone does not eliminate repeated setup. Keep mutable cases isolated and retain independent executions when testing determinism, fresh-process behavior, or replay; copied output is not proof of a second run.
+- Measure setup and call durations before optimizing, then compare affected-test and full-suite wall time on comparable runs. Preserve behavioral coverage and report skips and unavailable runtimes separately from passes; do not claim a speedup by omitting cases, adding skips, or weakening assertions.
 
 ## Types and validation
 
