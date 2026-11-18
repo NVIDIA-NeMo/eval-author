@@ -398,6 +398,10 @@ appear alongside a canonical blocker. When any canonical blocker appears, the
 renderer does not append the saved `pending_question`; it retains that state
 unchanged and uses the canonical action or question instead.
 
+For custom blockers whose saved recovery question will be rendered, use
+`needed` to name the missing requirement or evidence; let the question carry
+the action. Do not repeat the same recovery instruction in both.
+
 Present the complete rendering unchanged. Do not append another pause explanation,
 quote, skill attribution, question, or Next Steps section: the canonical paragraph
 already supplies the linked instruction. Put any required custom blocker
