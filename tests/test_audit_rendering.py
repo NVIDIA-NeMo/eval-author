@@ -217,7 +217,8 @@ def checkpoint(modules, stage):
                 for label, reason in [
                     (
                         "grader improvement",
-                        "Verify the refund transaction instead of accepting a keyword in the final response.",
+                        "Verify the refund transaction instead of accepting a keyword in the final response. "
+                        "Applying this recommendation to the existing grader inside Eval Author is not yet supported.",
                     ),
                     ("new scenario", "Exercise a refund request after identity verification fails."),
                 ]
