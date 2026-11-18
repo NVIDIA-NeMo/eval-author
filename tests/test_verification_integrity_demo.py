@@ -8,6 +8,7 @@ import json
 import os
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 import pytest
@@ -33,7 +34,11 @@ def test_demo_rejects_mutated_actual_rubric_groups(tmp_path, monkeypatch, mutati
 
     def mutate(root, name, argv):
         completed, report = real_command(root, name, argv)
-        check = next(row for row in report["items"]["CREATE-07"]["check_results"] if row["id"] == "CREATE-07-C01")
+        check = next(
+            row
+            for row in report["items"]["provenance.evidence-revision-consistency"]["check_results"]
+            if row["id"] == "provenance.evidence-revision-consistency.deterministic-1"
+        )
         if mutation == "missing-group":
             check.pop("group_scores")
         elif mutation == "tampered-score":
@@ -60,6 +65,54 @@ def invoke(root):
     )
 
 
+def test_real_cli_normalizes_fresh_run_inside_repository():
+    with tempfile.TemporaryDirectory(prefix=".integrity-determinism-", dir=ROOT) as directory:
+        root = Path(directory) / "demo"
+        completed = invoke(root)
+        panel = json.loads((root / "panel.json").read_text())
+        assert all(case["matches_expectations"] for case in panel["cases"])
+        assert panel["determinism"]["normalized_fresh_run_equal"] is True
+        assert completed.returncode == 0, completed.stdout + completed.stderr
+        assert (root / "normalized-result.json").read_bytes() == (
+            root / "fresh-replay/normalized-result.json"
+        ).read_bytes()
+        for run in (root, root / "fresh-replay"):
+            raw = json.loads((run / "panel.json").read_text())
+            projected = json.loads((run / "normalized-result.json").read_text())
+            for name in ("stale", "acceptance-contradiction", "acceptance-consistent-claim"):
+                original = next(case for case in raw["cases"] if case["id"] == name)
+                normalized_case = next(case for case in projected["cases"] if case["id"] == name)
+                original_rows = original["observed"]["required_verification"]["cases"]
+                normalized_rows = normalized_case["observed"]["required_verification"]["cases"]
+                expected_path = (run / name / "manifest.json").relative_to(ROOT).as_posix()
+                assert {row["manifest"] for row in original_rows} == {expected_path}
+                assert normalized_rows == [{**row, "manifest": f"{name}/manifest.json"} for row in original_rows]
+
+        demo = load_demo()
+        baseline = demo.normalized(panel, root)
+        relative_root = root.relative_to(ROOT).as_posix()
+        for manifest, expected in (
+            (f"{relative_root}/stale/other-manifest.json", "stale/other-manifest.json"),
+            (f"{relative_root}/different/manifest.json", "different/manifest.json"),
+            (f"{relative_root}-other/stale/manifest.json", f"{relative_root}-other/stale/manifest.json"),
+            (f"foreign/{relative_root}/stale/manifest.json", f"foreign/{relative_root}/stale/manifest.json"),
+            (f"{root}/stale/other-manifest.json", "stale/other-manifest.json"),
+            (f"{root}-other/stale/manifest.json", f"{root}-other/stale/manifest.json"),
+        ):
+            mutated = json.loads(json.dumps(panel))
+            stale = next(case for case in mutated["cases"] if case["id"] == "stale")
+            stale["observed"]["required_verification"]["cases"][0]["manifest"] = manifest
+            projected = demo.normalized(mutated, root)
+            assert projected != baseline
+            projected_stale = next(case for case in projected["cases"] if case["id"] == "stale")
+            assert projected_stale["observed"]["required_verification"]["cases"][0]["manifest"] == expected
+            assert stale["observed"]["required_verification"]["cases"][0]["manifest"] == manifest
+        for field, value in (("score", 3), ("failed", 1)):
+            mutated = json.loads(json.dumps(panel))
+            next(case for case in mutated["cases"] if case["id"] == "stale")["observed"][field] = value
+            assert demo.normalized(mutated, root) != baseline
+
+
 def test_real_receipts_and_cli_produce_all_four_score_anchors(tmp_path):
     root = tmp_path / "demo"
     completed = invoke(root)
@@ -79,7 +132,11 @@ def test_real_receipts_and_cli_produce_all_four_score_anchors(tmp_path):
         measured = report["measurements"]["native"]["receipt_integrity"]
         assert measured["eligible_claims"] == 4
         assert measured["contradictions"] == case["observed"]["failed"]
-        check = next(row for row in report["items"]["CREATE-07"]["check_results"] if row["id"] == "CREATE-07-C01")
+        check = next(
+            row
+            for row in report["items"]["provenance.evidence-revision-consistency"]["check_results"]
+            if row["id"] == "provenance.evidence-revision-consistency.deterministic-1"
+        )
         assert case["observed"]["group_scores"] == check["group_scores"]
         assert case["observed"]["score"] == next(
             row["score"] for row in check["group_scores"] if row["id"] == "receipt_consistency"

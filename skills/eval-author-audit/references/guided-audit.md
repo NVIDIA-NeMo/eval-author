@@ -62,7 +62,7 @@ actual reply and reason in `source`, not an offered choice or missing-input find
 Native scripts establish measurement correctness; the lifecycle checks retained bytes.
 
 Save the generated report, content, and input bindings in `findings` using the
-[report binding rules](coverage-report.md#review-and-bindings) and bind
+[report binding rules](coverage-report.md#review-and-bindings).
 Current recorded findings are reviewed automatically; no user acceptance or
 `findings_review` record is needed. A task review records the checks report as
 `findings` before it analyzes the tasks, so approving the checks does not finish it.
@@ -130,7 +130,10 @@ choices and present any still-pending suite selection before continuing.
 When selected paths are missing or saved selections conflict with current handoff
 or authoring records, explain the mismatch in the final blocker or source-selection response.
 Name the selected suites/tasks and runs, their selection provenance, and exactly
-which checked paths are missing. Contrast relevant current work already known,
+which checked paths are missing. When a selected suite holds evaluations that are
+neither Harbor tasks nor NeMo Gym environments, give the
+[format warning](../../eval-author/references/task-format.md) with the scope
+summary and continue. Contrast relevant current work already known,
 distinguishing saved records from verified files. Honor a current explicit
 selection even when newer work exists. If scope is unclear, ask which named set
 to audit before requesting its run source. Preserve prior selections until that
@@ -364,27 +367,34 @@ When the findings are recorded, set `journey_status.audit` to `complete` if
 
 ### After review: offer the next step
 
-Include the next-step offer with the findings. For an existing suite, propose new
-or improved eval tasks for the report's main gaps. Name the relevant behaviors
-and explain that the next deliverable is a ranked set of candidate scenarios,
-expected behavior, and verification plans. Avoid ending only with a generic
-invitation for questions or a bare link to another skill.
+Include the next-step offer with the findings. Refer to the concrete
+recommendations already in the report and explain relevant implementation limits
+alongside the affected recommendation. Do not imply that Eval Author can apply
+an unsupported change. Offer to continue with the selected work, not to produce
+another set of recommendations or repair proposals. Avoid ending only with a
+generic invitation for questions or a bare link to another skill.
 
 Recording findings ends the audit; render `audit_next_action` as acknowledgement
-without a new offer or forced question. Do not begin proposal analysis, writes,
-or background work unless the user selects that action. A broad audit-and-suggest
+without a new offer or forced question. Do not begin follow-up planning, writes,
+or background work unless the user selects a next action. A broad audit-and-suggest
 request does not select it. A reply choosing the offered action settles it
 without another permission prompt.
 
-Once proposals are selected, enter `eval-author-task-create` at **Step 1: propose dataset
-improvements**. Carry the Audit coverage report, reviewed Audit specification,
+Once recommendations are selected, save their specific IDs through the
+[selected improvement handoff](coverage-report.md#selected-improvement-handoff-and-follow-through)
+and follow the [selected audit continuation](../../eval-author/references/conversations/expansion.md#selected-audit-improvements).
+Carry the Audit coverage report, reviewed Audit specification,
 available Coverage measurements (JSON) and evidence, selected source scope, user
 corrections, and agreed priorities.
-Do not restart the audit or repeat settled questions. Expand the existing
-next actions in the same Audit coverage report using its
-[report guidance](coverage-report.md#findings-limitations-and-next-actions).
-Creating and running tasks stays separately scoped. If the user declines,
+Do not restart the audit, repeat settled questions, or run another recommendation
+pass. Creating and running tasks stays separately scoped. If the user declines,
 finish with the reviewed report and derived checklist, retaining incomplete measurement.
+
+An explicit request for additional planning may enter `eval-author-task-create`
+at **Step 1: propose dataset improvements**, expanding the same report records
+under the [report guidance](coverage-report.md#findings-limitations-and-next-actions).
+Proposal-only requests stop before construction. Do not offer that step as a
+substitute for unsupported implementation.
 
 Adapt the recommendation to the findings. Without usable run evidence, explain
 what measurement needs; any task ideas based on inspected definitions remain

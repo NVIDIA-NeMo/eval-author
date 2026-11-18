@@ -694,8 +694,8 @@ def test_fixed_trace_options_and_saved_selection(creation):
     assert output == PLANNING_PROGRESS + "\n\n" + (
         "We’ll use your confirmed `ETHOS.md` to propose your first evaluation tasks. "
         "Existing traces can help us use realistic requests, but they aren’t required.\n\n"
-        "Would you like to use existing traces, or start from `ETHOS.md`?\n\n"
-        "- Start from ETHOS.md\n- Use existing traces\n"
+        "Would you like to include existing traces when designing your first evaluations?\n\n"
+        "- Continue without traces\n- Include existing traces\n"
     )
     assert "synthetic" not in output
     record["plan"]["trace_choice"] = "none"
@@ -739,7 +739,7 @@ def test_design_checkpoints_keep_workflow_progress_before_the_decision(creation,
 def test_source_answer_is_required_before_any_proposal(creation):
     _, record, _, renderer, copy = creation
     record["plan"].pop("trace_choice")
-    with pytest.raises(ValueError, match="choice of existing traces or ETHOS.md"):
+    with pytest.raises(ValueError, match="choice of whether to include existing traces"):
         renderer.render(payload(creation, "proposal"))
     output = renderer.render(payload(creation, "resume"))
     assert copy.TRACE_QUESTION in output
@@ -1485,7 +1485,7 @@ def test_saved_design_missing_source_and_fields_remain_unknown(creation):
     output = renderer.render(payload(creation, "resume"))
     assert "| refund | Not recorded |" in output
     assert "Not recorded; the source choice still needs confirmation." in output
-    assert "Would you like to use existing traces" not in output
+    assert "Would you like to include existing traces" not in output
 
 
 def test_explicit_continue_reuses_approval_without_reasking_on_every_resume(creation):

@@ -12,8 +12,10 @@ import subprocess
 import sys
 from contextlib import nullcontext
 from pathlib import Path
+from types import ModuleType
 
 import pytest
+from journey_state_support import ethos_ready, setup_ready
 
 SCRIPTS = Path(__file__).resolve().parents[1] / "skills/eval-author/scripts"
 
@@ -22,23 +24,6 @@ SCRIPTS = Path(__file__).resolve().parents[1] / "skills/eval-author/scripts"
 def state(monkeypatch):
     monkeypatch.syspath_prepend(str(SCRIPTS))
     return importlib.import_module("journey_state")
-
-
-def setup_ready(state, repo, *, journey="create", setup="gym"):
-    state.initialize(repo, agent="assistant", journey=journey, setup=setup)
-    return state.update(
-        repo, {"prerequisites": {key: {"status": "confirmed", "source": "user reply 2"} for key in state.PREREQUISITES}}
-    )
-
-
-def ethos_ready(state, repo):
-    (repo / "ETHOS.md").write_text("# Confirmed agent intent\n")
-    return state.confirm_ethos(
-        repo,
-        reviewed_digest=state.ethos_digest(repo),
-        source="user reviewed saved document in reply 4",
-        validation="ethos-write parser passed",
-    )
 
 
 def save_legacy_state(state, repo, patch):
@@ -1151,7 +1136,6 @@ def test_agent_change_keeps_current_context_without_reusing_approval(state, tmp_
                 "draft_source": "Original agent draft approval in reply 4",
                 "source_findings": findings,
                 "prior_answers": answers,
-                "remaining_questions": ["Which refund regions apply?"],
             }
         },
     )
@@ -1161,6 +1145,7 @@ def test_agent_change_keeps_current_context_without_reusing_approval(state, tmp_
         state,
         tmp_path,
         {
+            "ethos": {**state.load_state(tmp_path)["ethos"], "remaining_questions": ["Which refund regions apply?"]},
             "scopes": {
                 "create": {"cases": ["refund"], "priorities": ["accuracy"], "confirmed": True},
                 "audit": {"traces": ["selected.json"], "confirmed": True},
@@ -1786,6 +1771,57 @@ def test_required_runtime_blocks_onboarding_until_resolved(
     confirmed = resolved if ethos_confirmed else ethos_ready(state, tmp_path)
     assert state.checklist(confirmed)[2]["current"]
     assert not state.checklist(confirmed)[2]["complete"]
+
+
+@pytest.mark.parametrize("agreed", [False, True])
+def test_expansion_scope_replacement_preserves_handoff_without_stale_decisions(
+    state: ModuleType, tmp_path: Path, agreed: bool
+) -> None:
+    setup_ready(state, tmp_path, journey="expand")
+    ethos_ready(state, tmp_path)
+    handoff = {
+        "recommendation_ids": ["R1", "R3"],
+        "findings_digest": state.digest(b"Reviewed audit findings"),
+        "report": {"path": ".eval-author/report_markdown/audits.md", "digest": state.digest(b"Audit report")},
+        "content": {"path": ".eval-author/report-content.json", "digest": state.digest(b"Structured audit report")},
+        "source": "User selected R1 and R3 after reviewing the audit",
+    }
+    original = save_legacy_state(
+        state,
+        tmp_path,
+        {
+            "scopes": {
+                "expand": {
+                    "audit_handoff": handoff,
+                    "cases": ["previous-case"],
+                    "confirmed": False,
+                    "needs_review": True,
+                    "pending_design": "Earlier scope question",
+                    "legacy_context": "Earlier expansion work",
+                },
+                "audit": {"traces": ["runs/audit.json"], "confirmed": False},
+            },
+            "journey_status": {"expand": "in_progress"},
+        },
+    )
+    scope = {"cases": ["agreed-case"], "confirmed": True} if agreed else {}
+    updated = state.update(
+        tmp_path,
+        {
+            "scopes": {"expand": scope},
+            "journey_status": {"expand": "complete" if agreed else "in_progress"},
+        },
+        expected_revision=original["revision"],
+    )
+    assert updated["scopes"]["expand"] == {"audit_handoff": handoff, **scope}
+    assert updated["scopes"]["audit"] == original["scopes"]["audit"]
+    assert state.checklist(updated)[2]["complete"] is agreed
+    reloaded = state.load_state(tmp_path)
+    resumed = state.initialize(tmp_path, journey="expand")
+    for saved in (reloaded, resumed):
+        assert saved["scopes"] == updated["scopes"]
+        assert saved["journey_status"] == updated["journey_status"]
+        assert state.checklist(saved)[2]["complete"] is agreed
 
 
 @pytest.mark.parametrize("input_source", ["file", "stdin"])
@@ -2841,3 +2877,130 @@ def test_state_only_framework_observation_never_replaces_nonmapping_history(stat
         )
     assert state.state_path(tmp_path).read_bytes() == before
     assert state.load_state(tmp_path, state_only=True) == original
+
+
+@pytest.mark.parametrize("kind", ["starter", "trace"])
+@pytest.mark.parametrize("history", [None, "Earlier expansion scope", {"priorities": ["refunds"], "confirmed": False}])
+def test_state_only_expansion_choice_survives_blocked_prerequisites_and_cli_resume(
+    state, tmp_path, monkeypatch, capsys, kind, history
+):
+    original = state.initialize(tmp_path, journey="expand", state_only=True)
+    if history is not None:
+        original["scopes"]["expand"] = copy.deepcopy(history)
+        state.save(tmp_path, original)
+    choice = {"kind": kind, "source": "User selected the expansion path in reply 2"}
+    patch = {
+        "scopes": {"expand": {"entry_choice": choice}},
+        "prerequisites": {"python": {"status": "missing", "source": "Runtime probe failed"}},
+        "blockers": [{"id": "python", "phase": "setup", "message": "Install the selected runtime"}],
+        "pending_question": "Can you install the selected runtime?",
+    }
+    patch_path = tmp_path / ".eval-author/.working/entry-choice.json"
+    patch_path.write_text(json.dumps(patch))
+    forbid_artifact_checks(state, monkeypatch, [tmp_path / "ETHOS.md", tmp_path / "tasks"])
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "journey_state.py",
+            "--repo",
+            str(tmp_path),
+            "--state-only",
+            "update",
+            "--input",
+            str(patch_path),
+            "--expected-revision",
+            str(original["revision"]),
+        ],
+    )
+    assert state.main() == 0
+    output = json.loads(capsys.readouterr().out)
+    assert output["artifact_checks_deferred"] is True
+    saved = output["state"]
+    expected_scope = history if isinstance(history, dict) else {"legacy_context": history} if history else {}
+    assert saved["scopes"]["expand"] == {**expected_scope, "entry_choice": choice}
+    assert saved["ethos"] == original["ethos"]
+    assert saved["tasks"] == original["tasks"]
+    assert saved["journey_status"] == original["journey_status"]
+    for command in (["show"], ["init", "--journey", "expand"]):
+        monkeypatch.setattr(sys, "argv", ["journey_state.py", "--repo", str(tmp_path), "--state-only", *command])
+        assert state.main() == 0
+        resumed = json.loads(capsys.readouterr().out)
+        assert resumed["state"]["scopes"]["expand"] == saved["scopes"]["expand"]
+        assert resumed["state"]["pending_question"] == patch["pending_question"]
+        assert not resumed["checklist"][0]["complete"]
+        assert resumed["checklist"][0]["blocked"]
+
+
+@pytest.mark.parametrize("state_only", [False, True])
+@pytest.mark.parametrize("revision", [None, -1])
+def test_expansion_entry_choice_requires_current_revision(state, tmp_path, state_only, revision):
+    state.initialize(tmp_path, journey="expand", state_only=True)
+    before = state.state_path(tmp_path).read_bytes()
+    with pytest.raises(ValueError, match="expected-revision|State changed"):
+        state.update(
+            tmp_path,
+            {"scopes": {"expand": {"entry_choice": {"kind": "starter", "source": "User reply"}}}},
+            expected_revision=revision,
+            state_only=state_only,
+        )
+    assert state.state_path(tmp_path).read_bytes() == before
+
+
+@pytest.mark.parametrize("journey", [None, "create", "audit"])
+def test_state_only_expansion_entry_choice_requires_expansion_journey(state, tmp_path, journey):
+    saved = state.initialize(tmp_path, journey=journey, state_only=True)
+    before = state.state_path(tmp_path).read_bytes()
+    with pytest.raises(ValueError, match="Select an authoring journey|require the expansion journey"):
+        state.update(
+            tmp_path,
+            {"scopes": {"expand": {"entry_choice": {"kind": "starter", "source": "User reply"}}}},
+            expected_revision=saved["revision"],
+            state_only=True,
+        )
+    assert state.state_path(tmp_path).read_bytes() == before
+
+
+@pytest.mark.parametrize(
+    "choice",
+    [
+        None,
+        {},
+        {"kind": "audit", "source": "User reply"},
+        {"kind": [], "source": "User reply"},
+        {"kind": "starter"},
+        {"kind": "starter", "source": " "},
+        {"kind": "trace", "source": "x" * 4001},
+        {"kind": "starter", "source": {"confirmed": True}},
+        {"kind": "starter", "source": "User reply", "confirmed": True},
+    ],
+)
+def test_expansion_entry_choice_rejects_malformed_input_and_saved_records(state, tmp_path, choice):
+    saved = state.initialize(tmp_path, journey="expand", state_only=True)
+    before = state.state_path(tmp_path).read_bytes()
+    with pytest.raises(ValueError, match="entry_choice"):
+        state.update(
+            tmp_path,
+            {"scopes": {"expand": {"entry_choice": choice}}},
+            expected_revision=saved["revision"],
+            state_only=True,
+        )
+    assert state.state_path(tmp_path).read_bytes() == before
+    saved["scopes"]["expand"] = {"entry_choice": choice}
+    state.state_path(tmp_path).write_text(json.dumps(saved))
+    with pytest.raises(ValueError, match="entry_choice"):
+        state.load_state(tmp_path, state_only=True)
+
+
+@pytest.mark.parametrize("field", ["confirmed", "needs_review", "lifecycle", "audit_handoff", "cases", "first_eval"])
+def test_state_only_expansion_entry_choice_cannot_launder_approval(state, tmp_path, field):
+    saved = state.initialize(tmp_path, journey="expand", state_only=True)
+    before = state.state_path(tmp_path).read_bytes()
+    with pytest.raises(ValueError, match="State-only updates accept"):
+        state.update(
+            tmp_path,
+            {"scopes": {"expand": {"entry_choice": {"kind": "starter", "source": "User reply"}, field: True}}},
+            expected_revision=saved["revision"],
+            state_only=True,
+        )
+    assert state.state_path(tmp_path).read_bytes() == before

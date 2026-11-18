@@ -12,17 +12,17 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "skills/eval-author-rubric/scripts/rubric_scoring.py"
 IDS = (
-    "DISC-01-A",
-    "DISC-01-B",
-    "DISC-01-C",
-    "DISC-02-A",
-    "DISC-02-B",
-    "DISC-03-A",
-    "AUD-02",
-    "ENV-01",
-    "ENV-02-A",
-    "ENV-03",
-    "CREATE-07",
+    "provenance.task-artifact-access",
+    "provenance.grading-path",
+    "provenance.grading-dependency-access",
+    "provenance.declared-configuration",
+    "provenance.observed-configuration",
+    "provenance.runtime-route",
+    "provenance.comparison-fairness",
+    "provenance.solver-tool-access",
+    "provenance.dependency-substitution",
+    "provenance.external-state",
+    "provenance.evidence-revision-consistency",
 )
 
 
@@ -84,7 +84,7 @@ def bind_inventory_source(tmp_path, selection):
 
 def test_selected_task_access_without_source_bytes_cannot_establish_completeness():
     measurements, selection = inventory_packet()
-    row = assess(measurements, selection)["DISC-01-A"]
+    row = assess(measurements, selection)["provenance.task-artifact-access"]
     assert (row["status"], row["score"], row["evidence_strength"]) == ("NOT_ASSESSED", None, "E2")
     assert row["evidence_refs"]
     assert row["limitations"]
@@ -94,7 +94,7 @@ def test_selected_task_access_without_source_bytes_cannot_establish_completeness
 def test_scope_assertions_without_measured_source_are_e0_not_numeric():
     measurements, selection = inventory_packet()
     measurements["identity"]["records"] = measurements["identity"]["records"][1:]
-    row = assess(measurements, selection)["DISC-01-A"]
+    row = assess(measurements, selection)["provenance.task-artifact-access"]
     assert row["score"] is None
     assert row["evidence_strength"] == "E0"
 
@@ -105,12 +105,12 @@ def test_confirmed_missing_required_task_is_zero_but_declared_missing_is_unknown
         {"code": "identity.artifact_missing", "subject": "task", "status": "unknown"}
     ]
     bind_inventory_source(tmp_path, selection)
-    row = assess(measurements, selection, root=tmp_path)["DISC-01-A"]
+    row = assess(measurements, selection, root=tmp_path)["provenance.task-artifact-access"]
     assert (row["score"], row["evidence_strength"]) == (0, "E2")
     assert row["measurements"]["missing"] == 1
     measurements["identity"]["records"][1]["access"] = "missing"
     measurements["identity"]["diagnostics"][0]["code"] = "identity.access_missing"
-    row = assess(measurements, selection, root=tmp_path)["DISC-01-A"]
+    row = assess(measurements, selection, root=tmp_path)["provenance.task-artifact-access"]
     assert row["score"] is None
     assert row["measurements"]["unresolved"] == 1
 
@@ -123,7 +123,7 @@ def test_readable_subset_with_known_identity_gap_is_partial_not_full(tmp_path):
         {"code": "identity.digest_mismatch", "subject": "input", "status": "fail"}
     ]
     bind_inventory_source(tmp_path, selection)
-    row = assess(measurements, selection, root=tmp_path)["DISC-01-A"]
+    row = assess(measurements, selection, root=tmp_path)["provenance.task-artifact-access"]
     assert (row["score"], row["evidence_strength"]) == (1, "E2")
     assert row["measurements"]["unresolved"] == 1
 
@@ -134,7 +134,7 @@ def test_missing_evidence_reference_does_not_prove_required_artifact_missing():
     measurements["identity"]["diagnostics"] = [
         {"code": "identity.artifact_missing", "subject": "task", "status": "unknown"}
     ]
-    assert assess(measurements, selection)["DISC-01-A"]["score"] is None
+    assert assess(measurements, selection)["provenance.task-artifact-access"]["score"] is None
 
 
 def route_packet(tmp_path, monkeypatch, *, expected="scorer", dependencies=None):
@@ -173,35 +173,40 @@ def route_packet(tmp_path, monkeypatch, *, expected="scorer", dependencies=None)
 def test_explicit_resolved_route_meets_bounded_two_not_runtime_readiness(tmp_path, monkeypatch):
     measurements, selection = route_packet(tmp_path, monkeypatch)
     rows = assess(measurements, selection, root=tmp_path)
-    assert (rows["DISC-01-B"]["score"], rows["DISC-01-B"]["evidence_strength"]) == (2, "E2")
-    assert rows["DISC-03-A"]["score"] is None
+    assert (rows["provenance.grading-path"]["score"], rows["provenance.grading-path"]["evidence_strength"]) == (2, "E2")
+    assert rows["provenance.runtime-route"]["score"] is None
 
 
 def test_wrong_selected_scorer_is_zero_and_ambiguity_is_partial(tmp_path, monkeypatch):
     measurements, selection = route_packet(tmp_path, monkeypatch, expected="other")
-    assert assess(measurements, selection, root=tmp_path)["DISC-01-B"]["score"] == 0
+    assert assess(measurements, selection, root=tmp_path)["provenance.grading-path"]["score"] == 0
     measurements, selection = route_packet(tmp_path, monkeypatch, dependencies={})
-    assert assess(measurements, selection, root=tmp_path)["DISC-01-B"]["score"] == 1
+    assert assess(measurements, selection, root=tmp_path)["provenance.grading-path"]["score"] == 1
     measurements["route"]["scorer"] = None
-    assert assess(measurements, selection, root=tmp_path)["DISC-01-B"]["score"] is None
+    assert assess(measurements, selection, root=tmp_path)["provenance.grading-path"]["score"] is None
 
 
 def test_grading_dependencies_need_source_bound_completeness_review(tmp_path):
     selection = source_selection(tmp_path)
     scope = selection["rubric_scope"]["grading_dependencies"]
     scope.pop("review_source")
-    assert json.loads(run_cli(tmp_path, selection).stdout)["items"]["DISC-01-C"]["score"] is None
+    assert (
+        json.loads(run_cli(tmp_path, selection).stdout)["items"]["provenance.grading-dependency-access"]["score"]
+        is None
+    )
     scope["review_source"] = "review"
-    assert json.loads(run_cli(tmp_path, selection).stdout)["items"]["DISC-01-C"]["score"] == 2
+    assert (
+        json.loads(run_cli(tmp_path, selection).stdout)["items"]["provenance.grading-dependency-access"]["score"] == 2
+    )
 
 
 def test_task_inventory_requires_task_roles_and_reference_origin_binding():
     measurements, selection = inventory_packet()
     measurements["identity"]["records"][1]["role"] = "scorer"
-    assert assess(measurements, selection)["DISC-01-A"]["score"] is None
+    assert assess(measurements, selection)["provenance.task-artifact-access"]["score"] is None
     measurements["identity"]["records"][1]["role"] = "task"
     measurements["identity"]["records"][1]["source"] = "unrelated.json"
-    assert assess(measurements, selection)["DISC-01-A"]["score"] is None
+    assert assess(measurements, selection)["provenance.task-artifact-access"]["score"] is None
 
 
 def test_unsupported_claims_keep_unknown_with_specific_gap_even_for_pass_flags():
@@ -216,10 +221,19 @@ def test_unsupported_claims_keep_unknown_with_specific_gap_even_for_pass_flags()
         {"code": "identity.digest_mismatch", "subject": "task", "status": "fail"}
     ]
     rows = assess(measurements, selection)
-    for ident in ("DISC-02-A", "DISC-02-B", "DISC-03-A", "AUD-02", "ENV-01", "ENV-02-A", "ENV-03", "CREATE-07"):
+    for ident in (
+        "provenance.declared-configuration",
+        "provenance.observed-configuration",
+        "provenance.runtime-route",
+        "provenance.comparison-fairness",
+        "provenance.solver-tool-access",
+        "provenance.dependency-substitution",
+        "provenance.external-state",
+        "provenance.evidence-revision-consistency",
+    ):
         assert rows[ident]["status"] == "NOT_ASSESSED"
         assert rows[ident]["score"] is None
-    assert any("silently" in limit for limit in rows["CREATE-07"]["limitations"])
+    assert any("silently" in limit for limit in rows["provenance.evidence-revision-consistency"]["limitations"])
 
 
 def test_assessment_does_not_mutate_measurements_or_selection():
@@ -235,7 +249,7 @@ def test_assessment_does_not_mutate_measurements_or_selection():
 def test_invalid_required_declaration_cannot_score(required):
     measurements, selection = inventory_packet()
     selection["rubric_scope"]["task_artifacts"]["required"] = required
-    assert assess(measurements, selection)["DISC-01-A"]["score"] is None
+    assert assess(measurements, selection)["provenance.task-artifact-access"]["score"] is None
 
 
 def test_measured_artifact_identity_must_match_the_current_selection():
@@ -244,7 +258,7 @@ def test_measured_artifact_identity_must_match_the_current_selection():
     measurements, selection = inventory_packet()
     selection = copy.deepcopy(selection)
     selection["artifacts"][1]["digest"] = "b" * 64
-    assert assess(measurements, selection)["DISC-01-A"]["score"] is None
+    assert assess(measurements, selection)["provenance.task-artifact-access"]["score"] is None
 
 
 @pytest.mark.parametrize(
@@ -304,8 +318,8 @@ def test_demo_real_local_helpers(tmp_path, monkeypatch, variant, task_score, rou
         "route": resolve_route(tmp_path, records, selection["route"]),
     }
     rows = assess(measurements, selection, root=tmp_path)
-    assert rows["DISC-01-A"]["score"] == task_score
-    assert rows["DISC-01-B"]["score"] == route_score
+    assert rows["provenance.task-artifact-access"]["score"] == task_score
+    assert rows["provenance.grading-path"]["score"] == route_score
     assert len(rows) == 11
     assert all(row["evidence_strength"] == "E2" for row in rows.values() if row["score"] is not None)
 
@@ -319,7 +333,9 @@ def test_denied_declaration_is_not_a_measured_read_failure(declared, tmp_path):
         {"code": "identity.access_denied", "subject": "task", "status": "unknown"}
     ]
     bind_inventory_source(tmp_path, selection)
-    assert assess(measurements, selection, root=tmp_path)["DISC-01-A"]["score"] == (None if declared else 0)
+    assert assess(measurements, selection, root=tmp_path)["provenance.task-artifact-access"]["score"] == (
+        None if declared else 0
+    )
 
 
 def test_defect_precedes_readable_partial_inventory(tmp_path):
@@ -330,7 +346,7 @@ def test_defect_precedes_readable_partial_inventory(tmp_path):
         {"code": "identity.artifact_missing", "subject": "input", "status": "unknown"}
     ]
     bind_inventory_source(tmp_path, selection)
-    assert assess(measurements, selection, root=tmp_path)["DISC-01-A"]["score"] == 0
+    assert assess(measurements, selection, root=tmp_path)["provenance.task-artifact-access"]["score"] == 0
 
 
 def test_review_source_must_be_a_review_of_the_selected_inventory():
@@ -340,19 +356,19 @@ def test_review_source_must_be_a_review_of_the_selected_inventory():
     scope = selection["rubric_scope"].pop("task_artifacts")
     selection["rubric_scope"]["grading_dependencies"] = scope
     scope["review_source"] = "scope"
-    assert assess(measurements, selection)["DISC-01-C"]["score"] is None
+    assert assess(measurements, selection)["provenance.grading-dependency-access"]["score"] is None
 
 
 def test_source_only_declared_configuration_is_assertion_not_numeric():
     rows = assess({"config": {"status": "equal"}}, {"declared_config": {"agent": "demo"}})
-    assert rows["DISC-02-A"]["evidence_strength"] == "E0"
-    assert rows["DISC-02-A"]["score"] is None
+    assert rows["provenance.declared-configuration"]["evidence_strength"] == "E0"
+    assert rows["provenance.declared-configuration"]["score"] is None
 
 
 def test_invalid_materiality_review_cannot_be_interpreted_as_complete():
     measurements, selection = inventory_packet()
     selection["rubric_scope"]["task_artifacts"]["unresolved_material"] = "none"
-    assert assess(measurements, selection)["DISC-01-A"]["score"] is None
+    assert assess(measurements, selection)["provenance.task-artifact-access"]["score"] is None
 
 
 def source_selection(tmp_path, inventory=None, review=None):
@@ -407,11 +423,17 @@ def test_cli_review_contents_must_substantiate_completeness(tmp_path, review):
     assert result.stderr == ""
     report = json.loads(result.stdout)
     assert report["measurements"]["identity"]["status"] == "pass"
-    row = report["items"]["DISC-01-C"]
+    row = report["items"]["provenance.grading-dependency-access"]
     assert (row["status"], row["score"]) == ("NOT_ASSESSED", None)
 
 
-@pytest.mark.parametrize("kind,item", [("task_artifacts", "DISC-01-A"), ("grading_dependencies", "DISC-01-C")])
+@pytest.mark.parametrize(
+    "kind,item",
+    [
+        ("task_artifacts", "provenance.task-artifact-access"),
+        ("grading_dependencies", "provenance.grading-dependency-access"),
+    ],
+)
 @pytest.mark.parametrize(
     "inventory",
     [
@@ -433,7 +455,13 @@ def test_cli_inventory_projection_cannot_hide_source_requirements(tmp_path, kind
     assert (report["items"][item]["status"], report["items"][item]["score"]) == ("NOT_ASSESSED", None)
 
 
-@pytest.mark.parametrize("kind,item", [("task_artifacts", "DISC-01-A"), ("grading_dependencies", "DISC-01-C")])
+@pytest.mark.parametrize(
+    "kind,item",
+    [
+        ("task_artifacts", "provenance.task-artifact-access"),
+        ("grading_dependencies", "provenance.grading-dependency-access"),
+    ],
+)
 def test_cli_supported_source_projection_permits_full_credit(tmp_path, kind, item):
     selection = source_selection(tmp_path)
     if kind == "task_artifacts":
@@ -473,24 +501,30 @@ def test_changed_or_unsupported_source_bytes_cannot_award_full_credit(tmp_path, 
         record["evidence"][0]["digest"] = record["digest"]
         measurements = {"identity": identify(tmp_path, selection["artifacts"])}
         assert measurements["identity"]["status"] == ("unknown" if variant == 5 else "pass")
-    assert assess(measurements, selection, root=tmp_path)["DISC-01-C"]["score"] is None
+    assert assess(measurements, selection, root=tmp_path)["provenance.grading-dependency-access"]["score"] is None
 
 
 def test_measured_materiality_gap_retains_partial_credit(tmp_path):
     inventory = {"required": ["task"], "unresolved_material": ["unresolved reference"]}
     selection = source_selection(tmp_path, inventory=inventory)
     selection["rubric_scope"]["grading_dependencies"]["unresolved_material"] = inventory["unresolved_material"]
-    row = json.loads(run_cli(tmp_path, selection).stdout)["items"]["DISC-01-C"]
+    row = json.loads(run_cli(tmp_path, selection).stdout)["items"]["provenance.grading-dependency-access"]
     assert (row["score"], row["evidence_strength"]) == (1, "E2")
 
 
 def test_unmeasured_materiality_assertion_cannot_establish_partial_content_finding():
     measurements, selection = inventory_packet()
     selection["rubric_scope"]["task_artifacts"]["unresolved_material"] = ["asserted gap"]
-    assert assess(measurements, selection)["DISC-01-A"]["score"] is None
+    assert assess(measurements, selection)["provenance.task-artifact-access"]["score"] is None
 
 
-@pytest.mark.parametrize("kind,item", [("task_artifacts", "DISC-01-A"), ("grading_dependencies", "DISC-01-C")])
+@pytest.mark.parametrize(
+    "kind,item",
+    [
+        ("task_artifacts", "provenance.task-artifact-access"),
+        ("grading_dependencies", "provenance.grading-dependency-access"),
+    ],
+)
 @pytest.mark.parametrize("state", ["missing", "partial"])
 def test_unbacked_inventory_cannot_assign_negative_or_partial_merit(tmp_path, kind, item, state):
     selection = source_selection(tmp_path)
@@ -524,10 +558,10 @@ def test_deep_source_json_retains_unknown_without_traceback(tmp_path, monkeypatc
     record["evidence"][0]["digest"] = record["digest"]
     measurements = {"identity": identify(tmp_path, selection["artifacts"])}
     assert measurements["identity"]["status"] == "pass"
-    assert assess(measurements, selection, root=tmp_path)["DISC-01-C"]["score"] is None
+    assert assess(measurements, selection, root=tmp_path)["provenance.grading-dependency-access"]["score"] is None
     result = run_cli(tmp_path, selection)
     assert result.stderr == ""
-    assert json.loads(result.stdout)["items"]["DISC-01-C"]["score"] is None
+    assert json.loads(result.stdout)["items"]["provenance.grading-dependency-access"]["score"] is None
 
 
 @pytest.mark.parametrize("replacement", ["symlink", "fifo"])
@@ -628,4 +662,4 @@ def test_cli_rejects_nonobject_rubric_scope_without_traceback(tmp_path, scope):
 def test_malformed_source_id_does_not_crash_or_award_score(source):
     measurements, selection = inventory_packet()
     selection["rubric_scope"]["task_artifacts"]["source"] = source
-    assert assess(measurements, selection)["DISC-01-A"]["score"] is None
+    assert assess(measurements, selection)["provenance.task-artifact-access"]["score"] is None

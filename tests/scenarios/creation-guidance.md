@@ -86,7 +86,7 @@ checklist: prerequisites and `ETHOS.md` checked, creation current. Repeat with
 missing run credentials; they must not remove the current marker or introduce
 execution settings at these checkpoints. The first source question ends the turn;
 inspect tool logs to ensure no adapter investigation, task planning, or environment
-preparation continues while waiting. Answer “Start from ETHOS.md.” Inspect the next
+preparation continues while waiting. Answer “Continue without traces.” Inspect the next
 final reply: it proposes one to three tasks with one example each, states that one first task will be
 built and reviewed before the rest, and ends with the rendered design feedback
 question. No task files or integration implementation exist. Interrupt and

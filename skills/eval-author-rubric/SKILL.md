@@ -5,9 +5,9 @@ description: >-
   Experimental rubric requiring explicit end-user opt-in to eval-author-rubric
   for selected tasks or suites; never run by default or infer consent from a
   generic review request. Covers validity, coverage, and diversity. The
-  populated areas are anti-cheat within validity; artifact, configuration, and
-  provenance; and task contract and scoring authority, each selected
-  separately. Other areas remain unimplemented. Does not start an
+  populated areas are anti-cheat within validity; data leakage and forged
+  credit; artifact, configuration, and provenance; and task contract and
+  scoring authority, each selected separately. Other areas remain unimplemented. Does not start an
   audit, run controls without approval, or certify overall evaluation quality.
 triggers:
   - apply eval-author-rubric to these tasks
@@ -71,11 +71,16 @@ the area or criterion IDs explicitly requested by the user:
   artifact, configuration, and provenance.
 - **Artifact, configuration, and provenance:** use
   [the canonical assessment](references/artifact-configuration-provenance.md)
-  for its original criterion IDs and item-specific anchors. Artifact, configuration,
+  for its `provenance.*` criteria and item-specific anchors. Artifact, configuration,
   and provenance opt-in does not select anti-cheat.
+- **Data leakage and forged credit:** use
+  [the leakage and credit assessment](references/leakage-and-credit.md) for
+  AUDIT-03, AUDIT-04-B, AUDIT-05-B, AUDIT-05-S03, TRACE-04-A, ENV-03-S01, and CREATE-02.
+  It maps the anti-cheat AC criteria to these IDs; selecting it selects no
+  other area.
 - **Task contract and scoring authority:** use
   [the task contract assessment](references/task-contract-authority.md) for
-  CREATE-03, CREATE-04, and CREATE-05-A. Selecting this area selects neither of
+  its `task-contract.*` criteria. Selecting this area selects neither of
   the others, and selecting another area does not select it.
 
 If the named-rubric request leaves the area ambiguous, clarify the scope once
@@ -155,7 +160,7 @@ controls. Preserve legitimate inaction and partial-credit semantics.
 
 ### 4. Present the scoped assessment
 
-For each selected criterion, report its original ID, applicability, score or
+For each selected criterion, report its ID, applicability, score or
 explicit unassessed status, evidence strength, measurement, evidence references,
 limitation, and next action.
 Use that criterion's scoring rules. Do not transfer anti-cheat evidence floors to

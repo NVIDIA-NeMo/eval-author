@@ -8,6 +8,10 @@ coverage, and diversity. These bounded items do not implement the rest of validi
 or measure coverage and diversity. Attack-class coverage below is a denominator
 for this assessment, not the rubric's coverage pillar.
 
+The canonical criterion IDs for these concerns are in
+[data leakage and forged credit](leakage-and-credit.md), which maps each AC
+criterion below to them. Report the canonical ID alongside the AC ID.
+
 ## Evidence and scoring
 
 Use the [shared task validation procedure](../../eval-author/references/task-validation.md)
