@@ -138,7 +138,7 @@
         "id": "runtime",
         "step": "Continue shared prerequisites",
         "reason": "The selected NeMo Gym runtime is not installed.",
-        "needed": "Provide the supported NeMo Gym runtime before we continue."
+        "needed": "An installed supported NeMo Gym runtime."
       }
     ]
   }
