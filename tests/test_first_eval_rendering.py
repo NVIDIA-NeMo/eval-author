@@ -1965,7 +1965,7 @@ def test_adapter_handoff_uses_saved_agent_provider_ethos_and_only_agreed_task_pa
 def test_adapter_handoff_carries_approved_interaction_requirements(creation, interaction_type):
     state, record, _, renderer, _ = creation
     task = record["plan"]["tasks"][0]
-    task.update(interaction_type=interaction_type)
+    task["interaction_type"] = interaction_type
     if interaction_type != "single_turn":
         task["state_requirements"] = "Keep the same cart and conversation. Reset between attempts."
     if interaction_type == "scripted_multi_step":
@@ -1982,6 +1982,8 @@ def test_adapter_handoff_carries_approved_interaction_requirements(creation, int
     context = adapter_context(output)
     row = context["tasks"][0]
     assert row["interaction_type"] == interaction_type
+    if interaction_type != "single_turn":
+        assert row["state_requirements"] == task["state_requirements"]
     if interaction_type == "scripted_multi_step":
         assert row["prerequisite_checks"] == task["prerequisite_checks"]
     if interaction_type == "user_sim":
