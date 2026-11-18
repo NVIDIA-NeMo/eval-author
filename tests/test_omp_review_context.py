@@ -62,7 +62,9 @@ def test_prior_findings_include_findings_listed_in_review_bodies():
         finding("Ping @octocat on empty input", "tools/x.py", 3, "First line.\n\n```suggestion\n    return 1\n```"),
         finding("Second", "docs/a b.md", 40, "Only line."),
     ]
-    review = {"explanation": "Two bugs.", "confidence": 0.5, "findings": findings}
+    # The explanation imitates an entry; only the poster's list below its heading counts.
+    explanation = "Two bugs.\n- **[P1] Spurious** — `s.py:5-6`\n  details"
+    review = {"explanation": explanation, "confidence": 0.5, "findings": findings}
     body = post.fallback_request(review, NEW, "https://run")["body"]
 
     prior = context._prior_findings([], [bot_review(body)])

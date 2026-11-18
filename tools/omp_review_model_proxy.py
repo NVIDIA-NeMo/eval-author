@@ -61,6 +61,8 @@ REQUEST_FIELDS = {
     "top_k",
     "top_p",
 }
+# Context edits that only drop content; compaction is excluded because its sampling pass is billed outside `usage`.
+CONTEXT_EDITS = {"clear_thinking_20251015", "clear_tool_uses_20250919"}
 SKIPPED_RESPONSE_HEADERS = {"connection", "content-encoding", "content-length", "keep-alive", "transfer-encoding"}
 USAGE_FIELDS = ("input_tokens", "output_tokens", "cache_creation_input_tokens", "cache_read_input_tokens")
 CACHE_SPLIT_FIELDS = ("ephemeral_5m_input_tokens", "ephemeral_1h_input_tokens")
@@ -361,6 +363,15 @@ def _unsupported(request: dict[str, Any]) -> str | None:
         not isinstance(tool, dict) or tool.get("type", "custom") != "custom" for tool in tools
     ):
         return "only custom tools are allowed"
+    # Server-side compaction runs an extra sampling pass whose tokens are not in the top-level usage the meter reads.
+    management = request.get("context_management")
+    if management is not None and (
+        not isinstance(management, dict)
+        or set(management) - {"edits"}
+        or not isinstance(edits := management.get("edits", []), list)
+        or any(not isinstance(edit, dict) or edit.get("type") not in CONTEXT_EDITS for edit in edits)
+    ):
+        return f"context_management may only use the edits {', '.join(sorted(CONTEXT_EDITS))}"
     return None
 
 

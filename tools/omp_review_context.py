@@ -70,7 +70,11 @@ def _plain(text: str) -> str:
 def _body_findings(body: str, reviewed_sha: str) -> list[dict[str, Any]]:
     entries: list[tuple[dict[str, Any], list[str]]] = []
     lines: list[str] | None = None
-    for line in body.split("\n"):
+    all_lines = body.split("\n")
+    # The poster's findings list follows its last column-0 "#### Findings" heading; anything above it is the
+    # model-written explanation, which may contain lines shaped like entries.
+    headings = [index for index, line in enumerate(all_lines) if line.startswith("#### Findings")]
+    for line in all_lines[headings[-1] + 1 :] if headings else []:
         if match := _BODY_FINDING.fullmatch(line):
             lines = []
             header = {

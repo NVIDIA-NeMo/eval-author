@@ -146,6 +146,7 @@ def test_streams_response_and_meters_every_usage_category(start):
         ("/v1/messages", "POST", {"mcp_servers": [{"type": "url", "url": "https://evil.example"}]}, 400),
         ("/v1/messages", "POST", {"tools": [{"type": "web_fetch_20250910", "name": "web_fetch"}]}, 400),
         ("/v1/messages", "POST", {"metadata": {"user_id": "u", "tags": ["x"]}}, 400),
+        ("/v1/messages", "POST", {"context_management": {"edits": [{"type": "compact_20260112"}]}}, 400),
     ],
 )
 def test_rejects_other_paths_models_limits_and_routing_fields(start, path, method, body, status):
@@ -164,6 +165,7 @@ def test_forwards_the_parameters_omp_sends(start):
         "output_config": {"effort": "high"},
         "metadata": {"user_id": "session"},
         "stream": False,
+        "context_management": {"edits": [{"type": "clear_thinking_20251015", "keep": "all"}]},
     }
     assert call(server, **body)[0] == 200 and len(upstream.requests) == 1
 
