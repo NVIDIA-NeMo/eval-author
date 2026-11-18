@@ -140,14 +140,6 @@ def retained_inputs(matrix: dict[str, Any]) -> dict[str, str]:
                 receipt is not None and receipt == leakage["reviews"]["owner"] and not receipt["revoked"],
                 "retained leakage owner admission changed",
             )
-        semantic = measurements.get("semantic_numeric")
-        if semantic and semantic.get("observations", {}).get("comparison", {}).get("owner_decision"):
-            owner = importlib.import_module("rubric_semantic_numeric_mutations")
-            receipt = owner.read_decision(semantic, root=Path(saved["root"]), selection=saved["selection"])
-            require(
-                receipt == semantic["observations"]["comparison"]["owner_decision"] and not receipt["revoked"],
-                "retained semantic owner admission changed",
-            )
         require(
             set(saved["report"]["items"]) == set(c.runner.canonical_definitions()), "retained canonical rows incomplete"
         )

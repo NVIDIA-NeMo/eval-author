@@ -207,9 +207,7 @@ def coverage(matrix: dict[str, Any]) -> dict[str, Any]:
                     "remaining": None
                     if observations
                     else (
-                        "Matched local controls already demonstrate the scorer advantage. Obtain exact current owner disposition and retention for semantic-fairness-request.json; historical source-bound consent does not transfer."
-                        if ident == "provenance.comparison-fairness" and score == 0
-                        else "Current automatic evidence is ready. Obtain the exact Environment, contract or narrow fairness decision in decision-crosswalk.json, then reassess only affected reports."
+                        "Current automatic evidence is ready. Obtain the exact Environment, contract or narrow fairness decision in decision-crosswalk.json, then reassess only affected reports."
                         if score == 2
                         and ident
                         in {
@@ -596,23 +594,6 @@ def main() -> int:
         verification={"state": "deferred", "all_replayed": False},
     )
     save(args.output / "matrix.json", matrix)
-    semantic = importlib.import_module("rubric_semantic_numeric_mutations")
-    disputed = next(run for run in matrix["runs"] if run["case"] == "advantaged-comparison")
-    projection = load(Path(disputed["assessment"]["report"]))["report"]["measurements"]["semantic_numeric"]
-    request = semantic.decision_request(projection)
-    save(args.output / "semantic-fairness-request.json", request)
-    crosswalk["rows"].append(
-        {
-            "kind": "semantic-fairness-zero",
-            "binding": request["binding"],
-            "request": str(args.output / "semantic-fairness-request.json"),
-            "decision": None,
-            "status": "pending_exact_owner_decision",
-            "question": request["comparison"]["owner_question"],
-            "boundary": request["boundary"],
-            "approval_transferred": False,
-        }
-    )
     save(args.output / "decision-crosswalk.json", crosswalk)
     value = coverage(matrix)
     if args.upper_evidence_root:

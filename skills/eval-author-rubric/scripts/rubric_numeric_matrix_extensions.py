@@ -2,10 +2,10 @@
 # SPDX-License-Identifier: Apache-2.0
 
 # SPDX-License-Identifier: Apache-2.0
-"""Owning native/semantic orchestration for the complete numeric matrix.
+"""Owning native orchestration for the complete numeric matrix.
 
 No native collection or model invocation. Native inputs must already have owning
-registry admission; semantic copies are materialized and assessed automatically.
+registry admission.
 """
 
 from __future__ import annotations
@@ -33,21 +33,6 @@ def extension_specs(kind):
             "exposed-reference": {"AC-01": 0},
             "persistent-state": {"AC-04": 0, "provenance.external-state": 0},
             "partial-gpu-route": {"provenance.runtime-route": 1},
-        }
-    if kind == "semantic":
-        return {
-            case: {ident: number}
-            for case, ident, number in (
-                ("contradictory-contract", "task-contract.clear-contract", 0),
-                ("ambiguous-contract", "task-contract.clear-contract", 1),
-                ("hidden-authority", "task-contract.discoverable-requirements", 0),
-                ("disputed-authority", "task-contract.discoverable-requirements", 1),
-                ("disputed-scoring", "task-contract.scoring-authority", 1),
-                ("combined-revisions", "provenance.evidence-revision-consistency", 0),
-                ("partial-revisions", "provenance.evidence-revision-consistency", 1),
-                ("untested-comparison", "provenance.comparison-fairness", 1),
-                ("advantaged-comparison", "provenance.comparison-fairness", 0),
-            )
         }
     raise ValueError("unknown extension kind")
 
@@ -130,10 +115,8 @@ def replay(record, logs=None):
 
 
 def run_extensions(output, base, options, bundle, registry, native_reports=None):
-    import rubric_semantic_numeric_mutations as semantic
-
     proof = native_admission(bundle, registry)  # Admit before importing any emitted observations.
-    native_runs, semantic_runs = [], []
+    native_runs = []
     for case, expected in extension_specs("native").items():
         dest = (native_reports / case) if native_reports else (output / "native" / case)
         command = [
@@ -171,42 +154,13 @@ def run_extensions(output, base, options, bundle, registry, native_reports=None)
                 "task_bytes_changed": True,
             }
         )
-    semantic_options = {k: v for k, v in options.items() if not k.startswith("upper-")}
-    # Source-only baseline and repair are real assessments, not inferred numbers.
-    controls = {}
-    for case in ("baseline", *extension_specs("semantic"), "repair"):
-        root = output / "semantic" / case
-        selection = semantic.materialize(root, "repair" if case in ("baseline", "repair") else case)
-        record = runner.matrix_assess(root, selection, root / "assessment", semantic_options)
-        if record["state"] != "assessed":
-            raise ValueError("ordinary semantic report generation failed: " + case)
-        if case in ("baseline", "repair"):
-            controls[case] = record
-        else:
-            semantic_runs.append(
-                {
-                    "case": case,
-                    "expected": extension_specs("semantic")[case],
-                    "assessment": record,
-                    "extension_kind": "semantic",
-                    "reason": "Trusted full-source reconstruction and owning local scorer controls; no native/model execution.",
-                    "repair_description": "Fresh exact source-only baseline/repair are assessed; the shared full-base repair restores all original panels and approvals. No mutant approval transfers.",
-                    "task_bytes_changed": True,
-                }
-            )
-    if runner.comparison_projection(runner.observed_rows(controls["baseline"])) != runner.comparison_projection(
-        runner.observed_rows(controls["repair"])
-    ):
-        raise ValueError("semantic repair mismatch")
-    return native_runs + semantic_runs, controls, proof
+    return native_runs, proof
 
 
 def enrich(result):
     """Keep all emitted metadata and explicit repair relations, not score-only joins."""
     base_items = json.loads(Path(result["base"]["report"]).read_bytes())["report"]["items"]
     repairs = {"full_base": result["repair"]["report"]}
-    if result.get("semantic_controls"):
-        repairs["semantic_source_only"] = result["semantic_controls"]["repair"]["report"]
     if result.get("leakage_controls"):
         repairs["leakage_source_only"] = result["leakage_controls"]["repair"]["report"]
     identities = {}
@@ -231,8 +185,8 @@ def enrich(result):
         if run.get("criterion_repair"):
             run["repair_relation"]["criterion_paired"] = run["criterion_repair"]["report"]
         source_kind = run.get("extension_kind")
-        if source_kind in {"semantic", "leakage"} and source_kind + "_source_only" in repairs:
-            run["repair_relation"][source_kind + "_source_only"] = repairs[source_kind + "_source_only"]
+        if source_kind == "leakage" and "leakage_source_only" in repairs:
+            run["repair_relation"]["leakage_source_only"] = repairs["leakage_source_only"]
     for row in result["rows"]:
         run = next(r for r in result["runs"] if r["case"] == row["case"])
         row["physical_identity"] = run["physical_identity"]
@@ -240,9 +194,6 @@ def enrich(result):
         item = run["full_emitted_items"][row["criterion"]]
         if run.get("extension_kind") == "native":
             row["reason"] = item.get("native_numeric_mutations", {}).get("finding", row["reason"])
-        elif run.get("extension_kind") == "semantic":
-            proof = json.loads(Path(row["report"]).read_bytes())["report"]["measurements"]["semantic_numeric"]
-            row["reason"] = proof["findings"][row["criterion"]]["reason"]
     for cell in result["cells"]:
         cell["check_ids"] = [c["id"] for c in runner.canonical_definitions()[cell["criterion"]]["checks"]]
         cell["base_report"] = result["base"]["report"]
@@ -290,17 +241,12 @@ def verify(path, options, *, base_already_verified=False):
             extra.append(run)
     if original_cases:
         raise ValueError("original cases omitted")
-    if {(r["extension_kind"], r["case"]) for r in extra} != {
-        (kind, case) for kind in ("native", "semantic") for case in extension_specs(kind)
-    }:
+    if {(r["extension_kind"], r["case"]) for r in extra} != {("native", case) for case in extension_specs("native")}:
         raise ValueError("incomplete extension inventory")
     if native_admission(Path(result["native_bundle"]), Path(result["native_registry"])) != result["native_admission"]:
         raise ValueError("native admission changed")
-    import rubric_semantic_numeric_mutations as semantic
-
     for run in extra:
         record = run["assessment"]
-        saved = json.loads(Path(record["report"]).read_bytes())
         if run["extension_kind"] == "native":
             if (
                 record.get("kind"),
@@ -309,24 +255,7 @@ def verify(path, options, *, base_already_verified=False):
                 record.get("native_registry"),
             ) != ("native", run["case"], result["native_bundle"], result["native_registry"]):
                 raise ValueError("native case/registry identity differs")
-        if run["extension_kind"] == "semantic":
-            wanted_options = {k: v for k, v in options.items() if not k.startswith("upper-")}
-            if record["options"] != wanted_options:
-                raise ValueError("semantic explicit trust differs")
-            admitted = semantic._admit(saved["root"], saved["selection"])
-            if admitted is None or admitted[0] != run["case"]:
-                raise ValueError("semantic case no longer has exact mutation")
-    controls = result["semantic_controls"]
-    for record in controls.values():
-        saved = json.loads(Path(record["report"]).read_bytes())
-        task = Path(saved["root"]) / "task"
-        if {
-            p.relative_to(task).as_posix(): p.read_bytes() for p in task.rglob("*") if p.is_file()
-        } != semantic.source._current():
-            raise ValueError("source-only repair/baseline not exact current base")
-        if record["options"] != {k: v for k, v in options.items() if not k.startswith("upper-")}:
-            raise ValueError("source-only repair trust differs")
-    records = [r["assessment"] for r in extra] + list(controls.values())
+    records = [r["assessment"] for r in extra]
     distinct = {str(Path(r["report"]).resolve()): r for r in records}
     with ThreadPoolExecutor(max_workers=4) as pool:
         passed = list(pool.map(replay, distinct.values()))
@@ -335,12 +264,7 @@ def verify(path, options, *, base_already_verified=False):
             "extension ordinary replay failed: "
             + str([r["report"] for r, p in zip(distinct.values(), passed) if not p])
         )
-    if runner.comparison_projection(runner.observed_rows(controls["baseline"])) != runner.comparison_projection(
-        runner.observed_rows(controls["repair"])
-    ):
-        raise ValueError("source-only repair differs")
     rebuilt = runner.matrix_summary(result["base"], result["runs"], result["repair"])
-    rebuilt["semantic_controls"] = controls
     if result.get("leakage_controls"):
         rebuilt["leakage_controls"] = result["leakage_controls"]
     enrich(rebuilt)
@@ -360,7 +284,6 @@ def verify(path, options, *, base_already_verified=False):
         "all_lower_numeric_covered": all(c["status"] != "unsupported" for c in lower),
         "only_deferred_upper_remaining": bool(pending) and pending <= allowed,
         "full_base_repair_equal": True,
-        "source_only_repair_equal": True,
         "native_owning_admission": True,
         "original_exact_repairs": proof["exact_repairs"],
         "frozen_sources_preserved": True,
@@ -375,12 +298,11 @@ def complete(original_matrix, output, options, bundle, registry, native_reports=
         raise ValueError("historical matrix cannot be extended as current; generate a fresh current base matrix first")
     if original["options"] != options:
         raise ValueError("base matrix explicit options differ")
-    runs, controls, proof = run_extensions(output, original, options, bundle, registry, native_reports)
+    runs, proof = run_extensions(output, original, options, bundle, registry, native_reports)
     result = runner.matrix_summary(original["base"], original["runs"] + runs, original["repair"])
     result.update(
         original_matrix=str(original_matrix),
         options=options,
-        semantic_controls=controls,
         native_bundle=str(bundle),
         native_registry=str(registry),
         native_admission=proof,

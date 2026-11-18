@@ -288,14 +288,6 @@ def measure(root, selection, ethos_validator=None):
         apply_numeric(report, numeric)
         if project_numeric(root, selection, report) != numeric:
             raise ValueError("numeric scope evidence changed during assessment")
-    from rubric_semantic_numeric_mutations import apply as apply_semantic
-    from rubric_semantic_numeric_mutations import project as project_semantic
-
-    semantic = project_semantic(root, selection)
-    if semantic is not None:
-        apply_semantic(report, semantic)
-        if project_semantic(root, selection) != semantic:
-            raise ValueError("semantic subject changed during assessment")
     return report
 
 
