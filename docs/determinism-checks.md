@@ -9,6 +9,8 @@ Developer tools in `tools/` are not included in skill-only installations.
 
 | Check | What it verifies |
 | --- | --- |
+| [Local replication](#prepare-and-validate-the-additive-suite-locally) | Credential-free suite preparation and reconstruction, separate from native collection. |
+| [Future comparison](#future-automated-comparison) | Existing comparison interfaces and the remaining study/integration gaps. |
 | [Workflow scope](#workflow-scope) | Reviewed actions, writes and handoffs match a request contract. |
 | [Discovery comparisons](#discovery-comparisons) | Repeated discovery reports agree under frozen inputs. |
 | [Rubric identity measurements](#rubric-identity-measurements) | Handcrafted mutations produce exact scoped identity diagnostics and scores. |
@@ -38,21 +40,37 @@ comparison remain separate acceptance work.
 
 ### Prepare a case outside the assessment session
 
-Use a checkout with its locked development environment. Install or load
-`eval-author-rubric` with its sibling `eval-author` skill. Fixture preparation
-writes a new directory. It does not authorize execution of the task.
+Use Python 3.12 or 3.13 and the checkout's locked development environment;
+see [development setup](../DEVELOPMENT.md#environment-and-skill-layout).
+For a new installation, `uv sync --locked` installs that environment and may use
+network access. **Do not sync an evidence-bound existing environment just to replay
+it.** The commands below reuse its Python directly: no installation, credentials,
+Docker or model is needed. Skill-only copies need the sibling `eval-author` and
+other selected consumers; they do not include the checkout's tests or `tools/`.
 
-From the checkout root:
+From the checkout root, choose a new private run directory outside the checkout.
+Use a real directory with no symlink ancestors, including for `TMPDIR` (macOS
+`/tmp` is commonly an alias). Do not use frozen evidence as scratch.
 
 ```bash
-uv sync --locked
+PYTHON="$PWD/.venv/bin/python"
+PRIVATE="$HOME/.cache/eval-author-review/replication-1"
+umask 077
+mkdir -p "$PRIVATE"
+mkdir "$PRIVATE/tmp"
 export PYTHONDONTWRITEBYTECODE=1
-mkdir -p "$HOME/.cache/eval-author-review"
-uv run --locked python skills/eval-author-rubric/scripts/example_fixtures.py \
-  materialize --output "$HOME/.cache/eval-author-review/case-1"
-uv run --locked python skills/eval-author-rubric/scripts/example_fixtures.py \
-  verify --input "$HOME/.cache/eval-author-review/case-1"
+export TMPDIR="$PRIVATE/tmp"
+"$PYTHON" -B skills/eval-author-rubric/scripts/example_fixtures.py \
+  materialize --output "$PRIVATE/case-1"
+"$PYTHON" -B skills/eval-author-rubric/scripts/example_fixtures.py \
+  verify --input "$PRIVATE/case-1"
 ```
+
+Both commands should exit 0. Materialization copies task sources; verification
+checks their identity, not native execution or rubric qualification. Keep the
+same `PYTHON`, `PRIVATE` and `TMPDIR` for the following source-only commands.
+`-B` prevents bytecode writes, not reads of existing bytecode; never delete or
+regenerate frozen caches to make an admission check pass.
 
 Choose a new case directory each time. For a mutation, the preparer uses
 `materialize --mutation <catalog-id>` with another new directory. Keep the recipe,
@@ -139,12 +157,12 @@ The source-only command is also available directly. It runs no task code, contai
 or model. The output directory must be new and outside the selected task directory:
 
 ```bash
-uv run --locked python skills/eval-author-rubric/scripts/rubric_table.py \
-  --root "$HOME/.cache/eval-author-review/case-1/assessment" \
-  --task task/task.toml --output "$HOME/.cache/eval-author-review/review-1"
-uv run --locked python skills/eval-author-rubric/scripts/rubric_table.py \
-  --root "$HOME/.cache/eval-author-review/case-1/assessment" \
-  --verify-existing "$HOME/.cache/eval-author-review/review-1"
+"$PYTHON" -B skills/eval-author-rubric/scripts/rubric_table.py \
+  --root "$PRIVATE/case-1/assessment" \
+  --task task/task.toml --output "$PRIVATE/review-1"
+"$PYTHON" -B skills/eval-author-rubric/scripts/rubric_table.py \
+  --root "$PRIVATE/case-1/assessment" \
+  --verify-existing "$PRIVATE/review-1"
 ```
 
 Exit 1 is expected when criteria remain Unassessed or raw measurements need review.
@@ -163,9 +181,8 @@ repair, generate fresh evidence. Never rewrite a failed bundle as a passing run.
 For a fixture restore, the preparer can use:
 
 ```bash
-uv run --locked python skills/eval-author-rubric/scripts/example_fixtures.py \
-  restore --input "$HOME/.cache/eval-author-review/case-1" \
-  --output "$HOME/.cache/eval-author-review/case-restored"
+"$PYTHON" -B skills/eval-author-rubric/scripts/example_fixtures.py \
+  restore --input "$PRIVATE/case-1" --output "$PRIVATE/case-restored"
 ```
 
 To review usability, retain original turns and tool results privately. Count
@@ -174,7 +191,61 @@ separately. A with/without-rubric study still needs agreed repetitions, budget,
 held-out cases, and acceptance thresholds. A successful helper command does not
 establish that study's benefit or a user walkthrough without author assistance.
 
+### Prepare and validate the additive suite locally
+
+With the same setup, run the checked-in preparer, not a historical private driver:
+
+```bash
+"$PYTHON" -B skills/eval-author-rubric/current_rubric_finish_native.py \
+  prepare --output "$PRIVATE/suite-1"
+"$PYTHON" -B skills/eval-author-rubric/current_rubric_finish_native.py \
+  validate --output "$PRIVATE/suite-1"
+```
+
+Both commands exit 0 and report `native_execution: false`,
+`development_observations: 18`, and `proposed_episodes: 8`. Despite the filename,
+this CLI has only `prepare` and `validate` modes. It launches no Harbor Trial,
+Docker process, model or network request. It executes trusted checked-in local
+policies and scorers; it is not a source-only inspection.
+
+Open `preregistration.json`, `manifest.json` and `tasks/`. Preparation writes two
+Harbor task copies (interval reservation and dependency release), evaluates three
+policies on six exposed development inputs including refund, and records the
+max-correct/fixed-tie-order selection. Validation recomputes those observations
+from current trusted source and checks task bytes and executable bits. It does
+not execute Python from the retained task copies. Existing preparation outputs
+are rejected; binding mismatches raise an exception and return nonzero. Preserve
+the failure and prepare a new directory rather than resealing the old manifest.
+
+The manifest is not a native result: `rubric_scores` and `authorization` stay null,
+episodes stay `not_run`, and confirmation awaits independent custody with zero
+openings. Proposed credits are expectations, not observed rewards. These exposed
+inputs cannot become held-out evidence by copying them or starting a new session.
+Fresh native collection needs separately approved images, provider, resource and
+lifecycle limits, actual solver permissions and exact-result admission. The
+closed eight-Trial viability allowance is not renewed by preparation.
+
+At checkpoint `6e03653`, fresh private-directory preparation/validation returned
+0/0 using existing Python 3.13.14 without installation. Refund materialization and
+identity verification returned 0/0; its source-only table and retained verification
+returned 1/1 with identical Markdown. Three focused preparation regressions passed.
+This is local replication of those commands, not a new native run, full matrix
+replay, independent review, or a fresh-user end-to-end study.
+
 ## Current-base numeric mutation matrix
+
+**Latest retained assessment at checkpoint `6e03653`:** the original Harbor base
+has 12 criteria at 3, seven at 2, CREATE-02 Unassessed, and AUDIT-04-B conditionally
+NOT_APPLICABLE. The latter is neither zero nor 3. The private
+`suite-native-integration-current/ordinary-final/REPORT.md` and `verification.json`
+are the reference, with pending gates in that run's parent `REMAINING.md`.
+They are not shipped with a clone. This guide's historical matrix counts below
+do not describe that newer original-base assessment.
+
+The separately admitted suite completed eight full Harbor Trials through its
+declared provider adapter. In each family, valid/wrong/partial/missing task credits
+were 3/0/2/0 out of 3. These are not rubric scores or held-out results. The goal of
+every applicable top anchor remains unfinished; native/model allowances are closed.
 
 The consolidated runner assesses the supplied combined base once. It runs shared physical cases through `rubric_base_assessment.py`, then reassesses the exact original selection as the common repair. It accepts bases below 3, but does not call them qualified. Accepted operator decisions and explicit upper companions keep their original packets and native receipts.
 
@@ -233,20 +304,20 @@ Fairness 0 consumes the actual parent-observed answer **“Yes—unjustified; re
 
 ### Original-base upper prerequisites
 
-These are remaining qualification requirements for the original base, not missing
-lower-anchor implementation or requests to repeat already retained decisions.
-Separate qualified populations do not discharge them.
+These are current qualification gates or explicit closed/conditional dispositions
+for the original base, not requests to repeat retained decisions. Separate
+qualified populations do not discharge the remaining original-base gates.
 
 | Original-base criterion | Remaining evidence |
 |---|---|
-| AUDIT-03 | Complete material attack applicability/credit review and independently authored held-out corroboration |
-| AUDIT-04-B | Original-base confirmed mechanism, containment/bounded-use disposition and independent repair corroboration; separate repairs do not transfer |
-| AUDIT-05-B | Original-base complete exposure/sensitivity packet and qualified provenance method; copied-population UQ2 is separate |
-| AUDIT-05-S03 | Original-base candidate/feedback and access lineage, confirmation/reuse rule and actual boundary executions |
-| TRACE-04-A | Exact contextual digest/recipient/use disposition and independent labeling/release evidence |
-| ENV-03-S01 | Remaining material shared surfaces and independently authored order/parallel corroboration; no fictional cross-container queue obligation |
+| AUDIT-03 | Independently authored held-out attacks on actual applicable routes; bounded original class/credit disposition is retained |
+| AUDIT-04-B | Conditional N/A for the accepted empty original affected inventory; revisit only if an original mechanism is confirmed. Separate affected cohorts still need their own containment and repair evidence |
+| AUDIT-05-B | Independent provenance corroboration; bounded retrospective exposure/sensitivity and scoped alternative are retained, not blind provenance |
+| AUDIT-05-S03 | Independent confirmation and feedback-boundary review of an actual retained gain; current history is exploratory-only with explicit unrecoverable gaps |
+| TRACE-04-A | Independent labels and exact-release audit; original restricted local-use disposition is retained, not public-release consent |
+| ENV-03-S01 | Independently authored parallel, delayed-effect and held-out ordering corroboration; bounded serial surface disposition is retained, with no fictional cross-container queue obligation |
 | CREATE-02 | Original-base current confound/method qualification and independently authored families; accepted separate stale-template zero stays separate |
-| provenance.evidence-revision-consistency | Change-injection checks for this selection |
+| provenance.evidence-revision-consistency | No remaining original-base anchor gap in the latest retained assessment; admitted deterministic change-injection closure is retained |
 | task-contract.discoverable-requirements | Blind discovery for this selection |
 | task-contract.scoring-authority | Independent full-contract corroboration |
 | METHOD-J1 | Upstream canonical judge trust-boundary definition; outside numeric denominator |
@@ -316,9 +387,10 @@ records the files reused. Exit 0 means this bounded orchestration completed, not
 that the base is perfect or final replay passed. A validation exception is failure;
 retain any partial output and choose a new directory after resolving the cause.
 
-The retained milestone has 75/84 observed numeric cells, 63/63 lower cells and
-21/21 missing-evidence drops; some drops share broad withholding. The original
-Harbor base remains 11 scores of 3, three of 2, three of 1 and four Unassessed.
+The historical reuse milestone had 75/84 observed numeric cells, 63/63 lower cells
+and 21/21 missing-evidence drops; some drops shared broad withholding. Its original
+Harbor base had 11 scores of 3, three of 2, three of 1 and four Unassessed.
+These are not the latest original-base scores or a freshly rebuilt current matrix.
 No aggregate merit score is computed. Task difficulty and legitimate model
 failures remain intact. Zero interventions means zero new questions, manual packet
 assembly or recovery **during this command after inputs are supplied**; it excludes
@@ -328,17 +400,32 @@ Remaining external prerequisites are the unchanged path-bound evidence/runtime,
 explicit local operator trust and nonrevoked records. Porting the historical
 companions to another checkout requires a reviewed configurable replacement and
 new binding validation, not rewriting accepted packets. Original-base upper
-qualification still needs its own missing independent, held-out, change-injection,
-confirmation/containment and scoped-method evidence. METHOD-J1 still needs an
+qualification still needs the applicable independent, held-out, confirmation and
+scoped-method evidence listed above; original Audit closure and conditional
+containment N/A must not be reopened from historical gap text. METHOD-J1 needs an
 upstream definition. Final deduplicated retained replay, full tests and any live
 refresh remain separate authorized gates. This command launches none of them.
 
 ### Attach completed full-Trial suite viability
 
-For the retained two-family viability packet, use the same completion entrypoint
-with `--original-finish --suite-native-root /absolute/suite-native-recovery-current/native-run`,
-plus the original `--matrix`, `--source-freeze`, explicit operator store/trust,
-`--registry`, new private `--output`, and `--defer-replay`. This finite path needs
+For the retained two-family viability packet, use the original inputs defined
+above, not the newly prepared `suite-1`. Only run this after their owner has made
+the complete private closure available and authorized retained admission:
+
+```bash
+SUITE_NATIVE=/absolute/suite-native-recovery-current/native-run
+"$PYTHON" -B skills/eval-author-rubric/current_rubric_completion.py \
+  --original-finish --suite-native-root "$SUITE_NATIVE" \
+  --matrix "$MATRIX" --source-freeze "$FREEZE" \
+  --source-review-operator-store "$STORE" \
+  --source-review-operator-trust localhost-assessment-operator-v1 \
+  --registry "$REGISTRY" --output "$PRIVATE/original-review-1" --defer-replay
+```
+
+Repeat `--registry` for every required original registry. `--original-finish` is
+separate from `--reuse-current`, `--refresh-decisions` and `--reviewed-companions`;
+do not combine them. `--defer-replay` is required by this completion CLI, not an
+optional performance flag. This finite path needs
 the original containment source-equivalence package and byte-pinned historical
 orchestration snapshots beside the private integration output. It is path-bound,
 not a portable collector or a renewed launch authorization.
@@ -353,6 +440,78 @@ The result is **full Harbor Trial through the declared provider adapter**, not t
 stock provider path, independent review, held-out evidence, or an awarded anchor.
 `verification.json` separates N/A from Unassessed; no native/model runs, owner
 intake or full retained replay occur. The closed viability budget does not renew.
+
+### Retained-report boundaries and fresh-user blockers
+
+| Route | What it actually does | What it needs |
+|---|---|---|
+| `current_rubric_finish_native.py prepare/validate` | New local preparation or deterministic reconstruction of that preparation | Checked-in templates, refund sources and policies; no private historical evidence |
+| `rubric_table.py --verify-existing` | Reassesses saved selection and compares JSON, Markdown and HTML | Original selected sources, current definitions, owning validators and applicable trust context |
+| `current_rubric_completion.py --reuse-current` | Rebuilds one base report, validates retained matrix lineage and derives coverage | Exact original environment, freeze, reports, registries, decisions and any reviewed companions |
+| `--original-finish --suite-native-root` | Regenerates original assessment with separately admitted full-Trial viability | The above plus byte-pinned private original scope/history, Audit closure, suite and source-equivalence packages |
+
+The last two routes are **not fresh collection or full retained replay**. Reading
+a saved report is also not replay. The generic table verifier does not install
+the original-finish overlay or its source-equivalence context; invoking it alone
+on the latest overlaid report is not a supported substitute. This completion CLI
+has no `--verify-existing` mode for that aggregate. Retain its explicit
+`retained_replay: not_run` and `full_matrix_replay: not_run` until an owning,
+separately authorized replay has checked the complete context.
+
+A clone cannot reproduce the latest private assessment by substituting paths:
+raw native receipts, registries, owner records, original scope/history, historical
+Audit outputs, source-equivalence Python and orchestration snapshots are not
+published. `current_rubric_finish.py` derives fixed sibling `rubric-guided-runs`
+locations; its suite validator also binds the original prepared suite and exact
+adapter/runtime identities. Some private records contain absolute paths and pin
+the resolved interpreter. Root flags do not make these closures relocatable.
+The ordinary native-pair relocation support above does not extend to this matrix.
+The local preparer is usable without those packets; historical admission is not
+a fully portable fresh-user workflow.
+
+Preserve inputs, modes, failures and source bindings. Do not patch pins, rewrite
+accepted packets, delete caches, copy approvals to changed subjects or execute
+an arbitrary evidence-selected helper. Local operator trust is explicit and
+same-user mutable, not independently authenticated authority. Required judgments
+must be genuine, scoped, retained with consent, and nonrevoked. Independent
+contract/provenance/labeling work, blind discovery and held-out attack/cue/reset
+controls remain separate gates; fresh execution requires renewed approval.
+
+### Future automated comparison
+
+The repository has useful comparison components, not a finished automated
+with/without-rubric authoring experiment:
+
+| Existing interface | Supported comparison | Limit |
+|---|---|---|
+| Suite `validate` | Full reconstructed local development/selection manifest and task identities | Exposed deterministic controls, not held-out gain or native behavior |
+| Table `--verify-existing`; mutation runner `--verify-matrix` | Source-bound report equality; owning case/base/repair verification | Use the owning matrix, not derived coverage; preserve overlays and trust context |
+| Completion `coverage.json` / `matrix.json` | Observed canonical cells, expected/actual disagreements, collateral changes and pairings | No general cross-run comparator, automatic approval or aggregate merit score |
+| [Discovery comparisons](#discovery-comparisons) | Frozen-input decision equality or explicit mutation sensitivity | Discovery schema only; does not launch discovery or accept rubric tables |
+| [Workflow scope](#workflow-scope) and [host accounting](#host-capture-and-accounting) | Reviewed actions/attempt accounting against a fixed contract | Native capture plus human semantic labeling required; not rubric-benefit attribution |
+| [Live anti-cheat comparison](#live-anti-cheat-experiment) | Binding-compatible retained aggregate series | Solver/verifier experiment, not authoring benefit; no new live run implied |
+
+For a future study, freeze the subject population, canonical definitions, prompts,
+policy/model/runtime identities, selected evidence, repetitions and acceptance
+thresholds before matched fresh-session with/without-rubric arms. Keep expected
+targets outside assessor input. Compare task credit on each scorer's own scale,
+canonical score **and applicability state**, every check, operational errors,
+missing evidence, collateral effects, and original base/repair links separately.
+Retain raw artifacts and exact source identities; normalize only explicitly
+reviewed incidental fields, never generic paths or unknown values. Count human
+permission, task-intent, adjudication, recovery and avoidable orchestration actions
+from original turns, not from a successful helper's exit code. Repeated exposed
+fixtures do not create independent observations, blindness or held-out evidence.
+
+The next narrow implementation is a bundled, read-only prerequisite inventory
+and explicit configuration for the reviewed private companion closure, followed
+by an owning replay mode for the overlaid original report. It must report each
+missing/stale input and reject changed source, interpreter and revocation bindings
+without importing arbitrary retained code. After that, a versioned comparison
+projection can consume independently validated reports and preserve the fields
+above. A matched-run capture/analysis driver, independent custody/opening guards
+and a measured fresh-user walkthrough are still missing; these are proposed
+work, not commands supported by the current completion CLI.
 
 ### Initial assembly and changed-decision refresh
 
