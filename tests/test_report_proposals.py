@@ -31,7 +31,7 @@ def test_proposed_interaction_is_visible_without_claiming_execution(modules, tmp
     assert row["status"] == "proposed"
     assert data["plan_counts"]["executed"] == 0
     markdown = (tmp_path / ".eval-author/report_markdown/tasks.md").read_text()
-    assert "| **User Simulation**<br>Require approval before saving a refund. |" in markdown
+    assert "| **User Simulation:** Require approval before saving a refund. |" in markdown
     assert "task.planned_interaction" in (tmp_path / ".eval-author/report.html").read_text()
 
 
