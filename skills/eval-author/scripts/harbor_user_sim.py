@@ -25,7 +25,7 @@ from user_sim import UserSimError, load_scenario
 if TYPE_CHECKING:
     from harbor.models.job.config import JobConfig
 
-NEUTRAL_BEHAVIOR = Path(__file__).resolve().parents[2] / "eval-author-user-sim/references/neutral-behavior.md"
+NEUTRAL_PERSONA = Path(__file__).resolve().parents[2] / "eval-author-user-sim/references/neutral-persona.md"
 USER_TEMPLATE = """{neutral}
 
 ## Private scenario
@@ -170,7 +170,8 @@ def _external_inputs(native: JobConfig) -> tuple[Path, ...]:
             paths.append(Path(config))
     target_prompt = native.agents[0].kwargs.get("prompt_template_path")
     if target_prompt is not None:
-        paths.append(Path(target_prompt))
+        # Harbor 0.24.0 applies target templates in run(), which ACP bypasses.
+        raise HarborTranslationError("Target prompt_template_path is not supported by the native ACP bridge")
     acpx_path = native.user_agent.bridge.kwargs.get("acpx_config_path")
     if acpx_path is not None:
         paths.append(Path(acpx_path))
@@ -209,6 +210,9 @@ def _validate_task(native: JobConfig, scenario_path: Path, output_dir: Path) -> 
     task = Task(task_dir, disable_verification=native.verifier.disable)
     if task.has_steps:
         raise HarborTranslationError("Harbor user-agent bridges do not support multi-step tasks")
+    # Harbor 0.24.0 implicitly loads this file and bypasses the simulator.
+    if task.paths.trajectory_path.exists() or task.paths.trajectory_path.is_symlink():
+        raise HarborTranslationError("Task-provided trajectory.json is incompatible with user simulation")
     if scenario_path != task_dir.resolve() / "user-sim.yaml":
         raise HarborTranslationError("Use the user-sim.yaml inside the selected native task directory")
     target = native.agents[0]
@@ -244,7 +248,7 @@ def translate(scenario_path: Path, config_path: Path, output_dir: Path) -> Trans
     for path in external_inputs:
         _snapshot_input(path, snapshots)
     _validate_acpx_input(native)
-    template = USER_TEMPLATE.format(neutral=NEUTRAL_BEHAVIOR.read_text())
+    template = USER_TEMPLATE.format(neutral=NEUTRAL_PERSONA.read_text())
     validate_user_prompt_template(template, source="Eval Author", persona_path=output_dir / "persona.txt")
     files = {
         "persona.txt": json.dumps(scenario.to_dict(), indent=2, ensure_ascii=False, allow_nan=False) + "\n",
