@@ -57,6 +57,10 @@ def test_hunk_lines_numbers_new_side_across_hunks():
     assert post.hunk_lines(PATCH) == [{1, 2, 3, 4}, {21, 22}]
 
 
+def test_hunk_lines_keeps_unicode_line_separators_inside_one_line():
+    assert post.hunk_lines('@@ -1,3 +1,3 @@\n+s = "a\u2028b"\n+x = 1\n+y = 2') == [{1, 2, 3}]
+
+
 @pytest.mark.parametrize(
     ("start", "end", "expected"),
     [(1, 4, True), (21, 22, True), (4, 21, False), (22, 23, False)],
@@ -82,10 +86,11 @@ def test_load_review_accepts_minimal_document(tmp_path: Path):
         lambda d: d.update(head_sha="c" * 40),
         lambda d: d["findings"][0].update(line_start=1, line_end=11),
         lambda d: d["findings"][0].update(file_path="tools/../secrets"),
+        lambda d: d["findings"][0].update(file_path="x\n~~~"),
         lambda d: d["findings"][0].update(priority=True),
         lambda d: d.update(findings=[finding()] * 51),
     ],
-    ids=["extra-key", "head-mismatch", "span-too-long", "dotdot-path", "bool-priority", "too-many"],
+    ids=["extra-key", "head-mismatch", "span-too-long", "dotdot-path", "newline-path", "bool-priority", "too-many"],
 )
 def test_load_review_rejects_invalid_documents(tmp_path: Path, mutate):
     document = copy.deepcopy(review())

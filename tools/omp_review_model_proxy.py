@@ -5,8 +5,9 @@
 
 It is the only holder of the inference key. It forwards `POST /v1/messages` for one configured model to Inference
 Hub, meters each response's token usage at configured prices, and refuses new calls once the run's spend would pass
-its budget. Calls in flight are reserved against the budget at an estimated worst case and settled at their metered
-cost, so concurrent calls cannot jointly overshoot it; the remaining error is the input-token estimate.
+its budget. Calls in flight are reserved against the budget at an estimated worst case (input priced at the dearest
+input-side rate, plus the full output limit) and settled at their metered cost, so concurrent calls cannot jointly
+overshoot it; the remaining error is the input-token estimate.
 
 Configuration (environment): OMP_REVIEW_INFERENCE_HUB_API_KEY, OMP_REVIEW_MODEL, OMP_REVIEW_MAX_TOKENS,
 OMP_REVIEW_BUDGET_USD, OMP_REVIEW_PRICES ("input=4,output=20,cache_write_5m=5,cache_write_1h=8,cache_read=0.2", USD
@@ -38,6 +39,28 @@ ADMISSION_WAIT_SECONDS = 600
 UPSTREAM_TIMEOUT_SECONDS = 900
 PRICE_KEYS = ("input", "output", "cache_write_5m", "cache_write_1h", "cache_read")
 FORWARDED_HEADERS = {"accept", "anthropic-beta", "anthropic-version", "content-type", "user-agent"}
+# Anthropic Messages parameters. Anything else is refused: Inference Hub (LiteLLM) acts on extra body
+# fields such as `fallbacks`, which would route to other models, and server tools or MCP servers would let the
+# provider fetch URLs on the sandbox's behalf.
+REQUEST_FIELDS = {
+    "context_management",
+    "max_tokens",
+    "messages",
+    "metadata",
+    "model",
+    "output_config",
+    "output_format",
+    "service_tier",
+    "stop_sequences",
+    "stream",
+    "system",
+    "temperature",
+    "thinking",
+    "tool_choice",
+    "tools",
+    "top_k",
+    "top_p",
+}
 SKIPPED_RESPONSE_HEADERS = {"connection", "content-encoding", "content-length", "keep-alive", "transfer-encoding"}
 USAGE_FIELDS = ("input_tokens", "output_tokens", "cache_creation_input_tokens", "cache_read_input_tokens")
 CACHE_SPLIT_FIELDS = ("ephemeral_5m_input_tokens", "ephemeral_1h_input_tokens")
@@ -196,14 +219,16 @@ class Meter:
     def snapshot(self) -> dict[str, Any]:
         with self._condition:
             hub = self.hub_key_spend
+            # Inference Hub's running total for the key, seen before each call; approximate (it misses the last call
+            # and includes other traffic on the key) and None when it never moved, which means no data.
+            hub_delta = max(hub) - min(hub) if len(hub) > 1 else 0.0
             return {
                 "spent_usd": round(self.spent, 6),
                 "budget_usd": self.budget,
                 "reserved_usd": round(self.reserved, 6),
                 "requests": self.requests,
                 "refused": self.refused,
-                # Inference Hub's own running total for the key, for checking the configured prices.
-                "hub_key_spend_delta_usd": round(max(hub) - min(hub), 6) if len(hub) > 1 else None,
+                "hub_key_spend_delta_usd": round(hub_delta, 6) if hub_delta > 0 else None,
             }
 
 
@@ -241,8 +266,12 @@ class Handler(BaseHTTPRequestHandler):
         if not isinstance(max_tokens, int) or isinstance(max_tokens, bool) or not 1 <= max_tokens <= config.max_tokens:
             self._error(400, "invalid_request_error", f"max_tokens must be between 1 and {config.max_tokens}")
             return
+        if problem := _unsupported(request):
+            self._error(400, "invalid_request_error", problem)
+            return
         prices = config.prices
-        reservation = math.ceil(len(body) / BYTES_PER_TOKEN) * prices.input + max_tokens * prices.output
+        input_price = max(prices.input, prices.cache_write_5m, prices.cache_write_1h)
+        reservation = math.ceil(len(body) / BYTES_PER_TOKEN) * input_price + max_tokens * prices.output
         if not self.server.meter.admit(reservation, ADMISSION_WAIT_SECONDS):
             self._error(402, "billing_error", f"the omp review budget of ${config.budget_usd:.2f} is spent")
             return
@@ -318,6 +347,21 @@ class Handler(BaseHTTPRequestHandler):
 
     def _error(self, status: int, kind: str, message: str) -> None:
         self._json(status, {"type": "error", "error": {"type": kind, "message": message}})
+
+
+def _unsupported(request: dict[str, Any]) -> str | None:
+    """Why the request may not be forwarded, or None."""
+    if extra := sorted(set(request) - REQUEST_FIELDS):
+        return f"unsupported request fields: {', '.join(extra)}"
+    metadata = request.get("metadata")
+    if metadata is not None and (not isinstance(metadata, dict) or set(metadata) - {"user_id"}):
+        return "metadata may only carry user_id"
+    tools = request.get("tools", [])
+    if not isinstance(tools, list) or any(
+        not isinstance(tool, dict) or tool.get("type", "custom") != "custom" for tool in tools
+    ):
+        return "only custom tools are allowed"
+    return None
 
 
 def _number(value: str | None) -> float | None:

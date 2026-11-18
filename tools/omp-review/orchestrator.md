@@ -25,8 +25,8 @@ This run is unattended: never stop to ask anything, and always finish by writing
 Exactly these keys:
 ```json
 {"version": 1, "head_sha": "<head_sha from pr.json>", "overall_correctness": "correct|incorrect",
- "explanation": "<1-3 plain-text sentences>", "confidence": 0.0,
- "findings": [{"title": "<imperative, ≤80 chars>", "body": "<one paragraph: bug, trigger, impact, evidence; optional ```suggestion block>",
+ "explanation": "<1-3 plain-text sentences, ≤1000 chars>", "confidence": 0.0,
+ "findings": [{"title": "<imperative, ≤80 chars>", "body": "<one paragraph, ≤4000 chars: bug, trigger, impact, evidence; optional ```suggestion block>",
    "priority": 0, "confidence": 0.0, "file_path": "<repo-relative>", "line_start": 1, "line_end": 1}]}
 ```
-Priority: 0 blocks release or operations for any input (data corruption, auth bypass); 1 high, fix next cycle; 2 medium, fix eventually (edge-case mishandling); 3 nice to have. `incorrect` when any priority 0–2 finding remains. At most 50 findings, highest priority first; line_end − line_start ≤ 9.
+Priority: 0 blocks release or operations for any input (data corruption, auth bypass); 1 high, fix next cycle; 2 medium, fix eventually (edge-case mishandling); 3 nice to have. `incorrect` when any priority 0–2 finding remains. At most 50 findings, highest priority first; line_end − line_start ≤ 9. Any limit exceeded rejects the whole file and posts no findings, so trim command output in bodies to the decisive lines.

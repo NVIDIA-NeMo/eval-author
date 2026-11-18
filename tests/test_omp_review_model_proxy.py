@@ -142,11 +142,37 @@ def test_streams_response_and_meters_every_usage_category(start):
         ("/v1/messages", "POST", {"model": "aws/anthropic/pricier-model"}, 400),
         ("/v1/messages", "POST", {"max_tokens": 65}, 400),
         ("/v1/messages", "POST", {"max_tokens": True}, 400),
+        ("/v1/messages", "POST", {"fallbacks": ["aws/anthropic/pricier-model"]}, 400),
+        ("/v1/messages", "POST", {"mcp_servers": [{"type": "url", "url": "https://evil.example"}]}, 400),
+        ("/v1/messages", "POST", {"tools": [{"type": "web_fetch_20250910", "name": "web_fetch"}]}, 400),
+        ("/v1/messages", "POST", {"metadata": {"user_id": "u", "tags": ["x"]}}, 400),
     ],
 )
-def test_rejects_other_paths_models_and_output_limits(start, path, method, body, status):
+def test_rejects_other_paths_models_limits_and_routing_fields(start, path, method, body, status):
     server, upstream = start(json_reply(1))
     assert call(server, path, method, **body)[0] == status
+    assert upstream.requests == []
+
+
+def test_forwards_the_parameters_omp_sends(start):
+    server, upstream = start(json_reply(1))
+    body: dict[str, Any] = {
+        "system": [{"type": "text", "text": "sys"}],
+        "tools": [{"name": "read", "description": "Read", "input_schema": {"type": "object"}}],
+        "tool_choice": {"type": "auto"},
+        "thinking": {"type": "adaptive"},
+        "output_config": {"effort": "high"},
+        "metadata": {"user_id": "session"},
+        "stream": False,
+    }
+    assert call(server, **body)[0] == 200 and len(upstream.requests) == 1
+
+
+def test_reservation_prices_input_at_the_dearest_input_side_rate(start):
+    # Base input is free, but a 1-hour cache write costs $1 per token, so a ~30-token prompt cannot fit $5.
+    prices = "input=0,output=0,cache_write_5m=0,cache_write_1h=1000000,cache_read=0"
+    server, upstream = start(json_reply(1), budget=5, prices=prices)
+    assert call(server)[0] == 402
     assert upstream.requests == []
 
 

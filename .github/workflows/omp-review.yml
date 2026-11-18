@@ -12,10 +12,6 @@ on:
 
 permissions: {}
 
-concurrency:
-  group: omp-review-${{ github.event.pull_request.number }}-${{ github.event.action == 'labeled' && github.event.label.name != 'omp-review' && github.run_id || 'review' }}
-  cancel-in-progress: true
-
 jobs:
   authorize:
     if: >-
@@ -53,6 +49,11 @@ jobs:
     if: needs.authorize.outputs.allowed == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 75
+    # Job-level, so only authorized reviews compete: a newer one replaces a running one for the same PR, while runs
+    # that authorize skips cannot cancel it.
+    concurrency:
+      group: omp-review-${{ github.event.pull_request.number }}
+      cancel-in-progress: true
     environment: ${{ github.event_name == 'pull_request' && 'omp-review-test' || 'omp-review' }}
     permissions:
       contents: read

@@ -52,6 +52,14 @@ def test_review_requires_authorized_same_repo_humans():
     assert JOBS["review"]["if"] == "needs.authorize.outputs.allowed == 'true'"
 
 
+def test_only_authorized_reviews_share_a_concurrency_group():
+    assert "concurrency" not in WORKFLOW
+    assert JOBS["review"]["concurrency"] == {
+        "group": "omp-review-${{ github.event.pull_request.number }}",
+        "cancel-in-progress": True,
+    }
+
+
 def test_only_staged_review_and_status_are_uploaded():
     steps = JOBS["review"]["steps"]
     upload = next(step for step in steps if step.get("uses", "").startswith("actions/upload-artifact@"))

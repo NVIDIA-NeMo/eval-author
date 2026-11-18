@@ -58,7 +58,39 @@ def _finding_title(body: str) -> str:
     return first.removesuffix("**")
 
 
-def _prior_findings(review_comments: list[Any]) -> list[dict[str, Any]]:
+# One finding as omp_review_post._finding_entry lists it in a review body: header line, then an indented body.
+_BODY_FINDING = re.compile(r"- \*\*\[P(\d)\] (.*)\*\* — `(.*):(\d+)-(\d+)`")
+
+
+def _plain(text: str) -> str:
+    """Undo the zero-width spaces the poster inserts to defang markdown."""
+    return text.replace("\u200b", "")
+
+
+def _body_findings(body: str, reviewed_sha: str) -> list[dict[str, Any]]:
+    entries: list[tuple[dict[str, Any], list[str]]] = []
+    lines: list[str] | None = None
+    for line in body.split("\n"):
+        if match := _BODY_FINDING.fullmatch(line):
+            lines = []
+            header = {
+                "source": "review_body",
+                "reviewed_sha": reviewed_sha,
+                "path": _plain(match.group(3)),
+                "start_line": int(match.group(4)),
+                "line": int(match.group(5)),
+                "title": _plain(match.group(2)),
+            }
+            entries.append((header, lines))
+        elif lines is not None and (not line or line.startswith("  ")):
+            lines.append(line[2:])
+        else:
+            lines = None
+    return [header | {"body": _plain("\n".join(lines).strip())[:2000]} for header, lines in entries]
+
+
+def _prior_findings(review_comments: list[Any], reviews: list[Any]) -> list[dict[str, Any]]:
+    """Earlier omp findings: inline comments, plus findings listed in review bodies (outside the diff or fallback)."""
     findings: list[dict[str, Any]] = []
     for item in review_comments:
         body = item.get("body") or ""
@@ -66,14 +98,23 @@ def _prior_findings(review_comments: list[Any]) -> list[dict[str, Any]]:
             continue
         findings.append(
             {
+                "source": "inline_comment",
+                "reviewed_sha": item.get("original_commit_id"),
                 "path": item.get("path"),
                 "line": item.get("line"),
                 "start_line": item.get("start_line"),
-                "title": _finding_title(body),
-                "body": body[:2000],
-                "outdated": item.get("position") is None,
+                "original_line": item.get("original_line"),
+                "original_start_line": item.get("original_start_line"),
+                "title": _plain(_finding_title(body)),
+                "body": _plain(body[:2000]),
+                # GitHub keeps `position` on outdated comments but clears `line`.
+                "outdated": item.get("line") is None,
             }
         )
+    for review in reviews:
+        body = review.get("body") or ""
+        if (review.get("user") or {}).get("login") == gh.BOT_LOGIN and (match := _REVIEW_TRAILER.search(body)):
+            findings.extend(_body_findings(body, match.group(1)))
     return findings
 
 
@@ -157,7 +198,7 @@ def collect(repo: str, pr: int, base_sha: str, head_sha: str, out: Path, token: 
             reviews,
             _writers(review_comments + issue_comments + reviews, repo, token),
         ),
-        "prior-findings.json": _prior_findings(review_comments),
+        "prior-findings.json": _prior_findings(review_comments, reviews),
         "checks.json": _check_runs(repo, head_sha, token),
     }
     for name, value in documents.items():

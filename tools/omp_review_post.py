@@ -71,7 +71,15 @@ def _check_finding(index: int, finding: Any) -> None:
         raise ValueError(f"{where}.priority must be an integer 0-3")
     if not _is_unit(finding["confidence"]):
         raise ValueError(f"{where}.confidence must be a number in [0, 1]")
-    if not isinstance(path, str) or not path or path.startswith("/") or "\\" in path or ".." in path.split("/"):
+    # Control characters would start new markdown lines where the review body lists the finding's location.
+    if (
+        not isinstance(path, str)
+        or not path
+        or path.startswith("/")
+        or "\\" in path
+        or ".." in path.split("/")
+        or any(ord(char) < 32 or ord(char) == 127 for char in path)
+    ):
         raise ValueError(f"{where}.file_path must be a repository-relative path")
     start, end = finding["line_start"], finding["line_end"]
     if not _is_int(start) or start < 1:
@@ -165,7 +173,7 @@ def verdict(findings: list[dict[str, Any]]) -> str:
 def hunk_lines(patch: str) -> list[set[int]]:
     hunks: list[set[int]] = []
     new = 0
-    for line in patch.splitlines():
+    for line in patch.split("\n"):  # GitHub separates patch lines with \n only; splitlines() also splits on U+2028
         match = _HUNK.match(line)
         if match:
             new = int(match.group(1))

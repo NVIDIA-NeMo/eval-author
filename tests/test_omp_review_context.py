@@ -51,3 +51,33 @@ def test_discussion_keeps_only_human_commenters_with_write_access(monkeypatch):
     ]
     writers = context._writers(comments, "o/r", "t")
     assert [entry["body"] for entry in context._discussion(comments, [], [], writers)] == ["maintainer"]
+
+
+def test_prior_findings_include_findings_listed_in_review_bodies():
+    def finding(title: str, path: str, start: int, body: str) -> dict[str, Any]:
+        return {"title": title, "body": body, "priority": 2, "confidence": 0.5, "file_path": path,
+                "line_start": start, "line_end": start + 1}  # fmt: skip
+
+    findings = [
+        finding("Ping @octocat on empty input", "tools/x.py", 3, "First line.\n\n```suggestion\n    return 1\n```"),
+        finding("Second", "docs/a b.md", 40, "Only line."),
+    ]
+    review = {"explanation": "Two bugs.", "confidence": 0.5, "findings": findings}
+    body = post.fallback_request(review, NEW, "https://run")["body"]
+
+    prior = context._prior_findings([], [bot_review(body)])
+
+    assert [(f["source"], f["reviewed_sha"], f["path"], f["start_line"], f["line"], f["title"]) for f in prior] == [
+        ("review_body", NEW, "tools/x.py", 3, 4, "Ping @octocat on empty input"),
+        ("review_body", NEW, "docs/a b.md", 40, 41, "Second"),
+    ]
+    assert [f["body"] for f in prior] == [findings[0]["body"], "Only line."]
+
+
+def test_prior_inline_findings_are_outdated_when_github_clears_the_line():
+    comment = {"user": {"login": gh.BOT_LOGIN}, "body": f"**[P2] Fix it**\n\nBody\n{gh.FINDING_MARKER}",
+               "path": "a.py", "line": None, "position": 1, "original_line": 6, "original_commit_id": OLD}  # fmt: skip
+
+    [prior] = context._prior_findings([comment], [])
+
+    assert (prior["outdated"], prior["original_line"], prior["title"]) == (True, 6, "Fix it")

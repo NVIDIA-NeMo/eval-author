@@ -28,7 +28,16 @@ done
 
 START=$(date +%s)
 PHASE=setup
-fail_input() { echo "run.sh: $1" >&2; exit 2; }
+# Run status without model spend, for exits before the model proxy can report it. Exit 124 means out of time.
+basic_status() {
+  printf '{"phase": "%s", "exit_code": %d, "seconds": %d, "timed_out": %s}' \
+    "$PHASE" "$1" "$(($(date +%s) - START))" "$([ "$1" -eq 124 ] && echo true || echo false)"
+}
+fail_input() {
+  echo "run.sh: $1" >&2
+  [ -z "$STATUS_FILE" ] || basic_status 2 >"$STATUS_FILE"
+  exit 2
+}
 [ -n "${OMP_REVIEW_INFERENCE_HUB_API_KEY:-}" ] || fail_input "OMP_REVIEW_INFERENCE_HUB_API_KEY is empty"
 [[ "${OMP_REVIEW_MODEL:-}" =~ ^[A-Za-z0-9._:/-]{1,200}$ ]] || fail_input "OMP_REVIEW_MODEL is missing or invalid"
 [[ "${OMP_REVIEW_CONTEXT_WINDOW:-}" =~ ^[1-9][0-9]{0,8}$ ]] || fail_input "OMP_REVIEW_CONTEXT_WINDOW must be a positive integer"
@@ -80,9 +89,7 @@ status = {"phase": args["--phase"], "exit_code": int(args["--code"]), "seconds":
           "hub_key_spend_delta_usd": spend.get("hub_key_spend_delta_usd")}
 print(json.dumps(status))'
   local status
-  status=$(docker exec "$ID-model" python3 -c "$summary" "${fields[@]}" 2>/dev/null) \
-    || status=$(printf '{"phase": "%s", "exit_code": %d, "seconds": %d, "timed_out": %s}' \
-      "$PHASE" "$code" "$(($(date +%s) - START))" "$([ "$timed_out" -eq 1 ] && echo true || echo false)")
+  status=$(docker exec "$ID-model" python3 -c "$summary" "${fields[@]}" 2>/dev/null) || status=$(basic_status "$code")
   echo "run.sh: status $status" >&2
   [ -z "$STATUS_FILE" ] || printf '%s\n' "$status" >"$STATUS_FILE"
 }
@@ -203,7 +210,8 @@ PHASE=selftest
 pass() { echo "selftest: PASS $1"; }
 fail() { echo "selftest: FAIL $1" >&2; exit 1; }
 
-if agent_run curl -sS -m 5 --noproxy '*' https://pypi.org/simple/ >/dev/null 2>&1; then
+# A literal IP: names never resolve inside gVisor, so probing a hostname would pass without testing routing.
+if agent_run curl -sS -m 5 --noproxy '*' -o /dev/null http://1.1.1.1/ >/dev/null 2>&1; then
   fail direct-egress-blocked
 fi
 pass direct-egress-blocked
