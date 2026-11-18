@@ -353,6 +353,62 @@ On interruption, preserve partial output. Recheck a completed bundle with
 output directory. Do not reseal old evidence after a source change. Fixture repair
 is a separate authorized action outside the assessment session.
 
+### Retained current base and mutation completion
+
+For an explicitly continued all-populated demonstration with retained evidence,
+use the bundled `current_rubric_completion.py --reuse-current` entrypoint from
+this skill directory. Keep expected targets outside assessment inputs. Supply the
+current `--matrix`, original `--source-freeze`, explicit
+`--source-review-operator-store`, `--source-review-operator-trust
+localhost-assessment-operator-v1`, trusted `--registry`, and a new `--output`
+inside the original base root. Set `PYTHONDONTWRITEBYTECODE=1` and `TMPDIR` to an
+existing private nonsymlink scratch directory; use the exact collection Python.
+Use `--defer-replay` when final deduplicated replay is reserved for a later gate.
+
+This command checks matrix lineage, selected bytes, canonical definitions, frozen
+native/CREATE-02 identities, native mutation admission and stored decisions. It
+runs the ordinary combined base once and requires every measurement and row to
+remain equal. It then reuses unchanged reports and rebuilds the coverage table;
+it does not repeat the full affected-report batch, collect native/model evidence,
+record answers, or execute commands saved in the matrix.
+
+For the reviewed finite upper/native follow-up, add
+`--reviewed-companions finite-upper-v1 --qualification-root PATH --upper-root PATH
+--native-followup-root PATH`. This is an explicit executable-plugin trust choice,
+not a selection artifact. The loader accepts only checked-in exact implementation
+hashes, validates through the owning consumers and rereads qualification/revocation
+before projection. It generates the exact copied-population report and retains
+new-family/native reports separately. It never promotes the original base from
+those populations. The historical companion remains path-bound: require its
+original checkout, population and store paths; do not relocate, patch constants or
+reseal it. An unknown companion requires review, not an arbitrary script flag.
+
+The implementation is at the skill root because adding files to the frozen
+`scripts/` or `references/` trees would invalidate native follow-up evidence.
+`tools/current_rubric_completion.py` is only a checkout compatibility wrapper.
+Ask for missing paths/trust once; do not ask the user to assemble private Python
+scripts or repeat retained owner decisions. Missing or stale evidence fails closed.
+Changed decisions use the existing `--refresh-decisions` route, then this reuse
+route; fresh native collection requires separate permission and owning collectors.
+Report `manual_interventions` only for this invocation after prerequisites, not as
+proof of fresh-user usability. Keep historic setup and owner interventions separate.
+
+Present `summary.md`, `coverage.json`, `matrix.json`, `verification.json` and
+`reuse-inputs.json`. Preserve source dissent, all lower and missing-evidence rows,
+shared-withholding caveats, task difficulty, and per-population base/repair links.
+Do not call retained reuse fresh execution or a full replay. The original base's
+remaining qualification and undefined METHOD-J1 are not closed by this command.
+
+For completed native suite viability, use `--original-finish --suite-native-root PATH`
+with the same explicit matrix/freeze/store/trust/registry prerequisites and a new
+private output. Keep its independently bound `suite-native.json` outside the
+unchanged source selection. Require full original report equality, actual raw
+Trial/hash/reward admission, and exact family/task/image/adapter identities. Label
+it full Harbor Trial through the declared provider adapter, never stock-path,
+independent or held-out evidence. No score or consent transfers from viability;
+the closed execution budget stays closed. Preserve prior failed outputs and use
+the linked companion rather than increasing the report reader cap.
+
 ### 4. Present the scoped assessment
 
 For each selected criterion, report its ID, applicability, score or
@@ -375,8 +431,11 @@ Default to the response only. If asked to persist, use private review notes unde
 `.eval-author/.working/` and reference existing receipts instead of copying them
 or introducing another authoritative evidence ledger. Do not write an Audit
 report, `report-content.json`, `coverage.json`, or audit state. Do not insert rubric
-scores into an existing report schema. A future integration must use the owning
-renderer and its validated content contract, not free-form report patches.
+scores into an existing report schema. The explicitly authorized retained
+base/mutation completion above writes its own derived `coverage.json`, not Audit
+coverage or state; that exception does not authorize changing an existing report.
+Other future integrations must use the owning renderer and its validated content
+contract, not free-form report patches.
 
 Keep raw answers, credentials, source traces, exploit payloads, and private paths
 out of shareable summaries and solver-readable task documentation. Use content-free

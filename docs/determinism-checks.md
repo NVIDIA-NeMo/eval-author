@@ -186,7 +186,7 @@ The main `summary.md` joins base, case, criterion, expected, actual, reason and 
 
 ### Run
 
-Finish source changes and header generation before freezing identities. Then refresh affected native evidence and scoped reviews. Run the assessment, matrix, final tests and replay only after those prerequisites settle. The paths below are historical examples, not current admitted evidence. All eight retained native indexes bind changed helpers. Do not reseal or repin their original receipts. Use fresh outputs. The expanded matrix has not run in this implementation stage.
+Finish source changes and header generation before freezing identities. Refresh affected native evidence and scoped reviews only when their bound sources change. The full-generation command below is a historical example, not the retained-current reuse path. For an already admitted current matrix, use [one-command retained reuse](#reuse-current-qualified-evidence-in-one-command) rather than regenerating the full batch. Never reseal original receipts.
 
 From the repository root, choose a **new** scratch output directory:
 
@@ -231,20 +231,159 @@ Fairness 0 consumes the actual parent-observed answer **“Yes—unjustified; re
 - Legacy base scores do not transfer to the canonical leakage criteria. The runner launches no models or native trials. Refresh affected native panels and obtain any required exact-scope decisions before final execution.
 - `hidden-completion` does not prove a hidden requirement when verifier source is allowed authority. Its expected zero remains an explicit mismatch rather than relabeling the ordinary Unassessed result.
 
-### Current deferred acceptance
+### Original-base upper prerequisites
 
-| Criterion | Implemented observation route | Remaining control or decision |
-|---|---|---|
-| AUDIT-03 | Current native per-check/total comparison, shared consumer controls; finite admitted mandatory-gate bypasses | Owner approval of combined attack applicability and expected credit; all unresolved classes, then independently authored held-out attacks |
-| AUDIT-04-B | Local confirmed mechanism, retained affected and new-instance repair/valid-work comparisons | Owner quarantine/bounded-use dispositions; independent cross-family replay |
-| AUDIT-05-B | Inspectable local exposure inventory earns only the defined partial anchor | Exposure timestamps, searched/unknown corpora, reviewed bounded statement; original/subset sensitivity and independent provenance review |
-| AUDIT-05-S03 | Split overlap and prompt reuse observations | Complete candidate/feedback ledger, actual access lineage, frozen owner-approved confirmation/reuse rule, untouched confirmation or reuse-boundary controls |
-| TRACE-04-A | Inert fixture channel/candidate and sampled-negative inventory with exact local sink digest | Qualified contextual and exact digest/recipient/use disposition; independent labels/release audit; no real sensitive collection |
-| ENV-03-S01 | Native reset/sentinel partial observations and admitted unintended-persistence zero | Full isolated/shared-surface owner declaration; order/session coverage and independent parallel/delayed-effect controls; stochastic repeats only if needed |
-| CREATE-02 | Paired local cue-only/nuisance/misleading/style controls with per-arm credit, transitions and finite-population limits | Actual current agent confound review and owner method acceptance; independent new families |
-| METHOD-J1 | Explicit Unassessed, outside numeric denominator | Upstream canonical judge trust-boundary definition |
+These are remaining qualification requirements for the original base, not missing
+lower-anchor implementation or requests to repeat already retained decisions.
+Separate qualified populations do not discharge them.
+
+| Original-base criterion | Remaining evidence |
+|---|---|
+| AUDIT-03 | Complete material attack applicability/credit review and independently authored held-out corroboration |
+| AUDIT-04-B | Original-base confirmed mechanism, containment/bounded-use disposition and independent repair corroboration; separate repairs do not transfer |
+| AUDIT-05-B | Original-base complete exposure/sensitivity packet and qualified provenance method; copied-population UQ2 is separate |
+| AUDIT-05-S03 | Original-base candidate/feedback and access lineage, confirmation/reuse rule and actual boundary executions |
+| TRACE-04-A | Exact contextual digest/recipient/use disposition and independent labeling/release evidence |
+| ENV-03-S01 | Remaining material shared surfaces and independently authored order/parallel corroboration; no fictional cross-container queue obligation |
+| CREATE-02 | Original-base current confound/method qualification and independently authored families; accepted separate stale-template zero stays separate |
+| provenance.evidence-revision-consistency | Change-injection checks for this selection |
+| task-contract.discoverable-requirements | Blind discovery for this selection |
+| task-contract.scoring-authority | Independent full-contract corroboration |
+| METHOD-J1 | Upstream canonical judge trust-boundary definition; outside numeric denominator |
 
 The expanded implementation does not claim all 84 cells have results. Current completed counts come only from the final emitted matrix. Missing human, native, independent and adapter prerequisites remain separate from execution failures.
+
+### Reuse current qualified evidence in one command
+
+Use the existing exact Python environment; no installation, credentials, Docker
+launch or model invocation is needed for this retained path. Supply the original
+private evidence root, current matrix, freeze, operator store and registry. All
+must remain at their admitted paths. The assistant handles selections and helper
+calls after explicit experimental-rubric opt-in; users need no private scripts.
+
+From the checkout root (or use `current_rubric_completion.py` from the installed
+skill directory), set the variables to your retained paths:
+
+```sh
+export PYTHONDONTWRITEBYTECODE=1
+export TMPDIR=/absolute/private/nonsymlink-scratch
+PYTHON=/absolute/original/environment/bin/python
+BASE_ROOT=/absolute/original-base-root
+MATRIX=/absolute/current-qualified/matrix.json
+FREEZE=/absolute/original-base-root/source-freeze.json
+STORE=/absolute/original-operator-store
+REGISTRY=/absolute/original-native-registry
+QUALIFICATION=/absolute/upper-qualified-current
+UPPER=/absolute/upper-execution-current
+FOLLOWUP=/absolute/native-closure-current
+
+"$PYTHON" -B skills/eval-author-rubric/current_rubric_completion.py \
+  --reuse-current --matrix "$MATRIX" --source-freeze "$FREEZE" \
+  --source-review-operator-store "$STORE" \
+  --source-review-operator-trust localhost-assessment-operator-v1 \
+  --registry "$REGISTRY" --reviewed-companions finite-upper-v1 \
+  --qualification-root "$QUALIFICATION" --upper-root "$UPPER" \
+  --native-followup-root "$FOLLOWUP" \
+  --output "$BASE_ROOT/new-current-review" --defer-replay
+```
+
+`TMPDIR` must already exist and have no symlink ancestors. The output must be new
+and inside the original base root. The command validates current selections and
+matrix lineage, native mutation admission, all frozen producer identities and
+CREATE-02 identity. It regenerates **one** ordinary base report and requires exact
+measurement/row equality before reusing the remaining reports. It reconstructs
+coverage from emitted scores and generates the exact copied-population report;
+it does not repeat the full binding-affected report batch.
+
+The explicit `finite-upper-v1` option permits only the reviewed companion bytes
+and fixed functions, never a script or command supplied by retained evidence.
+Owning validation and final receipt/revocation readback still apply. Existing
+new-family/native reports have separately reviewed exact identities; their hashes
+alone are not admission. Neither population supplies original-base credit or its
+repair. The alias follow-up preserves the failed prediction: alias rejection in
+both scorer arms is not a confirmed exploit or demonstrated repair benefit.
+
+The new entrypoint ships at the skill root to leave frozen `scripts/` and
+`references/` inventories unchanged. `tools/current_rubric_completion.py` delegates
+to it for existing checkout commands. Omit the companion option and all three
+companion roots only when the input matrix has no separate supporting reports.
+Do not run the old private integration script.
+
+Open `summary.md`; `coverage.json` retains all numeric and missing-evidence cells,
+`matrix.json` retains original disagreements and pairings, `verification.json`
+records owning validation and manual intervention count, and `reuse-inputs.json`
+records the files reused. Exit 0 means this bounded orchestration completed, not
+that the base is perfect or final replay passed. A validation exception is failure;
+retain any partial output and choose a new directory after resolving the cause.
+
+The retained milestone has 75/84 observed numeric cells, 63/63 lower cells and
+21/21 missing-evidence drops; some drops share broad withholding. The original
+Harbor base remains 11 scores of 3, three of 2, three of 1 and four Unassessed.
+No aggregate merit score is computed. Task difficulty and legitimate model
+failures remain intact. Zero interventions means zero new questions, manual packet
+assembly or recovery **during this command after inputs are supplied**; it excludes
+historical setup/qualification and is not a fresh-user study.
+
+Remaining external prerequisites are the unchanged path-bound evidence/runtime,
+explicit local operator trust and nonrevoked records. Porting the historical
+companions to another checkout requires a reviewed configurable replacement and
+new binding validation, not rewriting accepted packets. Original-base upper
+qualification still needs its own missing independent, held-out, change-injection,
+confirmation/containment and scoped-method evidence. METHOD-J1 still needs an
+upstream definition. Final deduplicated retained replay, full tests and any live
+refresh remain separate authorized gates. This command launches none of them.
+
+### Attach completed full-Trial suite viability
+
+For the retained two-family viability packet, use the same completion entrypoint
+with `--original-finish --suite-native-root /absolute/suite-native-recovery-current/native-run`,
+plus the original `--matrix`, `--source-freeze`, explicit operator store/trust,
+`--registry`, new private `--output`, and `--defer-replay`. This finite path needs
+the original containment source-equivalence package and byte-pinned historical
+orchestration snapshots beside the private integration output. It is path-bound,
+not a portable collector or a renewed launch authorization.
+
+Open `REPORT.md`, `suite-native.json`, and `report/results.md`. The ordinary JSON
+links the separately validated companion to stay within the existing reader cap.
+Admission checks frozen sources, all raw Trial files, typed Harbor configurations,
+exact task/family/image/adapter identities and reconstructed per-check rewards.
+Every original row and measurement must match the latest containment-admitted
+report. Existing lower examples and their pairings are not regenerated or relinked.
+The result is **full Harbor Trial through the declared provider adapter**, not the
+stock provider path, independent review, held-out evidence, or an awarded anchor.
+`verification.json` separates N/A from Unassessed; no native/model runs, owner
+intake or full retained replay occur. The closed viability budget does not renew.
+
+### Initial assembly and changed-decision refresh
+
+After ordinary matrix generation, the same bundled completion entrypoint adds the separately accepted CREATE-02 subject through its ordinary consumer. It rechecks native mutation admission and the retained CREATE-02 source closure. It keeps criterion-specific bases and repairs separate from the full base. It launches no native trials or models.
+
+The goal is a real Harbor task with the highest supported rubric anchors. Task validity, native executability and model performance are separate. Scripted valid controls establish feasibility, not a guarantee that every model solves the task. Preserve difficult cases and legitimate solver failures. Do not simplify the task, weaken grading or expose answers to raise rubric scores. A separate direct-Docker panel does not establish full Harbor acceptance.
+
+```sh
+PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -B tools/current_rubric_completion.py \
+  --matrix /absolute/current-matrix/matrix.json \
+  --create02-matrix /absolute/create02-integration/matrix.json \
+  --source-report /absolute/current-base/report/assessment.json \
+  --intake /absolute/parallel-source-intake \
+  --request-deltas /absolute/changed-exact-requests/request-deltas.json \
+  --output /absolute/new-private-coverage --defer-replay
+```
+
+`summary.md` links all 21 criteria to observed numeric cells and exact missing-evidence controls. `coverage.json` derives observations from emitted scores, including collateral outcomes, without using expected targets as scores. `matrix.json` retains original target disagreements and repair links. `decision-crosswalk.json` compares the four exact current requests with prior consent. The separate `semantic-fairness-request.json` asks about the changed comparison only. Generation records no decisions.
+
+After genuine owner intake, refresh only reports containing the affected exact bindings:
+
+```sh
+PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -B tools/current_rubric_completion.py \
+  --matrix /absolute/current-coverage/matrix.json \
+  --refresh-decisions /absolute/owner-intake/readbacks.json \
+  --output /absolute/new-private-postdecision --defer-replay
+```
+
+The readbacks must match existing nonrevoked operator events; this command never records answers. It regenerates affected ordinary reports, including their paired bases and repairs, preserves all other reports, and derives every cell from emitted scores. A missing-evidence drop may share a broad withholding control; it is not proof of independently isolated removal for each criterion. Separately qualified subjects remain distinct from original-base qualification and have no inherited base or repair.
+
+Add `--upper-evidence-root /absolute/upper-execution-current` to link the separate new-family packet and its remaining gates. The report checks its request artifact hashes but transfers no scores or approvals. Retained replay and full tests remain deferred. Replay the owning matrix and separately declared CREATE-02 reports in the final deduplicated batch. Do not pass the derived coverage matrix to the older matrix verifier.
 
 
 ## Overall rubric showcase
