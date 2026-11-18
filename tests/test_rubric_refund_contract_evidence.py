@@ -76,7 +76,9 @@ def test_ordinary_cli_consumes_defects_and_replays(tmp_path: Path):
         assert row["score"] == 0, case
         assert row["evidence_strength"] == "E1"
         assert row["source_inspection"]["variant"] == case
-        assert report["items"]["AC-02"]["score"] is None
+        assert not any(key.startswith("AC-") for key in report["items"])
+        forbidden_credit = case != "hidden-completion"
+        assert report["items"]["AUDIT-03"]["score"] == (0 if forbidden_credit else None), case
         assert all("expected" not in key for key in selection)
         assert "Finding:" in (root / "report/results.md").read_text()
 
@@ -159,7 +161,9 @@ def test_completion_only_measures_real_contradiction(tmp_path: Path):
     assert observation["contradiction_count"] == 1
     assert set(observation["binding"]["implementation"]) >= {"adapter", "canonical", "reader", "citations"}
     assert all(c["outcome"] == "NOT_RUN" for c in row["check_results"] if c["method"] == "human_review")
-    assert report["items"]["AC-02"]["score"] is None
+    # The executed no-work control reaches forbidden credit, so the source-only row is a confirmed 0.
+    assert report["items"]["AC-02"]["score"] == 0
+    assert report["items"]["AC-02"]["evidence_strength"] == "E1"
     (tmp_path / "completion-proof.json").write_text(json.dumps(report, indent=2))
     import example_fixtures
     import rubric_table

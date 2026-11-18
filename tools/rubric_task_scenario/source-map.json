@@ -31,7 +31,7 @@
     },
     "ordinary-rubric-table.py.txt": {
       "source": "skills/eval-author-rubric/scripts/rubric_table.py",
-      "sha256": "9ed60434b11a71555d0d8c692a3547fb259e4a3c08e75d8de1adf43fbbe4751f",
+      "sha256": "839f2303d4187ff185ecd2963be820f359fab713561213bcdc06877ae7e4e177",
       "origin_sha256": "9ed60434b11a71555d0d8c692a3547fb259e4a3c08e75d8de1adf43fbbe4751f",
       "adaptation": "byte-identical repository reuse",
       "executable": false

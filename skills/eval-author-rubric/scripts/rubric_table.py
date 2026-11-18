@@ -19,9 +19,9 @@ from typing import Any
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "eval-author/scripts"))
 from eval_author_shared.task_evidence import loads  # noqa: E402
 from measure import measure  # noqa: E402
-from rubric_leakage_current import canonical_definitions, definitions_digest, assess_current  # noqa: E402
 from rubric_evidence_scoring import canonical_definitions as legacy_definitions  # noqa: E402
 from rubric_identity import MAX_FILES, MAX_TOTAL_BYTES, read_selected  # noqa: E402
+from rubric_leakage_current import assess_current, canonical_definitions, definitions_digest  # noqa: E402
 
 
 def cell(value: object) -> str:
@@ -91,7 +91,11 @@ def human_action(row: dict[str, Any]) -> str:
     if row.get("display_review_summary"):
         return row["display_review_summary"]
     if row.get("assessment_scope") == "finite-heldout-refund-template-cache-v1":
-        return "Exact new-subject owner and agent qualification required; no prior approval transfers." if row["score"] is None else "Exact new-subject decisions retained; independent corroboration remains absent."
+        return (
+            "Exact new-subject owner and agent qualification required; no prior approval transfers."
+            if row["score"] is None
+            else "Exact new-subject decisions retained; independent corroboration remains absent."
+        )
     if row.get("upper_method_acceptance"):
         return "Exact-packet disclosed-exposure method and retention accepted by local operator. Original lower-anchor decisions remain scoped; no repeated approval needed."
     scoped = row.get("scoped_operator_review")
@@ -181,11 +185,25 @@ def task_credit(report: dict[str, Any], row: dict[str, Any], number: int | str) 
     if subject and row.get("assessment_scope") == subject["scope"]:
         pairs = subject["pairs"]
         published = [arm["published"]["credit"] for pair in pairs for arm in (pair["baseline"], pair["intervention"])]
-        oracle = [arm["evidence_oracle"]["credit"] for pair in pairs for arm in (pair["baseline"], pair["intervention"])]
-        return (f"Published {min(published)}/1 to {max(published)}/1; evidence oracle {min(oracle)}/1 to {max(oracle)}/1 across {len(pairs)} pairs.",
-                [f'<details id="task-credit-{number}"><summary>Finite refund decision credit</summary>',
-                 structured([{key: pair[key] for key in ("instance", "class", "policy", "published_transition", "evidence_transition")} for pair in pairs]),
-                 "</details>"])
+        oracle = [
+            arm["evidence_oracle"]["credit"] for pair in pairs for arm in (pair["baseline"], pair["intervention"])
+        ]
+        return (
+            f"Published {min(published)}/1 to {max(published)}/1; evidence oracle {min(oracle)}/1 to {max(oracle)}/1 across {len(pairs)} pairs.",
+            [
+                f'<details id="task-credit-{number}"><summary>Finite refund decision credit</summary>',
+                structured(
+                    [
+                        {
+                            key: pair[key]
+                            for key in ("instance", "class", "policy", "published_transition", "evidence_transition")
+                        }
+                        for pair in pairs
+                    ]
+                ),
+                "</details>",
+            ],
+        )
     native = report.get("measurements", {}).get("example_assessment", {}).get("native", {})
     if "panels" in native:
         labels, details = [], []
@@ -308,7 +326,15 @@ def render(report: dict[str, Any], case_name: str = "Selected task") -> str:
             "first-eval": "task creation",
             "first_eval_create": "task creation",
         }.get(source.get("skill_id"), "Rubric")
-        if ident.startswith("AC-") or ident in {"AUDIT-03", "AUDIT-04-B", "AUDIT-05-B", "AUDIT-05-S03", "TRACE-04-A", "ENV-03-S01", "CREATE-02"}:
+        if ident.startswith("AC-") or ident in {
+            "AUDIT-03",
+            "AUDIT-04-B",
+            "AUDIT-05-B",
+            "AUDIT-05-S03",
+            "TRACE-04-A",
+            "ENV-03-S01",
+            "CREATE-02",
+        }:
             workflow = "Anticheat"
         if ident.startswith("task-contract."):
             workflow = "task creation"
@@ -421,7 +447,9 @@ def render(report: dict[str, Any], case_name: str = "Selected task") -> str:
     for ident, undefined in report.get("undefined_criteria", {}).items():
         lines.append(f"\n**{cell(ident)} — Unassessed:** {cell(undefined['reason'])}")
     if "legacy_evidence_items" in report:
-        lines.append("\nLegacy Anticheat rows are retained in assessment.json as evidence history, not additional current scores.")
+        lines.append(
+            "\nLegacy Anticheat rows are retained in assessment.json as evidence history, not additional current scores."
+        )
     lines.extend(
         [
             "",
@@ -478,7 +506,9 @@ def render(report: dict[str, Any], case_name: str = "Selected task") -> str:
                 key: value[key] for key in ("scope", "status", "boundary", "source_review_scope") if key in value
             }
             metadata["measurements"][companion]["full_evidence"] = link
-            details.append(f'<p><a href="{link}">{cell(companion)} controls, exposure and retained evidence (JSON)</a>.</p>')
+            details.append(
+                f'<p><a href="{link}">{cell(companion)} controls, exposure and retained evidence (JSON)</a>.</p>'
+            )
     if "audit_companion" in report.get("measurements", {}):
         details.append(
             '<p><a href="audit.json">Full Audit result manifest, change probes and owner question (JSON)</a>.</p>'
@@ -533,7 +563,11 @@ def render_html(markdown: str) -> str:
             "</tbody></table>",
             "<p>Coverage and diversity are outside the populated rubric. Check records are not native trial counts.</p>",
             "<p>Expected scores are withheld from assessment. Compare a frozen catalog only in a separate review.</p>",
-            *["<p>" + html.escape(line.strip()) + "</p>" for line in main.splitlines() if "METHOD-J1" in line or line.startswith("Legacy Anticheat")],
+            *[
+                "<p>" + html.escape(line.strip()) + "</p>"
+                for line in main.splitlines()
+                if "METHOD-J1" in line or line.startswith("Legacy Anticheat")
+            ],
             "<h2>Evidence details</h2>",
             details,
         ]

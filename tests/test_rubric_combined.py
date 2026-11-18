@@ -6,6 +6,7 @@ import os
 import sys
 from copy import deepcopy
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -31,6 +32,7 @@ def test_real_combined_attack_and_boundary_selection(monkeypatch):
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "skills/eval-author-rubric/scripts"))
+sys.path.insert(0, str(ROOT))
 importlib.import_module("skills.eval-author-rubric.scripts.measure")
 
 
@@ -104,7 +106,7 @@ def test_owning_projection_replaces_only_baseline_absence(ident):
     old_gap = missing_check if ident.startswith("provenance.") else absent
     independent = "Independent review remains absent."
     contradiction = {"message": "The recorded owner decision contradicts the public contract."}
-    rows = {
+    rows: dict[str, Any] = {
         ident: {
             "score": None,
             "limitations": [absent, independent],

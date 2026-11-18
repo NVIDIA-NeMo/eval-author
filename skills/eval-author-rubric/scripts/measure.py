@@ -9,6 +9,7 @@ import argparse
 import json
 import sys
 from pathlib import Path
+from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "eval-author/scripts"))
 from eval_author_shared.task_evidence import loads  # noqa: E402
@@ -236,7 +237,7 @@ def measure(root, selection, ethos_validator=None):
         if general_review is not None:
             measurements["general_review"] = general_review
             apply_general_review(items, general_review)
-    report = {
+    report: dict[str, Any] = {
         **({"criterion_demonstration": demonstration} if demonstration else {}),
         **({"recorded_criterion_evidence": recorded} if recorded else {}),
         "schema": "rubric-measurements-v3",
@@ -280,14 +281,15 @@ def measure(root, selection, ethos_validator=None):
             raise ValueError("scoped operator review changed during assessment")
     if project_scoped(root, selection, report["measurements"], audit) != scoped:
         raise ValueError("scoped owner adjudication changed during assessment")
-    from rubric_evidence_scope_mutations import project_numeric, apply_numeric
+    from rubric_evidence_scope_mutations import apply_numeric, project_numeric
 
     numeric = project_numeric(root, selection, report)
     if numeric:
         apply_numeric(report, numeric)
         if project_numeric(root, selection, report) != numeric:
             raise ValueError("numeric scope evidence changed during assessment")
-    from rubric_semantic_numeric_mutations import project as project_semantic, apply as apply_semantic
+    from rubric_semantic_numeric_mutations import apply as apply_semantic
+    from rubric_semantic_numeric_mutations import project as project_semantic
 
     semantic = project_semantic(root, selection)
     if semantic is not None:

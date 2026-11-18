@@ -7,6 +7,7 @@
 No native collection or model invocation. Native inputs must already have owning
 registry admission; semantic copies are materialized and assessed automatically.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -15,7 +16,6 @@ import os
 import subprocess
 import sys
 from concurrent.futures import ThreadPoolExecutor
-from copy import deepcopy
 from pathlib import Path
 
 import rubric_mutation_runner as runner
@@ -25,28 +25,36 @@ import rubric_table
 def extension_specs(kind):
     if kind == "native":
         return {
-            "missing-endpoint": {"provenance.observed-configuration": 0, "provenance.solver-tool-access": 0, "provenance.dependency-substitution": 0},
+            "missing-endpoint": {
+                "provenance.observed-configuration": 0,
+                "provenance.solver-tool-access": 0,
+                "provenance.dependency-substitution": 0,
+            },
             "exposed-reference": {"AC-01": 0},
             "persistent-state": {"AC-04": 0, "provenance.external-state": 0},
             "partial-gpu-route": {"provenance.runtime-route": 1},
         }
     if kind == "semantic":
-        return {case: {ident: number} for case, ident, number in (
-            ("contradictory-contract", "task-contract.clear-contract", 0),
-            ("ambiguous-contract", "task-contract.clear-contract", 1),
-            ("hidden-authority", "task-contract.discoverable-requirements", 0),
-            ("disputed-authority", "task-contract.discoverable-requirements", 1),
-            ("disputed-scoring", "task-contract.scoring-authority", 1),
-            ("combined-revisions", "provenance.evidence-revision-consistency", 0),
-            ("partial-revisions", "provenance.evidence-revision-consistency", 1),
-            ("untested-comparison", "provenance.comparison-fairness", 1),
-            ("advantaged-comparison", "provenance.comparison-fairness", 0),
-        )}
+        return {
+            case: {ident: number}
+            for case, ident, number in (
+                ("contradictory-contract", "task-contract.clear-contract", 0),
+                ("ambiguous-contract", "task-contract.clear-contract", 1),
+                ("hidden-authority", "task-contract.discoverable-requirements", 0),
+                ("disputed-authority", "task-contract.discoverable-requirements", 1),
+                ("disputed-scoring", "task-contract.scoring-authority", 1),
+                ("combined-revisions", "provenance.evidence-revision-consistency", 0),
+                ("partial-revisions", "provenance.evidence-revision-consistency", 1),
+                ("untested-comparison", "provenance.comparison-fairness", 1),
+                ("advantaged-comparison", "provenance.comparison-fairness", 0),
+            )
+        }
     raise ValueError("unknown extension kind")
 
 
 def native_admission(bundle, registry):
     import native_numeric_mutations as native
+
     document = native.admission(bundle, registry)
     projection = native.validate(bundle, document)
     if set(native.CASES) != set(extension_specs("native")):
@@ -54,59 +62,115 @@ def native_admission(bundle, registry):
     for case, expected in extension_specs("native").items():
         if {k: v[0] for k, v in native.findings(projection, case).items()} != expected:
             raise ValueError("native findings disagree with external catalog")
-    return {"index_sha256": hashlib.sha256((bundle / "native-index.json").read_bytes()).hexdigest(),
-            "owning_validator": str(Path(native.__file__).resolve()), "validated": True}
+    return {
+        "index_sha256": hashlib.sha256((bundle / "native-index.json").read_bytes()).hexdigest(),
+        "owning_validator": str(Path(native.__file__).resolve()),
+        "validated": True,
+    }
 
 
 def physical_identity(record):
     saved = json.loads(rubric_table.read_private(Path(record["report"])))
     # Paths and selection matter: equal scores alone do not identify a case.
-    value = {"root": str(Path(saved["root"]).resolve()), "selection": saved["selection"],
-             "options": record["options"], "kind": record.get("kind", "base"),
-             "native_bundle": record.get("native_bundle"), "native_case": record.get("native_case")}
+    value = {
+        "root": str(Path(saved["root"]).resolve()),
+        "selection": saved["selection"],
+        "options": record["options"],
+        "kind": record.get("kind", "base"),
+        "native_bundle": record.get("native_bundle"),
+        "native_case": record.get("native_case"),
+    }
     return hashlib.sha256(rubric_table.encoded(value).encode()).hexdigest()
 
 
 def native_record(bundle, registry, case, report, command):
     saved = json.loads(rubric_table.read_private(report))
-    return {"root": saved["root"], "report": str(report), "command": command,
-            "exit": 1, "state": "assessed", "options": {}, "kind": "native",
-            "native_bundle": str(bundle), "native_registry": str(registry), "native_case": case}
+    return {
+        "root": saved["root"],
+        "report": str(report),
+        "command": command,
+        "exit": 1,
+        "state": "assessed",
+        "options": {},
+        "kind": "native",
+        "native_bundle": str(bundle),
+        "native_registry": str(registry),
+        "native_case": case,
+    }
 
 
 def replay(record, logs=None):
     if record.get("kind") != "native":
         return runner.matrix_replay(record, log=False)
-    command = [sys.executable, "-B", str(runner.SCRIPTS / "native_numeric_mutations.py"),
-               "--bundle", record["native_bundle"], "--registry", record["native_registry"],
-               "--case", record["native_case"], "--verify-existing", str(Path(record["report"]).parent)]
-    result = subprocess.run(command, capture_output=True, timeout=600, env=dict(os.environ, PYTHONDONTWRITEBYTECODE="1"))
+    command = [
+        sys.executable,
+        "-B",
+        str(runner.SCRIPTS / "native_numeric_mutations.py"),
+        "--bundle",
+        record["native_bundle"],
+        "--registry",
+        record["native_registry"],
+        "--case",
+        record["native_case"],
+        "--verify-existing",
+        str(Path(record["report"]).parent),
+    ]
+    result = subprocess.run(
+        command, capture_output=True, timeout=600, env=dict(os.environ, PYTHONDONTWRITEBYTECODE="1")
+    )
     if logs:
-        runner.write_json(logs / (record["native_case"] + ".replay.json"), {"command": command, "exit": result.returncode})
+        runner.write_json(
+            logs / (record["native_case"] + ".replay.json"), {"command": command, "exit": result.returncode}
+        )
         (logs / (record["native_case"] + ".stderr")).write_bytes(result.stderr)
-    return result.returncode == record["exit"] and result.stdout == Path(record["report"]).with_name("results.md").read_bytes()
+    return (
+        result.returncode == record["exit"]
+        and result.stdout == Path(record["report"]).with_name("results.md").read_bytes()
+    )
 
 
 def run_extensions(output, base, options, bundle, registry, native_reports=None):
     import rubric_semantic_numeric_mutations as semantic
+
     proof = native_admission(bundle, registry)  # Admit before importing any emitted observations.
     native_runs, semantic_runs = [], []
     for case, expected in extension_specs("native").items():
         dest = (native_reports / case) if native_reports else (output / "native" / case)
-        command = [sys.executable, "-B", str(runner.SCRIPTS / "native_numeric_mutations.py"),
-                   "--bundle", str(bundle), "--registry", str(registry), "--case", case, "--report", str(dest)]
+        command = [
+            sys.executable,
+            "-B",
+            str(runner.SCRIPTS / "native_numeric_mutations.py"),
+            "--bundle",
+            str(bundle),
+            "--registry",
+            str(registry),
+            "--case",
+            case,
+            "--report",
+            str(dest),
+        ]
         if not native_reports:
             dest.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
-            result = subprocess.run(command, capture_output=True, timeout=600, env=dict(os.environ, PYTHONDONTWRITEBYTECODE="1"))
+            result = subprocess.run(
+                command, capture_output=True, timeout=600, env=dict(os.environ, PYTHONDONTWRITEBYTECODE="1")
+            )
             (dest.parent / (case + ".stdout")).write_bytes(result.stdout)
             (dest.parent / (case + ".stderr")).write_bytes(result.stderr)
             if result.returncode not in (0, 1):
                 raise ValueError("owning native report generation failed: " + case)
         record = native_record(bundle, registry, case, dest / "assessment.json", command)
-        native_runs.append({"case": case, "expected": expected, "assessment": record, "extension_kind": "native",
-            "reason": "Current owning native mutation validator and ordinary table projection.",
-            "repair_description": "Restore unchanged base task/selection. Shared full-base repair reuses unchanged native receipts; mutant evidence does not transfer.",
-            "native_admission": proof, "task_bytes_changed": True})
+        native_runs.append(
+            {
+                "case": case,
+                "expected": expected,
+                "assessment": record,
+                "extension_kind": "native",
+                "reason": "Current owning native mutation validator and ordinary table projection.",
+                "repair_description": "Restore unchanged base task/selection. Shared full-base repair reuses unchanged native receipts; mutant evidence does not transfer.",
+                "native_admission": proof,
+                "task_bytes_changed": True,
+            }
+        )
     semantic_options = {k: v for k, v in options.items() if not k.startswith("upper-")}
     # Source-only baseline and repair are real assessments, not inferred numbers.
     controls = {}
@@ -119,11 +183,20 @@ def run_extensions(output, base, options, bundle, registry, native_reports=None)
         if case in ("baseline", "repair"):
             controls[case] = record
         else:
-            semantic_runs.append({"case": case, "expected": extension_specs("semantic")[case], "assessment": record,
-                "extension_kind": "semantic", "reason": "Trusted full-source reconstruction and owning local scorer controls; no native/model execution.",
-                "repair_description": "Fresh exact source-only baseline/repair are assessed; the shared full-base repair restores all original panels and approvals. No mutant approval transfers.",
-                "task_bytes_changed": True})
-    if runner.comparison_projection(runner.observed_rows(controls["baseline"])) != runner.comparison_projection(runner.observed_rows(controls["repair"])):
+            semantic_runs.append(
+                {
+                    "case": case,
+                    "expected": extension_specs("semantic")[case],
+                    "assessment": record,
+                    "extension_kind": "semantic",
+                    "reason": "Trusted full-source reconstruction and owning local scorer controls; no native/model execution.",
+                    "repair_description": "Fresh exact source-only baseline/repair are assessed; the shared full-base repair restores all original panels and approvals. No mutant approval transfers.",
+                    "task_bytes_changed": True,
+                }
+            )
+    if runner.comparison_projection(runner.observed_rows(controls["baseline"])) != runner.comparison_projection(
+        runner.observed_rows(controls["repair"])
+    ):
         raise ValueError("semantic repair mismatch")
     return native_runs + semantic_runs, controls, proof
 
@@ -146,8 +219,14 @@ def enrich(result):
         saved = json.loads(rubric_table.read_private(Path(record["report"])))
         run["physical_identity"] = ident
         run["full_emitted_items"] = saved["report"]["items"]
-        paired_items = json.loads(Path(run["criterion_baseline"]["report"]).read_bytes())["report"]["items"] if run.get("criterion_baseline") else base_items
-        run["full_metadata_changed"] = [key for key, value in saved["report"]["items"].items() if value != paired_items[key]]
+        paired_items = (
+            json.loads(Path(run["criterion_baseline"]["report"]).read_bytes())["report"]["items"]
+            if run.get("criterion_baseline")
+            else base_items
+        )
+        run["full_metadata_changed"] = [
+            key for key, value in saved["report"]["items"].items() if value != paired_items[key]
+        ]
         run["repair_relation"] = {"full_base": repairs["full_base"]}
         if run.get("criterion_repair"):
             run["repair_relation"]["criterion_paired"] = run["criterion_repair"]["report"]
@@ -177,11 +256,13 @@ def enrich(result):
     result["rows"].sort(key=lambda row: (row["case"], row["criterion"]))
     result["physical_case_count"] = len(identities)
     result["base_score_counts"] = {str(n): sum(v == n for v in result["base_scores"].values()) for n in range(4)}
-    result["limits"] = ["Current scope includes all seven leakage criteria; legacy 18-row results are historical, not current qualification.",
+    result["limits"] = [
+        "Current scope includes all seven leakage criteria; legacy 18-row results are historical, not current qualification.",
         "Source-only mutant scores do not inherit native or owner authority.",
         "Exact rollback/full-base repair is not fresh native regrading of changed bytes.",
         "Local operator-recorded actual scoped answer; no independently authenticated actor/event or cryptographic authority.",
-        "Original expectation disagreements and all collateral rows are retained."]
+        "Original expectation disagreements and all collateral rows are retained.",
+    ]
     return result
 
 
@@ -209,16 +290,24 @@ def verify(path, options, *, base_already_verified=False):
             extra.append(run)
     if original_cases:
         raise ValueError("original cases omitted")
-    if {(r["extension_kind"], r["case"]) for r in extra} != {(kind, case) for kind in ("native", "semantic") for case in extension_specs(kind)}:
+    if {(r["extension_kind"], r["case"]) for r in extra} != {
+        (kind, case) for kind in ("native", "semantic") for case in extension_specs(kind)
+    }:
         raise ValueError("incomplete extension inventory")
     if native_admission(Path(result["native_bundle"]), Path(result["native_registry"])) != result["native_admission"]:
         raise ValueError("native admission changed")
     import rubric_semantic_numeric_mutations as semantic
+
     for run in extra:
         record = run["assessment"]
         saved = json.loads(Path(record["report"]).read_bytes())
         if run["extension_kind"] == "native":
-            if (record.get("kind"), record.get("native_case"), record.get("native_bundle"), record.get("native_registry")) != ("native", run["case"], result["native_bundle"], result["native_registry"]):
+            if (
+                record.get("kind"),
+                record.get("native_case"),
+                record.get("native_bundle"),
+                record.get("native_registry"),
+            ) != ("native", run["case"], result["native_bundle"], result["native_registry"]):
                 raise ValueError("native case/registry identity differs")
         if run["extension_kind"] == "semantic":
             wanted_options = {k: v for k, v in options.items() if not k.startswith("upper-")}
@@ -231,7 +320,9 @@ def verify(path, options, *, base_already_verified=False):
     for record in controls.values():
         saved = json.loads(Path(record["report"]).read_bytes())
         task = Path(saved["root"]) / "task"
-        if {p.relative_to(task).as_posix(): p.read_bytes() for p in task.rglob("*") if p.is_file()} != semantic.source._current():
+        if {
+            p.relative_to(task).as_posix(): p.read_bytes() for p in task.rglob("*") if p.is_file()
+        } != semantic.source._current():
             raise ValueError("source-only repair/baseline not exact current base")
         if record["options"] != {k: v for k, v in options.items() if not k.startswith("upper-")}:
             raise ValueError("source-only repair trust differs")
@@ -240,8 +331,13 @@ def verify(path, options, *, base_already_verified=False):
     with ThreadPoolExecutor(max_workers=4) as pool:
         passed = list(pool.map(replay, distinct.values()))
     if not all(passed):
-        raise ValueError("extension ordinary replay failed: " + str([r["report"] for r, p in zip(distinct.values(), passed) if not p]))
-    if runner.comparison_projection(runner.observed_rows(controls["baseline"])) != runner.comparison_projection(runner.observed_rows(controls["repair"])):
+        raise ValueError(
+            "extension ordinary replay failed: "
+            + str([r["report"] for r, p in zip(distinct.values(), passed) if not p])
+        )
+    if runner.comparison_projection(runner.observed_rows(controls["baseline"])) != runner.comparison_projection(
+        runner.observed_rows(controls["repair"])
+    ):
         raise ValueError("source-only repair differs")
     rebuilt = runner.matrix_summary(result["base"], result["runs"], result["repair"])
     rebuilt["semantic_controls"] = controls
@@ -254,14 +350,22 @@ def verify(path, options, *, base_already_verified=False):
     pending = {(c["criterion"], c["expected"]) for c in result["cells"] if c["status"] == "unsupported"}
     allowed = {(k, 3) for k in runner.canonical_definitions()}
     lower = [c for c in result["cells"] if c["expected"] < 3]
-    return {"all_replayed": True, "original_reports_replayed": proof["distinct_reports_replayed"],
-        "extension_reports_replayed": len(distinct), "distinct_reports_replayed": proof["distinct_reports_replayed"] + len(distinct),
-        "numeric_cells": len(result["cells"]), "lower_numeric_cells": len(lower),
+    return {
+        "all_replayed": True,
+        "original_reports_replayed": proof["distinct_reports_replayed"],
+        "extension_reports_replayed": len(distinct),
+        "distinct_reports_replayed": proof["distinct_reports_replayed"] + len(distinct),
+        "numeric_cells": len(result["cells"]),
+        "lower_numeric_cells": len(lower),
         "all_lower_numeric_covered": all(c["status"] != "unsupported" for c in lower),
-        "only_deferred_upper_remaining": bool(pending) and pending <= allowed, "full_base_repair_equal": True,
-        "source_only_repair_equal": True, "native_owning_admission": True,
-        "original_exact_repairs": proof["exact_repairs"], "frozen_sources_preserved": True,
-        "blocked_cases": sum(r["assessment"]["state"] != "assessed" for r in result["runs"])}
+        "only_deferred_upper_remaining": bool(pending) and pending <= allowed,
+        "full_base_repair_equal": True,
+        "source_only_repair_equal": True,
+        "native_owning_admission": True,
+        "original_exact_repairs": proof["exact_repairs"],
+        "frozen_sources_preserved": True,
+        "blocked_cases": sum(r["assessment"]["state"] != "assessed" for r in result["runs"]),
+    }
 
 
 def complete(original_matrix, output, options, bundle, registry, native_reports=None, *, defer_replay=False):
@@ -273,16 +377,30 @@ def complete(original_matrix, output, options, bundle, registry, native_reports=
         raise ValueError("base matrix explicit options differ")
     runs, controls, proof = run_extensions(output, original, options, bundle, registry, native_reports)
     result = runner.matrix_summary(original["base"], original["runs"] + runs, original["repair"])
-    result.update(original_matrix=str(original_matrix), options=options, semantic_controls=controls,
-        native_bundle=str(bundle), native_registry=str(registry), native_admission=proof,
-        source_report=original["source_report"], frozen_source_inventory=original["frozen_source_inventory"],
-        base_task_identity=original["base_task_identity"], leakage_controls=original.get("leakage_controls", {}))
+    result.update(
+        original_matrix=str(original_matrix),
+        options=options,
+        semantic_controls=controls,
+        native_bundle=str(bundle),
+        native_registry=str(registry),
+        native_admission=proof,
+        source_report=original["source_report"],
+        frozen_source_inventory=original["frozen_source_inventory"],
+        base_task_identity=original["base_task_identity"],
+        leakage_controls=original.get("leakage_controls", {}),
+    )
     runner.write_json(output / "current-inventory.json", runner.inventory())
     from rubric_leakage_recipes import pending_requests
-    runner.write_json(output / "owner-requests.json", pending_requests([r for r in result["runs"] if r.get("extension_kind") == "leakage"]))
+
+    runner.write_json(
+        output / "owner-requests.json",
+        pending_requests([r for r in result["runs"] if r.get("extension_kind") == "leakage"]),
+    )
     enrich(result)
     runner.write_json(output / "matrix.json", result)
-    result["verification"] = {"all_replayed": False, "state": "deferred"} if defer_replay else verify(output / "matrix.json", options)
+    result["verification"] = (
+        {"all_replayed": False, "state": "deferred"} if defer_replay else verify(output / "matrix.json", options)
+    )
     runner.write_json(output / "matrix.json", result)
     (output / "summary.md").write_text(render(result, output))
     return result
@@ -290,31 +408,81 @@ def complete(original_matrix, output, options, bundle, registry, native_reports=
 
 def render(result, output):
     import shlex
-    relative = lambda path: os.path.relpath(path, output)
-    lines = ["# Consolidated numeric matrix", "", "Base qualification is reported separately. No new native/model execution; replay status is explicit below.", "",
+
+    def relative(path):
+        return os.path.relpath(path, output)
+
+    lines = [
+        "# Consolidated numeric matrix",
+        "",
+        "Base qualification is reported separately. No new native/model execution; replay status is explicit below.",
+        "",
         "- Coverage: `" + json.dumps(result["counts"], sort_keys=True) + "`.",
         "- Base: `" + json.dumps(result["base_score_counts"], sort_keys=True) + "`.",
         "- Verification: `" + json.dumps(result["verification"], sort_keys=True) + "`.",
-        "- [Full-base repair](" + relative(Path(result["repair"]["report"]).with_name("results.md")) + "). Exact rollback, not fresh native regrading.",
-        "- [Machine matrix](matrix.json) retains every emitted row, check, evidence reference, collateral change, original disagreement and repair relation.", "",
-        "| Criterion | Base | 0 | 1 | 2 | 3 |", "|---|---:|---|---|---|---|"]
+        "- [Full-base repair]("
+        + relative(Path(result["repair"]["report"]).with_name("results.md"))
+        + "). Exact rollback, not fresh native regrading.",
+        "- [Machine matrix](matrix.json) retains every emitted row, check, evidence reference, collateral change, original disagreement and repair relation.",
+        "",
+        "| Criterion | Base | 0 | 1 | 2 | 3 |",
+        "|---|---:|---|---|---|---|",
+    ]
     for ident, value in result["base_scores"].items():
         columns = []
         for cell in [c for c in result["cells"] if c["criterion"] == ident]:
             matched = next((a for a in cell["attempts"] if a["matched"]), None)
             path = matched["report"] if matched else result["base"]["report"] if value == cell["expected"] else None
-            columns.append("[" + str(cell["expected"]) + "](" + relative(Path(path).with_name("results.md")) + ")" if path else "Deferred")
-        lines.append("| " + ident + " | " + ("Unassessed" if value is None else str(value)) + " | " + " | ".join(columns) + " |")
-    lines += ["", "## Cases and retained disagreements", "", "| Case | Criterion | Base | Expected | Actual | Repair | Reason |", "|---|---|---:|---:|---:|---:|---|"]
-    score = lambda value: "Unassessed" if value is None else str(value)
+            columns.append(
+                "[" + str(cell["expected"]) + "](" + relative(Path(path).with_name("results.md")) + ")"
+                if path
+                else "Deferred"
+            )
+        lines.append(
+            "| " + ident + " | " + ("Unassessed" if value is None else str(value)) + " | " + " | ".join(columns) + " |"
+        )
+    lines += [
+        "",
+        "## Cases and retained disagreements",
+        "",
+        "| Case | Criterion | Base | Expected | Actual | Repair | Reason |",
+        "|---|---|---:|---:|---:|---:|---|",
+    ]
+
+    def score(value):
+        return "Unassessed" if value is None else str(value)
+
     for row in result["rows"]:
-        lines.append(f"| [{row['case']}]({relative(Path(row['report']).with_name('results.md'))}) | {row['criterion']} | [{score(row['base'])}]({relative(Path(row['base_report']).with_name('results.md'))}) | {score(row['expected'])} | {score(row['actual'])} | [{score(row['repair'])}]({relative(Path(row['repair_report']).with_name('results.md'))}) | {row['evidence_control_kind']}: {rubric_table.cell(row['reason'])} |")
+        lines.append(
+            f"| [{row['case']}]({relative(Path(row['report']).with_name('results.md'))}) | {row['criterion']} | [{score(row['base'])}]({relative(Path(row['base_report']).with_name('results.md'))}) | {score(row['expected'])} | {score(row['actual'])} | [{score(row['repair'])}]({relative(Path(row['repair_report']).with_name('results.md'))}) | {row['evidence_control_kind']}: {rubric_table.cell(row['reason'])} |"
+        )
     lines += ["", "## Legacy targets without an equivalent numeric predicate", ""]
     for run in result["runs"]:
         for ident, reason in run.get("legacy_expectation_limits", {}).items():
             lines.append(f"- {run['case']} / {ident} / original target {run['expected'][ident]}: {reason}")
     lines += ["", "## Deferred only", ""]
-    lines += [f"- {c['criterion']} / {c['expected']}: {c['remaining']}" for c in result["cells"] if c["status"] == "unsupported"]
+    lines += [
+        f"- {c['criterion']} / {c['expected']}: {c['remaining']}"
+        for c in result["cells"]
+        if c["status"] == "unsupported"
+    ]
     lines += ["", "## Scope", ""] + ["- " + limit for limit in result["limits"]]
-    lines += ["", "## Read-only ordinary verification", "", "```sh", shlex.join([sys.executable, "-B", str(runner.SCRIPTS / "rubric_mutation_runner.py"), "--verify-matrix", str(output / "matrix.json"), *runner.matrix_flags(result["options"])]), "```", ""]
+    lines += [
+        "",
+        "## Read-only ordinary verification",
+        "",
+        "```sh",
+        shlex.join(
+            [
+                sys.executable,
+                "-B",
+                str(runner.SCRIPTS / "rubric_mutation_runner.py"),
+                "--verify-matrix",
+                str(output / "matrix.json"),
+                *runner.matrix_flags(result["options"]),
+            ]
+        ),
+        "```",
+        "",
+    ]
     return "\n".join(lines)

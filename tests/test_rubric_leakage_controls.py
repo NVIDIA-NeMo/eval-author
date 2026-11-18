@@ -14,11 +14,11 @@ import pytest
 
 SCRIPTS = Path(__file__).resolve().parents[1] / "skills/eval-author-rubric/scripts"
 sys.path.insert(0, str(SCRIPTS))
-import rubric_table
-import rubric_leakage_controls as controls
-import rubric_leakage_current as current
-import rubric_leakage_intake as intake
-import rubric_leakage_recipes as recipes
+import rubric_leakage_controls as controls  # noqa: E402
+import rubric_leakage_current as current  # noqa: E402
+import rubric_leakage_intake as intake  # noqa: E402
+import rubric_leakage_recipes as recipes  # noqa: E402
+import rubric_table  # noqa: E402
 
 
 def synthetic_event(request: dict) -> dict:
@@ -60,6 +60,7 @@ def test_all_controls_reach_ordinary_assessment_with_separate_authority(tmp_path
         assert report["items"][ident]["score"] is None
         return
     observation = controls.collect(root, selected)
+    assert observation is not None
     controls.verify(root, selected, observation)
     intake.record(root, selected, synthetic_event)
     if ident == "CREATE-02":
@@ -86,7 +87,9 @@ def test_final_base_and_fresh_repair_have_equal_observations(tmp_path, ident):
 def test_containment_retains_affected_and_new_plus_valid_work(tmp_path):
     root = tmp_path / "subject"
     selected = recipes.materialize(root, "AUDIT-04-B.base")
-    observation = controls.collect(root, selected)["observations"]
+    collected = controls.collect(root, selected)
+    assert collected is not None
+    observation = collected["observations"]
     assert controls.forbidden(observation["confirmed"])
     assert set(observation["repairs"]) == {"retained", "new"}
     assert len({r["contract_sha256"] for r in observation["repairs"].values()}) == 2
@@ -99,7 +102,9 @@ def test_containment_retains_affected_and_new_plus_valid_work(tmp_path):
 def test_exposure_sensitivity_keeps_original_population(tmp_path):
     root = tmp_path / "subject"
     selected = recipes.materialize(root, "AUDIT-05-B.base")
-    observation = controls.collect(root, selected)["observations"]
+    collected = controls.collect(root, selected)
+    assert collected is not None
+    observation = collected["observations"]
     assert observation["inventory"][0]["matching_bytes"] is True
     assert observation["unknown"]
     sensitivity = observation["sensitivity"]
@@ -114,6 +119,7 @@ def test_sensitive_collector_cannot_accept_real_material_and_redacts_spans(tmp_p
     root = tmp_path / "subject"
     selected = recipes.materialize(root, "TRACE-04-A.base")
     observed = controls.collect(root, selected)
+    assert observed is not None
     assert controls.FAKE_CANARY not in json.dumps(observed)
     assert observed["observations"]["real_sensitive_collection"] is False
     plan = recipes.control_plan("TRACE-04-A.base")
@@ -126,6 +132,7 @@ def test_resealed_saved_outcomes_and_removed_mutation_are_rejected(tmp_path):
     root = tmp_path / "subject"
     selected = recipes.materialize(root, "AUDIT-04-B.0")
     observed = controls.collect(root, selected)
+    assert observed is not None
     forged = deepcopy(observed)
     forged["observations"]["repairs"]["retained"]["mechanism"]["actual"]["accepted"] = False
     with pytest.raises(ValueError):
@@ -162,6 +169,7 @@ def test_helper_fault_is_not_forbidden_credit(tmp_path):
     root = tmp_path / "subject"
     selected = recipes.materialize(root, "AUDIT-03.operational")
     observation = controls.collect(root, selected)
+    assert observation is not None
     assert observation["execution_state"] == "ERROR"
     assert observation["operational_errors"][0]["health"] == "error"
     assert observation["observations"] is None
@@ -172,7 +180,9 @@ def test_helper_fault_is_not_forbidden_credit(tmp_path):
 def test_declared_cue_consumer_and_feasible_alternatives(tmp_path, case):
     root = tmp_path / "subject"
     selection = recipes.materialize(root, case)
-    observation = controls.collect(root, selection)["observations"]
+    collected = controls.collect(root, selection)
+    assert collected is not None
+    observation = collected["observations"]
     assert set(observation["class_transitions"]) == {"cue-only", "misleading-cue", "nuisance-swap", "style-only"}
     assert observation["claim_contradiction"] is False
     answers = {}

@@ -1,6 +1,7 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 """New disclosed-exposure controls; no prior catalog or solution imports."""
+
 from __future__ import annotations
 
 import json
@@ -12,7 +13,7 @@ from harbor.verifier.verifier import Verifier
 from rubric_refund_boundary_runtime import container_identity
 
 # The control derives its work from public data. No expected outcomes enter it.
-AGENT = r'''
+AGENT = r"""
 import json, os, socket, sys
 from pathlib import Path
 assert os.getuid() == 65534
@@ -48,9 +49,9 @@ requests.append({'operation':'complete','success':case!='valid-predecessor'})
 replies = [send(r) for r in requests]
 assert all(r=={'ok':True} for r in replies)
 print(json.dumps({'uid':os.getuid(),'case':case,'before':before,'start_files':start_files,'end_files':files(),'requests':requests,'replies':replies,'after':send({'operation':'read'})},sort_keys=True))
-'''
+"""
 
-ACCESS = r'''
+ACCESS = r"""
 import hashlib, json, os
 from pathlib import Path
 assert os.getuid()==65534
@@ -74,24 +75,26 @@ for p,text in [('/logs/verifier/reward.txt','1\n'),('/logs/verifier/reward.json'
         writes[p]={'status':'written','value':Path(p).read_text()}
     except OSError as e: writes[p]={'status':type(e).__name__}
 print(json.dumps({'uid':os.getuid(),'reads':reads,'private_directory':listing,'writes':writes},sort_keys=True))
-'''
+"""
+
 
 async def execute(environment: Any, code: str, argument: str | None = None) -> dict[str, Any]:
-    command = '/usr/local/bin/python -I -S -B -c ' + shlex.quote(code)
+    command = "/usr/local/bin/python -I -S -B -c " + shlex.quote(code)
     if argument is not None:
-        command += ' ' + shlex.quote(argument)
-    result = await environment.exec(command=command, user='65534', timeout_sec=30)
+        command += " " + shlex.quote(argument)
+    result = await environment.exec(command=command, user="65534", timeout_sec=30)
     if result.return_code != 0:
-        raise RuntimeError('upper control failed: ' + str(result.stderr))
+        raise RuntimeError("upper control failed: " + str(result.stderr))
     return json.loads(result.stdout)
+
 
 class UpperAgent(BaseAgent):
     @staticmethod
     def name() -> str:
-        return 'upper-contract-control'
+        return "upper-contract-control"
 
     def version(self) -> str:
-        return '1.0.0'
+        return "1.0.0"
 
     def __init__(self, *args: Any, case: str, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
@@ -103,22 +106,26 @@ class UpperAgent(BaseAgent):
     async def run(self, instruction: str, environment: Any, context: Any) -> None:
         value = await execute(environment, AGENT, self.case)
         self.logs_dir.mkdir(parents=True, exist_ok=True)
-        (self.logs_dir/'upper-agent.json').write_text(json.dumps(value,sort_keys=True))
+        (self.logs_dir / "upper-agent.json").write_text(json.dumps(value, sort_keys=True))
         context.metadata = value
+
 
 class UpperVerifier(Verifier):
     async def verify(self):
-        await self.environment.upload_dir(source_dir=self.task.paths.tests_dir, target_dir='/tests')
+        await self.environment.upload_dir(source_dir=self.task.paths.tests_dir, target_dir="/tests")
         self._skip_tests_upload = True
-        record: dict[str, Any] = {'runtime':container_identity(self.environment), 'access':await execute(self.environment,ACCESS)}
+        record: dict[str, Any] = {
+            "runtime": container_identity(self.environment),
+            "access": await execute(self.environment, ACCESS),
+        }
         try:
             result = await super().verify()
-            record['consumer'] = result.model_dump(mode='json')
+            record["consumer"] = result.model_dump(mode="json")
             return result
         except Exception as exc:
-            record['error'] = type(exc).__name__
+            record["error"] = type(exc).__name__
             raise
         finally:
-            p = self.trial_paths.verifier_dir/'checks.json'
-            record['checks'] = json.loads(p.read_text()) if p.is_file() else None
-            (self.trial_paths.verifier_dir/'upper-verifier.json').write_text(json.dumps(record,sort_keys=True))
+            p = self.trial_paths.verifier_dir / "checks.json"
+            record["checks"] = json.loads(p.read_text()) if p.is_file() else None
+            (self.trial_paths.verifier_dir / "upper-verifier.json").write_text(json.dumps(record, sort_keys=True))

@@ -274,7 +274,7 @@ def test_refund_policy_reaches_actual_action_service(tmp_path):
     c = load("current_rubric_finish_controls")
     n = load("current_rubric_finish_native")
     raw = n._development_inputs()[("refund", "template")]
-    with tempfile.TemporaryDirectory(dir=Path.home() / ".hermes/cache/scratch", prefix="t3-") as short:
+    with tempfile.TemporaryDirectory(dir=Path("/tmp").resolve(), prefix="t3-") as short:
         short = Path(short)
         authority = short / "contract.json"
         authority.write_bytes(raw)

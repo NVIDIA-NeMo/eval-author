@@ -5,6 +5,7 @@ import importlib
 import json
 import sys
 from pathlib import Path
+from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPTS = ROOT / "skills/eval-author-rubric/scripts"
@@ -238,7 +239,7 @@ def test_rows_requires_current_inventory_and_preserves_historical_evidence(tmp_p
         for ident, definition in definitions.items()
     }
     historical = {"AC-01": {"score": 3, "findings": ["Historical evidence only."]}}
-    saved = {"report": {"items": values, "current_inventory": {}, "legacy_evidence_items": historical}}
+    saved: dict[str, Any] = {"report": {"items": values, "current_inventory": {}, "legacy_evidence_items": historical}}
     path = tmp_path / "assessment.json"
     path.write_text(json.dumps(saved))
     record = {"report": str(path)}

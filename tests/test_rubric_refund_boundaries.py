@@ -99,12 +99,12 @@ def test_runtime_observes_after_upload_before_native_consumer(tmp_path, monkeypa
     monkeypatch.setattr(runtime.Verifier, "verify", native)
     monkeypatch.setattr(runtime, "container_identity", lambda environment: {"container": "unit-transport"})
     verifier = object.__new__(runtime.BoundaryVerifier)
-    verifier.environment = Environment()
-    verifier.task = SimpleNamespace(paths=SimpleNamespace(tests_dir=tmp_path))
-    verifier.trial_paths = SimpleNamespace(
+    verifier.environment = Environment()  # ty: ignore[invalid-assignment]
+    verifier.task = SimpleNamespace(paths=SimpleNamespace(tests_dir=tmp_path))  # ty: ignore[invalid-assignment]
+    verifier.trial_paths = SimpleNamespace(  # ty: ignore[invalid-assignment]
         verifier_dir=tmp_path, trial_dir=tmp_path, reward_text_path=tmp_path / "reward.txt"
     )
-    verifier.case = "forged-json"
+    verifier.case = "forged-json"  # ty: ignore[unresolved-attribute]
     asyncio.run(verifier.verify())
     assert events[0] == "upload"
     assert events[-1] == "native-consumer"

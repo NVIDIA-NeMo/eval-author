@@ -60,12 +60,24 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--source-review-operator-trust", choices=["localhost-assessment-operator-v1"])
     parser.add_argument("--source-review-session-store", type=Path, help="Optional trusted host session store")
     parser.add_argument("--source-review-signed-store", type=Path, help="Optional signed-decision trust store")
-    parser.add_argument("--upper-environment-bundle", type=Path, help="Admitted operational companion outside source-review selection")
-    parser.add_argument("--upper-anticheat-bundle", type=Path, help="Observational companion; no automatic score promotion")
-    parser.add_argument("--upper-anticheat-registry", type=Path, help="Explicit local admission registry for the observational companion")
+    parser.add_argument(
+        "--upper-environment-bundle", type=Path, help="Admitted operational companion outside source-review selection"
+    )
+    parser.add_argument(
+        "--upper-anticheat-bundle", type=Path, help="Observational companion; no automatic score promotion"
+    )
+    parser.add_argument(
+        "--upper-anticheat-registry",
+        type=Path,
+        help="Explicit local admission registry for the observational companion",
+    )
     parser.add_argument("--output", type=Path)
     parser.add_argument("--verify-existing", type=Path)
-    parser.add_argument("--defer-replay", action="store_true", help="Generate only; a batch orchestrator must perform final retained replay")
+    parser.add_argument(
+        "--defer-replay",
+        action="store_true",
+        help="Generate only; a batch orchestrator must perform final retained replay",
+    )
     parser.add_argument(
         "--approve-local-native",
         action="store_true",
@@ -104,21 +116,28 @@ def main(argv: list[str] | None = None) -> int:
         if args.upper_anticheat_bundle:
             from upper_anticheat_contract import table_hook
 
-            companions.enter_context(table_hook(args.upper_anticheat_bundle.absolute(), args.upper_anticheat_registry.absolute()))
+            companions.enter_context(
+                table_hook(args.upper_anticheat_bundle.absolute(), args.upper_anticheat_registry.absolute())
+            )
             from rubric_upper_method_review import table_hook as method_hook
 
-            companions.enter_context(method_hook(args.upper_anticheat_bundle.absolute(), args.upper_anticheat_registry.absolute()))
+            companions.enter_context(
+                method_hook(args.upper_anticheat_bundle.absolute(), args.upper_anticheat_registry.absolute())
+            )
             if not args.upper_environment_bundle:
                 # The Environment wrapper normally links repeated identities.
                 # Standalone Anticheat needs the same lossless bounded rendering.
-                from rubric_upper_companions import compact_identity_evidence
                 import rubric_table
+                from rubric_upper_companions import compact_identity_evidence
+
                 original_measure = rubric_table.measure
+
                 def compact_measured(root, selection):
                     report = original_measure(root, selection)
                     compact_identity_evidence(report)
                     return report
-                rubric_table.measure = compact_measured
+
+                rubric_table.measure = compact_measured  # ty: ignore[invalid-assignment]
                 companions.callback(setattr, rubric_table, "measure", original_measure)
         if bool(args.source_review_operator_store) != bool(args.source_review_operator_trust):
             raise ValueError("operator store requires explicit trust")
@@ -161,10 +180,26 @@ def main(argv: list[str] | None = None) -> int:
             report = output / "report"
             with contextlib.redirect_stdout(io.StringIO()):
                 status = table_main(["--root", str(root), "--selection", str(args.selection), "--output", str(report)])
-                replay = (status if args.defer_replay else table_main(["--root", str(root), "--verify-existing", str(report)])) if status in (0, 1) else 2
+                replay = (
+                    (
+                        status
+                        if args.defer_replay
+                        else table_main(["--root", str(root), "--verify-existing", str(report)])
+                    )
+                    if status in (0, 1)
+                    else 2
+                )
             if replay != status or status == 2:
                 raise ValueError("combined report failed replay")
-            print(json.dumps({"report": str(report), "replay": "deferred" if args.defer_replay else "verified", "assessment_exit": status}))
+            print(
+                json.dumps(
+                    {
+                        "report": str(report),
+                        "replay": "deferred" if args.defer_replay else "verified",
+                        "assessment_exit": status,
+                    }
+                )
+            )
             return status
         if args.output is None or args.task is None:
             raise ValueError("task and output required")
@@ -227,10 +262,22 @@ def main(argv: list[str] | None = None) -> int:
             status = table_main(
                 ["--root", str(root), "--selection", str(configured / "selection.json"), "--output", str(report)]
             )
-            replay = (status if args.defer_replay else table_main(["--root", str(root), "--verify-existing", str(report)])) if status in (0, 1) else 2
+            replay = (
+                (status if args.defer_replay else table_main(["--root", str(root), "--verify-existing", str(report)]))
+                if status in (0, 1)
+                else 2
+            )
         if replay != status or status == 2:
             raise ValueError("combined report failed replay")
-        print(json.dumps({"report": str(report), "replay": "deferred" if args.defer_replay else "verified", "assessment_exit": status}))
+        print(
+            json.dumps(
+                {
+                    "report": str(report),
+                    "replay": "deferred" if args.defer_replay else "verified",
+                    "assessment_exit": status,
+                }
+            )
+        )
         return status
     except (ValueError, OSError, KeyError, TypeError):
         print(

@@ -15,10 +15,10 @@ from copy import deepcopy
 from pathlib import Path
 from typing import Any, Callable
 
+from eval_author_shared.task_evidence import loads
 from rubric_general_review import OPERATOR_BOUNDARY, _event, _operator_root, _require, _write
 from rubric_identity import read_selected
 from rubric_leakage_controls import collect, digest
-from eval_author_shared.task_evidence import loads
 
 QUESTIONS = {
     "AUDIT-03": "For this local event-only simulation, approve the per-check intended-credit matrix, valid optional completion/zero-balance inaction, and explicit exclusions of native file access, copied programs and reward-file tampering? Exclusions apply only to this local API; native task claims still need current native controls.",

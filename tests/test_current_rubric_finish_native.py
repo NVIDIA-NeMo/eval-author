@@ -165,7 +165,7 @@ def test_actual_policy_file_and_action_socket(tmp_path):
     # macOS AF_UNIX path length is bounded; scratch's parent path is too long under pytest.
     import tempfile
 
-    with tempfile.TemporaryDirectory(dir=str(Path.home() / ".hermes/cache/scratch"), prefix="fs-") as short:
+    with tempfile.TemporaryDirectory(dir=str(Path("/tmp").resolve()), prefix="fs-") as short:
         socket_path = Path(short) / "s"
         with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as server:
             server.bind(str(socket_path))

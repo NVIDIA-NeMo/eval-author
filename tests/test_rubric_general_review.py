@@ -2,10 +2,12 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import importlib
+import importlib.util
 import json
 import sys
 from copy import deepcopy
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -32,6 +34,7 @@ def test_contract_record_uses_existing_operator_boundary(tmp_path, monkeypatch):
     }
     module.record(BASE, lambda actual: event if actual == request else None, kind="contract")
     accepted = module.read(BASE, kind="contract")
+    assert accepted is not None
     assert accepted["event"] == event
     from rubric_table import main, select_task
 
@@ -41,12 +44,15 @@ def test_contract_record_uses_existing_operator_boundary(tmp_path, monkeypatch):
     assert main(["--root", str(BASE.parent), "--selection", str(selection), "--output", str(output)]) == 1
     assert main(["--root", str(BASE.parent), "--verify-existing", str(output)]) == 1
     module.revoke(BASE, kind="contract")
-    assert module.read(BASE, kind="contract")["revoked"]
+    contract_record = module.read(BASE, kind="contract")
+    assert contract_record is not None
+    assert contract_record["revoked"]
     assert main(["--root", str(BASE.parent), "--verify-existing", str(output)]) == 2
 
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "skills/eval-author-rubric/scripts"))
+sys.path.insert(0, str(ROOT))
 
 
 def test_positive_contract_requires_current_coverage_and_keeps_higher_checks_pending():
@@ -63,7 +69,7 @@ def test_positive_contract_requires_current_coverage_and_keeps_higher_checks_pen
     assert automatic["task-contract.clear-contract"]["ready"]
     assert automatic["task-contract.scoring-authority"]["ready"]
     assert not automatic["task-contract.discoverable-requirements"]["ready"]
-    rows = {
+    rows: dict[str, Any] = {
         key: {
             "score": None,
             "check_results": [
@@ -156,6 +162,7 @@ def test_scoped_operator_record_requires_consent_and_revokes(tmp_path, monkeypat
     assert not list(tmp_path.iterdir())
     path = module.record(BASE, lambda actual: event if actual == request else None)
     accepted = module.read(BASE)
+    assert accepted is not None
     assert accepted["event"] == event
     assert accepted["revoked"] is False
     assert path.exists()
@@ -170,6 +177,7 @@ def test_scoped_operator_record_requires_consent_and_revokes(tmp_path, monkeypat
     module.revoke(BASE)
     assert main(["--root", str(BASE.parent), "--verify-existing", str(output)]) == 2
     revoked = module.read(BASE)
+    assert revoked is not None
     assert revoked["event"] == event
     assert revoked["revoked"] is True
     with pytest.raises(ValueError):
@@ -224,12 +232,16 @@ def test_fairness_rejects_undisclosed_setup_and_retains_scoped_decision(tmp_path
         "save_authorized": True,
     }
     general.record(BASE, lambda _: event, kind="fairness", comparison=comparison)
-    assert general.read(BASE, kind="fairness", comparison=comparison)["event"] == event
+    fairness_record = general.read(BASE, kind="fairness", comparison=comparison)
+    assert fairness_record is not None
+    assert fairness_record["event"] == event
     assert (
         "request" not in general.projection_receipt(general.read(BASE, kind="fairness", comparison=comparison))["event"]
     )
     general.revoke(BASE, kind="fairness", comparison=comparison)
-    assert general.read(BASE, kind="fairness", comparison=comparison)["revoked"]
+    fairness_record = general.read(BASE, kind="fairness", comparison=comparison)
+    assert fairness_record is not None
+    assert fairness_record["revoked"]
     changed = deepcopy(request)
     changed["comparison"]["arms"][1]["configuration"]["budget"] = 2
     assert not fairness.automatic(changed)["provenance.comparison-fairness"]["ready"]
@@ -259,7 +271,7 @@ def test_projection_never_replaces_missing_native_evidence_or_failed_checks(tmp_
             "save_authorized": True,
         },
     )
-    rows = {
+    rows: dict[str, Any] = {
         key: {
             "score": None,
             "check_results": [
@@ -348,7 +360,7 @@ def test_automatic_coverage_and_numeric_gate_preserve_failures():
     }
     automatic = module._automatic(panel, request)
     assert automatic["ready"] is True
-    rows = {
+    rows: dict[str, Any] = {
         key: {
             "score": None,
             "evidence_refs": [],
@@ -390,7 +402,7 @@ def test_automatic_coverage_and_numeric_gate_preserve_failures():
     assert {row["score"] for row in rows.values()} == {2}
     assert automatic["level_3"] is False
     for change in ("missing-reset", "wrong-uid", "stale", "missing-component"):
-        altered = deepcopy(panel)
+        altered: dict[str, Any] = deepcopy(panel)
         if change == "missing-reset":
             altered["environment"]["action_controls"].pop()
         elif change == "wrong-uid":

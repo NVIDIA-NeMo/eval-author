@@ -38,7 +38,7 @@ def actions(request: dict[str, Any], actor: str, answer: dict[str, Any], *, spli
     amount = answer["amount_cents"]
     parts = [amount // 2, amount - amount // 2] if split else [amount]
     approval = {"kind": "approve", **request, "actor": actor, "amount_cents": amount}
-    refunds = [
+    refunds: list[dict[str, Any]] = [
         {
             "kind": "refund",
             "refund": {

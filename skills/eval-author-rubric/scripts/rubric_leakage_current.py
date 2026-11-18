@@ -131,10 +131,10 @@ def _score(row: dict[str, Any], score: int, strength: str, reason: str) -> None:
 
 
 def source_observations(root: Path, selection: dict[str, Any]) -> dict[str, Any]:
+    from rubric_external import check_external
     from rubric_identity import identify
     from rubric_layout import label_task
     from rubric_leakage import scan_task
-    from rubric_external import check_external
 
     task_id = selection.get("example_assessment", {}).get("task_config_id")
     records = selection.get("artifacts", [])
@@ -385,8 +385,8 @@ def assess_current(root: Path, selection: dict[str, Any], report: dict[str, Any]
 
 
 def apply_bounded(report: dict[str, Any], projection: dict[str, Any], *, root: Path, selection: dict[str, Any]) -> None:
-    from rubric_leakage_controls import forbidden, digest
-    from rubric_leakage_intake import read, approved, request
+    from rubric_leakage_controls import digest, forbidden
+    from rubric_leakage_intake import approved, read, request
 
     ident = projection["criterion"]
     report["measurements"]["leakage_bounded"] = deepcopy(projection)

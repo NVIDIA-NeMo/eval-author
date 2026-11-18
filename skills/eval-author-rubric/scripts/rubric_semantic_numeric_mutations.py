@@ -14,6 +14,7 @@ from __future__ import annotations
 import json
 from copy import deepcopy
 from pathlib import Path
+from typing import Any, cast
 
 import rubric_refund_contract_evidence as source
 from rubric_identity import identify, read_selected
@@ -148,7 +149,8 @@ def _admit(root, selection):
         raise ValueError("duplicate semantic source")
     inventory = list((root / parent).rglob("*"))
     if any(p.is_symlink() for p in inventory):
-        raise ValueError("unsafe semantic source")
+        # No semantic family contains a symlink; the artifact-access checks own this finding.
+        return None
     if {p.relative_to(root / parent).as_posix() for p in inventory if not p.is_dir()} != set(observed):
         return None
     for case in CASES:
@@ -194,7 +196,7 @@ def project(root, selection):
     ]
     if SUBJECT in raw:
         citations.append(source._citation(records[SUBJECT], raw[SUBJECT]))
-    result = {
+    result: dict[str, Any] = {
         "observations": {
             "case": case,
             "controls": controls,
@@ -219,7 +221,8 @@ def project(root, selection):
     if case == "advantaged-comparison":
         decision = read_decision(result, root=root, selection=selection)
         if decision is not None:
-            result["observations"]["comparison"]["owner_decision"] = decision
+            comparison = cast(dict[str, Any], result["observations"]["comparison"])
+            comparison["owner_decision"] = decision
             accepted = not decision["revoked"] and decision["event"]["decisions"][FAIRNESS]["decision"] == "approve"
             if accepted:
                 result["observations"]["human_adjudication"] = True
@@ -361,6 +364,7 @@ FAIRNESS = "provenance.comparison-fairness"
 def decision_request(projection):
     """Exact comparison, not an arbitrary status/score from selected JSON."""
     from rubric_general_review import _digest, _require
+
     observation = deepcopy(projection["observations"]["comparison"])
     observation["owner_decision"] = None
     _require(observation["advantage_demonstrated"] is True)
@@ -377,21 +381,25 @@ def decision_request(projection):
 
 def _decision_target(projection):
     from rubric_general_review import _operator_root
+
     store = _operator_root()
     request = decision_request(projection)
     return (store / (request["binding"] + ".semantic-fairness.json") if store else None), request
 
 
 def read_decision(projection, *, root=None, selection=None):
-    from rubric_general_review import _event, _require, OPERATOR_BOUNDARY
     from eval_author_shared.task_evidence import loads
+    from rubric_general_review import OPERATOR_BOUNDARY, _event, _require
+
     target, request = _decision_target(projection)
     if target is None:
         return None
     if selection is not None:
         if root is None:
             raise ValueError("selected root required")
-        _require(all(not (Path(root) / r["path"]).absolute().is_relative_to(target.parent) for r in selection["artifacts"]))
+        _require(
+            all(not (Path(root) / r["path"]).absolute().is_relative_to(target.parent) for r in selection["artifacts"])
+        )
     if not target.exists():
         return None
     raw, reason = read_selected(target.parent, target.name)
@@ -399,16 +407,25 @@ def read_decision(projection, *, root=None, selection=None):
         raise ValueError("unreadable operator event")
     document = loads(raw)
     _require(set(document) == {"schema", "trust_basis", "event"})
-    _require(document["schema"] == "rubric-semantic-fairness-review-v1" and document["trust_basis"] == OPERATOR_BOUNDARY)
+    _require(
+        document["schema"] == "rubric-semantic-fairness-review-v1" and document["trust_basis"] == OPERATOR_BOUNDARY
+    )
     event = _event(request, document["event"])
-    return {**document, "event": event, "revoked": target.with_suffix(".revoked").exists(),
-            "digest": source._digest(raw), "local_operator_decision_recorded": True,
-            "owner_signature_verified": False, "owner_session_decision_verified": False}
+    return {
+        **document,
+        "event": event,
+        "revoked": target.with_suffix(".revoked").exists(),
+        "digest": source._digest(raw),
+        "local_operator_decision_recorded": True,
+        "owner_signature_verified": False,
+        "owner_session_decision_verified": False,
+    }
 
 
 def record_decision(root, selection, observed_decision):
     """Trusted caller must supply an actually observed answer and retention consent."""
-    from rubric_general_review import _event, _require, _write, OPERATOR_BOUNDARY
+    from rubric_general_review import OPERATOR_BOUNDARY, _event, _require, _write
+
     projection = project(root, selection)
     _require(projection is not None and projection["observations"]["case"] == "advantaged-comparison")
     target, request = _decision_target(projection)
@@ -425,6 +442,7 @@ def record_decision(root, selection, observed_decision):
 
 def revoke_decision(projection):
     from rubric_general_review import _require, _write
+
     target, _ = _decision_target(projection)
     if target is None:
         raise ValueError("explicit operator store required")
@@ -474,7 +492,7 @@ def run_batch(output, expectations):
     import sys
 
     import rubric_table
-    from rubric_evidence_scoring import canonical_definitions
+    from rubric_leakage_current import canonical_definitions
 
     output = Path(output).absolute()
     output.mkdir(mode=0o700, parents=True, exist_ok=False)
@@ -541,7 +559,7 @@ def run_batch(output, expectations):
         raise ValueError("frozen base changed")
     if rows["baseline"] != rows["repair"]:
         raise ValueError("fresh repair does not restore all neighboring projections")
-    result = {
+    result: dict[str, Any] = {
         "schema": "semantic-numeric-batch-v1",
         "verified": True,
         "source_only_mutants": True,

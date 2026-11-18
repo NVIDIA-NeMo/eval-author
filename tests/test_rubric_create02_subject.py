@@ -13,9 +13,9 @@ import pytest
 SCRIPTS = Path(__file__).resolve().parents[1] / "skills/eval-author-rubric/scripts"
 sys.path.insert(0, str(SCRIPTS))
 
-import rubric_create02_subject as subject
-import rubric_table
-from rubric_leakage_presentation import presentation
+import rubric_create02_subject as subject  # noqa: E402
+import rubric_table  # noqa: E402
+from rubric_leakage_presentation import presentation  # noqa: E402
 
 
 def test_new_subject_observation_and_no_approval_transfer(tmp_path, monkeypatch):
@@ -65,14 +65,27 @@ def test_subject_cannot_overlay_approved_base(tmp_path):
 
 
 def test_display_preserves_original_pending_text_and_decisions():
-    row = {"item_id": "CREATE-02", "score": 2, "check_results": [
-        {"outcome": "PASS", "method": "llm_as_judge", "remaining_gap": "Fresh review required"}]}
+    row = {
+        "item_id": "CREATE-02",
+        "score": 2,
+        "check_results": [{"outcome": "PASS", "method": "llm_as_judge", "remaining_gap": "Fresh review required"}],
+    }
     review = {"revoked": False, "event": {"decisions": {"CREATE-02": {"decision": "approve"}}}}
-    report = {"items": {"CREATE-02": row}, "measurements": {"leakage_bounded": {
-        "criterion": "CREATE-02", "reviews": {"owner": review, "agent": review},
-        "observations": {"qualification": "Pending owner"}}}}
+    report = {
+        "items": {"CREATE-02": row},
+        "measurements": {
+            "leakage_bounded": {
+                "criterion": "CREATE-02",
+                "reviews": {"owner": review, "agent": review},
+                "observations": {"qualification": "Pending owner"},
+            }
+        },
+    }
     before = deepcopy(report)
     displayed = presentation(report)
     assert report == before
     assert displayed["items"]["CREATE-02"]["check_results"][0]["historical_predecision_gap"] == "Fresh review required"
-    assert displayed["measurements"]["leakage_bounded"]["observations"]["historical_predecision_qualification"] == "Pending owner"
+    assert (
+        displayed["measurements"]["leakage_bounded"]["observations"]["historical_predecision_qualification"]
+        == "Pending owner"
+    )

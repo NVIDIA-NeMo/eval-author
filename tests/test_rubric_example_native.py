@@ -3,6 +3,7 @@
 
 import importlib
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -358,13 +359,15 @@ def test_summary_is_not_an_admitted_native_bundle(tmp_path):
         module.select_bundle(tmp_path, "summary.json")
 
 
-NATIVE = Path("/Users/asutermorris/.hermes/cache/scratch/pr211-native-refund-vqggavnk")
+# Opt-in: point EVAL_AUTHOR_PRIVATE_NATIVE_PANEL at a native panel collected for the current base.
+NATIVE = Path(os.environ.get("EVAL_AUTHOR_PRIVATE_NATIVE_PANEL", "/nonexistent-private-native-panel"))
+NATIVE_ROOT = Path(os.path.commonpath([ROOT, NATIVE])) if NATIVE.is_dir() else ROOT
 
 
 def real_selection():
     native_module()
     table = importlib.import_module("skills.eval-author-rubric.scripts.rubric_table")
-    root = Path("/Users/asutermorris")
+    root = NATIVE_ROOT
     task = (ROOT / "skills/eval-author-rubric/examples/refund/base/task.toml").relative_to(root).as_posix()
     selection = table.select_task(root, task)
     native = native_module().select_bundle(root, NATIVE.relative_to(root).as_posix())
@@ -373,7 +376,7 @@ def real_selection():
     return root, selection
 
 
-@pytest.mark.skipif(not NATIVE.is_dir(), reason="private native panel is not installed")
+@pytest.mark.skipif(not NATIVE.is_dir(), reason="EVAL_AUTHOR_PRIVATE_NATIVE_PANEL is not set")
 @pytest.mark.parametrize(
     "relative",
     [
@@ -403,7 +406,7 @@ def test_native_raw_bytes_cannot_change_behind_admitted_index(monkeypatch, relat
         importlib.import_module("skills.eval-author-rubric.scripts.measure").measure(root, selection)
 
 
-@pytest.mark.skipif(not NATIVE.is_dir(), reason="private native panel is not installed")
+@pytest.mark.skipif(not NATIVE.is_dir(), reason="EVAL_AUTHOR_PRIVATE_NATIVE_PANEL is not set")
 def test_current_task_change_with_refreshed_selection_does_not_reuse_native(tmp_path):
     import shutil
 
@@ -420,7 +423,7 @@ def test_current_task_change_with_refreshed_selection_does_not_reuse_native(tmp_
         importlib.import_module("skills.eval-author-rubric.scripts.measure").measure(root, changed)
 
 
-@pytest.mark.skipif(not NATIVE.is_dir(), reason="private native panel is not installed")
+@pytest.mark.skipif(not NATIVE.is_dir(), reason="EVAL_AUTHOR_PRIVATE_NATIVE_PANEL is not set")
 def test_selection_wide_denied_native_path_is_not_bypassed():
     root, selection = real_selection()
     record = dict(selection["artifacts"][-1])
@@ -436,12 +439,12 @@ def test_selection_wide_denied_native_path_is_not_bypassed():
         importlib.import_module("skills.eval-author-rubric.scripts.measure").measure(root, selection)
 
 
-@pytest.mark.skipif(not NATIVE.is_dir(), reason="private native panel is not installed")
+@pytest.mark.skipif(not NATIVE.is_dir(), reason="EVAL_AUTHOR_PRIVATE_NATIVE_PANEL is not set")
 def test_real_panel_flows_through_measure_without_promoting_absent_checks():
     module = native_module()
     table = importlib.import_module("skills.eval-author-rubric.scripts.rubric_table")
     measure = importlib.import_module("skills.eval-author-rubric.scripts.measure").measure
-    root = Path("/Users/asutermorris")
+    root = NATIVE_ROOT
     task = (ROOT / "skills/eval-author-rubric/examples/refund/base/task.toml").relative_to(root).as_posix()
     selection = table.select_task(root, task)
     before = measure(root, selection)
@@ -509,7 +512,7 @@ def test_resealed_index_cannot_admit_caller_evidence(tmp_path):
         module.select_bundle(tmp_path, "panel")
 
 
-@pytest.mark.skipif(not NATIVE.is_dir(), reason="private native panel is not installed")
+@pytest.mark.skipif(not NATIVE.is_dir(), reason="EVAL_AUTHOR_PRIVATE_NATIVE_PANEL is not set")
 def test_extra_registered_attempt_cannot_disappear(monkeypatch):
     root, selection = real_selection()
     original = Path.iterdir

@@ -10,7 +10,7 @@ ROOT = Path(__file__).resolve().parents[1]
 DEMO = ROOT / "tools/rubric_sim_demo"
 sys.path.insert(0, str(DEMO))
 
-import checks  # noqa: E402
+import checks  # noqa: E402  # ty: ignore[unresolved-import]
 
 
 def _canonical_ids() -> list[str]:
@@ -33,11 +33,32 @@ def test_controls_are_partitioned_without_overlap():
 
 
 def test_base_hits_target_and_each_mutation_drops_its_row(tmp_path):
-    cases = ["base", "approval-after-effect", "trace-secret", "answer-exposure", "unpinned-image",
-             "invalid-manifest", "stale-evidence", "no-independent-review"]
+    cases = [
+        "base",
+        "approval-after-effect",
+        "trace-secret",
+        "answer-exposure",
+        "unpinned-image",
+        "invalid-manifest",
+        "stale-evidence",
+        "no-independent-review",
+    ]
     done = subprocess.run(
-        [sys.executable, "-B", str(DEMO / "run_demo.py"), "--output", str(tmp_path), "--runs", "1", "--offline", "--only", *cases],
-        capture_output=True, text=True, timeout=600,
+        [
+            sys.executable,
+            "-B",
+            str(DEMO / "run_demo.py"),
+            "--output",
+            str(tmp_path),
+            "--runs",
+            "1",
+            "--offline",
+            "--only",
+            *cases,
+        ],
+        capture_output=True,
+        text=True,
+        timeout=600,
     )
     assert done.returncode == 0, done.stdout[-2000:] + done.stderr[-2000:]
     summary = json.loads((tmp_path / "summary.json").read_text())
@@ -51,5 +72,8 @@ def test_base_hits_target_and_each_mutation_drops_its_row(tmp_path):
     assert dropped["unpinned-image"] == {"provenance.declared-configuration"}
     assert dropped["invalid-manifest"] == {"provenance.runtime-route"}
     assert dropped["stale-evidence"] == {"provenance.evidence-revision-consistency"}
-    assert all(v <= 2 for k, v in zip(summary["criteria"], summary["scores"]["no-independent-review"])
-               if k in {"AUDIT-03", "CREATE-02", "task-contract.discoverable-requirements"})
+    assert all(
+        v <= 2
+        for k, v in zip(summary["criteria"], summary["scores"]["no-independent-review"])
+        if k in {"AUDIT-03", "CREATE-02", "task-contract.discoverable-requirements"}
+    )

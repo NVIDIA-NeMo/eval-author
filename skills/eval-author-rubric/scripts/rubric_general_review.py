@@ -397,7 +397,9 @@ def apply_scoped(rows, projection):
         row = rows[ident]
         automatic = projection["automatic"][ident]
         decision = receipt["event"]["decisions"][ident] if receipt else None
-        accepted = bool(receipt and not receipt["revoked"] and decision["decision"] == "approve")
+        accepted = bool(
+            receipt and decision is not None and not receipt["revoked"] and decision["decision"] == "approve"
+        )
         ref = {"measurement": "scoped_reviews", "binding": request["binding"]}
         row["evidence_refs"].append(ref)
         if receipt:

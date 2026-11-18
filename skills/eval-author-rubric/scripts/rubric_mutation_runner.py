@@ -17,7 +17,7 @@ import example_fixtures as fixtures
 
 # Import the owning entrypoint first so its shared runtime paths are installed.
 import rubric_table
-from rubric_leakage_current import canonical_definitions, definitions_digest, current_expectations, inventory, GAPS
+from rubric_leakage_current import GAPS, canonical_definitions, current_expectations, definitions_digest, inventory
 
 SCRIPTS = Path(__file__).resolve().parent
 TASK = "assessment/task/task.toml"
@@ -635,37 +635,95 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("--verify-evidence-scope", type=Path, help="Replay the selective evidence reconciliation")
     parser.add_argument("--base-report", type=Path, help="Consolidated base, source and numeric scope matrix")
-    parser.add_argument("--extend-matrix", type=Path, help="Reuse current verified base cases; execute missing native/semantic report orchestration")
-    parser.add_argument("--native-numeric-bundle", type=Path, help="Existing owning-admitted native mutation bundle; never recollected")
+    parser.add_argument(
+        "--extend-matrix",
+        type=Path,
+        help="Reuse current verified base cases; execute missing native/semantic report orchestration",
+    )
+    parser.add_argument(
+        "--native-numeric-bundle", type=Path, help="Existing owning-admitted native mutation bundle; never recollected"
+    )
     parser.add_argument("--native-numeric-registry", type=Path)
-    parser.add_argument("--native-numeric-reports", type=Path, help="Optional unchanged emitted native reports; owning validation and replay still required")
+    parser.add_argument(
+        "--native-numeric-reports",
+        type=Path,
+        help="Optional unchanged emitted native reports; owning validation and replay still required",
+    )
     parser.add_argument("--verify-matrix", type=Path, help="Read-only current matrix verification")
-    parser.add_argument("--defer-replay", action="store_true", help="Generate matrix observations and requests without retained replay")
-    for flag in ("source-review-operator-store", "source-review-operator-trust", "source-review-session-store", "source-review-signed-store", "upper-environment-bundle", "upper-anticheat-bundle", "upper-anticheat-registry"):
+    parser.add_argument(
+        "--defer-replay", action="store_true", help="Generate matrix observations and requests without retained replay"
+    )
+    for flag in (
+        "source-review-operator-store",
+        "source-review-operator-trust",
+        "source-review-session-store",
+        "source-review-signed-store",
+        "upper-environment-bundle",
+        "upper-anticheat-bundle",
+        "upper-anticheat-registry",
+    ):
         parser.add_argument("--" + flag)
     args = parser.parse_args(argv)
     if args.defer_replay and (not (args.base_report or args.extend_matrix) or args.verify_matrix):
         parser.error("--defer-replay requires matrix generation, not verification")
     if args.base_report or args.verify_matrix or args.extend_matrix:
-        if args.case or args.local_controls or args.audit_report or args.verify_coverage or args.evidence_scope_report or args.verify_evidence_scope:
+        if (
+            args.case
+            or args.local_controls
+            or args.audit_report
+            or args.verify_coverage
+            or args.evidence_scope_report
+            or args.verify_evidence_scope
+        ):
             parser.error("matrix execution cannot be mixed with another runner mode")
         if args.verify_matrix and (args.base_report or args.output):
             parser.error("matrix replay is read-only")
-        options = {flag: getattr(args, flag.replace("-", "_")) for flag in ("source-review-operator-store", "source-review-operator-trust", "source-review-session-store", "source-review-signed-store", "upper-environment-bundle", "upper-anticheat-bundle", "upper-anticheat-registry") if getattr(args, flag.replace("-", "_"))}
+        options = {
+            flag: getattr(args, flag.replace("-", "_"))
+            for flag in (
+                "source-review-operator-store",
+                "source-review-operator-trust",
+                "source-review-session-store",
+                "source-review-signed-store",
+                "upper-environment-bundle",
+                "upper-anticheat-bundle",
+                "upper-anticheat-registry",
+            )
+            if getattr(args, flag.replace("-", "_"))
+        }
         options["registry"] = [str(p.absolute()) for p in args.registry]
         if args.extend_matrix:
             from rubric_numeric_matrix_extensions import complete
-            if args.base_report or args.verify_matrix or not all((args.output, args.native_numeric_bundle, args.native_numeric_registry)):
+
+            if (
+                args.base_report
+                or args.verify_matrix
+                or not all((args.output, args.native_numeric_bundle, args.native_numeric_registry))
+            ):
                 parser.error("extension needs output, native bundle and registry, without another matrix mode")
-            result = complete(args.extend_matrix.absolute(), args.output.absolute(), options,
-                              args.native_numeric_bundle.absolute(), args.native_numeric_registry.absolute(),
-                              args.native_numeric_reports.absolute() if args.native_numeric_reports else None,
-                              defer_replay=args.defer_replay)
-            print(json.dumps({"summary": str(args.output / "summary.md"), "counts": result["counts"], "verification": result["verification"]}))
+            result = complete(
+                args.extend_matrix.absolute(),
+                args.output.absolute(),
+                options,
+                args.native_numeric_bundle.absolute(),
+                args.native_numeric_registry.absolute(),
+                args.native_numeric_reports.absolute() if args.native_numeric_reports else None,
+                defer_replay=args.defer_replay,
+            )
+            print(
+                json.dumps(
+                    {
+                        "summary": str(args.output / "summary.md"),
+                        "counts": result["counts"],
+                        "verification": result["verification"],
+                    }
+                )
+            )
             return 0
         if args.verify_matrix:
             if "original_matrix" in json.loads(args.verify_matrix.read_text()):
                 from rubric_numeric_matrix_extensions import verify
+
                 verify(args.verify_matrix, options)
             else:
                 verify_matrix(args.verify_matrix, options)
@@ -675,17 +733,33 @@ def main(argv: list[str] | None = None) -> int:
                 parser.error("--output is required")
             if args.native_numeric_bundle:
                 from rubric_numeric_matrix_extensions import complete
+
                 if not args.native_numeric_registry:
                     parser.error("native numeric bundle requires explicit registry")
                 base_output = args.output.with_name(args.output.name + "-base")
                 run_matrix(args.base_report.absolute(), base_output.absolute(), options, defer_replay=True)
-                result = complete(base_output.absolute() / "matrix.json", args.output.absolute(), options,
-                                  args.native_numeric_bundle.absolute(), args.native_numeric_registry.absolute(),
-                                  args.native_numeric_reports.absolute() if args.native_numeric_reports else None,
-                                  defer_replay=args.defer_replay)
+                result = complete(
+                    base_output.absolute() / "matrix.json",
+                    args.output.absolute(),
+                    options,
+                    args.native_numeric_bundle.absolute(),
+                    args.native_numeric_registry.absolute(),
+                    args.native_numeric_reports.absolute() if args.native_numeric_reports else None,
+                    defer_replay=args.defer_replay,
+                )
             else:
-                result = run_matrix(args.base_report.absolute(), args.output.absolute(), options, defer_replay=args.defer_replay)
-            print(json.dumps({"summary": str(args.output / "summary.md"), "counts": result["counts"], "verification": result["verification"]}))
+                result = run_matrix(
+                    args.base_report.absolute(), args.output.absolute(), options, defer_replay=args.defer_replay
+                )
+            print(
+                json.dumps(
+                    {
+                        "summary": str(args.output / "summary.md"),
+                        "counts": result["counts"],
+                        "verification": result["verification"],
+                    }
+                )
+            )
         return 0
     if args.evidence_scope_report or args.verify_evidence_scope:
         from rubric_evidence_scope_mutations import main as evidence_main
@@ -742,18 +816,38 @@ def main(argv: list[str] | None = None) -> int:
 
 
 def matrix_flags(options: dict[str, Any]) -> list[str]:
-    return [part for key, value in options.items() for item in (value if isinstance(value, list) else [value])
-            for part in ("--" + key, str(item))]
+    return [
+        part
+        for key, value in options.items()
+        for item in (value if isinstance(value, list) else [value])
+        for part in ("--" + key, str(item))
+    ]
 
 
 def matrix_assess(root: Path, selection: dict[str, Any], output: Path, options: dict[str, Any]) -> dict[str, Any]:
     output.mkdir(mode=0o700, parents=True)
     write_json(output / "selection.json", selection)
-    result = invoke([str(SCRIPTS / "rubric_base_assessment.py"), "--root", str(root),
-                     "--selection", str(output / "selection.json"), "--output", str(output / "ordinary"),
-                     "--defer-replay", *matrix_flags(options)], output, "assessment")
-    result.update(root=str(root), options=options, report=str(output / "ordinary/report/assessment.json"),
-                  state="assessed" if result["exit"] in (0, 1) else "blocked")
+    result = invoke(
+        [
+            str(SCRIPTS / "rubric_base_assessment.py"),
+            "--root",
+            str(root),
+            "--selection",
+            str(output / "selection.json"),
+            "--output",
+            str(output / "ordinary"),
+            "--defer-replay",
+            *matrix_flags(options),
+        ],
+        output,
+        "assessment",
+    )
+    result.update(
+        root=str(root),
+        options=options,
+        report=str(output / "ordinary/report/assessment.json"),
+        state="assessed" if result["exit"] in (0, 1) else "blocked",
+    )
     return result
 
 
@@ -762,8 +856,14 @@ def matrix_replay(record: dict[str, Any], *, log: bool = True) -> bool:
         from rubric_create02_integration import replay_record
 
         return replay_record(record)
-    argv = [str(SCRIPTS / "rubric_base_assessment.py"), "--root", record["root"],
-            "--verify-existing", str(Path(record["report"]).parent), *matrix_flags(record["options"])]
+    argv = [
+        str(SCRIPTS / "rubric_base_assessment.py"),
+        "--root",
+        record["root"],
+        "--verify-existing",
+        str(Path(record["report"]).parent),
+        *matrix_flags(record["options"]),
+    ]
     command = [sys.executable, "-B", *argv]
     run = subprocess.run(command, capture_output=True, timeout=600, env=dict(os.environ, PYTHONDONTWRITEBYTECODE="1"))
     if log:
@@ -771,29 +871,58 @@ def matrix_replay(record: dict[str, Any], *, log: bool = True) -> bool:
         (parent / "replay.stdout").write_bytes(run.stdout)
         (parent / "replay.stderr").write_bytes(run.stderr)
         write_json(parent / "replay.command.json", {"command": command, "exit": run.returncode})
-    return run.returncode == record["exit"] and run.returncode in (0, 1) and json.loads(run.stdout)["replay"] == "verified"
+    return (
+        run.returncode == record["exit"] and run.returncode in (0, 1) and json.loads(run.stdout)["replay"] == "verified"
+    )
 
 
 def matrix_specs() -> dict[str, dict[str, Any]]:
     p = "provenance."
     return {
-        "without-upper-environment": {p + n: 2 for n in ("observed-configuration", "runtime-route", "solver-tool-access", "dependency-substitution", "external-state", "comparison-fairness")},
+        "without-upper-environment": {
+            p + n: 2
+            for n in (
+                "observed-configuration",
+                "runtime-route",
+                "solver-tool-access",
+                "dependency-substitution",
+                "external-state",
+                "comparison-fairness",
+            )
+        },
         "without-upper-anticheat": {"AC-03": 2, "AC-04": 2, "task-contract.clear-contract": 2},
-        "without-source-review": {p + n: 2 for n in ("task-artifact-access", "grading-path", "grading-dependency-access", "declared-configuration")},
+        "without-source-review": {
+            p + n: 2
+            for n in ("task-artifact-access", "grading-path", "grading-dependency-access", "declared-configuration")
+        },
         "audit-inspect": {p + "evidence-revision-consistency": 2},
         "without-audit": {p + "evidence-revision-consistency": None, p + "comparison-fairness": None},
         "without-configuration": {p + "declared-configuration": 1},
         "without-access": {"AC-01": 1},
         "without-attacks": {"AC-02": 1},
         "without-boundaries": {"AC-03": 1, "AC-04": 1},
-        "without-runtime": {p + "observed-configuration": None, p + "runtime-route": None, p + "solver-tool-access": None, p + "dependency-substitution": None, p + "external-state": None, p + "grading-path": 1, p + "grading-dependency-access": 1},
-        "partial-runtime-observations": {p + n: 1 for n in ("observed-configuration", "solver-tool-access", "dependency-substitution", "external-state")},
+        "without-runtime": {
+            p + "observed-configuration": None,
+            p + "runtime-route": None,
+            p + "solver-tool-access": None,
+            p + "dependency-substitution": None,
+            p + "external-state": None,
+            p + "grading-path": 1,
+            p + "grading-dependency-access": 1,
+        },
+        "partial-runtime-observations": {
+            p + n: 1
+            for n in ("observed-configuration", "solver-tool-access", "dependency-substitution", "external-state")
+        },
         "wrong-inventory": {p + "grading-path": 0, p + "declared-configuration": 0},
     }
 
 
-def matrix_selection(original: dict[str, Any], case: str, options: dict[str, Any], scopes: dict[str, str]) -> tuple[dict[str, Any], dict[str, Any]]:
+def matrix_selection(
+    original: dict[str, Any], case: str, options: dict[str, Any], scopes: dict[str, str]
+) -> tuple[dict[str, Any], dict[str, Any]]:
     from copy import deepcopy
+
     selected, configured = deepcopy(original), deepcopy(options)
     selector = selected["example_assessment"]
     if case == "without-upper-environment":
@@ -812,8 +941,14 @@ def matrix_selection(original: dict[str, Any], case: str, options: dict[str, Any
         selector.pop("review_ids", None)
         selected.pop("audit_companion", None)
     elif case.startswith("without-"):
-        criterion = {"without-access": "AC-01", "without-attacks": "AC-02", "without-boundaries": "AC-03", "without-runtime": "provenance.observed-configuration"}[case]
+        criterion = {
+            "without-access": "AC-01",
+            "without-attacks": "AC-02",
+            "without-boundaries": "AC-03",
+            "without-runtime": "provenance.observed-configuration",
+        }[case]
         from rubric_evidence_scope_mutations import withhold
+
         selected, _ = withhold(selected, criterion, scopes)
         if case == "without-runtime":
             configured.pop("upper-environment-bundle", None)
@@ -821,8 +956,12 @@ def matrix_selection(original: dict[str, Any], case: str, options: dict[str, Any
             for key in ("upper-anticheat-bundle", "upper-anticheat-registry"):
                 configured.pop(key, None)
     elif case == "partial-runtime-observations":
-        selected["evidence_scope"] = {"configuration_fields": ["environment.cpus", "environment.memory_mb"],
-                                      "actions": ["read", "error"], "components": ["contract", "ledger"], "state_cases": ["nop"]}
+        selected["evidence_scope"] = {
+            "configuration_fields": ["environment.cpus", "environment.memory_mb"],
+            "actions": ["read", "error"],
+            "components": ["contract", "ledger"],
+            "state_cases": ["nop"],
+        }
     elif case == "wrong-inventory":
         selector.pop("review_ids", None)
         selected.pop("audit_companion", None)
@@ -837,13 +976,15 @@ def validate_matrix_expectation(run: dict[str, Any]) -> None:
             raise ValueError("unknown separately declared CREATE-02 subject")
         expected = {"CREATE-02": 0}
     elif run.get("extension_kind") == "leakage":
-        from rubric_leakage_recipes import expectations, evidence_kind
+        from rubric_leakage_recipes import evidence_kind, expectations
+
         case = run["case"].removeprefix("leakage-")
         expected = expectations(case)
         if run.get("evidence_control_kind") != evidence_kind(case):
             raise ValueError("leakage evidence control kind differs from recipe")
     elif run.get("extension_kind"):
         from rubric_numeric_matrix_extensions import extension_specs
+
         expected = extension_specs(run["extension_kind"])[run["case"]]
     elif run["case"] in matrix_specs():
         expected = matrix_specs()[run["case"]]
@@ -858,6 +999,7 @@ def validate_matrix_expectation(run: dict[str, Any]) -> None:
 
 def matrix_summary(base: dict[str, Any], runs: list[dict[str, Any]], repair: dict[str, Any]) -> dict[str, Any]:
     from copy import deepcopy
+
     runs = deepcopy(runs)
     before = observed_rows(base)
     repaired = observed_rows(repair)
@@ -872,6 +1014,7 @@ def matrix_summary(base: dict[str, Any], runs: list[dict[str, Any]], repair: dic
         validate_matrix_expectation(run)
         if run.get("extension_kind") == "leakage":
             from rubric_leakage_recipes import CONTROL_CASES
+
             case = run["case"].removeprefix("leakage-")
             if case in CONTROL_CASES:
                 ident, _ = CONTROL_CASES[case]
@@ -887,9 +1030,16 @@ def matrix_summary(base: dict[str, Any], runs: list[dict[str, Any]], repair: dic
         actual = observed_rows(run["assessment"])
         expected = current_expectations(run["expected"])
         run["current_expected"] = expected
-        run["legacy_expectation_limits"] = {ident: "Original target retained, but no equivalent current numeric predicate; examine original legacy evidence without treating it as current coverage." for ident in run["expected"] if ident == "AC-01"}
-        changes = {k: {"base": paired_before[k], "actual": v} for k, v in actual.items()
-                   if comparison_projection({k: paired_before[k]}) != comparison_projection({k: v})}
+        run["legacy_expectation_limits"] = {
+            ident: "Original target retained, but no equivalent current numeric predicate; examine original legacy evidence without treating it as current coverage."
+            for ident in run["expected"]
+            if ident == "AC-01"
+        }
+        changes = {
+            k: {"base": paired_before[k], "actual": v}
+            for k, v in actual.items()
+            if comparison_projection({k: paired_before[k]}) != comparison_projection({k: v})
+        }
         run["actual"] = actual
         run["changes"] = changes
         run["collateral"] = sorted(set(changes) - set(expected))
@@ -898,37 +1048,121 @@ def matrix_summary(base: dict[str, Any], runs: list[dict[str, Any]], repair: dic
             value = actual.get(ident, {}).get("score")
             operational = run.get("evidence_control_kind") == "operational_failure"
             matched = not operational and bool(actual) and type(value) is type(target) and value == target
-            rows.append({"case": run["case"], "criterion": ident, "base": paired_before[ident]["score"],
-                         "expected": target, "actual": value, "executed": bool(actual), "matched": matched,
-                         "evidence_control_kind": run.get("evidence_control_kind", "missing_evidence" if target is None else "numeric_or_repair"),
-                         "base_report": baseline_record["report"], "repair_report": repair_record["report"],
-                         "numeric_drop": matched and type(target) is int and type(paired_before[ident]["score"]) is int and target < paired_before[ident]["score"],
-                         "reason": (actual.get(ident, {}).get("remaining_gaps", [run["reason"]]) or [run["reason"]])[0], "repair": paired_repair[ident]["score"], "report": run["assessment"]["report"]})
+            rows.append(
+                {
+                    "case": run["case"],
+                    "criterion": ident,
+                    "base": paired_before[ident]["score"],
+                    "expected": target,
+                    "actual": value,
+                    "executed": bool(actual),
+                    "matched": matched,
+                    "evidence_control_kind": run.get(
+                        "evidence_control_kind", "missing_evidence" if target is None else "numeric_or_repair"
+                    ),
+                    "base_report": baseline_record["report"],
+                    "repair_report": repair_record["report"],
+                    "numeric_drop": matched
+                    and type(target) is int
+                    and type(paired_before[ident]["score"]) is int
+                    and target < paired_before[ident]["score"],
+                    "reason": (actual.get(ident, {}).get("remaining_gaps", [run["reason"]]) or [run["reason"]])[0],
+                    "repair": paired_repair[ident]["score"],
+                    "report": run["assessment"]["report"],
+                }
+            )
     cells = []
     for ident, definition in definitions.items():
         for number in range(4):
-            attempts = [r for r in rows if r["criterion"] == ident and r["evidence_control_kind"] != "operational_failure" and type(r["expected"]) is int and r["expected"] == number]
+            attempts = [
+                r
+                for r in rows
+                if r["criterion"] == ident
+                and r["evidence_control_kind"] != "operational_failure"
+                and type(r["expected"]) is int
+                and r["expected"] == number
+            ]
             matched = [r for r in attempts if r["matched"]]
             base_match = before[ident]["score"] == number
-            status = "actual_transition" if any(r["numeric_drop"] for r in matched) else "actual_base" if base_match else "actual_control" if matched else "unsupported"
-            cells.append({"criterion": ident, "expected": number, "anchor": definition["scoring"][str(number)],
-                          "base_actual": before[ident]["score"], "status": status,
-                          "attempts": [{key: r[key] for key in ("case", "actual", "matched", "report", "base", "base_report", "repair", "repair_report", "evidence_control_kind")} for r in attempts],
-                          "remaining": None if status != "unsupported" else matrix_remaining(ident, number)})
+            status = (
+                "actual_transition"
+                if any(r["numeric_drop"] for r in matched)
+                else "actual_base"
+                if base_match
+                else "actual_control"
+                if matched
+                else "unsupported"
+            )
+            cells.append(
+                {
+                    "criterion": ident,
+                    "expected": number,
+                    "anchor": definition["scoring"][str(number)],
+                    "base_actual": before[ident]["score"],
+                    "status": status,
+                    "attempts": [
+                        {
+                            key: r[key]
+                            for key in (
+                                "case",
+                                "actual",
+                                "matched",
+                                "report",
+                                "base",
+                                "base_report",
+                                "repair",
+                                "repair_report",
+                                "evidence_control_kind",
+                            )
+                        }
+                        for r in attempts
+                    ],
+                    "remaining": None if status != "unsupported" else matrix_remaining(ident, number),
+                }
+            )
     count = sum(len(d["scoring"]) for d in definitions.values())
     if len(cells) != count or len({(r["criterion"], r["expected"]) for r in cells}) != count:
         raise ValueError("canonical matrix incomplete")
-    return {"schema": "rubric-consolidated-matrix-v2", "definitions_sha256": definitions_digest(),
-            "current_inventory": {k: v for k, v in inventory().items() if k != "criteria"},
-            "undefined_criteria": {"METHOD-J1": "Unassessed: missing canonical definition."},
-            "base_qualified": all(r["score"] == 3 for r in before.values()),
-            "base": base, "base_scores": {k: v["score"] for k, v in before.items()}, "repair": repair,
-            "runs": runs, "rows": rows, "cells": cells,
-            "missing_evidence_cells": [{"criterion": ident, "expected": None,
-                "attempts": [r for r in rows if r["criterion"] == ident and r["expected"] is None and r["evidence_control_kind"] == "missing_evidence"],
-                "demonstrated_drop": any(r["criterion"] == ident and r["expected"] is None and r["evidence_control_kind"] == "missing_evidence" and r["matched"] and type(r["base"]) is int for r in rows)} for ident in definitions],
-            "operational_failure_controls": [r for r in rows if r["evidence_control_kind"] == "operational_failure"],
-            "counts": {state: sum(c["status"] == state for c in cells) for state in ("actual_transition", "actual_base", "actual_control", "unsupported")}}
+    return {
+        "schema": "rubric-consolidated-matrix-v2",
+        "definitions_sha256": definitions_digest(),
+        "current_inventory": {k: v for k, v in inventory().items() if k != "criteria"},
+        "undefined_criteria": {"METHOD-J1": "Unassessed: missing canonical definition."},
+        "base_qualified": all(r["score"] == 3 for r in before.values()),
+        "base": base,
+        "base_scores": {k: v["score"] for k, v in before.items()},
+        "repair": repair,
+        "runs": runs,
+        "rows": rows,
+        "cells": cells,
+        "missing_evidence_cells": [
+            {
+                "criterion": ident,
+                "expected": None,
+                "attempts": [
+                    r
+                    for r in rows
+                    if r["criterion"] == ident
+                    and r["expected"] is None
+                    and r["evidence_control_kind"] == "missing_evidence"
+                ],
+                "demonstrated_drop": any(
+                    r["criterion"] == ident
+                    and r["expected"] is None
+                    and r["evidence_control_kind"] == "missing_evidence"
+                    and r["matched"]
+                    and type(r["base"]) is int
+                    for r in rows
+                ),
+            }
+            for ident in definitions
+        ],
+        "operational_failure_controls": [r for r in rows if r["evidence_control_kind"] == "operational_failure"],
+        "counts": {
+            state: sum(c["status"] == state for c in cells)
+            for state in ("actual_transition", "actual_base", "actual_control", "unsupported")
+        },
+    }
 
 
 def matrix_remaining(criterion: str, number: int) -> str:
@@ -937,42 +1171,102 @@ def matrix_remaining(criterion: str, number: int) -> str:
     if number == 3:
         return "Deferred independent clean/held-out review gate; existing owner decisions establish 2, not 3. No model or token follow-up was run."
     requirements = {
-        ("provenance.observed-configuration", 0): "Missing changed-configuration native admission proving a material mismatch invalidates this comparison; retained matching receipts cannot prove it.",
-        ("provenance.runtime-route", 1): "Missing a typed, materially incomplete route/adapter fixture and consumer; invalid manifest demonstrates 0, not partial compatibility.",
-        ("provenance.comparison-fairness", 0): "Missing demonstrated model-specific advantage plus scoped finding that it is unjustified; disclosed differences alone do not establish this.",
-        ("provenance.comparison-fairness", 1): "Missing a bounded comparison with known inadequately justified/tested differences and its owning assessment; current retained intent remains valid.",
-        ("provenance.solver-tool-access", 0): "Missing changed-task native solver-UID failed-required-action evidence and admission; current actions pass.",
-        ("provenance.dependency-substitution", 0): "Missing observed required missing component or active unapproved replacement plus its scoped authorization reconciliation.",
-        ("provenance.external-state", 0): "Missing admitted changed-state drift that materially changes expected outcomes; successful deliberate-drift detection is not invalidation.",
-        ("provenance.evidence-revision-consistency", 0): "Missing demonstrated silent incompatible-revision reuse. Current rejection of stale evidence is a successful defense, not 0.",
-        ("provenance.evidence-revision-consistency", 1): "Missing typed incomplete version metadata or retained stale review admitted as partial; removing Audit gives Unassessed, not 1.",
-        ("task-contract.clear-contract", 0): "Missing full-closure admitted material contradiction/underspecification preventing justified grading; current scorer contradictions do not by themselves prove this contract predicate.",
-        ("task-contract.clear-contract", 1): "Missing scoped material ambiguity and partial authority mapping; withholding owner review alone is not demonstrated ambiguity.",
-        ("task-contract.discoverable-requirements", 0): "Executed hidden-completion remains Unassessed: verifier source is allowed authority, so the mutation does not establish a hidden requirement. Needs a genuinely inaccessible material condition and admitted authority-surface adapter.",
-        ("task-contract.discoverable-requirements", 1): "Missing an admitted incomplete/disputed condition-to-authority mapping; removing evidence is not proof of a dispute.",
-        ("task-contract.scoring-authority", 1): "Missing a mixed justified/unresolved material scoring-authority fixture and scoped dispute evidence; current exact contradictions establish 0 instead.",
-        ("AC-01", 0): "Missing changed-task solver-role protected-information exposure and owning admission; current protected record is unreadable.",
-        ("AC-04", 0): "Missing changed-task predecessor/order evidence proving unintended carryover changes credit or leaks answers; current reset controls pass.",
+        (
+            "provenance.observed-configuration",
+            0,
+        ): "Missing changed-configuration native admission proving a material mismatch invalidates this comparison; retained matching receipts cannot prove it.",
+        (
+            "provenance.runtime-route",
+            1,
+        ): "Missing a typed, materially incomplete route/adapter fixture and consumer; invalid manifest demonstrates 0, not partial compatibility.",
+        (
+            "provenance.comparison-fairness",
+            0,
+        ): "Missing demonstrated model-specific advantage plus scoped finding that it is unjustified; disclosed differences alone do not establish this.",
+        (
+            "provenance.comparison-fairness",
+            1,
+        ): "Missing a bounded comparison with known inadequately justified/tested differences and its owning assessment; current retained intent remains valid.",
+        (
+            "provenance.solver-tool-access",
+            0,
+        ): "Missing changed-task native solver-UID failed-required-action evidence and admission; current actions pass.",
+        (
+            "provenance.dependency-substitution",
+            0,
+        ): "Missing observed required missing component or active unapproved replacement plus its scoped authorization reconciliation.",
+        (
+            "provenance.external-state",
+            0,
+        ): "Missing admitted changed-state drift that materially changes expected outcomes; successful deliberate-drift detection is not invalidation.",
+        (
+            "provenance.evidence-revision-consistency",
+            0,
+        ): "Missing demonstrated silent incompatible-revision reuse. Current rejection of stale evidence is a successful defense, not 0.",
+        (
+            "provenance.evidence-revision-consistency",
+            1,
+        ): "Missing typed incomplete version metadata or retained stale review admitted as partial; removing Audit gives Unassessed, not 1.",
+        (
+            "task-contract.clear-contract",
+            0,
+        ): "Missing full-closure admitted material contradiction/underspecification preventing justified grading; current scorer contradictions do not by themselves prove this contract predicate.",
+        (
+            "task-contract.clear-contract",
+            1,
+        ): "Missing scoped material ambiguity and partial authority mapping; withholding owner review alone is not demonstrated ambiguity.",
+        (
+            "task-contract.discoverable-requirements",
+            0,
+        ): "Executed hidden-completion remains Unassessed: verifier source is allowed authority, so the mutation does not establish a hidden requirement. Needs a genuinely inaccessible material condition and admitted authority-surface adapter.",
+        (
+            "task-contract.discoverable-requirements",
+            1,
+        ): "Missing an admitted incomplete/disputed condition-to-authority mapping; removing evidence is not proof of a dispute.",
+        (
+            "task-contract.scoring-authority",
+            1,
+        ): "Missing a mixed justified/unresolved material scoring-authority fixture and scoped dispute evidence; current exact contradictions establish 0 instead.",
+        (
+            "AC-01",
+            0,
+        ): "Missing changed-task solver-role protected-information exposure and owning admission; current protected record is unreadable.",
+        (
+            "AC-04",
+            0,
+        ): "Missing changed-task predecessor/order evidence proving unintended carryover changes credit or leaks answers; current reset controls pass.",
     }
     return requirements.get((criterion, number), adapter_requirement(criterion, str(number)))
 
 
 def render_matrix(result: dict[str, Any], output: Path) -> str:
     import shlex
-    lines = ["# Current base and numeric mutations", "",
-             "Current canonical scope replaces the overlapping legacy Anticheat rows. Base qualification and pending cells are derived below; historical 18-row results do not qualify this scope.",
-             "Expected values are external inputs; actual values below come from ordinary CLI reports. Unassessed is not 0.",
-             "Exact task rollback and one final full-selection repair reuse unchanged admitted native evidence; no new native/model execution.", "",
-             "| Case | Criterion | Base | Expected | Actual | Reason / scope | Repair |",
-             "| --- | --- | ---: | ---: | ---: | --- | ---: |"]
-    score = lambda v: "Unassessed" if v is None else str(v)
+
+    lines = [
+        "# Current base and numeric mutations",
+        "",
+        "Current canonical scope replaces the overlapping legacy Anticheat rows. Base qualification and pending cells are derived below; historical 18-row results do not qualify this scope.",
+        "Expected values are external inputs; actual values below come from ordinary CLI reports. Unassessed is not 0.",
+        "Exact task rollback and one final full-selection repair reuse unchanged admitted native evidence; no new native/model execution.",
+        "",
+        "| Case | Criterion | Base | Expected | Actual | Reason / scope | Repair |",
+        "| --- | --- | ---: | ---: | ---: | --- | ---: |",
+    ]
+
+    def score(v):
+        return "Unassessed" if v is None else str(v)
+
     for ident, value in result["base_scores"].items():
-        lines.append(f"| [base](baseline/ordinary/report/results.md) | {ident} | {value} | 3 | {value} | {'Current upper gate deferred' if value != 3 else 'Current owning evidence and accepted scope'} | {value} |")
+        lines.append(
+            f"| [base](baseline/ordinary/report/results.md) | {ident} | {value} | 3 | {value} | {'Current upper gate deferred' if value != 3 else 'Current owning evidence and accepted scope'} | {value} |"
+        )
     for row in result["rows"]:
         link = os.path.relpath(Path(row["report"]).with_name("results.md"), output)
         base_link = os.path.relpath(Path(row["base_report"]).with_name("results.md"), output)
         repair_link = os.path.relpath(Path(row["repair_report"]).with_name("results.md"), output)
-        lines.append(f"| [{row['case']}]({link}) | {row['criterion']} | [{score(row['base'])}]({base_link}) | {score(row['expected'])} | {score(row['actual']) if row['executed'] else 'BLOCKED'} | {row['evidence_control_kind']}: {rubric_table.cell(row['reason'])} | [{score(row['repair'])}]({repair_link}) |")
+        lines.append(
+            f"| [{row['case']}]({link}) | {row['criterion']} | [{score(row['base'])}]({base_link}) | {score(row['expected'])} | {score(row['actual']) if row['executed'] else 'BLOCKED'} | {row['evidence_control_kind']}: {rubric_table.cell(row['reason'])} | [{score(row['repair'])}]({repair_link}) |"
+        )
     lines += ["", "## Legacy targets without an equivalent numeric predicate", ""]
     for run in result["runs"]:
         for ident, reason in run.get("legacy_expectation_limits", {}).items():
@@ -980,21 +1274,71 @@ def render_matrix(result: dict[str, Any], output: Path) -> str:
     lines += ["", "## Remaining numeric cells", ""]
     for cell in result["cells"]:
         if cell["status"] == "unsupported":
-            lines.append(f"- **{cell['criterion']} / {cell['expected']}**: " + matrix_remaining(cell["criterion"], cell["expected"]))
-    lines += ["", "## Commands and exact repairs", "", "Every command below uses real selected evidence; expectations are never selected. Shared panel cases appear once. Full collateral score/check/evidence-strength changes and unchanged neighbors are in [matrix.json](matrix.json).", ""]
+            lines.append(
+                f"- **{cell['criterion']} / {cell['expected']}**: "
+                + matrix_remaining(cell["criterion"], cell["expected"])
+            )
+    lines += [
+        "",
+        "## Commands and exact repairs",
+        "",
+        "Every command below uses real selected evidence; expectations are never selected. Shared panel cases appear once. Full collateral score/check/evidence-strength changes and unchanged neighbors are in [matrix.json](matrix.json).",
+        "",
+    ]
     for run in result["runs"]:
         record = run["assessment"]
-        replay = [sys.executable, "-B", str(SCRIPTS / "rubric_base_assessment.py"), "--root", record["root"], "--verify-existing", str(Path(record["report"]).parent), *matrix_flags(record["options"])]
-        lines += ["### " + run["case"], "", run["repair_description"], "", "Executed generation (use a new output directory to repeat):", "```sh", shlex.join(record["command"]), "```", "Read-only current replay:", "```sh", shlex.join(replay), "```", ""]
-    replay = [sys.executable, "-B", str(SCRIPTS / "rubric_mutation_runner.py"), "--verify-matrix", str(output / "matrix.json"), *matrix_flags(result["options"])]
-    lines += ["## Final verification", "", "```sh", shlex.join(replay), "```", "", json.dumps(result.get("verification", {}), sort_keys=True), "",
-              "[Full-base repair](repair/ordinary/report/results.md). Source bytes, native receipts and original decisions remain unchanged. Positive source-only neighbors are not highest-anchor qualification."]
+        replay = [
+            sys.executable,
+            "-B",
+            str(SCRIPTS / "rubric_base_assessment.py"),
+            "--root",
+            record["root"],
+            "--verify-existing",
+            str(Path(record["report"]).parent),
+            *matrix_flags(record["options"]),
+        ]
+        lines += [
+            "### " + run["case"],
+            "",
+            run["repair_description"],
+            "",
+            "Executed generation (use a new output directory to repeat):",
+            "```sh",
+            shlex.join(record["command"]),
+            "```",
+            "Read-only current replay:",
+            "```sh",
+            shlex.join(replay),
+            "```",
+            "",
+        ]
+    replay = [
+        sys.executable,
+        "-B",
+        str(SCRIPTS / "rubric_mutation_runner.py"),
+        "--verify-matrix",
+        str(output / "matrix.json"),
+        *matrix_flags(result["options"]),
+    ]
+    lines += [
+        "## Final verification",
+        "",
+        "```sh",
+        shlex.join(replay),
+        "```",
+        "",
+        json.dumps(result.get("verification", {}), sort_keys=True),
+        "",
+        "[Full-base repair](repair/ordinary/report/results.md). Source bytes, native receipts and original decisions remain unchanged. Positive source-only neighbors are not highest-anchor qualification.",
+    ]
     return "\n".join(lines) + "\n"
 
 
-def run_matrix(source_report: Path, output: Path, options: dict[str, Any], *, defer_replay: bool = False) -> dict[str, Any]:
-    from copy import deepcopy
-    from rubric_evidence_scope_mutations import source_inventory, selected_scopes, panel_comparison
+def run_matrix(
+    source_report: Path, output: Path, options: dict[str, Any], *, defer_replay: bool = False
+) -> dict[str, Any]:
+    from rubric_evidence_scope_mutations import panel_comparison, selected_scopes, source_inventory
+
     saved = json.loads(rubric_table.read_private(source_report))
     root, original = Path(saved["root"]), saved["selection"]
     output = fixtures._separate_output(output, source_report)
@@ -1006,7 +1350,9 @@ def run_matrix(source_report: Path, output: Path, options: dict[str, Any], *, de
     baseline = matrix_assess(root, original, output / "baseline", options)
     if baseline["state"] != "assessed":
         raise ValueError("current combined base failed")
-    if saved.get("definitions_sha256") == definitions_digest() and {k: r["score"] for k, r in observed_rows(baseline).items()} != {k: r["score"] for k, r in saved["report"]["items"].items()}:
+    if saved.get("definitions_sha256") == definitions_digest() and {
+        k: r["score"] for k, r in observed_rows(baseline).items()
+    } != {k: r["score"] for k, r in saved["report"]["items"].items()}:
         raise ValueError("current base differs from supplied same-definition milestone")
     scopes = selected_scopes(root, original)
     runs = []
@@ -1016,28 +1362,68 @@ def run_matrix(source_report: Path, output: Path, options: dict[str, Any], *, de
         if case == "wrong-inventory":
             work.mkdir(mode=0o700)
             task = next(a for a in original["artifacts"] if a["id"] == original["example_assessment"]["task_config_id"])
-            claim = {"schema": "rubric-assessment-inventory-v1", "task_config_id": task["id"],
-                     "scorer": str(Path(task["path"]).parent / "solution/reference.py"),
-                     "agent": {"name": "unconfigured-model", "kind": "model"}}
+            claim = {
+                "schema": "rubric-assessment-inventory-v1",
+                "task_config_id": task["id"],
+                "scorer": str(Path(task["path"]).parent / "solution/reference.py"),
+                "agent": {"name": "unconfigured-model", "kind": "model"},
+            }
             path = work / "inventory.json"
             write_json(path, claim)
             relative = path.relative_to(root).as_posix()
             digest = hashlib.sha256(path.read_bytes()).hexdigest()
-            selected["artifacts"].append({"id": "assessment-inventory:" + digest, "path": relative,
-                "role": "assessment_inventory", "digest": digest, "revision": None, "access": "available",
-                "selection_origin": "explicit claimed assessment inventory", "source": relative,
-                "evidence": [{"path": relative, "digest": digest}]})
+            selected["artifacts"].append(
+                {
+                    "id": "assessment-inventory:" + digest,
+                    "path": relative,
+                    "role": "assessment_inventory",
+                    "digest": digest,
+                    "revision": None,
+                    "access": "available",
+                    "selection_origin": "explicit claimed assessment inventory",
+                    "source": relative,
+                    "evidence": [{"path": relative, "digest": digest}],
+                }
+            )
         record = matrix_assess(root, selected, work / "changed", configured)
-        neighbors = panel_comparison(saved["report"], json.loads(Path(record["report"]).read_text())["report"]) if record["state"] == "assessed" else None
+        neighbors = (
+            panel_comparison(saved["report"], json.loads(Path(record["report"]).read_text())["report"])
+            if record["state"] == "assessed"
+            else None
+        )
         if neighbors and not neighbors["retained_panels_equal"]:
             raise ValueError("retained native neighbor changed")
-        runs.append({"case": case, "expected": expected, "assessment": record,
-                     "reason": "Explicit " + case.replace("-", " ") + "; retained native panels are validated whole, not rewritten.",
-                     "repair_description": "Restore the original selection/companion flags. The shared final repair reassesses that exact original selection.",
-                     "native_neighbors": neighbors, "task_bytes_changed": False})
+        runs.append(
+            {
+                "case": case,
+                "expected": expected,
+                "assessment": record,
+                "reason": "Explicit "
+                + case.replace("-", " ")
+                + "; retained native panels are validated whole, not rewritten.",
+                "repair_description": "Restore the original selection/companion flags. The shared final repair reassesses that exact original selection.",
+                "native_neighbors": neighbors,
+                "task_bytes_changed": False,
+            }
+        )
         write_json(output / "runs.json", runs)
         print(json.dumps({"case": case, "exit": record["exit"]}), flush=True)
-    source_cases = ["source-inspection", "missing-contract", "unselected-contract", "missing-grading-input", "declared-scripted", "declared-model-unconfigured", "completion-only", "approval-after-effect", "ledger-omission", "hidden-completion", "disabled-ledger", "tax-drift", "withhold-assessment-evidence", "invalid-provider-manifest"]
+    source_cases = [
+        "source-inspection",
+        "missing-contract",
+        "unselected-contract",
+        "missing-grading-input",
+        "declared-scripted",
+        "declared-model-unconfigured",
+        "completion-only",
+        "approval-after-effect",
+        "ledger-omission",
+        "hidden-completion",
+        "disabled-ledger",
+        "tax-drift",
+        "withhold-assessment-evidence",
+        "invalid-provider-manifest",
+    ]
     for case in source_cases:
         work = output / case
         mutation = "base" if case in EXTRA_CASES or case == "invalid-provider-manifest" else case
@@ -1054,17 +1440,32 @@ def run_matrix(source_report: Path, output: Path, options: dict[str, Any], *, de
         else:
             selected = prepare_selection(work, case)
             catalog = expectation(case)
-            expected = catalog.get("expected_scores", dict.fromkeys(catalog["target_criteria"], catalog["intended_score"]))
-        record = matrix_assess(work, selected, work / "changed", {k: v for k, v in options.items() if not k.startswith("upper-")})
-        runs.append({"case": case, "expected": expected, "assessment": record,
-                     "reason": "Fresh " + case.replace("-", " ") + " source/configuration assessment. Source-bound native panels and exact source-review packet are not transferable to changed bytes.",
-                     "repair_description": "Byte/mode-exact restored task is retained at exact-repair/assessment/task. Shared final full-base repair restores the original selection and unchanged native evidence; this is not native regrading of mutant bytes.",
-                     "source_input": str(work), "input_identity": fixtures.tree_identity(work / "assessment/task"),
-                     "exact_repair": str(work / "exact-repair/assessment/task"),
-                     "task_bytes_changed": fixtures.tree_identity(work / "assessment/task") != base_identity})
+            expected = catalog.get(
+                "expected_scores", dict.fromkeys(catalog["target_criteria"], catalog["intended_score"])
+            )
+        record = matrix_assess(
+            work, selected, work / "changed", {k: v for k, v in options.items() if not k.startswith("upper-")}
+        )
+        runs.append(
+            {
+                "case": case,
+                "expected": expected,
+                "assessment": record,
+                "reason": "Fresh "
+                + case.replace("-", " ")
+                + " source/configuration assessment. Source-bound native panels and exact source-review packet are not transferable to changed bytes.",
+                "repair_description": "Byte/mode-exact restored task is retained at exact-repair/assessment/task. Shared final full-base repair restores the original selection and unchanged native evidence; this is not native regrading of mutant bytes.",
+                "source_input": str(work),
+                "input_identity": fixtures.tree_identity(work / "assessment/task"),
+                "exact_repair": str(work / "exact-repair/assessment/task"),
+                "task_bytes_changed": fixtures.tree_identity(work / "assessment/task") != base_identity,
+            }
+        )
         write_json(output / "runs.json", runs)
         print(json.dumps({"case": case, "exit": record["exit"]}), flush=True)
-    from rubric_leakage_recipes import run as run_leakage, pending_requests
+    from rubric_leakage_recipes import pending_requests
+    from rubric_leakage_recipes import run as run_leakage
+
     leakage_runs, leakage_controls = run_leakage(output / "leakage", options)
     write_json(output / "owner-requests.json", pending_requests(leakage_runs))
     runs.extend(leakage_runs)
@@ -1072,11 +1473,20 @@ def run_matrix(source_report: Path, output: Path, options: dict[str, Any], *, de
     repair = matrix_assess(root, original, output / "repair", options)
     runs = json.loads((output / "runs.json").read_text())
     result = matrix_summary(baseline, runs, repair)
-    result.update(source_report=str(source_report), options=options, frozen_source_inventory=str(output / "frozen-source-inventory.json"),
-                  base_task_identity=base_identity, leakage_controls=leakage_controls,
-                  historical_source_scores={k: v["score"] for k, v in saved["report"]["items"].items()})
+    result.update(
+        source_report=str(source_report),
+        options=options,
+        frozen_source_inventory=str(output / "frozen-source-inventory.json"),
+        base_task_identity=base_identity,
+        leakage_controls=leakage_controls,
+        historical_source_scores={k: v["score"] for k, v in saved["report"]["items"].items()},
+    )
     write_json(output / "matrix.json", result)
-    verification = {"all_replayed": False, "state": "deferred"} if defer_replay else verify_matrix(output / "matrix.json", options, write_logs=True)
+    verification = (
+        {"all_replayed": False, "state": "deferred"}
+        if defer_replay
+        else verify_matrix(output / "matrix.json", options, write_logs=True)
+    )
     result["verification"] = verification
     write_json(output / "matrix.json", result)
     (output / "summary.md").write_text(render_matrix(result, output))
@@ -1087,7 +1497,10 @@ def matrix_source_files(case: str) -> dict[str, tuple[bytes, int]]:
     files, _ = fixtures._selected("base" if case in EXTRA_CASES or case == "invalid-provider-manifest" else case)
     if case == "missing-grading-input":
         raw, mode = files["tests/test.sh"]
-        files["tests/test.sh"] = (raw.replace(b"--contract /app/contract.json", b"--contract /tests/absent-contract.json"), mode)
+        files["tests/test.sh"] = (
+            raw.replace(b"--contract /app/contract.json", b"--contract /tests/absent-contract.json"),
+            mode,
+        )
     if case == "invalid-provider-manifest":
         raw, mode = files["task.toml"]
         files["task.toml"] = (raw.replace(b'network_mode = "no-network"', b'network_mode = "invalid-route"', 1), mode)
@@ -1095,13 +1508,16 @@ def matrix_source_files(case: str) -> dict[str, tuple[bytes, int]]:
 
 
 def verify_matrix(path: Path, options: dict[str, Any], *, write_logs: bool = False) -> dict[str, Any]:
-    from rubric_evidence_scope_mutations import source_inventory, selected_scopes, panel_comparison
+    from rubric_evidence_scope_mutations import panel_comparison, selected_scopes, source_inventory
+
     result = json.loads(path.read_text())
     if result["options"] != options:
         raise ValueError("explicit matrix trust/companion arguments differ")
     base = json.loads(rubric_table.read_private(Path(result["base"]["report"])))
     original = base["selection"]
-    if source_inventory(Path(base["root"]), original) != json.loads(Path(result["frozen_source_inventory"]).read_text()):
+    if source_inventory(Path(base["root"]), original) != json.loads(
+        Path(result["frozen_source_inventory"]).read_text()
+    ):
         raise ValueError("frozen source inventory changed")
     if fixtures.tree_identity(fixtures.BASE) != result["base_task_identity"]:
         raise ValueError("canonical task changed")
@@ -1115,31 +1531,45 @@ def verify_matrix(path: Path, options: dict[str, Any], *, write_logs: bool = Fal
             reports.append(record)
         if run.get("extension_kind") == "leakage":
             from rubric_leakage_recipes import verify_input, verify_observation
+
             retained = json.loads(rubric_table.read_private(Path(record["report"])))
             verify_input(Path(record["root"]), run["case"].removeprefix("leakage-"), retained["selection"])
             verify_observation(retained["report"], run["case"].removeprefix("leakage-"))
         elif "source_input" in run:
             work = Path(run["source_input"])
-            if fixtures.tree_identity(work / "assessment/task") != run["input_identity"] or fixtures.tree_identity(Path(run["exact_repair"])) != result["base_task_identity"]:
+            if (
+                fixtures.tree_identity(work / "assessment/task") != run["input_identity"]
+                or fixtures.tree_identity(Path(run["exact_repair"])) != result["base_task_identity"]
+            ):
                 raise ValueError("mutation or exact repair changed")
             if fixtures._snapshot(work / "assessment/task") != matrix_source_files(run["case"]):
                 raise ValueError("retained task no longer has the trusted mutation")
             if (work / "assessment/request.md").read_text() != fixtures.ASSESSMENT_REQUEST:
                 raise ValueError("fixed assessment request changed")
             selected = json.loads((work / "changed/selection.json").read_text())
-            if record["state"] == "assessed" and selected != json.loads(rubric_table.read_private(Path(record["report"])))["selection"]:
+            if (
+                record["state"] == "assessed"
+                and selected != json.loads(rubric_table.read_private(Path(record["report"])))["selection"]
+            ):
                 raise ValueError("source selection changed")
         else:
-            selected, configured = matrix_selection(original, run["case"], options, selected_scopes(Path(base["root"]), original))
+            selected, configured = matrix_selection(
+                original, run["case"], options, selected_scopes(Path(base["root"]), original)
+            )
             retained_selection = json.loads(Path(record["report"]).parents[2].joinpath("selection.json").read_text())
             if run["case"] == "wrong-inventory":
                 claims = [a for a in retained_selection["artifacts"] if a["role"] == "assessment_inventory"]
                 if len(claims) != 1:
                     raise ValueError("inventory recipe missing")
-                task = next(a for a in original["artifacts"] if a["id"] == original["example_assessment"]["task_config_id"])
-                wanted = {"schema": "rubric-assessment-inventory-v1", "task_config_id": task["id"],
-                          "scorer": str(Path(task["path"]).parent / "solution/reference.py"),
-                          "agent": {"name": "unconfigured-model", "kind": "model"}}
+                task = next(
+                    a for a in original["artifacts"] if a["id"] == original["example_assessment"]["task_config_id"]
+                )
+                wanted = {
+                    "schema": "rubric-assessment-inventory-v1",
+                    "task_config_id": task["id"],
+                    "scorer": str(Path(task["path"]).parent / "solution/reference.py"),
+                    "agent": {"name": "unconfigured-model", "kind": "model"},
+                }
                 if json.loads((Path(base["root"]) / claims[0]["path"]).read_text()) != wanted:
                     raise ValueError("wrong-inventory mutation changed")
                 selected["artifacts"].append(claims[0])
@@ -1150,19 +1580,26 @@ def verify_matrix(path: Path, options: dict[str, Any], *, write_logs: bool = Fal
             if panel_comparison(base["report"], after) != run["native_neighbors"]:
                 raise ValueError("native neighbor projection changed")
     if result.get("leakage_controls"):
-        from rubric_leakage_recipes import verify_input, SOURCE_CASES
+        from rubric_leakage_recipes import SOURCE_CASES, verify_input
+
         for run in result["runs"]:
             if run.get("extension_kind") == "leakage" and run["case"].removeprefix("leakage-") in SOURCE_CASES:
-                if (run.get("criterion_baseline"), run.get("criterion_repair")) != (result["leakage_controls"]["baseline"], result["leakage_controls"]["repair"]):
+                if (run.get("criterion_baseline"), run.get("criterion_repair")) != (
+                    result["leakage_controls"]["baseline"],
+                    result["leakage_controls"]["repair"],
+                ):
                     raise ValueError("leakage source pair changed")
         for record in result["leakage_controls"].values():
             saved_control = json.loads(rubric_table.read_private(Path(record["report"])))
             verify_input(Path(record["root"]), "inventory", saved_control["selection"])
             if record not in reports:
                 reports.append(record)
-        if comparison_projection(observed_rows(result["leakage_controls"]["baseline"])) != comparison_projection(observed_rows(result["leakage_controls"]["repair"])):
+        if comparison_projection(observed_rows(result["leakage_controls"]["baseline"])) != comparison_projection(
+            observed_rows(result["leakage_controls"]["repair"])
+        ):
             raise ValueError("leakage source-only repair differs")
     from concurrent.futures import ThreadPoolExecutor
+
     # Each subprocess owns its measurement hooks; immutable panels are shared.
     # Verify distinct physical reports, never once per criterion/state cell.
     reports = list({str(Path(record["report"]).resolve()): record for record in reports}.values())
@@ -1175,9 +1612,15 @@ def verify_matrix(path: Path, options: dict[str, Any], *, write_logs: bool = Fal
     for key in rebuilt:
         if result[key] != rebuilt[key]:
             raise ValueError("retained matrix derivation differs: " + key)
-    return {"distinct_reports_replayed": len(reports), "all_replayed": True, "frozen_sources_preserved": True,
-            "exact_repairs": sum("exact_repair" in r for r in result["runs"]), "full_base_repair_equal": True,
-            "numeric_cells": len(result["cells"]), "blocked_cases": sum(r["assessment"]["state"] != "assessed" for r in result["runs"])}
+    return {
+        "distinct_reports_replayed": len(reports),
+        "all_replayed": True,
+        "frozen_sources_preserved": True,
+        "exact_repairs": sum("exact_repair" in r for r in result["runs"]),
+        "full_base_repair_equal": True,
+        "numeric_cells": len(result["cells"]),
+        "blocked_cases": sum(r["assessment"]["state"] != "assessed" for r in result["runs"]),
+    }
 
 
 if __name__ == "__main__":

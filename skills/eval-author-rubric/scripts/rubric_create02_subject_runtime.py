@@ -27,8 +27,9 @@ def consume(directory: Path, policy: str) -> dict[str, Any]:
         import hashlib
 
         raw = (directory / name).read_bytes()
-        access.append({"sequence": len(access), "operation": "read", "path": name,
-                       "sha256": hashlib.sha256(raw).hexdigest()})
+        access.append(
+            {"sequence": len(access), "operation": "read", "path": name, "sha256": hashlib.sha256(raw).hexdigest()}
+        )
         return json.loads(raw)
 
     presentation = read("presentation.json")
@@ -39,9 +40,13 @@ def consume(directory: Path, policy: str) -> dict[str, Any]:
         answer = entitlement(read("evidence.json"))
     else:
         raise ValueError("unsupported subject policy")
-    return {"answer": answer, "access_trace": access, "policy": policy,
-            "selection_basis": "template_label" if policy == "cue-only" else "order-policy-payment-evidence",
-            "boundary": "Instrumented actual file reads by a deterministic policy; not OS isolation or model inference."}
+    return {
+        "answer": answer,
+        "access_trace": access,
+        "policy": policy,
+        "selection_basis": "template_label" if policy == "cue-only" else "order-policy-payment-evidence",
+        "boundary": "Instrumented actual file reads by a deterministic policy; not OS isolation or model inference.",
+    }
 
 
 def published_score(task: dict[str, Any], answer: dict[str, Any]) -> dict[str, Any]:
@@ -58,16 +63,23 @@ def evidence_score(task: dict[str, Any], answer: dict[str, Any]) -> dict[str, An
 
 
 def feasible(task: dict[str, Any], answer: dict[str, Any]) -> bool:
-    return (type(answer.get("amount_cents")) is int
-            and 0 <= answer["amount_cents"] <= task["authorized_limit_cents"]
-            and answer.get("destination") in task["available_destinations"])
+    return (
+        type(answer.get("amount_cents")) is int
+        and 0 <= answer["amount_cents"] <= task["authorized_limit_cents"]
+        and answer.get("destination") in task["available_destinations"]
+    )
 
 
 def instance(index: int) -> dict[str, Any]:
-    evidence = {
-        "order": {"id": f"heldout-order-{index}", "merchandise_cents": 12000 + index * 1700,
-                  "discount_cents": 900 + index * 100, "tax_cents": 400 + index * 30},
-        "refund_tax": index == 0, "prior_refunds_cents": [300 + index * 200],
+    evidence: dict[str, Any] = {
+        "order": {
+            "id": f"heldout-order-{index}",
+            "merchandise_cents": 12000 + index * 1700,
+            "discount_cents": 900 + index * 100,
+            "tax_cents": 400 + index * 30,
+        },
+        "refund_tax": index == 0,
+        "prior_refunds_cents": [300 + index * 200],
         "original_payment": f"payment-heldout-{index}",
     }
     development = deepcopy(evidence)
@@ -76,10 +88,16 @@ def instance(index: int) -> dict[str, Any]:
     development["original_payment"] = f"payment-development-{index}"
     cached, truth = entitlement(development), entitlement(evidence)
     template_id = f"refund-template-{index}"
-    return {"template_id": template_id, "development_evidence": development,
-            "development_key_cache": {template_id: cached}, "evidence": evidence,
-            "authorized_limit_cents": 20000,
-            "available_destinations": [cached["destination"], truth["destination"]],
-            "presentation": {"template_label": "draft-default", "options": [
-                {"id": "draft-default", **cached}, {"id": "current-order", **truth}],
-                "formatting": "plain"}}
+    return {
+        "template_id": template_id,
+        "development_evidence": development,
+        "development_key_cache": {template_id: cached},
+        "evidence": evidence,
+        "authorized_limit_cents": 20000,
+        "available_destinations": [cached["destination"], truth["destination"]],
+        "presentation": {
+            "template_label": "draft-default",
+            "options": [{"id": "draft-default", **cached}, {"id": "current-order", **truth}],
+            "formatting": "plain",
+        },
+    }

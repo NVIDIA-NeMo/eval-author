@@ -5,16 +5,29 @@
 import json
 import sys
 from pathlib import Path
+from typing import Any
+
 import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "skills/eval-author-rubric/scripts"))
-import rubric_table
 import rubric_semantic_numeric_mutations as semantic
+import rubric_table
 
 
 def event(request):
-    return {"request": request, "decisions": {semantic.FAIRNESS: {"decision": "approve", "content": "Synthetic test answer only", "rationale": "Synthetic test exact-comparison disposition"}},
-            "retention_consent": "Synthetic test scope", "retained_scopes": list(request["scopes"]), "save_authorized": True}
+    return {
+        "request": request,
+        "decisions": {
+            semantic.FAIRNESS: {
+                "decision": "approve",
+                "content": "Synthetic test answer only",
+                "rationale": "Synthetic test exact-comparison disposition",
+            }
+        },
+        "retention_consent": "Synthetic test scope",
+        "retained_scopes": list(request["scopes"]),
+        "save_authorized": True,
+    }
 
 
 def test_operator_scoped_answer_replay_revocation_and_reseal(tmp_path, monkeypatch):
@@ -52,17 +65,21 @@ def test_operator_scoped_answer_replay_revocation_and_reseal(tmp_path, monkeypat
 def test_extension_expectation_not_selected_score():
     import rubric_mutation_runner as runner
     from rubric_numeric_matrix_extensions import extension_specs
+
     assert sum(len(v) for v in extension_specs("native").values()) == 7
     assert sum(len(v) for v in extension_specs("semantic").values()) == 9
     with pytest.raises(ValueError):
-        runner.validate_matrix_expectation({"extension_kind": "semantic", "case": "advantaged-comparison", "expected": {semantic.FAIRNESS: 3}})
+        runner.validate_matrix_expectation(
+            {"extension_kind": "semantic", "case": "advantaged-comparison", "expected": {semantic.FAIRNESS: 3}}
+        )
 
 
 def test_current_ordinary_pairs_reach_matrix_and_extension_without_replay(tmp_path, monkeypatch):
     from copy import deepcopy
+
+    import rubric_leakage_recipes as recipes
     import rubric_mutation_runner as runner
     import rubric_numeric_matrix_extensions as extension
-    import rubric_leakage_recipes as recipes
 
     monkeypatch.delenv("EVAL_AUTHOR_SOURCE_REVIEW_OPERATOR_STORE", raising=False)
     monkeypatch.delenv("EVAL_AUTHOR_SOURCE_REVIEW_OPERATOR_TRUST", raising=False)
@@ -70,16 +87,23 @@ def test_current_ordinary_pairs_reach_matrix_and_extension_without_replay(tmp_pa
     base_root = tmp_path / "full-base"
     base = runner.matrix_assess(base_root, recipes.materialize(base_root, "inventory"), base_root / "assessment", {})
     ident = "AUDIT-03"
-    runs = []
+    runs: list[Any] = []
     for arm in ("base", "0", "missing", "operational", "repair"):
         case = ident + "." + arm
         root = tmp_path / case
         record = runner.matrix_assess(root, recipes.materialize(root, case), root / "assessment", {})
         assert record["state"] == "assessed"
-        runs.append({"case": "leakage-" + case, "expected": recipes.expectations(case),
-                     "assessment": record, "extension_kind": "leakage",
-                     "evidence_control_kind": recipes.evidence_kind(case), "reason": "test observation",
-                     "repair_description": "fresh paired repair"})
+        runs.append(
+            {
+                "case": "leakage-" + case,
+                "expected": recipes.expectations(case),
+                "assessment": record,
+                "extension_kind": "leakage",
+                "evidence_control_kind": recipes.evidence_kind(case),
+                "reason": "test observation",
+                "repair_description": "fresh paired repair",
+            }
+        )
     for run in runs:
         run.update(criterion_baseline=runs[0]["assessment"], criterion_repair=runs[-1]["assessment"])
     result = runner.matrix_summary(base, runs, base)
@@ -101,7 +125,9 @@ def test_current_ordinary_pairs_reach_matrix_and_extension_without_replay(tmp_pa
     assert enriched["repair_reports"]["criterion_paired"] == enriched["repair_report"]
     assert enriched["repair_reports"]["full_base"] == base["report"]
     assert result["runs"][1]["full_emitted_items"][ident]["score"] == 0
-    projection = json.loads(Path(runs[1]["assessment"]["report"]).read_text())["report"]["measurements"]["leakage_bounded"]
+    projection = json.loads(Path(runs[1]["assessment"]["report"]).read_text())["report"]["measurements"][
+        "leakage_bounded"
+    ]
     probe = projection["observations"]["probes"]["no-work"]
     assert probe["actual"]["max_credit"] == 1
     assert probe["intended"]["max_credit"] != probe["actual"]["max_credit"]
@@ -120,8 +146,8 @@ def test_current_ordinary_pairs_reach_matrix_and_extension_without_replay(tmp_pa
 
 
 def test_leakage_cli_defers_replay_and_batches_exact_requests(tmp_path, monkeypatch):
-    import rubric_mutation_runner as runner
     import rubric_leakage_recipes as recipes
+    import rubric_mutation_runner as runner
 
     monkeypatch.setattr(runner, "matrix_replay", lambda *a, **k: pytest.fail("unexpected replay"))
     # Use the real collector and ordinary CLI for base/repair duplicate bindings.
@@ -141,8 +167,14 @@ def test_leakage_cli_defers_replay_and_batches_exact_requests(tmp_path, monkeypa
 
 def test_check_id_only_report_normalization(tmp_path):
     import rubric_mutation_runner as runner
-    items = {ident: {"score": None, "check_results": [{"check_id": c["id"], "outcome": "NOT_RUN"} for c in definition["checks"]]}
-             for ident, definition in runner.canonical_definitions().items()}
+
+    items = {
+        ident: {
+            "score": None,
+            "check_results": [{"check_id": c["id"], "outcome": "NOT_RUN"} for c in definition["checks"]],
+        }
+        for ident, definition in runner.canonical_definitions().items()
+    }
     path = tmp_path / "synthetic-report.json"
     path.write_text(json.dumps({"report": {"items": items}}))
     rows = runner.observed_rows({"state": "assessed", "report": str(path)})
@@ -152,6 +184,7 @@ def test_check_id_only_report_normalization(tmp_path):
 @pytest.mark.parametrize("deferred", [False, True])
 def test_matrix_cli_forwards_replay_policy(tmp_path, monkeypatch, deferred):
     import rubric_mutation_runner as runner
+
     called = []
 
     def generate(source, output, options, *, defer_replay=False):
@@ -165,8 +198,9 @@ def test_matrix_cli_forwards_replay_policy(tmp_path, monkeypatch, deferred):
 
 
 def test_leakage_default_replays_distinct_reports(tmp_path, monkeypatch):
-    import rubric_mutation_runner as runner
     import rubric_leakage_recipes as recipes
+    import rubric_mutation_runner as runner
+
     monkeypatch.setattr(recipes, "CASES", ("inventory",))
     replayed = []
     monkeypatch.setattr(runner, "matrix_replay", lambda record: replayed.append(record["report"]) or True)

@@ -157,6 +157,7 @@ def test_runtime_origins_resolve_only_bound_source_imports(tmp_path):
     import importlib
 
     sys.path.insert(0, str(CLI.parent))
+    sys.path.insert(0, str(ROOT))
     importlib.import_module("skills.eval-author-rubric.scripts.measure")
     module = importlib.import_module("rubric_example_assessment")
     selection = package(tmp_path)
@@ -685,7 +686,7 @@ def test_task_configuration_sources_partial_identity_without_native_claims(tmp_p
         selection,
         "task.toml",
         'schema_version="1.3"\n[environment]\ncpus=2\nmemory_mb=2048\n'
-        'network_mode="none"\n[verifier]\ntimeout_sec=60\nuser="root"\n'
+        'network_mode="no-network"\n[verifier]\ntimeout_sec=60\nuser="root"\n'
         "[agent]\ntimeout_sec=120\n",
     )
     result, report = run_cli(tmp_path, selection)

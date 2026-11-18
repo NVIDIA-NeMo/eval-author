@@ -103,7 +103,7 @@ def support_module(monkeypatch):
     monkeypatch.syspath_prepend(str(root))
     monkeypatch.delitem(sys.modules, "current_rubric_completion", raising=False)
     monkeypatch.delitem(sys.modules, "current_rubric_support", raising=False)
-    import current_rubric_support
+    import current_rubric_support  # ty: ignore[unresolved-import]
 
     return current_rubric_support
 

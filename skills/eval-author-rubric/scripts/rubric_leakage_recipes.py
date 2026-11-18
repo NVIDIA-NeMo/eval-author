@@ -167,7 +167,7 @@ def evidence_kind(case: str) -> str:
 def run(output: Path, options: dict[str, Any]) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     import rubric_mutation_runner as runner
 
-    runs = []
+    runs: list[dict[str, Any]] = []
     source_options = {k: v for k, v in options.items() if not k.startswith("upper-")}
     for case in CASES:
         root = output / case
@@ -260,7 +260,7 @@ def verify_observation(report: dict[str, Any], case: str) -> None:
 
 
 def pending_requests(runs: list[dict[str, Any]]) -> dict[str, Any]:
-    from rubric_leakage_intake import request, approved
+    from rubric_leakage_intake import approved, request
 
     grouped: dict[str, dict[str, Any]] = {}
     for record in runs:
@@ -294,6 +294,7 @@ def pending_requests(runs: list[dict[str, Any]]) -> dict[str, Any]:
 
 def main(argv: list[str] | None = None) -> int:
     import argparse
+
     import rubric_mutation_runner as runner
 
     parser = argparse.ArgumentParser(description="Final-stage bounded leakage simulation; no native/model execution")

@@ -657,9 +657,12 @@ def test_recorded_contradiction_survives_real_cli_and_replay(tmp_path, mutation)
     document["decisions"][0]["rationale"] = "Synthetic contradiction preservation control, not an actual finding."
     refresh(tmp_path, selected, "review.json", json.dumps(document))
     before = module.assess_table(tmp_path, {**selected, "example_assessment": {"task_config_id": "task.toml"}}, None)
-    selection = tmp_path / "selection.json"
+    # Keep CLI inputs and outputs outside the selected task root so they do not change its inventory.
+    outside = tmp_path.parent / f"{tmp_path.name}-cli"
+    outside.mkdir(mode=0o700)
+    selection = outside / "selection.json"
     selection.write_text(json.dumps(selected))
-    output = tmp_path / "output"
+    output = outside / "output"
     result = table_cli(tmp_path, "--selection", selection, "--output", output)
     assert result.returncode == 1, result.stdout
     saved = json.loads((output / "assessment.json").read_text())

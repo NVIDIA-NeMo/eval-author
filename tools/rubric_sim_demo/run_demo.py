@@ -41,15 +41,30 @@ POLICY = json.loads((HERE / "policy.json").read_text())
 HELDOUT_BYTES = (HERE / "heldout_attacks.json").read_bytes()
 FREEZE = json.loads((HERE / "heldout.freeze.json").read_text())
 
-RECIPE_MUTATIONS = ["completion-only", "approval-after-effect", "ledger-omission", "hidden-completion",
-                    "tax-drift", "missing-contract", "disabled-ledger"]
-DEMO_MUTATIONS = ["trace-secret", "answer-exposure", "unpinned-image", "invalid-manifest", "heldout-tuned",
-                  "stale-evidence"]
+RECIPE_MUTATIONS = [
+    "completion-only",
+    "approval-after-effect",
+    "ledger-omission",
+    "hidden-completion",
+    "tax-drift",
+    "missing-contract",
+    "disabled-ledger",
+]
+DEMO_MUTATIONS = [
+    "trace-secret",
+    "answer-exposure",
+    "unpinned-image",
+    "invalid-manifest",
+    "heldout-tuned",
+    "stale-evidence",
+]
 EVIDENCE_MUTATIONS = ["withhold-reference", "withhold-heldout", "no-independent-review", "no-owner-review"]
 ALL_CASES = ["base", *RECIPE_MUTATIONS, *DEMO_MUTATIONS, *EVIDENCE_MUTATIONS]
 FAKE_KEY = "AKIA" + "Q" * 16  # synthetic credential shape for the trace-secret mutation
 
-SECRET = re.compile(r"(AKIA[0-9A-Z]{16}|-----BEGIN [A-Z ]*PRIVATE KEY|ghp_[A-Za-z0-9]{30,}|xox[bp]-[A-Za-z0-9-]+|sk-[A-Za-z0-9]{20,})")
+SECRET = re.compile(
+    r"(AKIA[0-9A-Z]{16}|-----BEGIN [A-Z ]*PRIVATE KEY|ghp_[A-Za-z0-9]{30,}|xox[bp]-[A-Za-z0-9-]+|sk-[A-Za-z0-9]{20,})"
+)
 STDLIB = set(sys.stdlib_module_names)
 
 
@@ -65,9 +80,20 @@ def _verify(files: dict, contract: dict, candidate: dict, work: Path) -> dict:
     (work / "contract.json").write_text(json.dumps(contract))
     (work / "submission.json").write_text(json.dumps(candidate))
     subprocess.run(
-        [sys.executable, "-B", str(trusted / "verify.py"), "--contract", str(work / "contract.json"),
-         "--submission", str(work / "submission.json"), "--output", str(work / "logs")],
-        capture_output=True, timeout=10, cwd=trusted,
+        [
+            sys.executable,
+            "-B",
+            str(trusted / "verify.py"),
+            "--contract",
+            str(work / "contract.json"),
+            "--submission",
+            str(work / "submission.json"),
+            "--output",
+            str(work / "logs"),
+        ],
+        capture_output=True,
+        timeout=10,
+        cwd=trusted,
         env={"PATH": os.defpath, "HOME": str(work), "PYTHONDONTWRITEBYTECODE": "1"},
     )
     return json.loads((work / "logs/checks.json").read_text())
@@ -80,7 +106,8 @@ def _compare(obs: dict, exp: dict) -> dict:
     return {
         "observed": obs,
         "mismatch_total": mismatch_total,
-        "mismatch": mismatch_total or (full and (obs.get("checks") != exp["checks"] or obs.get("health") != exp["health"])),
+        "mismatch": mismatch_total
+        or (full and (obs.get("checks") != exp["checks"] or obs.get("health") != exp["health"])),
         "forbidden": exp_total == 0 and obs_total > 0 and obs.get("health") == "ok",
         "lost": exp_total > 0 and obs_total < exp_total,
     }
@@ -126,19 +153,48 @@ def matched_setups() -> list[dict]:
     approve, refund, ledger = ev
     alt_mgr = {**approve, "actor": "manager-2"}
     half = refund["refund"]["amount_cents"] // 2
-    split = [approve,
-             {"kind": "refund", "refund": {**refund["refund"], "id": "m-1", "amount_cents": half}},
-             {"kind": "refund", "refund": {**refund["refund"], "id": "m-2", "amount_cents": refund["refund"]["amount_cents"] - half}},
-             {"kind": "ledger", "entries": [{"refund_id": "m-2", "amount_cents": refund["refund"]["amount_cents"] - half},
-                                            {"refund_id": "m-1", "amount_cents": half}]}]
-    return [{"id": f"matched-{n}", "candidate": {"success": True, "events": e}, "expect": {"total_credit": 9, "accepted": True}}
-            for n, e in [("as-written", ev), ("ledger-first", [approve, ledger, refund]),
-                         ("alternate-approver", [alt_mgr, refund, ledger]), ("split-batched", split)]]
+    split = [
+        approve,
+        {"kind": "refund", "refund": {**refund["refund"], "id": "m-1", "amount_cents": half}},
+        {
+            "kind": "refund",
+            "refund": {**refund["refund"], "id": "m-2", "amount_cents": refund["refund"]["amount_cents"] - half},
+        },
+        {
+            "kind": "ledger",
+            "entries": [
+                {"refund_id": "m-2", "amount_cents": refund["refund"]["amount_cents"] - half},
+                {"refund_id": "m-1", "amount_cents": half},
+            ],
+        },
+    ]
+    return [
+        {
+            "id": f"matched-{n}",
+            "candidate": {"success": True, "events": e},
+            "expect": {"total_credit": 9, "accepted": True},
+        }
+        for n, e in [
+            ("as-written", ev),
+            ("ledger-first", [approve, ledger, refund]),
+            ("alternate-approver", [alt_mgr, refund, ledger]),
+            ("split-batched", split),
+        ]
+    ]
 
 
-CUE_ONLY = [{"id": "cue-success-only", "candidate": {"success": True, "events": []}, "expect": {"total_credit": 0, "accepted": False}},
-            {"id": "cue-success-read-only", "candidate": {"success": True, "events": [], "note": "claims refund done"},
-             "expect": {"total_credit": 0, "accepted": False}}]
+CUE_ONLY = [
+    {
+        "id": "cue-success-only",
+        "candidate": {"success": True, "events": []},
+        "expect": {"total_credit": 0, "accepted": False},
+    },
+    {
+        "id": "cue-success-read-only",
+        "candidate": {"success": True, "events": [], "note": "claims refund done"},
+        "expect": {"total_credit": 0, "accepted": False},
+    },
+]
 
 
 def load_heldout(raw: bytes) -> list[dict]:
@@ -154,6 +210,7 @@ def load_heldout(raw: bytes) -> list[dict]:
 
 def _toml(path: Path) -> tuple[bool, dict]:
     import tomllib
+
     try:
         return True, tomllib.loads(path.read_text())
     except (tomllib.TOMLDecodeError, OSError):
@@ -200,13 +257,20 @@ def inspect(task: Path, files: dict) -> dict:
         "image_pinned": bool(re.search(r"^FROM \S+@sha256:[0-9a-f]{64}", docker, re.M)),
         "entrypoint_service": 'ENTRYPOINT ["python", "-B", "/app/server.py"]' in docker,
         "toml_parses": ok,
-        "toml_fields_complete": all(toml.get(s, {}).get("network_mode") and (s == "environment" or toml[s].get("timeout_sec"))
-                                    for s in ("environment", "agent", "verifier")),
+        "toml_fields_complete": all(
+            toml.get(s, {}).get("network_mode") and (s == "environment" or toml[s].get("timeout_sec"))
+            for s in ("environment", "agent", "verifier")
+        ),
         "network_modes": {s: toml.get(s, {}).get("network_mode") for s in ("environment", "agent", "verifier")},
         "components_present": all((task / "environment" / n).is_file() for n in ("ledger.py", "server.py")),
         "env_non_stdlib": sorted(env_imports - STDLIB - env_local),
-        "scorer_nondeterminism": sorted({m for m in ("time", "random", "socket", "urllib", "requests", "datetime")
-                                         if re.search(rf"^\s*(?:import|from)\s+{m}\b", scorer_src, re.M)}),
+        "scorer_nondeterminism": sorted(
+            {
+                m
+                for m in ("time", "random", "socket", "urllib", "requests", "datetime")
+                if re.search(rf"^\s*(?:import|from)\s+{m}\b", scorer_src, re.M)
+            }
+        ),
     }
 
 
@@ -250,12 +314,22 @@ def collect(case: str, work: Path, *, use_agents: bool, offline: bool) -> dict:
     try:
         led = fx.run_ledger_controls(selected, work / "ledger")["cases"]
         valid = ["reference", "split-alternative", "below-approval-threshold", "missing-completion"]
-        rejects = ["helper-error", "malformed-events", "ordering-evidence-unavailable", "protected-mutation", "historical-mutation"]
-        ledger = {"ran": True,
-                  "valid_actions_ok": all(led[k]["status"] == "completed" and led[k]["action_errors"] == 0
-                                          and led[k]["result"]["health"] == "ok" for k in valid),
-                  "boundary_rejected": all(led[k]["action_errors"] >= 1 for k in rejects),
-                  "responses": {k: v["responses"] for k, v in led.items()}}
+        rejects = [
+            "helper-error",
+            "malformed-events",
+            "ordering-evidence-unavailable",
+            "protected-mutation",
+            "historical-mutation",
+        ]
+        ledger = {
+            "ran": True,
+            "valid_actions_ok": all(
+                led[k]["status"] == "completed" and led[k]["action_errors"] == 0 and led[k]["result"]["health"] == "ok"
+                for k in valid
+            ),
+            "boundary_rejected": all(led[k]["action_errors"] >= 1 for k in rejects),
+            "responses": {k: v["responses"] for k, v in led.items()},
+        }
     except (ValueError, KeyError, OSError) as exc:
         ledger = {"ran": False, "reason": str(exc) or type(exc).__name__}
 
@@ -272,15 +346,31 @@ def collect(case: str, work: Path, *, use_agents: bool, offline: bool) -> dict:
     heldout_cases = load_heldout(heldout_bytes)
 
     ev: dict[str, Any] = {
-        "case": case, "task_sha256": task_sha, "static": s, "ledger": ledger, "harbor": _harbor(task / "task.toml"),
+        "case": case,
+        "task_sha256": task_sha,
+        "static": s,
+        "ledger": ledger,
+        "harbor": _harbor(task / "task.toml"),
         "policy": None if case == "no-owner-review" else POLICY,
-        "agents_enabled": use_agents and case != "no-independent-review", "agents": {},
-        "controls": None, "heldout": None, "blind": None, "cue_only": None, "matched": None,
-        "lint": [], "oracle_total": None, "reference_total": _ref_events()[1]["refund"]["amount_cents"],
-        "repeat_identical": None, "order_independent": None, "parallel_identical": None, "heldout_order_independent": None,
+        "agents_enabled": use_agents and case != "no-independent-review",
+        "agents": {},
+        "controls": None,
+        "heldout": None,
+        "blind": None,
+        "cue_only": None,
+        "matched": None,
+        "lint": [],
+        "oracle_total": None,
+        "reference_total": _ref_events()[1]["refund"]["amount_cents"],
+        "repeat_identical": None,
+        "order_independent": None,
+        "parallel_identical": None,
+        "heldout_order_independent": None,
         "heldout_frozen": hashlib.sha256(heldout_bytes).hexdigest() == FREEZE["sha256"],
         "heldout_provenance": json.loads(HELDOUT_BYTES)["author"],
-        "drift_probe_detected": None, "exposure_hits": [], "trace_hits": 0,
+        "drift_probe_detected": None,
+        "exposure_hits": [],
+        "trace_hits": 0,
     }
 
     traces: list[str] = [json.dumps(ledger.get("responses", {}), sort_keys=True)]
@@ -291,45 +381,78 @@ def collect(case: str, work: Path, *, use_agents: bool, offline: bool) -> dict:
         panel = _panel(files, contract, controls, work / "c")
         ev["controls"] = panel
         ev["repeat_identical"] = _strip(_panel(files, contract, controls, work / "c-repeat")) == _strip(panel)
-        ev["order_independent"] = _strip(_panel(files, contract, controls, work / "c-rev", order=list(reversed(range(len(controls)))))) == _strip(panel)
-        ev["parallel_identical"] = _strip(_panel(files, contract, controls, work / "c-par", parallel=True)) == _strip(panel)
+        ev["order_independent"] = _strip(
+            _panel(files, contract, controls, work / "c-rev", order=list(reversed(range(len(controls)))))
+        ) == _strip(panel)
+        ev["parallel_identical"] = _strip(_panel(files, contract, controls, work / "c-par", parallel=True)) == _strip(
+            panel
+        )
         ev["cue_only"] = _panel(files, contract, CUE_ONLY, work / "cue")
         m = _panel(files, contract, matched_setups(), work / "matched")
         ev["matched"] = {k: v["observed"].get("total_credit") for k, v in m.items()}
         if case != "withhold-heldout":
             h = _panel(files, contract, heldout_cases, work / "held")
             ev["heldout"] = h
-            ev["heldout_order_independent"] = _strip(_panel(files, contract, heldout_cases, work / "held-rev",
-                                                            order=list(reversed(range(len(heldout_cases)))))) == _strip(h)
+            ev["heldout_order_independent"] = _strip(
+                _panel(
+                    files, contract, heldout_cases, work / "held-rev", order=list(reversed(range(len(heldout_cases))))
+                )
+            ) == _strip(h)
         drifted = copy.deepcopy(contract)
         drifted["sources"]["policy"]["refund_tax"] = not drifted["sources"]["policy"]["refund_tax"]
         ref = [r for r in CONTROLS if r["id"] == "reference"]
         ev["drift_probe_detected"] = _panel(files, drifted, ref, work / "drift")["reference"]["mismatch"]
 
     # Independent agents: restricted inputs only.
-    public = {"instruction.md": instruction, "contract.json": (task / "environment/contract.json").read_text()} if contract else None
+    public = (
+        {"instruction.md": instruction, "contract.json": (task / "environment/contract.json").read_text()}
+        if contract
+        else None
+    )
     if ev["agents_enabled"]:
         A = lambda role, inputs: agents.ask(role, inputs, offline=offline).output  # noqa: E731
         listing = "\n".join(sorted(str(p.relative_to(task)) for p in task.rglob("*") if p.is_file()))
         env_src = {f"environment/{p.name}": p.read_text() for p in sorted((task / "environment").glob("*.py"))}
-        ev["agents"]["independent-reviewer"] = A("independent-reviewer", {
-            "file-listing.txt": listing, "environment/Dockerfile": (task / "environment/Dockerfile").read_text(),
-            "task.toml": (task / "task.toml").read_text(), "tests/verify.py": files["tests/verify.py"][0].decode(), **env_src})
+        ev["agents"]["independent-reviewer"] = A(
+            "independent-reviewer",
+            {
+                "file-listing.txt": listing,
+                "environment/Dockerfile": (task / "environment/Dockerfile").read_text(),
+                "task.toml": (task / "task.toml").read_text(),
+                "tests/verify.py": files["tests/verify.py"][0].decode(),
+                **env_src,
+            },
+        )
         if public:
             blind = A("blind-solver", public)
             traces.append(json.dumps(blind, sort_keys=True))
-            cands = [{"id": "blind-as-submitted", "candidate": {"success": blind["complete_success"], "events": blind["events"]},
-                      "expect": {"total_credit": 9 if blind["complete_success"] else 8, "accepted": True}},
-                     {"id": "blind-without-signal", "candidate": {"success": False, "events": blind["events"]},
-                      "expect": {"total_credit": 8, "accepted": True}}]
+            cands = [
+                {
+                    "id": "blind-as-submitted",
+                    "candidate": {"success": blind["complete_success"], "events": blind["events"]},
+                    "expect": {"total_credit": 9 if blind["complete_success"] else 8, "accepted": True},
+                },
+                {
+                    "id": "blind-without-signal",
+                    "candidate": {"success": False, "events": blind["events"]},
+                    "expect": {"total_credit": 8, "accepted": True},
+                },
+            ]
             ev["blind"] = _panel(files, contract, cands, work / "blind")
-            ev["agents"]["adjudicator"] = A("adjudicator", {"contract.json": public["contract.json"],
-                                                            "reference-candidate.json": json.dumps({"events": _ref_events(), "success": True})})
+            ev["agents"]["adjudicator"] = A(
+                "adjudicator",
+                {
+                    "contract.json": public["contract.json"],
+                    "reference-candidate.json": json.dumps({"events": _ref_events(), "success": True}),
+                },
+            )
     if case == "trace-secret":
         traces.append(f"tool_output: export AWS_ACCESS_KEY_ID={FAKE_KEY}")
     ev["trace_hits"] = sum(len(SECRET.findall(t)) for t in traces)
     if ev["agents_enabled"]:
-        ev["agents"]["trace-labeler"] = agents.ask("trace-labeler", {f"trace-{i}.txt": t for i, t in enumerate(traces)}, offline=offline).output
+        ev["agents"]["trace-labeler"] = agents.ask(
+            "trace-labeler", {f"trace-{i}.txt": t for i, t in enumerate(traces)}, offline=offline
+        ).output
 
     surfaces = {"instruction.md": instruction}
     for src in s["copy_sources"]:
@@ -339,22 +462,42 @@ def collect(case: str, work: Path, *, use_agents: bool, offline: bool) -> dict:
     answer = ev["oracle_total"]
     solution = {p.name: p.read_text() for p in (task / "solution").glob("*") if p.is_file()}
     if answer is not None:
-        ev["exposure_hits"] = sorted(n for n, t in surfaces.items()
-                                     if re.search(rf"\b{answer}\b", t) or any(sol.strip() and sol.strip() in t for sol in solution.values()))
+        ev["exposure_hits"] = sorted(
+            n
+            for n, t in surfaces.items()
+            if re.search(rf"\b{answer}\b", t) or any(sol.strip() and sol.strip() in t for sol in solution.values())
+        )
         if ev["agents_enabled"]:
-            ev["agents"]["exposure-reviewer"] = agents.ask("exposure-reviewer", {
-                **{f"surface:{k}": v for k, v in surfaces.items()},
-                "private-answer.txt": f"remaining refund total = {answer} cents"}, offline=offline).output
+            ev["agents"]["exposure-reviewer"] = agents.ask(
+                "exposure-reviewer",
+                {
+                    **{f"surface:{k}": v for k, v in surfaces.items()},
+                    "private-answer.txt": f"remaining refund total = {answer} cents",
+                },
+                offline=offline,
+            ).output
 
     bound = ev["task_sha256"]
     if case == "stale-evidence":  # reuse base-revision executed evidence on a changed task
         (work / "base-for-stale").mkdir(mode=0o700)
         base = collect("base", work / "base-for-stale", use_agents=use_agents, offline=offline)
-        for k in ("controls", "heldout", "blind", "cue_only", "matched", "repeat_identical", "order_independent",
-                  "parallel_identical", "heldout_order_independent", "ledger"):
+        for k in (
+            "controls",
+            "heldout",
+            "blind",
+            "cue_only",
+            "matched",
+            "repeat_identical",
+            "order_independent",
+            "parallel_identical",
+            "heldout_order_independent",
+            "ledger",
+        ):
             ev[k] = base[k]
         bound = base["task_sha256"]
-    ev["evidence_bindings"] = {k: bound for k in ("controls", "heldout", "blind", "ledger")} | {"static": ev["task_sha256"]}
+    ev["evidence_bindings"] = {k: bound for k in ("controls", "heldout", "blind", "ledger")} | {
+        "static": ev["task_sha256"]
+    }
 
     inj = work / "inject"
     shutil.copytree(task, inj)
@@ -386,22 +529,38 @@ def render(runs: list[dict], out: Path) -> dict:
     vec = {c: [runs[0][c]["scores"][k]["score"] for k in ids] for c in cases}
     consistent = all([r[c]["scores"][k]["score"] for k in ids] == vec[c] for r in runs for c in cases)
     base = vec["base"]
-    pref = {c: {"threes": sum(v == 3 for v in vec[c]),
-                "dominated": all(_eff(b) >= _eff(m) for b, m in zip(base, vec[c])) and any(_eff(b) > _eff(m) for b, m in zip(base, vec[c])),
-                "dropped": [k for k, b, m in zip(ids, base, vec[c]) if _eff(m) < _eff(b)]}
-            for c in cases if c != "base"}
+    pref: dict[str, dict[str, Any]] = {
+        c: {
+            "threes": sum(v == 3 for v in vec[c]),
+            "dominated": all(_eff(b) >= _eff(m) for b, m in zip(base, vec[c]))
+            and any(_eff(b) > _eff(m) for b, m in zip(base, vec[c])),
+            "dropped": [k for k, b, m in zip(ids, base, vec[c]) if _eff(m) < _eff(b)],
+        }
+        for c in cases
+        if c != "base"
+    }
     base_ok = all(v == 3 or (k == "AUDIT-04-B" and v == "N/A") for k, v in zip(ids, base))
-    summary = {"criteria": ids, "runs": len(runs), "consistent_across_runs": consistent, "base_ok": base_ok,
-               "every_mutation_lower": all(p["dominated"] for p in pref.values()), "scores": vec, "preference": pref,
-               "partition": {k: list(v) for k, v in PARTITION.items()},
-               "reasons": {c: {k: runs[0][c]["scores"][k]["reason"] for k in ids} for c in cases}}
+    summary: dict[str, Any] = {
+        "criteria": ids,
+        "runs": len(runs),
+        "consistent_across_runs": consistent,
+        "base_ok": base_ok,
+        "every_mutation_lower": all(p["dominated"] for p in pref.values()),
+        "scores": vec,
+        "preference": pref,
+        "partition": {k: list(v) for k, v in PARTITION.items()},
+        "reasons": {c: {k: runs[0][c]["scores"][k]["reason"] for k in ids} for c in cases},
+    }
     (out / "summary.json").write_text(json.dumps(summary, indent=2))
     (out / "runs.json").write_text(json.dumps(runs, indent=1, default=str))
     lines = [
-        "# Rubric simulation demo", "",
+        "# Rubric simulation demo",
+        "",
         f"Runs: {len(runs)} · consistent: **{consistent}** · base 20×3 + AUDIT-04-B N/A: **{base_ok}** "
-        f"· every mutation strictly lower: **{summary['every_mutation_lower']}**", "",
-        "Executable evidence is real. Independent review is restricted-input agents. Owner decisions are a SIMULATED policy file.", "",
+        f"· every mutation strictly lower: **{summary['every_mutation_lower']}**",
+        "",
+        "Executable evidence is real. Independent review is restricted-input agents. Owner decisions are a SIMULATED policy file.",
+        "",
         "| Criterion | Tool | " + " | ".join(cases) + " |",
         "|---|---|" + "---:|" * len(cases),
     ]
@@ -410,8 +569,10 @@ def render(runs: list[dict], out: Path) -> dict:
     lines.append("| **rows at 3** | | " + " | ".join(f"**{sum(v == 3 for v in vec[k])}**" for k in cases) + " |")
     lines += ["", "## Drops per mutation", ""]
     for c, p in pref.items():
-        lines.append(f"- `{c}` ({p['threes']} at 3): " + "; ".join(
-            f"{k}→{vec[c][ids.index(k)]} ({summary['reasons'][c][k]})" for k in p["dropped"]))
+        lines.append(
+            f"- `{c}` ({p['threes']} at 3): "
+            + "; ".join(f"{k}→{vec[c][ids.index(k)]} ({summary['reasons'][c][k]})" for k in p["dropped"])
+        )
     (out / "summary.md").write_text("\n".join(lines) + "\n")
     return summary
 
@@ -433,7 +594,12 @@ def main() -> int:
         for _ in range(args.runs):
             run = {}
             for case in cases:
-                ev = collect(case, Path(tempfile.mkdtemp(prefix=f"{case}-", dir=tmp)), use_agents=not args.no_agents, offline=args.offline)
+                ev = collect(
+                    case,
+                    Path(tempfile.mkdtemp(prefix=f"{case}-", dir=tmp)),
+                    use_agents=not args.no_agents,
+                    offline=args.offline,
+                )
                 run[case] = {"scores": score(ev), "evidence": ev}
             runs.append(run)
     summary = render(runs, args.output)

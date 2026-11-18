@@ -243,7 +243,10 @@ def project_panels(sources: Any, selector: dict[str, Any], task_path: str) -> li
         if raw is None:
             raise ValueError("unavailable native panel")
         with registry_for(raw):
-            schema = json.loads(raw).get("schema")
+            index = json.loads(raw)
+            if not isinstance(index, dict):
+                raise ValueError("invalid native panel index")
+            schema = index.get("schema")
             if schema == "eval-author.refund-heldout-panel.v1":
                 from rubric_refund_holdout import admission as admit_holdout
                 from rubric_refund_holdout import validate as validate_holdout

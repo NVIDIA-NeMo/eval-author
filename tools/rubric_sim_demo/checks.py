@@ -17,15 +17,33 @@ from typing import Any, Callable
 Score = int | str  # "N/A" for trigger-based exclusions
 Ev = dict[str, Any]
 
-ATTACKS = ("no-work", "all-failure", "wrong-customer", "wrong-order", "wrong-amount", "wrong-destination",
-           "missing-approval", "late-approval", "missing-ledger", "duplicate-ledger", "protected-mutation",
-           "historical-mutation", "stale-carryover", "malformed-events", "helper-error",
-           "ordering-evidence-unavailable")
+ATTACKS = (
+    "no-work",
+    "all-failure",
+    "wrong-customer",
+    "wrong-order",
+    "wrong-amount",
+    "wrong-destination",
+    "missing-approval",
+    "late-approval",
+    "missing-ledger",
+    "duplicate-ledger",
+    "protected-mutation",
+    "historical-mutation",
+    "stale-carryover",
+    "malformed-events",
+    "helper-error",
+    "ordering-evidence-unavailable",
+)
 BOUNDARY = ("approval-threshold-inclusive", "below-approval-threshold", "permitted-zero-balance-inaction")
 REFERENCE = ("reference", "split-alternative")
 OPTIONAL = ("missing-completion",)
-PARTITION = {"AUDIT-03": ATTACKS, "task-contract.clear-contract": BOUNDARY,
-             "task-contract.scoring-authority": REFERENCE, "task-contract.discoverable-requirements": OPTIONAL}
+PARTITION = {
+    "AUDIT-03": ATTACKS,
+    "task-contract.clear-contract": BOUNDARY,
+    "task-contract.scoring-authority": REFERENCE,
+    "task-contract.discoverable-requirements": OPTIONAL,
+}
 
 
 @dataclass(frozen=True)
@@ -61,7 +79,9 @@ def audit_03(ev: Ev) -> tuple[Score, str]:
         return 1, "declared attack panel not run"
     held = _heldout(ev, "attack") or {}
     if any(v["forbidden"] for v in (*panel.values(), *held.values())):
-        return 0, "healthy attack obtained forbidden credit: " + ", ".join(k for k, v in {**panel, **held}.items() if v["forbidden"])
+        return 0, "healthy attack obtained forbidden credit: " + ", ".join(
+            k for k, v in {**panel, **held}.items() if v["forbidden"]
+        )
     if len(panel) < len(ATTACKS) or any(v["mismatch_total"] for v in panel.values()):
         return 1, "declared attack classes untested or unresolved"
     if not (_pol(ev, "attack_matrix") or {}).get("approved"):
@@ -101,8 +121,15 @@ def audit_05s03(ev: Ev) -> tuple[Score, str]:
     if not _pol(ev, "selection_rule"):
         return 1, "no frozen confirmation rule"
     prov = ev["heldout_provenance"] or {}
-    independent = prov.get("role") == "heldout-author" and set(prov.get("input_names", [])) == {"contract.json", "instruction.md"}
-    return (3, "frozen confirmation set authored by restricted-input agent") if independent and ev["agents_enabled"] else (2, "frozen rule; independent authorship absent")
+    independent = prov.get("role") == "heldout-author" and set(prov.get("input_names", [])) == {
+        "contract.json",
+        "instruction.md",
+    }
+    return (
+        (3, "frozen confirmation set authored by restricted-input agent")
+        if independent and ev["agents_enabled"]
+        else (2, "frozen rule; independent authorship absent")
+    )
 
 
 def trace_04a(ev: Ev) -> tuple[Score, str]:
@@ -113,7 +140,11 @@ def trace_04a(ev: Ev) -> tuple[Score, str]:
     r = _agent(ev, "trace-labeler")
     if r is None:
         return 2, "scan clean with disposition; independent labels absent"
-    return (1, "labeler disputes: " + "; ".join(r["findings"])) if r["contains_sensitive"] else (3, "scan and independent labels agree")
+    return (
+        (1, "labeler disputes: " + "; ".join(r["findings"]))
+        if r["contains_sensitive"]
+        else (3, "scan and independent labels agree")
+    )
 
 
 def env_03(ev: Ev) -> tuple[Score, str]:
@@ -168,7 +199,9 @@ def discoverable(ev: Ev) -> tuple[Score, str]:
     if b is None or not ev["agents_enabled"]:
         return 2, "every scored condition has public authority; blind solve absent"
     if any(v["mismatch_total"] for v in b.values()):
-        return 1, "blind public-only solver did not reach expected credit: " + ", ".join(k for k, v in b.items() if v["mismatch_total"])
+        return 1, "blind public-only solver did not reach expected credit: " + ", ".join(
+            k for k, v in b.items() if v["mismatch_total"]
+        )
     return 3, "blind public-only solver earns full credit with and without the optional signal"
 
 
@@ -194,9 +227,17 @@ def _reviewer(ev: Ev, pred: Callable[[dict], bool], two: str, three: str) -> tup
 def artifact_access(ev: Ev) -> tuple[Score, str]:
     s = ev["static"]
     if not (s["contract_present"] and s["copy_sources_exist"]):
-        return 0, "required task artifact missing: " + ", ".join(s["missing_copy_sources"] or ["environment/contract.json"])
-    return _reviewer(ev, lambda r: r["copy_sources_all_exist"] and set(map(_base, r["copy_sources"])) == set(map(_base, s["copy_sources"])),
-                     "inventory complete", "independent reviewer reproduces inventory")
+        return 0, "required task artifact missing: " + ", ".join(
+            s["missing_copy_sources"] or ["environment/contract.json"]
+        )
+    return _reviewer(
+        ev,
+        lambda r: (
+            r["copy_sources_all_exist"] and set(map(_base, r["copy_sources"])) == set(map(_base, s["copy_sources"]))
+        ),
+        "inventory complete",
+        "independent reviewer reproduces inventory",
+    )
 
 
 def _base(p: str) -> str:
@@ -209,15 +250,26 @@ def grading_path(ev: Ev) -> tuple[Score, str]:
         return 0, f"verify.py selects '{s['grader']}', not the declared reviewed scorer"
     if not s["contract_present"]:
         return 1, "declared acceptance rule unavailable"
-    return _reviewer(ev, lambda r: "reviewed" in r["selected_grader"].lower(), "grader resolved", "independent reviewer resolves same grader")
+    return _reviewer(
+        ev,
+        lambda r: "reviewed" in r["selected_grader"].lower(),
+        "grader resolved",
+        "independent reviewer resolves same grader",
+    )
 
 
 def grading_deps(ev: Ev) -> tuple[Score, str]:
     s = ev["static"]
     if not s["verifier_imports_resolve"]:
         return 0, "verifier import missing"
-    return _reviewer(ev, lambda r: {_base(m).removesuffix(".py") for m in r["verifier_local_imports"]} == set(s["verifier_local_imports"]),
-                     "verifier imports resolve", "independent reviewer reproduces dependency set")
+    return _reviewer(
+        ev,
+        lambda r: (
+            {_base(m).removesuffix(".py") for m in r["verifier_local_imports"]} == set(s["verifier_local_imports"])
+        ),
+        "verifier imports resolve",
+        "independent reviewer reproduces dependency set",
+    )
 
 
 def declared_config(ev: Ev) -> tuple[Score, str]:
@@ -225,11 +277,17 @@ def declared_config(ev: Ev) -> tuple[Score, str]:
     if not s["toml_parses"]:
         return 0, "task.toml unreadable"
     if not (s["toml_fields_complete"] and s["image_pinned"]):
-        return 1, "configuration partly identified: " + ("image not digest-pinned" if not s["image_pinned"] else "missing task.toml settings")
+        return 1, "configuration partly identified: " + (
+            "image not digest-pinned" if not s["image_pinned"] else "missing task.toml settings"
+        )
     if not _pol(ev, "declared_configuration_limits"):
         return 1, "limits of unknown settings not assessed"
-    return _reviewer(ev, lambda r: r["image_pinned_by_digest"] and r["network_modes"] == s["network_modes"],
-                     "manifest sourced", "independent reviewer reconstructs manifest")
+    return _reviewer(
+        ev,
+        lambda r: r["image_pinned_by_digest"] and r["network_modes"] == s["network_modes"],
+        "manifest sourced",
+        "independent reviewer reconstructs manifest",
+    )
 
 
 def observed_config(ev: Ev) -> tuple[Score, str]:
@@ -244,7 +302,11 @@ def runtime_route(ev: Ev) -> tuple[Score, str]:
     h = ev["harbor"]
     if not h["valid"]:
         return 0, "Harbor rejects the task manifest"
-    return (3, "Harbor validates; invalid-manifest control rejected") if h["invalid_manifest_rejected"] else (2, "Harbor validates")
+    return (
+        (3, "Harbor validates; invalid-manifest control rejected")
+        if h["invalid_manifest_rejected"]
+        else (2, "Harbor validates")
+    )
 
 
 def comparison(ev: Ev) -> tuple[Score, str]:
@@ -273,7 +335,12 @@ def substitution(ev: Ev) -> tuple[Score, str]:
         return 0, "required component missing or unapproved dependency: " + ", ".join(s["env_non_stdlib"])
     if not _pol(ev, "substitutions"):
         return 1, "substitution unapproved"
-    return _reviewer(ev, lambda r: not r["environment_non_stdlib_imports"], "inventory reconciled", "independent reviewer reconciles inventory")
+    return _reviewer(
+        ev,
+        lambda r: not r["environment_non_stdlib_imports"],
+        "inventory reconciled",
+        "independent reviewer reconciles inventory",
+    )
 
 
 def external_state(ev: Ev) -> tuple[Score, str]:

@@ -571,7 +571,7 @@ def _cues(
 
     classes = ("cue-only", "nuisance-swap", "misleading-cue", "style-only")
     policy = "evidence-first" if intervention == "four-controls" else "cue-first"
-    outcomes = []
+    outcomes: list[dict[str, Any]] = []
     for instance, subject in _cue_subjects(contract).items():
         artifact = _cue_artifact(subject, aligned=intervention != "four-controls")
         correct_id, other_id = ("choice-m", "choice-k") if instance == "new" else ("choice-k", "choice-m")

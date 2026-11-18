@@ -125,6 +125,7 @@ def test_one_skill_audit_exercise_and_coherent_tampering(tmp_path, capsys):
     report_path = destination / "report"
     current = json.loads((report_path / "assessment.json").read_text())
     from rubric_leakage_current import canonical_definitions
+
     assert set(current["report"]["items"]) == set(canonical_definitions())
     assert len(current["report"]["items"]) == 21
     assert sum(len(row["check_results"]) for row in current["report"]["items"].values()) == 70

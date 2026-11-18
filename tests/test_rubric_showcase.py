@@ -20,7 +20,8 @@ def showcase_output(tmp_path_factory):
         [sys.executable, str(ROOT / "tools/run_rubric_showcase.py"), "--output", str(output)],
         capture_output=True,
         text=True,
-        timeout=180,
+        # About 75 s alone; xdist workers each build this fixture, so allow for CPU contention.
+        timeout=900,
         env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"},
     )
     assert result.returncode == 0, result.stderr

@@ -340,6 +340,7 @@ def validate(bundle: Path, document: dict[str, Any]) -> dict[str, Any]:
         finish = native["finished_at"]
         collector.require(
             config.task.path == panel.origin / "task"
+            and config.environment.type is not None
             and config.environment.type.value == "docker"
             and config.environment.delete is True
         )
@@ -579,7 +580,9 @@ def project(root: Path, selection: dict[str, Any], measurements: dict[str, Any])
 
     ready = {criterion: True for criterion in CRITERIA}
     for criterion in ("provenance.solver-tool-access", "provenance.external-state"):
-        ready[criterion] = accepted(environment, criterion) and environment["automatic"]["ready"]
+        ready[criterion] = (
+            accepted(environment, criterion) and environment is not None and environment["automatic"]["ready"]
+        )
     ready["provenance.comparison-fairness"] = bool(
         accepted(fairness, "provenance.comparison-fairness")
         and fairness["automatic"]["provenance.comparison-fairness"]["ready"]

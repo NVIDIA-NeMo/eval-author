@@ -11,7 +11,6 @@ from copy import deepcopy
 from pathlib import Path
 from typing import Any
 
-
 SCOPE = (
     "Unreviewed operational supplement outside accepted source-review conclusions. "
     "The original selection, source packet, owner decisions and Audit scope are unchanged. "
@@ -92,7 +91,7 @@ def environment_hook(bundle: Path):
         compact_identity_evidence(report)
         return report
 
-    rubric_table.measure = measured
+    rubric_table.measure = measured  # ty: ignore[invalid-assignment]
     try:
         yield
     finally:

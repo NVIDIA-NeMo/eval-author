@@ -61,7 +61,10 @@ def catalog() -> dict[str, Any]:
         elif ident in GAPS:
             supported = False
             removal = None
-            limit = GAPS[ident] + " No selective removal of this prerequisite is supported. Local source observations remain selected."
+            limit = (
+                GAPS[ident]
+                + " No selective removal of this prerequisite is supported. Local source observations remain selected."
+            )
         elif ident.startswith("task-contract."):
             supported = False
             removal = None
@@ -156,7 +159,9 @@ def rows(assessment: dict[str, Any]) -> dict[str, Any]:
     if values.keys() != definitions.keys():
         raise ValueError("incomplete criterion inventory")
     for ident, definition in definitions.items():
-        if [c.get("check_id", c.get("id")) for c in values[ident]["check_results"]] != [c["id"] for c in definition["checks"]]:
+        if [c.get("check_id", c.get("id")) for c in values[ident]["check_results"]] != [
+            c["id"] for c in definition["checks"]
+        ]:
             raise ValueError("incomplete check inventory")
     return values
 
@@ -515,12 +520,14 @@ def project_numeric(root: Path, selection: dict[str, Any], report: dict[str, Any
     semantic = report.get("measurements", {}).get("refund_contract", {}).get("task-contract.scoring-authority", {})
     inspection = semantic.get("source_inspection", {})
     if inspection.get("variant") in {"completion-only", "approval-after-effect", "ledger-omission"}:
-        from rubric_refund_contract_evidence import _current, _controls, _selected, _program, DEFECTS
         import tempfile
+
+        from rubric_refund_contract_evidence import DEFECTS, _controls, _current, _program, _selected
+
         current = _current()
         _, selected_bytes, variant = _selected(root, selection)
         scorer, grader = _program(current, selected_bytes, variant)
-        namespace = {"__name__": "trusted_numeric_ledger"}
+        namespace: dict[str, Any] = {"__name__": "trusted_numeric_ledger"}
         exec(compile(current["environment/ledger.py"], "<trusted-current-ledger>", "exec"), namespace)
         contract = json.loads(current["environment/contract.json"])
         control_name = DEFECTS[variant][0]
@@ -536,17 +543,24 @@ def project_numeric(root: Path, selection: dict[str, Any], report: dict[str, Any
             credit = scorer["evaluate"](contract, reached["candidate"], grader=grader)
         if credit["health"] != "ok" or credit["total_credit"] <= 0 or reached["candidate"] != control:
             raise ValueError("source shortcut reach or credit not established")
-        finding = {"score": 0, "strength": "E1", "reason": DEFECTS[variant][2],
-                   "shared_finding": "refund-reachable-" + variant, "variant": variant,
-                   "control": control_name, "actual_credit": credit,
-                   "reach": "Current public handler dispatch, Ledger guards/state, verifier record reconciliation and reward writer; bounded Ledger/scorer methods exercised, not a native solver trial.",
-                   "binding": inspection["binding"]}
+        finding = {
+            "score": 0,
+            "strength": "E1",
+            "reason": DEFECTS[variant][2],
+            "shared_finding": "refund-reachable-" + variant,
+            "variant": variant,
+            "control": control_name,
+            "actual_credit": credit,
+            "reach": "Current public handler dispatch, Ledger guards/state, verifier record reconciliation and reward writer; bounded Ledger/scorer methods exercised, not a native solver trial.",
+            "binding": inspection["binding"],
+        }
         result["AC-02"] = finding
         if variant == "completion-only":
             result["AC-03"] = deepcopy(finding)
     sources = Sources(root, selection["artifacts"])
     if example["task_config_accessible"]:
         import tomllib
+
         from harbor.models.task.config import TaskConfig
         from pydantic import ValidationError
 
@@ -557,7 +571,9 @@ def project_numeric(root: Path, selection: dict[str, Any], report: dict[str, Any
             TaskConfig.model_validate(tomllib.loads(raw_config.decode()))
         except ValidationError as error:
             result["provenance.runtime-route"] = {
-                "score": 0, "strength": "E2", "reason": "The installed Harbor TaskConfig rejects the selected manifest; this is provider compatibility failure, not agent behavior.",
+                "score": 0,
+                "strength": "E2",
+                "reason": "The installed Harbor TaskConfig rejects the selected manifest; this is provider compatibility failure, not agent behavior.",
                 "validator": "harbor.models.task.config.TaskConfig",
                 "errors": [{"location": list(e["loc"]), "type": e["type"]} for e in error.errors()],
                 "manifest_digest": hashlib.sha256(raw_config).hexdigest(),
@@ -570,9 +586,12 @@ def project_numeric(root: Path, selection: dict[str, Any], report: dict[str, Any
         if raw is None:
             raise ValueError("inventory claim unavailable")
         claim = json.loads(raw)
-        if (not isinstance(claim, dict) or set(claim) != {"schema", "task_config_id", "scorer", "agent"}
-                or claim["schema"] != "rubric-assessment-inventory-v1"
-                or claim["task_config_id"] != selection["example_assessment"]["task_config_id"]):
+        if (
+            not isinstance(claim, dict)
+            or set(claim) != {"schema", "task_config_id", "scorer", "agent"}
+            or claim["schema"] != "rubric-assessment-inventory-v1"
+            or claim["task_config_id"] != selection["example_assessment"]["task_config_id"]
+        ):
             raise ValueError("invalid inventory claim")
         companion = example["configuration"].get("companion")
         if claim["scorer"] is not None:
@@ -580,18 +599,30 @@ def project_numeric(root: Path, selection: dict[str, Any], report: dict[str, Any
                 raise ValueError("inventory scorer is not comparable")
             if claim["scorer"] != example["scorer"]:
                 result["provenance.grading-path"] = {
-                    "score": 0, "strength": "E1", "reason": "The claimed scorer contradicts the literal active verifier entrypoint.",
-                    "claimed": claim["scorer"], "observed": example["scorer"], "source": claims[0],
+                    "score": 0,
+                    "strength": "E1",
+                    "reason": "The claimed scorer contradicts the literal active verifier entrypoint.",
+                    "claimed": claim["scorer"],
+                    "observed": example["scorer"],
+                    "source": claims[0],
                 }
         if claim["agent"] is not None:
-            if (not isinstance(claim["agent"], dict) or set(claim["agent"]) != {"name", "kind"}
-                    or not all(isinstance(v, str) and v for v in claim["agent"].values())
-                    or not companion or not companion["complete"]):
+            if (
+                not isinstance(claim["agent"], dict)
+                or set(claim["agent"]) != {"name", "kind"}
+                or not all(isinstance(v, str) and v for v in claim["agent"].values())
+                or not companion
+                or not companion["complete"]
+            ):
                 raise ValueError("inventory agent is not comparable")
             if claim["agent"] != companion["agent"]:
                 result["provenance.declared-configuration"] = {
-                    "score": 0, "strength": "E1", "reason": "Two sourced declarations name different evaluated agents; the claimed setup has no consistent material agent identity.",
-                    "claimed": claim["agent"], "observed": companion["agent"], "source": claims[0],
+                    "score": 0,
+                    "strength": "E1",
+                    "reason": "Two sourced declarations name different evaluated agents; the claimed setup has no consistent material agent identity.",
+                    "claimed": claim["agent"],
+                    "observed": companion["agent"],
+                    "source": claims[0],
                 }
     if scope:
         native = example.get("native") or {}
@@ -614,9 +645,13 @@ def project_numeric(root: Path, selection: dict[str, Any], report: dict[str, Any
             "state_cases": "provenance.external-state",
         }
         for key, names in scope.items():
-            if (not isinstance(names, list) or not names or len(set(names)) != len(names)
-                    or not all(isinstance(n, str) and n in available[key] for n in names)
-                    or set(names) == set(available[key])):
+            if (
+                not isinstance(names, list)
+                or not names
+                or len(set(names)) != len(names)
+                or not all(isinstance(n, str) and n in available[key] for n in names)
+                or set(names) == set(available[key])
+            ):
                 raise ValueError("partial scope must name a nonempty proper observed subset")
             if key == "actions" and names != ["read", "error"]:
                 raise ValueError("only the admitted read/error partial action scope is supported")
@@ -624,7 +659,8 @@ def project_numeric(root: Path, selection: dict[str, Any], report: dict[str, Any
                 raise ValueError("only initial-state partial scope is supported")
             if key == "configuration_fields" and any(
                 r["status"] not in {"match", "justified", "not_applicable"}
-                for r in panel["configuration_comparison"] if r["field"] in names
+                for r in panel["configuration_comparison"]
+                if r["field"] in names
             ):
                 raise ValueError("selected configuration fields are not demonstrated matches")
             if key == "components" and any(environment["components"][n]["status"] != "real" for n in names):
@@ -635,10 +671,14 @@ def project_numeric(root: Path, selection: dict[str, Any], report: dict[str, Any
             ):
                 raise ValueError("partial solver/state observations failed")
             result[criteria[key]] = {
-                "score": 1, "strength": "E2", "selected": names,
+                "score": 1,
+                "strength": "E2",
+                "selected": names,
                 "uncovered": sorted(set(available[key]) - set(names)),
                 "owning_panel": panel["index_digest"],
-                "reason": "Actual admitted " + key + " observations cover the selected subset; other material observations are explicitly outside this assessment scope.",
+                "reason": "Actual admitted "
+                + key
+                + " observations cover the selected subset; other material observations are explicitly outside this assessment scope.",
             }
     if not scope:
         native = example.get("native") or {}
@@ -647,22 +687,48 @@ def project_numeric(root: Path, selection: dict[str, Any], report: dict[str, Any
         runtime = next((p for p in panels if p.get("scope") == "eval-author.refund-runtime-observation.v1"), None)
         if runtime and runtime.get("task_freshness") == "current" and runtime.get("native_execution") is True:
             controls = runtime["environment"]["action_controls"]
-            healthy = (len(controls) == 3 and {c["case"] for c in controls} == {"nop", "actions", "reset"}
-                       and all(c["uid"] == 65534 and c["initial_state_matches"] and c["errors_preserve_exact_state"] for c in controls))
+            healthy = (
+                len(controls) == 3
+                and {c["case"] for c in controls} == {"nop", "actions", "reset"}
+                and all(
+                    c["uid"] == 65534 and c["initial_state_matches"] and c["errors_preserve_exact_state"]
+                    for c in controls
+                )
+            )
             permissions = runtime["observations"]["actions"]["permissions"]
             partial = {
-                "AC-01": ("eval-author.refund-access-panel.v1", healthy and permissions["/app/contract.json"]["readable"] and not permissions["/var/lib/refund/record.json"]["readable"],
-                          "Actual solver reads establish the public-contract/private-record boundary only; image layers and alternate access paths are outside the selected panel scope."),
-                "AC-02": ("eval-author.refund-attack-panel.v1", healthy and {c["case"]: c["reward"] for c in controls} == {"nop": 0.0, "actions": 1.0, "reset": 0.0},
-                          "Actual no-work/action controls establish partial defenses; full failure, copied-answer, forged-output and alternative classes remain outside the selected panel scope."),
-                "AC-03": ("eval-author.refund-boundary-panel.v1", healthy,
-                          "Owning recorder validates current task/configuration/results; forged and stale reward consumer paths are outside the selected panel scope."),
-                "AC-04": ("eval-author.refund-boundary-panel.v1", healthy,
-                          "Fresh native initial/reset states match exactly; a bounded predecessor and remaining persistence surfaces are outside the selected panel scope."),
+                "AC-01": (
+                    "eval-author.refund-access-panel.v1",
+                    healthy
+                    and permissions["/app/contract.json"]["readable"]
+                    and not permissions["/var/lib/refund/record.json"]["readable"],
+                    "Actual solver reads establish the public-contract/private-record boundary only; image layers and alternate access paths are outside the selected panel scope.",
+                ),
+                "AC-02": (
+                    "eval-author.refund-attack-panel.v1",
+                    healthy
+                    and {c["case"]: c["reward"] for c in controls} == {"nop": 0.0, "actions": 1.0, "reset": 0.0},
+                    "Actual no-work/action controls establish partial defenses; full failure, copied-answer, forged-output and alternative classes remain outside the selected panel scope.",
+                ),
+                "AC-03": (
+                    "eval-author.refund-boundary-panel.v1",
+                    healthy,
+                    "Owning recorder validates current task/configuration/results; forged and stale reward consumer paths are outside the selected panel scope.",
+                ),
+                "AC-04": (
+                    "eval-author.refund-boundary-panel.v1",
+                    healthy,
+                    "Fresh native initial/reset states match exactly; a bounded predecessor and remaining persistence surfaces are outside the selected panel scope.",
+                ),
             }
             for ident, (full_scope, ready, reason) in partial.items():
                 if full_scope not in scopes and ready:
-                    result[ident] = {"score": 1, "strength": "E2", "reason": reason, "owning_panel": runtime["index_digest"]}
+                    result[ident] = {
+                        "score": 1,
+                        "strength": "E2",
+                        "reason": reason,
+                        "owning_panel": runtime["index_digest"],
+                    }
     return result
 
 
@@ -675,17 +741,30 @@ def apply_numeric(report: dict[str, Any], projection: dict[str, Any]) -> None:
         if any(c["outcome"] in {"FAIL", "ERROR", "BLOCKED"} for c in row["check_results"]):
             if observation["score"] != 0:
                 continue
-        row.update(score=observation["score"], status="ASSESSED", assessment_state="ASSESSED",
-                   execution_state="PARTIAL", evidence_strength=observation["strength"])
+        row.update(
+            score=observation["score"],
+            status="ASSESSED",
+            assessment_state="ASSESSED",
+            execution_state="PARTIAL",
+            evidence_strength=observation["strength"],
+        )
         row["remaining_gaps"] = [observation["reason"], *row.get("remaining_gaps", [])]
         row.setdefault("findings", []).append({"code": "numeric.scope", "message": observation["reason"]})
         for check in row["check_results"]:
-            if check["method"].lower() not in {"deterministic", "probe"} or check["outcome"] in {"FAIL", "ERROR", "BLOCKED"}:
+            if check["method"].lower() not in {"deterministic", "probe"} or check["outcome"] in {
+                "FAIL",
+                "ERROR",
+                "BLOCKED",
+            }:
                 continue
             if observation["strength"] == "E1" and check["method"].lower() == "probe":
                 continue
-            check.update(outcome="FAIL" if observation["score"] == 0 else "PARTIAL", remaining_gap=observation["reason"])
-            check.setdefault("evidence", []).append({"helper": "numeric_scope", "value": {"measurement": "numeric_scope", "criterion": ident}})
+            check.update(
+                outcome="FAIL" if observation["score"] == 0 else "PARTIAL", remaining_gap=observation["reason"]
+            )
+            check.setdefault("evidence", []).append(
+                {"helper": "numeric_scope", "value": {"measurement": "numeric_scope", "criterion": ident}}
+            )
 
 
 if __name__ == "__main__":

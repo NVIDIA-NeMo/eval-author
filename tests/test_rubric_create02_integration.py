@@ -11,9 +11,9 @@ import pytest
 
 SCRIPTS = Path(__file__).resolve().parents[1] / "skills/eval-author-rubric/scripts"
 sys.path.insert(0, str(SCRIPTS))
-import rubric_create02_integration as integration
-import rubric_create02_subject as subject
-import rubric_create02_subject_runtime as runtime
+import rubric_create02_integration as integration  # noqa: E402
+import rubric_create02_subject as subject  # noqa: E402
+import rubric_create02_subject_runtime as runtime  # noqa: E402
 
 
 def test_fresh_repair_actual_consumers(tmp_path, monkeypatch):
@@ -35,7 +35,8 @@ def test_fresh_repair_actual_consumers(tmp_path, monkeypatch):
             assert bad["published_transition"] == [0, 1]
             assert good["published_transition"] == [1, 0]
     assert {runtime.instance(i)["evidence"]["order"]["id"] for i in range(2)}.isdisjoint(
-        {runtime.instance(i)["evidence"]["order"]["id"] for i in (2, 3)})
+        {runtime.instance(i)["evidence"]["order"]["id"] for i in (2, 3)}
+    )
 
 
 def test_repair_ordinary_table_no_transferred_score(tmp_path, monkeypatch):
@@ -43,7 +44,12 @@ def test_repair_ordinary_table_no_transferred_score(tmp_path, monkeypatch):
     root = tmp_path / "repair"
     integration.build_repair(root)
     output = tmp_path / "report"
-    assert integration.repair_cli(["--root", str(root), "--selection", str(root / "selection.json"), "--output", str(output)]) == 1
+    assert (
+        integration.repair_cli(
+            ["--root", str(root), "--selection", str(root / "selection.json"), "--output", str(output)]
+        )
+        == 1
+    )
     saved = json.loads((output / "assessment.json").read_text())
     assert saved["report"]["items"]["CREATE-02"]["score"] is None
     assert saved["report"]["items"]["CREATE-02"]["execution_state"] == "COMPLETED"
