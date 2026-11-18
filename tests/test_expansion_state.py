@@ -692,3 +692,31 @@ def test_cli_continuation_uses_the_same_stateful_contract(modules, tmp_path, han
     assert rejected.returncode == 2 and not rejected.stdout
     assert "revision differs" in json.loads(rejected.stderr)["error"]
     assert state.state_path(tmp_path).read_bytes() == before
+
+
+def test_prerequisite_entry_choice_preserves_bound_lifecycle_and_audit_handoff(modules, tmp_path, monkeypatch):
+    state, expansion, _ = modules
+    saved = start(modules, tmp_path, handoff=True)
+    scope = copy.deepcopy(saved["scopes"]["expand"])
+    choice = {"kind": "starter", "source": "User chose starter expansion"}
+
+    def forbidden(*args, **kwargs):
+        raise AssertionError("Path selection must not inspect artifacts")
+
+    monkeypatch.setattr(expansion, "observe", forbidden)
+    monkeypatch.setattr(state, "ethos_digest", forbidden)
+    updated = state.update(
+        tmp_path,
+        {
+            "scopes": {"expand": {"entry_choice": choice}},
+            "blockers": [{"id": "python", "phase": "setup", "message": "Runtime missing"}],
+            "pending_question": "Can you restore the runtime?",
+        },
+        expected_revision=saved["revision"],
+        state_only=True,
+    )
+    assert updated["scopes"]["expand"] == {**scope, "entry_choice": choice}
+    resumed = state.initialize(tmp_path, journey="expand", state_only=True)
+    assert resumed["scopes"] == updated["scopes"]
+    assert resumed["pending_question"] == "Can you restore the runtime?"
+    assert resumed["ethos"] == saved["ethos"]

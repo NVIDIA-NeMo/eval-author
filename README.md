@@ -166,7 +166,8 @@ The suite is in [path/to/evals].
 
 General improvement requests first offer the supported paths, for both first-time
 users and users returning after another journey. An already selected path or
-specific audit improvement carries forward. Selected audit recommendations
+specific audit improvement carries forward, including after prerequisite blockers
+and a fresh chat. Selected audit recommendations
 continue to the supported authoring path, with any implementation limits made
 clear without another proposal step.
 

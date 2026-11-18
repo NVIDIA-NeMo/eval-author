@@ -126,7 +126,8 @@ using the report's existing recommendations, without offering another proposal
 pass. Selection does not approve construction or agent execution; retain current
 approvals and resolve only the next required decision. If implementation is not
 supported, preserve the handoff and explain the limit rather than offering a
-written recommendation as the next deliverable. Do not restart the audit.
+written recommendation as the next deliverable. Apply the audit skill’s
+[continuation rule](../SKILL.md#start-a-guided-audit).
 If selected IDs are absent from the evolved report or its source context differs,
 retain the original decision and ask only how to reconcile that missing context.
 

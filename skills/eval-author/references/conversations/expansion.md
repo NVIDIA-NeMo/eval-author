@@ -53,12 +53,12 @@ names or accepted lifecycle fields. Missing decisions or evidence remain
 renderable as unresolved, pending, or blocked work. The gates below control
 advancement and success claims, not whether an incomplete checkpoint can be shown.
 
-| Checkpoint | Owner | Owned state and advancement gates |
-| --- | --- | --- |
-| Unresolved entry/path inputs and supported scope agreement | ASE-1425 | Retain the request or audit selection and resolve the supported creation path. Bind explicit scope agreement to the exact proposed task set; an audit selection alone cannot approve construction. Save decline or revision without approval. |
-| Creation/validation progress and blockers | ASE-1426 | Agreed scope permits construction. Current task artifacts and applicable native evidence establish validation. Preserve partial work and blockers; drafts and intended repairs do not establish validation. |
-| Generated-task review and execution settings/authorization | ASE-1427 | Present the complete agreed task set and its current validation for review. Require explicit task review and separate authorization bound to the exact task set, agent, and settings before execution. |
-| Execution progress, results, rerun, and continuation | ASE-1428 | Explicit execution authorization permits a run. Current actual-agent evidence bound to the selected tasks/settings establishes run status and results. Keep missing or partial results visible and require a new decision for changed run scope or settings. |
+| Checkpoint | Owned state and advancement gates |
+| --- | --- |
+| Unresolved entry/path inputs and supported scope agreement | Retain the request or audit selection and resolve the supported creation path. Bind explicit scope agreement to the exact proposed task set; an audit selection alone cannot approve construction. Save decline or revision without approval. |
+| Creation/validation progress and blockers | Agreed scope permits construction. Current task artifacts and applicable native evidence establish validation. Preserve partial work and blockers; drafts and intended repairs do not establish validation. |
+| Generated-task review and execution settings/authorization | Present the complete agreed task set and its current validation for review. Require explicit task review and separate authorization bound to the exact task set, agent, and settings before execution. |
+| Execution progress, results, rerun, and continuation | Explicit execution authorization permits a run. Current actual-agent evidence bound to the selected tasks/settings establishes run status and results. Keep missing or partial results visible and require a new decision for changed run scope or settings. |
 
 Reuse onboarding for shared prerequisite and Ethos recovery, and the audit
 workflow's retained handoff for selected recommendations and originating report
@@ -76,31 +76,20 @@ All checkpoints use the existing state and rendering interfaces:
 | `expansion_state.transition` through `journey_state.update` | Validate a proposed transition against current context and the exact expected revision before saving a real user decision |
 | `conversation_renderer.render` | Dispatch a registered checkpoint and render its complete response from the reconciled snapshot, exact revision, and permitted facts |
 
-The entry record described below uses schema version 1. Schema version 2 adds
-construction scope state through `expansion_state.new_scope`, retaining a selected
-supported path, task and example identities, digest-bound sources, deferred work,
-unresolved inputs, and construction limits. Its presentation and user decision
-receipts bind to `scope_digest`; changing scope invalidates the agreement and
-replacement decisions retain history. Existing entry records remain resumable.
-Agreement also binds the repository, selected agent, provider, and applicable
-Ethos document. Rebinding that context requires a new presentation and answer.
-Recorded-interaction scopes retain their scoped Ethos exception, while the
-selected provider, Python/runtime checks, and setup or expansion blockers still
-gate construction.
-Use `expansion_continue` only for entry records; structured construction scope
-records require a compatible scope renderer. Do not save a parallel checklist,
-introduce another state file, or register future-stage placeholders.
-
-`expansion_state.construction_guard` rechecks the saved revision, exact selected
-task, current sources, applicable prerequisites, measured audit-gap eligibility,
-and explicit current scope approval before returning construction inputs. Its
-read-only CLI is `journey_state.py --repo REPO check-expansion-scope --task-id ID
---expected-revision REV`. The result always has `execution_authorized: false`;
-construction approval does not authorize running the agent. Scope agreement
-cannot establish journey completion.
-
-Audit-backed scope reuses the originating audit's freshness checks. Changes to
-its report or supporting evidence require reconciliation before construction.
+The lifecycle schema version identifies the persisted record shape so unsupported
+records fail validation instead of being interpreted as current decisions.
+Schema version 1 retains the entry record described below. Schema version 2
+saves the selected authoring workflow's existing coverage-planning checkpoint
+through `expansion_state.new_scope`: a plan for display, its actual user decision,
+and an optional unresolved question. The
+[validator](../../scripts/expansion_state.py) owns the exact presentation fields.
+Task-create continues to own gap selection, authoring, native validation, and
+acceptance; starter expansion and trace mode retain their existing workflows.
+There is no additional construction approval or command. Once its question is
+answered, this checkpoint leaves later authoring questions with their owner.
+Preserve shared prerequisite/Ethos recovery and the existing context bindings.
+Do not save a parallel checklist, introduce another state file, or register
+future-stage placeholders. Reuse shared formatting and labels.
 
 ## Cross-checkpoint invariants
 
@@ -189,7 +178,12 @@ checklist and saved question without a generic selection or scope preamble.
 
 Render and present the complete response unchanged. Wrong revisions, missing
 observations, mismatched pending questions, active blockers, and changed context
-reject continuation. Resolve shared blockers through onboarding. Reconcile a
+reject continuation. These are agent-facing validation failures: the CLI returns
+exit code 2 with a JSON error on stderr and no rendered response or state write.
+Reload stale input or reconcile the indicated state before rendering again.
+Resolve shared blockers through onboarding; present the actual blocker or pending
+decision to the user, rather than the raw exception. If recovery cannot proceed,
+explain what is missing without claiming continuation succeeded. Reconcile a
 changed provider, Ethos, or handoff and save the relevant entry question with fresh
 bindings; do not manufacture a success state or render stale decisions.
 Unchanged entry decisions retain their question across normal resume and journey

@@ -432,25 +432,15 @@ def render(payload: dict) -> str:
     ):
         raise ValueError("Use audit_resume for saved audit checkpoints after shared onboarding is complete")
     expansion = expansion_state.record(state) if state["journey"] == "expand" else None
-    if expansion is not None and expansion["schema_version"] == 2:
-        shared_recovery = not expansion_state.entry_ready(state)
-        if expansion["path"] == "recorded_interaction":
-            shared_recovery = bool(
-                journey_state.active_blockers(state)
-                or state["ethos"]["stage"] in {"review", "interview", "draft", "write"}
-                or state["ethos"]["remaining_questions"]
-            )
-        if not shared_recovery:
-            raise ValueError("Use expansion_scope to render structured expansion scopes")
     if expansion is not None and not state_only:
-        if expansion["schema_version"] == 1 and expansion_state.entry_ready(state):
-            raise ValueError(
-                "Use expansion_continue for saved expansion checkpoints after shared onboarding is complete"
-            )
+        checkpoint = "expansion_scope" if expansion["schema_version"] == 2 else "expansion_continue"
+        if expansion_state.checkpoint_ready(state) and (
+            expansion["pending"] is not None or state["pending_question"] is None
+        ):
+            raise ValueError(f"Use {checkpoint} for saved expansion checkpoints after shared onboarding is complete")
         if expansion["pending"] is not None:
             question = literal(expansion["pending"]["question"], "expansion question")
             if facts.get("question") is not None and literal(facts["question"], "question") == question:
-                checkpoint = "expansion_scope" if expansion["schema_version"] == 2 else "expansion_continue"
                 raise ValueError(f"Use {checkpoint} for the saved expansion question after shared recovery")
             if (
                 state["pending_question"] is not None

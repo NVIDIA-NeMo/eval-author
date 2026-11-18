@@ -62,6 +62,13 @@ and execution keep their existing scope and approval boundaries.
 
 ## Start a guided audit
 
+Continue the saved audit at its current unresolved decision; do not restart it
+because a chat resumes, prerequisites recover, or an improvement handoff returns.
+Reuse settled selections and approvals while their bindings remain current.
+Reopen only decisions affected by changed inputs or missing evidence. Start a new
+audit only when the user requests one; reconcile changed scope in the existing
+audit instead of silently discarding its history.
+
 Before classifying a full-audit request as fresh, follow the core's
 [Return to an audit](../eval-author/references/shared-prerequisites.md#return-to-an-audit).
 Apply the shared [communication rule](../eval-author/references/conversation-rendering.md#audit-entry-and-resumption)

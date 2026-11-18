@@ -11,10 +11,25 @@ limitations before deciding what to change.
 
 Rubric selections use `rubric_scope` for source-backed inventories. Package demo
 observations use `retained_credit`, `retained_credit_controls`, and `coverage` to
-identify their consumers. The provenance panel uses `rubric-provenance-demo-v1`
-with `rubric-provenance-expectations-v1` expectations; the version remains 1.
-Update integrations to these current names and rebuild older demo outputs rather
-than relying on former field or schema names; no compatibility aliases are kept.
+identify their consumers. The provenance panel uses `rubric-provenance-demo-v2`
+with `rubric-provenance-expectations-v1` expectations.
+Criterion IDs name their area, such as `provenance.grading-path` or
+`task-contract.scoring-authority`. Each check ID adds its method, such as
+`.deterministic-1` or `.llm-judge`. Result rows and check results keep the source
+rubric's IDs in `source` and `source_id`. Result rows omit the former top-level
+`skill_id` field; source metadata retains the original skill attribution.
+Rubric definitions use `4.1-draft`, measurement reports use
+`rubric-measurements-v3`, and identity mutation panels use
+`rubric-mutation-panel-v4`. The overall showcase, criterion scoring demo and task
+contract demo use `rubric-showcase-v2`, `criterion-scoring-demo-v2` and
+`task-contract-demo-v2`. Reports preserve canonical criterion and check order.
+The three demos are new in this change; their version numbers distinguish
+pre-merge development formats, not previously shipped releases. Existing
+measurement, identity-mutation and provenance outputs must be rebuilt when their
+schemas change. Update integrations to the current names; no compatibility aliases
+are kept.
+Keep old source-bound receipts under their original identifiers instead of
+renaming or resealing them as evidence for the new source bytes.
 See the [rubric measurements](determinism-checks.md#rubric-identity-measurements)
 and [provenance demo](determinism-checks.md#provenance-demo) for commands.
 
@@ -284,12 +299,9 @@ Recording findings alone does not start improvement work.
 Selected improvements survive a later session with their audit context. Their
 scope still needs agreement before implementation. Progress and available
 evidence appear beneath the same recommendation in the Audit coverage report.
-Structured construction scope records in journey state retain selected tasks
-and input examples, source digests, limits, and approval, decline, or revision
-receipts. These records keep construction agreement separate from permission to
-run the agent.
-Changes to the originating audit report or supporting evidence require review
-before construction continues.
+Journey state retains the existing authoring workflow's planning checkpoint,
+including its plan, actual scope decision, and unresolved question. This allows
+planning to resume without repeating settled choices or authorizing agent runs.
 An implemented change does not by itself establish successful validation or
 better coverage. If task files change, earlier audit measurements need review
 before they can describe the changed tasks. Eval Author retains the original
