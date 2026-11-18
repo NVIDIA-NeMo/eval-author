@@ -3,28 +3,38 @@
 
 import json
 import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
 from typing import Any, cast
 
 import pytest
+from filelock import FileLock
 
 ROOT = Path(__file__).resolve().parents[1]
 
 
-@pytest.fixture(scope="module")
-def showcase_output(tmp_path_factory):
-    output = tmp_path_factory.mktemp("showcase") / "output"
-    result = subprocess.run(
-        [sys.executable, str(ROOT / "tools/run_rubric_showcase.py"), "--output", str(output)],
-        capture_output=True,
-        text=True,
-        # About 75 s alone; xdist workers each build this fixture, so allow for CPU contention.
-        timeout=900,
-        env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"},
-    )
-    assert result.returncode == 0, result.stderr
+@pytest.fixture(scope="session")
+def showcase_output(tmp_path_factory, worker_id):
+    # Build the read-only showcase once per session and share it across xdist workers;
+    # tests that tamper with it copy it first.
+    base = tmp_path_factory.getbasetemp()
+    shared = (base if worker_id == "master" else base.parent) / "shared-showcase"
+    output = shared / "output"
+    with FileLock(str(shared) + ".lock"):
+        if not (shared / "complete").is_file():
+            shutil.rmtree(shared, ignore_errors=True)
+            shared.mkdir()
+            result = subprocess.run(
+                [sys.executable, str(ROOT / "tools/run_rubric_showcase.py"), "--output", str(output)],
+                capture_output=True,
+                text=True,
+                timeout=900,
+                env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"},
+            )
+            assert result.returncode == 0, result.stderr
+            (shared / "complete").touch()
     return output
 
 

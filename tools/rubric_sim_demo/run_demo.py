@@ -113,7 +113,10 @@ def _compare(obs: dict, exp: dict) -> dict:
     }
 
 
-def _panel(files, contract, cases: list[dict], tmp: Path, *, order=None, parallel=False) -> dict:
+def _panel(files, contract, cases: list[dict], tmp: Path, *, order=None, parallel: bool | None = None) -> dict:
+    # Cases are independent subprocesses; run them concurrently unless the order is the point of the panel.
+    parallel = order is None if parallel is None else parallel
+
     def one(i: int) -> tuple[str, dict]:
         row = cases[i]
         c = copy.deepcopy(contract)
@@ -380,7 +383,9 @@ def collect(case: str, work: Path, *, use_agents: bool, offline: bool) -> dict:
         controls = [r for r in CONTROLS if not (case == "withhold-reference" and r["id"] == "reference")]
         panel = _panel(files, contract, controls, work / "c")
         ev["controls"] = panel
-        ev["repeat_identical"] = _strip(_panel(files, contract, controls, work / "c-repeat")) == _strip(panel)
+        ev["repeat_identical"] = _strip(_panel(files, contract, controls, work / "c-repeat", parallel=False)) == _strip(
+            panel
+        )
         ev["order_independent"] = _strip(
             _panel(files, contract, controls, work / "c-rev", order=list(reversed(range(len(controls)))))
         ) == _strip(panel)

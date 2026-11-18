@@ -10,6 +10,12 @@ from pathlib import Path
 
 import pytest
 
+# Retained private run artifacts live beside the checkout, as current_rubric_finish.RUNS expects.
+PRIVATE_RUNS = Path(__file__).resolve().parents[2] / "rubric-guided-runs"
+requires_private_runs = pytest.mark.skipif(
+    not PRIVATE_RUNS.is_dir(), reason="requires retained private rubric-guided-runs artifacts"
+)
+
 
 @pytest.fixture
 def finish(monkeypatch):
@@ -246,6 +252,7 @@ def test_conditional_na_requires_owner_and_current_followup(finish, monkeypatch)
     assert finish.project(report, value)["items"]["AUDIT-04-B"].get("status") != "NOT_APPLICABLE"
 
 
+@requires_private_runs
 def test_native_suite_admission_is_separate_and_score_free(finish):
     value = finish.validate_suite_native(finish.RUNS / "suite-native-recovery-current/native-run")
     assert value["trial_count"] == 8
@@ -267,6 +274,7 @@ def test_suite_projection_preserves_every_original_row_and_measurement(finish, m
 
 
 @pytest.mark.parametrize("change", ["reward", "checks", "wrong-family", "wrong-image", "adapter", "source"])
+@requires_private_runs
 def test_suite_corruption_rejected_without_touching_frozen_inputs(finish, monkeypatch, change):
     root = finish.SUITE_NATIVE
     original_raw = finish.raw
@@ -307,6 +315,7 @@ def contract_packet(finish):
     return finish.load(path)
 
 
+@requires_private_runs
 def test_actual_contract_packet_sources_and_comparisons(finish):
     request = finish.contract_review_request()
     assert request["binding"] == "32dcb90ec1d4ea26ef384972d7079e29d9430aff9e44389b9442182294ff361c"
@@ -321,6 +330,7 @@ def test_actual_contract_packet_sources_and_comparisons(finish):
 
 
 @pytest.mark.parametrize("name", ["REPORT.md", "exposure.md", "original-native-comparison.json", "input-manifest.json"])
+@requires_private_runs
 def test_contract_review_packet_drift_rejected(finish, monkeypatch, name):
     original = finish.raw
     monkeypatch.setattr(
@@ -334,6 +344,7 @@ def test_contract_review_packet_drift_rejected(finish, monkeypatch, name):
     "decision,revoked,score",
     [(None, False, 2), ("reject", False, 2), ("defer", False, 2), ("approve", True, 2), ("approve", False, 3)],
 )
+@requires_private_runs
 def test_contract_qualification_is_exact_conditional_and_narrow(
     finish, monkeypatch, tmp_path, contract_packet, decision, revoked, score
 ):
@@ -370,6 +381,7 @@ def test_contract_qualification_is_exact_conditional_and_narrow(
         finish.apply_contract_review(report, value, ref, root=finish.ROOT, selection=selection)
 
 
+@requires_private_runs
 def test_contract_intake_uses_existing_boundary_without_scope_transfer(finish, monkeypatch, tmp_path, contract_packet):
     store = tmp_path / "operator"
     store.mkdir()
@@ -403,6 +415,7 @@ def test_contract_intake_uses_existing_boundary_without_scope_transfer(finish, m
 
 
 @pytest.mark.parametrize("change", ["failed-check", "missing-check", "coverage", "revoked-lower", "lower-score"])
+@requires_private_runs
 def test_contract_method_acceptance_cannot_replace_lower_anchor(finish, monkeypatch, contract_packet, change):
     import rubric_general_review
 
@@ -438,6 +451,7 @@ def provenance_packet(finish, monkeypatch):
     return finish.load(finish.PROVENANCE_BASELINE)
 
 
+@requires_private_runs
 def test_actual_provenance_comparison_and_existing_audit_qualification(finish, provenance_packet):
     value = finish.validate_provenance_review(
         finish.PROVENANCE_REVIEW, finish.ROOT, provenance_packet["selection"], provenance_packet["report"]
@@ -451,6 +465,7 @@ def test_actual_provenance_comparison_and_existing_audit_qualification(finish, p
 
 
 @pytest.mark.parametrize("name", ["packet.json", "semantic-review-basis.json", "verification-final.json"])
+@requires_private_runs
 def test_provenance_drift_rejected(finish, monkeypatch, name):
     original = finish.raw
     monkeypatch.setattr(
@@ -464,6 +479,7 @@ def test_provenance_drift_rejected(finish, monkeypatch, name):
     "decision,revoked,expected",
     [(None, False, 2), ("defer", False, 2), ("reject", False, 2), ("approve", True, 2), ("approve", False, 3)],
 )
+@requires_private_runs
 def test_provenance_scoped_method_and_neighbor_preservation(
     finish, monkeypatch, tmp_path, provenance_packet, decision, revoked, expected
 ):
@@ -505,6 +521,7 @@ def test_provenance_scoped_method_and_neighbor_preservation(
 @pytest.mark.parametrize(
     "ident,change", [(i, c) for i in ("AUDIT-05-B", "TRACE-04-A") for c in ("failed", "missing", "lower", "canonical")]
 )
+@requires_private_runs
 def test_provenance_permission_never_replaces_lower_anchor(finish, monkeypatch, provenance_packet, ident, change):
     report = deepcopy(provenance_packet["report"])
     row = report["items"][ident]
@@ -522,6 +539,7 @@ def test_provenance_permission_never_replaces_lower_anchor(finish, monkeypatch, 
     assert value["predicates"][ident]["promotion_ready"] is False
 
 
+@requires_private_runs
 def test_provenance_intake_retains_only_exact_scope(finish, monkeypatch, tmp_path, provenance_packet):
     store = tmp_path / "operator"
     store.mkdir()
