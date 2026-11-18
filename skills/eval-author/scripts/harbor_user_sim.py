@@ -18,7 +18,7 @@ from typing import TYPE_CHECKING, Any
 
 import yaml
 from eval_author_shared.task_evidence import digest
-from packaging.version import InvalidVersion, Version
+from runtime_policy import satisfies
 from user_sim import UserSimError, UserSimScenario, load_scenario
 
 if TYPE_CHECKING:
@@ -219,10 +219,12 @@ def _validate_task(native: JobConfig, scenario: UserSimScenario, output_dir: Pat
 def translate(scenario_path: Path, config_path: Path, output_dir: Path) -> TranslationResult:
     """Preserve native path semantics relative to the calling working directory."""
     try:
-        installed_version = Version(version("harbor"))
-    except InvalidVersion as error:
-        raise HarborTranslationError("Could not determine the installed Harbor version") from error
-    if installed_version < Version(MINIMUM_HARBOR_VERSION):
+        supported = satisfies(version("harbor"), f">={MINIMUM_HARBOR_VERSION}")
+    except ValueError as error:
+        raise HarborTranslationError(
+            f"Could not determine the installed Harbor version. Translation requires Harbor {MINIMUM_HARBOR_VERSION} or later"
+        ) from error
+    if not supported:
         raise HarborTranslationError(f"Translation requires Harbor {MINIMUM_HARBOR_VERSION} or later")
     from harbor.models.job.config import JobConfig
     from harbor.models.trial.config import TrialConfig
