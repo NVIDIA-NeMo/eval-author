@@ -80,10 +80,12 @@ def test_recorded_interaction_and_incomplete_plan_preserve_existing_workflow(mod
     assert "Create this partial-refund task?" in text
     value = copy.deepcopy(expansion.record(saved))
     value["plan"]["tasks"] = []
+    value["plan"]["deferred"] = []
     value["pending"] = {"question": "Which interaction should this task use?", "source": "Missing interaction"}
     saved = save_scope(modules, tmp_path, saved, value)
     text = renderer.render(payload(modules, saved))
     assert "No tasks are proposed yet." in text
+    assert "**Deferred work:**" not in text
     assert text.endswith(value["pending"]["question"] + "\n")
 
 

@@ -62,6 +62,12 @@ exclusions, and cost constraints into `breadth` and `limits`; preserve unaffecte
 scope fields. Save the actual unanswered scope question in both lifecycle
 `pending` and top-level `pending_question`; use no question when it is settled.
 
+Populate `deferred` only with work the user explicitly selected or postponed
+that remains outside this plan, including selected unsupported audit improvements.
+Otherwise save `[]` so the section is omitted. Do not add speculative cases or
+routine later authoring, validation, or execution steps. Keep untested coverage
+and exclusions in `breadth` and `limits`.
+
 Reload normal state and render `expansion_scope` with its exact revision and
 `facts.expansion_observations`. Record the user's actual answer as lifecycle
 `decision: {kind, source}`: `approved`, `declined`, or `revise`. Approval or decline
