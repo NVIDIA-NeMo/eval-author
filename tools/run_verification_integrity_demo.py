@@ -16,6 +16,7 @@ import json
 import os
 import subprocess
 import sys
+from copy import deepcopy
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -152,7 +153,11 @@ def command(root, name, argv):
 
 def receipt_score(report):
     # Read the actual rubric output; never substitute a locally recomputed score.
-    check = next(row for row in report["items"]["CREATE-07"]["check_results"] if row["id"] == "CREATE-07-C01")
+    check = next(
+        row
+        for row in report["items"]["provenance.evidence-revision-consistency"]["check_results"]
+        if row["id"] == "provenance.evidence-revision-consistency.deterministic-1"
+    )
     groups = check.get("group_scores", [])
     scored = next((row for row in groups if row["id"] == "receipt_consistency"), {})
     required = next((row for row in groups if row["id"] == "required_verification"), {})
@@ -165,7 +170,7 @@ def receipt_score(report):
         "required_freshness": sorted(row["freshness"] for row in verification["cases"]),
         "group_scopes": [row.get("scope") for row in groups],
         **{key: scored.get(key) for key in ("passed", "failed", "unknown", "excluded", "score", "outcome")},
-        "score_source": "CREATE-07-C01.group_scores.receipt_consistency",
+        "score_source": "provenance.evidence-revision-consistency.deterministic-1.group_scores.receipt_consistency",
         "group_scores": groups,
     }
 
@@ -524,9 +529,9 @@ def run_panel(root):
     }
 
 
-def normalized(panel):
+def normalized(panel: dict, root: Path | None = None) -> dict:
     """Explicit semantic comparison surface; raw provenance hashes are NOT erased."""
-    return {
+    projection: dict = {
         "schema": panel["schema"],
         "cases": [
             {
@@ -559,6 +564,23 @@ def normalized(panel):
             )
         },
     }
+    if root is None:
+        return projection
+    root = root.absolute()
+    prefixes = [root.as_posix() + "/"]
+    if root.is_relative_to(ROOT):
+        prefixes.append(root.relative_to(ROOT).as_posix() + "/")
+    projection = deepcopy(projection)
+    for case in projection["cases"]:
+        for row in case["observed"].get("required_verification", {}).get("cases", []):
+            manifest = row.get("manifest")
+            if not isinstance(manifest, str):
+                continue
+            for prefix in prefixes:
+                if manifest.startswith(prefix):
+                    row["manifest"] = manifest[len(prefix) :]
+                    break
+    return projection
 
 
 def main(argv=None):
@@ -576,8 +598,8 @@ def main(argv=None):
         fresh.mkdir(mode=0o700)
         repeated = run_panel(fresh)
         write_json(fresh / "panel.json", repeated)
-        write_json(root / "normalized-result.json", normalized(panel))
-        write_json(fresh / "normalized-result.json", normalized(repeated))
+        write_json(root / "normalized-result.json", normalized(panel, root))
+        write_json(fresh / "normalized-result.json", normalized(repeated, fresh))
         equal = (root / "normalized-result.json").read_bytes() == (fresh / "normalized-result.json").read_bytes()
         panel["determinism"] = {
             "normalized_fresh_run_equal": equal,

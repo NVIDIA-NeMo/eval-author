@@ -122,15 +122,14 @@ def adapter_task(record: dict, task: dict) -> dict:
         "path": record["tasks"].get(task["id"], {}).get("path"),
     }
     for field in (
-        "test_type",
-        "test_type_reason",
+        "interaction_type",
         "state_requirements",
         "prerequisite_checks",
         "conversation_scenario",
     ):
         if field in task:
             context[field] = task[field]
-    if task.get("test_type") == "user_sim" and context["path"]:
+    if task.get("interaction_type") == "user_sim" and context["path"]:
         context["expected_scenario_path"] = str(PurePosixPath(context["path"]) / "user-sim.yaml")
     return context
 
@@ -153,7 +152,7 @@ def adapter_handoff(state: dict, reason: str) -> str:
         "tasks": [adapter_task(record, task) for task in record["plan"]["tasks"]] if record and approved else [],
         "missing_connection": reason,
     }
-    if record and approved and any(task.get("test_type") == "user_sim" for task in record["plan"]["tasks"]):
+    if record and approved and any(task.get("interaction_type") == "user_sim" for task in record["plan"]["tasks"]):
         settings = first_eval_state.execution_settings(record)
         if "user_sim" in settings:
             context["simulator_settings"] = settings["user_sim"]
