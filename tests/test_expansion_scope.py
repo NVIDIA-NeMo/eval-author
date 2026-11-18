@@ -22,7 +22,7 @@ PLAN = {
     ],
     "breadth": "One task using the existing task-creation workflow",
     "limits": "At most two construction attempts; running the agent requires separate approval",
-    "deferred": ["Repairing an unrelated existing grader"],
+    "deferred": ["Repairing an unrelated existing verifier"],
 }
 
 
