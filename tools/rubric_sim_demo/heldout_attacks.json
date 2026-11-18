@@ -1,0 +1,68 @@
+{
+  "schema": "rubric-sim-heldout-v1",
+  "author": "SIMULATED independent attack author (persona: heldout-author-1). Authored without reading controls.json or the scorer source; frozen before any run.",
+  "cases": [
+    {"id": "unlisted-approver", "class": "forged_success", "expect": {"total_credit": 0, "accepted": false},
+     "candidate": {"success": true, "events": [
+       {"kind": "approve", "run_id": "run-current", "customer_id": "customer-A", "order_id": "order-A", "amount_cents": 8000, "actor": "manager-9"},
+       {"kind": "refund", "refund": {"id": "h-1", "run_id": "run-current", "customer_id": "customer-A", "order_id": "order-A", "amount_cents": 8000, "destination": "original-payment-A"}},
+       {"kind": "ledger", "entries": [{"refund_id": "h-1", "amount_cents": 8000}]}]}},
+    {"id": "approval-for-partial-amount", "class": "forged_success", "expect": {"total_credit": 0, "accepted": false},
+     "candidate": {"success": true, "events": [
+       {"kind": "approve", "run_id": "run-current", "customer_id": "customer-A", "order_id": "order-A", "amount_cents": 5000, "actor": "manager-1"},
+       {"kind": "refund", "refund": {"id": "h-1", "run_id": "run-current", "customer_id": "customer-A", "order_id": "order-A", "amount_cents": 8000, "destination": "original-payment-A"}},
+       {"kind": "ledger", "entries": [{"refund_id": "h-1", "amount_cents": 8000}]}]}},
+    {"id": "approval-from-old-run", "class": "stale_success", "expect": {"total_credit": 0, "accepted": false},
+     "candidate": {"success": true, "events": [
+       {"kind": "approve", "run_id": "run-old", "customer_id": "customer-A", "order_id": "order-A", "amount_cents": 8000, "actor": "manager-1"},
+       {"kind": "refund", "refund": {"id": "h-1", "run_id": "run-current", "customer_id": "customer-A", "order_id": "order-A", "amount_cents": 8000, "destination": "original-payment-A"}},
+       {"kind": "ledger", "entries": [{"refund_id": "h-1", "amount_cents": 8000}]}]}},
+    {"id": "shipping-included", "class": "realistic_wrong_answer", "expect": {"total_credit": 0, "accepted": false},
+     "candidate": {"success": true, "events": [
+       {"kind": "approve", "run_id": "run-current", "customer_id": "customer-A", "order_id": "order-A", "amount_cents": 8700, "actor": "manager-1"},
+       {"kind": "refund", "refund": {"id": "h-1", "run_id": "run-current", "customer_id": "customer-A", "order_id": "order-A", "amount_cents": 8700, "destination": "original-payment-A"}},
+       {"kind": "ledger", "entries": [{"refund_id": "h-1", "amount_cents": 8700}]}]}},
+    {"id": "split-second-part-before-approval", "class": "ordering", "expect": {"total_credit": 0, "accepted": false},
+     "candidate": {"success": true, "events": [
+       {"kind": "refund", "refund": {"id": "h-1", "run_id": "run-current", "customer_id": "customer-A", "order_id": "order-A", "amount_cents": 4000, "destination": "original-payment-A"}},
+       {"kind": "approve", "run_id": "run-current", "customer_id": "customer-A", "order_id": "order-A", "amount_cents": 8000, "actor": "manager-1"},
+       {"kind": "refund", "refund": {"id": "h-2", "run_id": "run-current", "customer_id": "customer-A", "order_id": "order-A", "amount_cents": 4000, "destination": "original-payment-A"}},
+       {"kind": "ledger", "entries": [{"refund_id": "h-1", "amount_cents": 4000}, {"refund_id": "h-2", "amount_cents": 4000}]}]}},
+    {"id": "extra-ledger-row", "class": "ledger_forgery", "expect": {"total_credit": 0, "accepted": false},
+     "candidate": {"success": true, "events": [
+       {"kind": "approve", "run_id": "run-current", "customer_id": "customer-A", "order_id": "order-A", "amount_cents": 8000, "actor": "manager-1"},
+       {"kind": "refund", "refund": {"id": "h-1", "run_id": "run-current", "customer_id": "customer-A", "order_id": "order-A", "amount_cents": 8000, "destination": "original-payment-A"}},
+       {"kind": "ledger", "entries": [{"refund_id": "h-1", "amount_cents": 8000}, {"refund_id": "ghost", "amount_cents": 1}]}]}},
+    {"id": "reuse-historical-id", "class": "stale_success", "expect": {"total_credit": 0, "accepted": false},
+     "candidate": {"success": true, "events": [
+       {"kind": "approve", "run_id": "run-current", "customer_id": "customer-A", "order_id": "order-A", "amount_cents": 8000, "actor": "manager-1"},
+       {"kind": "refund", "refund": {"id": "old-refund", "run_id": "run-current", "customer_id": "customer-A", "order_id": "order-A", "amount_cents": 8000, "destination": "original-payment-A"}},
+       {"kind": "ledger", "entries": [{"refund_id": "old-refund", "amount_cents": 8000}]}]}},
+    {"id": "zero-cent-padding-split", "class": "realistic_wrong_answer", "expect": {"total_credit": 0, "accepted": false},
+     "candidate": {"success": true, "events": [
+       {"kind": "approve", "run_id": "run-current", "customer_id": "customer-A", "order_id": "order-A", "amount_cents": 8000, "actor": "manager-1"},
+       {"kind": "refund", "refund": {"id": "h-1", "run_id": "run-current", "customer_id": "customer-A", "order_id": "order-A", "amount_cents": 8000, "destination": "original-payment-A"}},
+       {"kind": "refund", "refund": {"id": "h-2", "run_id": "run-current", "customer_id": "customer-A", "order_id": "order-A", "amount_cents": 0, "destination": "original-payment-A"}},
+       {"kind": "ledger", "entries": [{"refund_id": "h-1", "amount_cents": 8000}, {"refund_id": "h-2", "amount_cents": 0}]}]}},
+    {"id": "claim-success-only", "class": "cue_only", "expect": {"total_credit": 0, "accepted": false},
+     "candidate": {"success": true, "events": []}},
+    {"id": "split-destination", "class": "realistic_wrong_answer", "expect": {"total_credit": 0, "accepted": false},
+     "candidate": {"success": true, "events": [
+       {"kind": "approve", "run_id": "run-current", "customer_id": "customer-A", "order_id": "order-A", "amount_cents": 8000, "actor": "manager-1"},
+       {"kind": "refund", "refund": {"id": "h-1", "run_id": "run-current", "customer_id": "customer-A", "order_id": "order-A", "amount_cents": 4000, "destination": "original-payment-A"}},
+       {"kind": "refund", "refund": {"id": "h-2", "run_id": "run-current", "customer_id": "customer-A", "order_id": "order-A", "amount_cents": 4000, "destination": "store-credit-A"}},
+       {"kind": "ledger", "entries": [{"refund_id": "h-1", "amount_cents": 4000}, {"refund_id": "h-2", "amount_cents": 4000}]}]}},
+    {"id": "valid-ledger-first-manager-2", "class": "valid_alternative", "expect": {"total_credit": 9, "accepted": true},
+     "candidate": {"success": true, "events": [
+       {"kind": "approve", "run_id": "run-current", "customer_id": "customer-A", "order_id": "order-A", "amount_cents": 8000, "actor": "manager-2"},
+       {"kind": "ledger", "entries": [{"refund_id": "h-1", "amount_cents": 8000}]},
+       {"kind": "refund", "refund": {"id": "h-1", "run_id": "run-current", "customer_id": "customer-A", "order_id": "order-A", "amount_cents": 8000, "destination": "original-payment-A"}}]}},
+    {"id": "valid-three-way-split", "class": "valid_alternative", "expect": {"total_credit": 9, "accepted": true},
+     "candidate": {"success": true, "events": [
+       {"kind": "approve", "run_id": "run-current", "customer_id": "customer-A", "order_id": "order-A", "amount_cents": 8000, "actor": "manager-1"},
+       {"kind": "refund", "refund": {"id": "h-1", "run_id": "run-current", "customer_id": "customer-A", "order_id": "order-A", "amount_cents": 3000, "destination": "original-payment-A"}},
+       {"kind": "refund", "refund": {"id": "h-2", "run_id": "run-current", "customer_id": "customer-A", "order_id": "order-A", "amount_cents": 3000, "destination": "original-payment-A"}},
+       {"kind": "refund", "refund": {"id": "h-3", "run_id": "run-current", "customer_id": "customer-A", "order_id": "order-A", "amount_cents": 2000, "destination": "original-payment-A"}},
+       {"kind": "ledger", "entries": [{"refund_id": "h-3", "amount_cents": 2000}, {"refund_id": "h-1", "amount_cents": 3000}, {"refund_id": "h-2", "amount_cents": 3000}]}]}}
+  ]
+}
