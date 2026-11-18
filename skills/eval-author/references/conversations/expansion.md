@@ -79,6 +79,12 @@ clears both pending questions; revision retains the actual next scope question.
 Reuse a prior applicable answer rather than asking again to populate this record.
 Changes to the plan require the user's decision on those changes.
 
+After agreement, use the [expansion templates](../../scripts/conversation_flows/expansion_templates.py)
+to explain the remaining work before task review and agent execution. Preserve
+completed work and current evidence on resume, retain unresolved inputs, and
+honor explicit pauses. Describe planned work as future work; run approval does
+not mean a run has started.
+
 Resume an unanswered scope question through `expansion_scope`. After an answer,
 continue the existing authoring workflow and leave its later questions with that
 owner. Shared prerequisite and Ethos recovery take precedence. Task-create keeps
@@ -90,7 +96,8 @@ this checkpoint adds no construction command or evidence-validation layer.
 After scope agreement, continue the selected authoring workflow and render
 `expansion_progress` for meaningful progress changes and on resume. This is a
 status checkpoint, not another approval pause. Shared prerequisite and Ethos
-recovery still take precedence; pause only work that depends on a blocker.
+recovery still take precedence. Honor explicit pauses; otherwise pause only work
+that depends on a blocker.
 
 Save optional `creation` in the existing schema-2 lifecycle through the latest
 revision-checked update. Its `tasks` map uses `expansion_state.task_key(row)` for
@@ -111,6 +118,9 @@ actual unresolved question, keeping top-level `pending_question` in sync; otherw
 save `null`. Reload normal state and pass current `facts.expansion_observations`
 to the renderer. Fixed copy belongs to the
 [expansion templates](../../scripts/conversation_flows/expansion_templates.py).
+Keep activity details concise: name the actual task, the work or blocker, and
+the next step. Distinguish completed work from remaining work instead of
+replaying completed steps on resume.
 
 Account for every agreed task, including tasks not yet created. Keep partial
 artifacts and failed evidence, and repair drafts only through the existing

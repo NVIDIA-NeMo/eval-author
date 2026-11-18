@@ -22,4 +22,4 @@ This task set is approved.
 
 **Open questions:** None
 
-Agent execution is authorized with these settings.
+You’ve authorized this run with these settings. The next step is to run the selected tasks.

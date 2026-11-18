@@ -53,6 +53,8 @@ def _scope(state: dict, progress: dict) -> str:
         )
     if status := copy.SCOPE_STATUS[progress["stage"]]:
         parts.append(status)
+    if progress["stage"] == "scope_approved":
+        parts.append(copy.CREATION_PLAN)
     if progress["pending_question"] is not None:
         parts.append(literal(progress["pending_question"], "scope question"))
     return "\n\n".join(parts) + "\n"
@@ -66,12 +68,18 @@ def _progress(state: dict, progress: dict) -> str:
     rows = [copy.CREATION_TABLE]
     for task in creation["rows"]:
         rows.append(f"| {literal(task['task'], 'task title', table=True)} | {copy.CREATION_STATUS[task['status']]} |")
-    parts = [copy.CREATION_HEADING, "\n".join(rows)]
+    parts = [copy.CREATION_HEADING]
+    queued = all(row["status"] == "queued" for row in creation["rows"])
+    if queued:
+        parts.append(copy.CREATION_PLAN)
+    parts.append("\n".join(rows))
     if creation["detail"] is not None:
         parts.append(literal(creation["detail"], "creation detail"))
     parts.append(copy.SCOPE_FIELDS["limits"].format(value=literal(value["plan"]["limits"], "scope limits")))
     if creation["ready_for_review"]:
         parts.append(copy.CREATION_READY)
+    elif not queued:
+        parts.append(copy.CREATION_NEXT)
     if progress["pending_question"] is not None:
         parts.append(literal(progress["pending_question"], "creation question"))
     return "\n\n".join(parts) + "\n"
@@ -90,6 +98,8 @@ def _review(state: dict, progress: dict, observed: dict) -> str:
         return _execution(state, value, progress, observed)
     files = observed["artifacts"]["files"]
     parts = [copy.REVIEW_HEADING]
+    if review["ready"]:
+        parts.append(copy.REVIEW_READY)
     if review["artifacts_current"]:
         parts.append(
             copy.REVIEW_ACTION.format(
@@ -124,11 +134,11 @@ def _review(state: dict, progress: dict, observed: dict) -> str:
         parts.append(_artifact(state, ".eval-author/README.md", copy.REVIEW_README_LABEL))
     parts.append(copy.SCOPE_FIELDS["limits"].format(value=literal(value["plan"]["limits"], "scope limits")))
     if review["decision"] == "approved" and not review["approved"]:
-        parts.append(copy.REVIEW_STALE)
+        parts.append(copy.REVIEW_UPDATED if review["ready"] else copy.REVIEW_STALE)
     elif review["decision"]:
         parts.append(copy.REVIEW_STATUS[review["decision"]])
     elif value.get("review", {}).get("decision"):
-        parts.append(copy.REVIEW_STALE)
+        parts.append(copy.REVIEW_UPDATED if review["ready"] else copy.REVIEW_STALE)
     elif review["ready"]:
         parts.append(copy.REVIEW_NEEDED)
     if not review["ready"]:
@@ -188,10 +198,16 @@ def _execution(state: dict, value: expansion_state.ScopeRecord, progress: dict, 
         copy.EXECUTION_SETTINGS.format(
             validation=literal(settings["validation"], "validation work"),
             limits=literal(settings["limits"], "execution limits"),
-            questions="; ".join(literal(item, "open execution question") for item in settings["open_questions"])
-            or copy.EXECUTION_NO_QUESTIONS,
         )
     )
+    questions = [item for item in settings["open_questions"] if item != progress["pending_question"]]
+    if questions or progress["pending_question"] is None:
+        parts.append(
+            copy.EXECUTION_QUESTIONS.format(
+                questions="; ".join(literal(item, "open execution question") for item in questions)
+                or copy.EXECUTION_NO_QUESTIONS
+            )
+        )
     parts.append(
         copy.EXECUTION_AUTHORIZED
         if execution["authorized"]

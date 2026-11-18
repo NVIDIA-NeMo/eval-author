@@ -30,6 +30,13 @@ SCOPE_STATUS = {
     "scope_declined": "You declined this task plan.",
     "scope_revision": "",
 }
+CREATION_PLAN = (
+    "The next steps are to reuse or prepare the test setup, create the agreed tasks with their test data, "
+    "instructions, and graders, and check that correct outcomes pass and relevant incorrect outcomes fail. "
+    "I’ll repair problems in these new drafts and bring the tasks back for your review. "
+    "After you approve them, we’ll confirm the agent, model, cases, attempts, and limits "
+    "and get your permission before running your agent."
+)
 
 CREATION_HEADING = "### Creation and validation"
 CREATION_TABLE = "| Task | Status |\n|---|---|"
@@ -45,9 +52,16 @@ CREATION_STATUS = {
     "validating": "Checking",
     "repairing": "Repairing",
 }
-CREATION_READY = "All agreed tasks passed their checks and are ready for task review."
+CREATION_NEXT = (
+    "I’ll bring the complete task set back for your review once the remaining work and any missing inputs are resolved."
+)
+CREATION_READY = (
+    "All agreed tasks passed their task and grader checks. Next, I’ll show you the tasks and their validation "
+    "evidence for review. After task approval, we’ll confirm the agent and run settings."
+)
 
 REVIEW_HEADING = "### Review the created tasks"
+REVIEW_READY = "The agreed tasks have been created and passed their task and grader checks."
 REVIEW_ACTION = "Review the complete task set in the {report} or {markdown}."
 REVIEW_DETAILS = "Each task README describes its input, behavior, expected result, grading, and limitations."
 REVIEW_ARTIFACTS_PENDING = "The task review reports need to be refreshed."
@@ -59,28 +73,43 @@ REVIEW_EVIDENCE_LABEL = "Validation evidence {index}"
 REVIEW_NO_EVIDENCE = "No current evidence"
 REVIEW_CONTROLS = "These checks validate the tasks and their graders; they do not measure agent performance."
 REVIEW_PARTIAL = (
-    "The complete agreed set is not ready for approval. Finish the remaining work or explicitly revise the task plan."
+    "The complete agreed set is not ready for approval. Next, I’ll finish or recheck the remaining work "
+    "and bring the tasks back for review, after any missing inputs or blockers are resolved. "
+    "You can also revise the agreed task plan."
 )
-REVIEW_NEEDED = "Review the complete task set before execution."
-REVIEW_STALE = "The task review is no longer current. Review the current task set again before execution."
+REVIEW_NEEDED = (
+    "Review the tasks and how they are graded. If you approve them, I’ll show the agent and run settings "
+    "for a separate run decision."
+)
+REVIEW_STALE = (
+    "The previous task review no longer applies. I’ll finish the remaining checks or report updates, "
+    "then show the current task set for review."
+)
+REVIEW_UPDATED = "The updated tasks have passed their checks and need your approval. Agent and run settings come next."
 REVIEW_APPROVED = "This task set is approved."
 REVIEW_STATUS = {
-    "approved": REVIEW_APPROVED + " Task approval does not authorize agent execution.",
-    "changes_requested": "Changes are requested. Revise the affected drafts, repeat their checks, and return for review.",
+    "approved": REVIEW_APPROVED + " Next, we’ll confirm the agent and run settings before you decide whether to run.",
+    "changes_requested": "I’ll update the affected new drafts, repeat their checks, and bring the revised tasks back for your review.",
     "declined": "You declined this task set. The drafts and their evidence remain saved.",
 }
 EXECUTION_HEADING = "### Agent execution settings"
 EXECUTION_IDENTITY = "**Agent:** {agent}\n\n**Model:** {model}\n\n**Configuration:** {config}"
 EXECUTION_UNSELECTED = "Not selected"
 EXECUTION_TABLE = "| Task | Examples | Attempts | Dataset rows |\n|---|---|---|---|"
-EXECUTION_SETTINGS = "**Validation:** {validation}\n\n**Limits:** {limits}\n\n**Open questions:** {questions}"
+EXECUTION_SETTINGS = "**Validation:** {validation}\n\n**Limits:** {limits}"
+EXECUTION_QUESTIONS = "**Open questions:** {questions}"
 EXECUTION_SAVED = "**Saved agent/model setting:** {agent_model}\n\n**Saved attempt setting:** {attempts}"
 EXECUTION_NO_QUESTIONS = "None"
 EXECUTION_NO_ROWS = "Not applicable"
-EXECUTION_AUTHORIZED = "Agent execution is authorized with these settings."
-EXECUTION_DECLINED = "You declined agent execution. The approved tasks remain saved."
-EXECUTION_PENDING = "Agent execution is awaiting applicable authorization."
-EXECUTION_STALE = "The selected cases or execution settings need to be updated before agent execution."
+EXECUTION_AUTHORIZED = "You’ve authorized this run with these settings. The next step is to run the selected tasks."
+EXECUTION_DECLINED = "You declined agent execution. The approved tasks remain saved for when you want to run them."
+EXECUTION_PENDING = (
+    "Review these settings before deciding whether to run the approved tasks. This run needs your permission."
+)
+EXECUTION_STALE = (
+    "Next, we need to resolve or update the selected cases and run settings. "
+    "I’ll show the complete settings for your permission before running your agent."
+)
 
 
 def options_prompt() -> str:

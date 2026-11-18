@@ -199,6 +199,9 @@ def test_requested_draft_changes_revalidate_only_affected_task_and_require_revie
     assert not progress(modules, tmp_path, saved)["review"]["ready"]
     value["review"]["artifacts"]["digest"] = bound(modules, tmp_path, saved, "review", "Refresh")["digest"]
     saved = save(modules, tmp_path, saved, value)
+    updated = render(modules, saved)
+    assert "The updated tasks have passed their checks and need your approval" in updated
+    assert "The previous task review no longer applies" not in updated
     saved = approve(modules, tmp_path, present_review(modules, tmp_path, saved, value), value)
     assert progress(modules, tmp_path, saved)["review"]["approved"]
 
@@ -394,11 +397,11 @@ def test_stale_approval_questions_are_suppressed_but_missing_inputs_remain_visib
     payload: dict = {**expansion_payload(modules, saved), "stage": "expansion_review"}
     expected_question = question if change == "missing_model" else None
     assert payload["state"]["pending_question"] == expected_question
-    assert (question in modules[2].render(payload)) == (change == "missing_model")
+    assert modules[2].render(payload).count(question) == (1 if change == "missing_model" else 0)
     resumed = modules[0].initialize(tmp_path, journey="expand")
     assert resumed["pending_question"] == expected_question
     assert expansion_payload(modules, resumed)["state"]["pending_question"] == resumed["pending_question"]
-    assert (question in render(modules, resumed)) == (change == "missing_model")
+    assert render(modules, resumed).count(question) == (1 if change == "missing_model" else 0)
 
 
 def test_harbor_ignores_non_gym_row_metadata_when_rendering(modules, tmp_path):
