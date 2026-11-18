@@ -191,7 +191,7 @@ def test_requested_draft_changes_revalidate_only_affected_task_and_require_revie
     value["review"]["pending"] = None
     saved = save(modules, tmp_path, saved, value)
     unchanged = copy.deepcopy(value["creation"]["tasks"][modules[1].task_key(value["plan"]["tasks"][0])])
-    evidence(tmp_path, ".eval-author/tasks/refund-1/grader.py", "Reject duplicate refunds")
+    evidence(tmp_path, ".eval-author/tasks/refund-1/verifier.py", "Reject duplicate refunds")
     assert not progress(modules, tmp_path, saved)["review"]["approved"]
     author(modules, tmp_path, value, 1)
     saved = save(modules, tmp_path, saved, value)
@@ -324,12 +324,12 @@ def test_withdrawing_review_display_invalidates_approval_and_run_permission(modu
 
 def test_ethos_confirmation_does_not_clear_review_dependency_recovery(modules, tmp_path):
     saved, _ = ready(modules, tmp_path)
-    question = "Restore the grading dependency before continuing."
+    question = "Restore the verifier dependency before continuing."
     modules[0].update(
         tmp_path,
         {
             "ethos": {"stage": "review"},
-            "blockers": [{"id": "grader", "phase": "expand", "message": question}],
+            "blockers": [{"id": "verifier", "phase": "expand", "message": question}],
             "pending_question": question,
         },
         expected_revision=saved["revision"],
@@ -348,7 +348,7 @@ def test_ethos_confirmation_does_not_clear_review_dependency_recovery(modules, t
             "state": confirmed,
             "revision": confirmed["revision"],
             "facts": {
-                "blockers": [{"id": "grader", "step": "Task review", "reason": question, "needed": "Restore access"}]
+                "blockers": [{"id": "verifier", "step": "Task review", "reason": question, "needed": "Restore access"}]
             },
         }
     )

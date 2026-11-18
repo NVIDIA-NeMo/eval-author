@@ -32,7 +32,7 @@ SCOPE_STATUS = {
 }
 CREATION_PLAN = (
     "The next steps are to reuse or prepare the test setup, create the agreed tasks with their test data, "
-    "instructions, and graders, and check that correct outcomes pass and relevant incorrect outcomes fail. "
+    "instructions, and verifiers, and check that correct outcomes pass and relevant incorrect outcomes fail. "
     "I’ll repair problems in these new drafts and bring the tasks back for your review. "
     "After you approve them, we’ll confirm the agent, model, cases, attempts, and limits "
     "and get your permission before running your agent."
@@ -56,12 +56,12 @@ CREATION_NEXT = (
     "I’ll bring the complete task set back for your review once the remaining work and any missing inputs are resolved."
 )
 CREATION_READY = (
-    "All agreed tasks passed their task and grader checks. Next, I’ll show you the tasks and their validation "
+    "All agreed tasks passed their task and verifier checks. Next, I’ll show you the tasks and their validation "
     "evidence for review. After task approval, we’ll confirm the agent and run settings."
 )
 
 REVIEW_HEADING = "### Review the created tasks"
-REVIEW_READY = "The agreed tasks have been created and passed their task and grader checks."
+REVIEW_READY = "The agreed tasks have been created and passed their task and verifier checks."
 REVIEW_ACTION = "Review the complete task set in the {report} or {markdown}."
 REVIEW_DETAILS = "Each task README describes its input, behavior, expected result, grading, and limitations."
 REVIEW_ARTIFACTS_PENDING = "The task review reports need to be refreshed."
@@ -71,7 +71,7 @@ REVIEW_MARKDOWN_LABEL = "Markdown task report"
 REVIEW_README_LABEL = "suite README"
 REVIEW_EVIDENCE_LABEL = "Validation evidence {index}"
 REVIEW_NO_EVIDENCE = "No current evidence"
-REVIEW_CONTROLS = "These checks validate the tasks and their graders; they do not measure agent performance."
+REVIEW_CONTROLS = "These checks validate the tasks and their verifiers; they do not measure agent performance."
 REVIEW_PARTIAL = (
     "The complete agreed set is not ready for approval. Next, I’ll finish or recheck the remaining work "
     "and bring the tasks back for review, after any missing inputs or blockers are resolved. "

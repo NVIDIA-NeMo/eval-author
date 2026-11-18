@@ -8,7 +8,7 @@ with `stage: expansion_continue` for an unresolved entry decision or
 `stage: expansion_scope` for the selected authoring flow's existing scope review,
 then `stage: expansion_progress` during agreed creation and validation and
 `stage: expansion_review` for task review and execution approval.
-Rendering does not construct tasks, validate grading, or authorize execution.
+Rendering does not construct tasks, validate verifiers, or authorize execution.
 For an unselected improvement path, use the core's
 [expansion entry](../../SKILL.md#expansion-handoff) before shared checks;
 continuation retains an already-selected path and its unresolved decision.
@@ -140,7 +140,7 @@ partial or blocked tasks. Reuse the current report's Tasks view and each task's
 [Input, Behavior under test, Expected result, and Verifier sections](../suite-readme.md#task-documentation);
 do not create another review report or change their formats. Refresh the existing
 HTML and Markdown reports before review and bind the refresh to the current
-derived `review.digest`. Passing controls establish grading validity, not agent
+derived `review.digest`. Passing controls establish verifier validity, not agent
 performance. Missing artifacts or required validation prevent approval, not an
 honest display of unfinished work. Never substitute a ready subset for the
 agreed set without an explicit scope revision.
@@ -161,7 +161,7 @@ A changes request repairs only newly authored drafts through their existing
 owner and [repair procedure](../task-validation.md#repair-and-retain), followed
 by affected native revalidation and renewed review. Requests outside the agreed
 scope return to the scope checkpoint; this stage does not add an editor for
-arbitrary existing suite cases or graders. Decline preserves the drafts and
+arbitrary existing suite cases or verifiers. Decline preserves the drafts and
 evidence without treating them as approved or executed.
 
 After current task approval, use the same stage to present concrete execution

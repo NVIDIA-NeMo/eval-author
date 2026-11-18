@@ -76,7 +76,7 @@ def test_two_task_creation_failure_repair_and_resume_match_fixtures(modules, tmp
     value["creation"]["active"] = {
         "task": expansion.task_key(value["plan"]["tasks"][1]),
         "status": "repairing",
-        "detail": "The duplicate-request grader accepted a second refund. I’m correcting that check.",
+        "detail": "The duplicate-request verifier accepted a second refund. I’m correcting that check.",
     }
     saved = save(modules, tmp_path, saved, value)
     for fixture in ("progress-repair.md", "progress-ready.md"):
@@ -88,7 +88,7 @@ def test_two_task_creation_failure_repair_and_resume_match_fixtures(modules, tmp
         assert render(modules, resumed) == expected
         assert resumed["journey_status"].get("expand") != "complete"
         if fixture == "progress-repair.md":
-            evidence(tmp_path, f"{failed['path']}/grader.py", "Reject a second refund")
+            evidence(tmp_path, f"{failed['path']}/verifier.py", "Reject a second refund")
             assert author(modules, tmp_path, value, 1)["sha256"] != failed["sha256"]
             value["creation"]["active"] = None
             saved = save(modules, tmp_path, resumed, value)
