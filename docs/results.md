@@ -153,7 +153,7 @@ executed task totals for your full saved plan. Use the
 [generated case review guide](#review-generated-cases) to inspect cases and their
 available evidence.
 
-Each proposed task shows an **interaction type** above its description:
+Each proposed task identifies its **interaction type**:
 
 - **Single Turn** uses one user request. The agent can make several tool calls
   to complete it.
