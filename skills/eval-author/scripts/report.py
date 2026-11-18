@@ -1168,7 +1168,7 @@ def markdown_text(value: str) -> str:
     """Keep artifact text literal in Markdown headings and table cells."""
     value = escape(value, quote=False)
     value = re.sub(r"([\\`*_{}\[\]()#!|~])", r"\\\1", value)
-    return "<br>".join(value.splitlines())
+    return " ".join(value.split())
 
 
 def artifact_link(label: str, path: str, base: str = MARKDOWN_DIR) -> str:
@@ -1249,31 +1249,27 @@ def render_tasks_markdown(data: dict) -> str:
             else:
                 actions.append(artifact_link("Task README", task["readme_path"]))
         name_cell = [
-            "<strong><code>" + markdown_text(task.get("title") or task["name"]) + "</code></strong>",
+            "**" + markdown_text(task.get("title") or task["name"]) + "**",
             *(
                 ["Task ID: " + markdown_text(task["plan_task_id"])]
                 if task.get("plan_task_id") and task["plan_task_id"] != (task.get("title") or task["name"])
                 else []
             ),
             *(markdown_text(part) for part in name),
-            *(
-                ["<code>" + markdown_text(task["path"].removeprefix(".eval-author/")) + "</code>"]
-                if task["path"]
-                else []
-            ),
+            *([markdown_text(task["path"].removeprefix(".eval-author/"))] if task["path"] else []),
         ]
         readiness = task.get("readiness", "unknown")
         cells = [
-            "<br>".join(name_cell),
+            " - ".join(name_cell),
             "**"
             + READINESS_LABELS.get(readiness, READINESS_LABELS["unknown"])[0]
-            + "**<br>"
+            + "** - "
             + markdown_text(task.get("readiness_reason", "No task acceptance has been recorded.")),
-            ("**" + markdown_text(task["planned_interaction"]) + "**<br>" if task.get("planned_interaction") else "")
+            ("**" + markdown_text(task["planned_interaction"]) + ":** " if task.get("planned_interaction") else "")
             + markdown_text(task["behavior"] or "Not documented"),
             markdown_text(task["expected_outcome"] or "Not documented"),
-            markdown_text(grading) + "<br>" + markdown_text(task_grading_summary(task)),
-            "<br>".join(actions),
+            markdown_text(grading) + " - " + markdown_text(task_grading_summary(task)),
+            " - ".join(actions),
         ]
         lines.append("| " + " | ".join(cells) + " |")
     if data["tasks"]:
@@ -1626,7 +1622,7 @@ def markdown_runs(runs: list[dict], identity: str) -> list[str]:
             action = f"[Harbor viewer](http://127.0.0.1:8080/{run['route']})"
         cells = [
             markdown_text(run["date"].replace("T", "\n") if run["date"] else "Date not recorded"),
-            "<br>".join(markdown_text(part) for part in [run["name"], run["path"], " · ".join(labels), *run["issues"]]),
+            " - ".join(markdown_text(part) for part in [run["name"], run["path"], " · ".join(labels), *run["issues"]]),
             markdown_text("Inventory unverified" if run["status"] == "unverified" else run["score_label"]),
             action,
         ]

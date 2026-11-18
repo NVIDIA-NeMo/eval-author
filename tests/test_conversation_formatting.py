@@ -42,3 +42,20 @@ def test_reject_ambiguous_or_structural_fragments(formatting, fragment):
 def test_reject_two_competing_fragments(formatting):
     with pytest.raises(ValueError, match="separately"):
         formatting.link("https://example.com/report#old", "Tasks", fragment="cases")
+
+
+@pytest.mark.parametrize("html_enabled", [False, True])
+def test_multiline_table_prose_stays_in_one_cell_without_html(formatting, html_enabled):
+    from markdown_it import MarkdownIt
+
+    value = formatting.literal("One line.\n\nAnother | line with <script> text.", "finding", table=True)
+    tokens = (
+        MarkdownIt("commonmark", {"html": html_enabled})
+        .enable("table")
+        .parse("| Finding |\n| --- |\n| " + value + " |\n")
+    )
+    children = [child for token in tokens for child in token.children or []]
+    displayed = " ".join(child.content for child in children if child.type == "text")
+    assert sum(token.type == "td_open" for token in tokens) == 1
+    assert not any(token.type in {"html_inline", "html_block", "softbreak"} for token in [*tokens, *children])
+    assert "One line. Another | line with <script> text." in displayed
