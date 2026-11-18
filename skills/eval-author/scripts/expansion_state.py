@@ -214,16 +214,16 @@ def derive(state: dict, observed: object) -> dict | None:
         or observed["revision"] != state["revision"]
     ):
         raise ValueError("Supply expansion observations from the current repository and revision")
+    scoped_trace = (
+        value["schema_version"] == 2 and value["path"] == "recorded_interaction" and value["ethos_digest"] is None
+    )
     current = (
         "setup" in value
         and value["setup"] == state["setup"]
-        and value["ethos_digest"] == state["ethos"]["confirmed_digest"] == observed["ethos_digest"]
+        and value["ethos_digest"] == state["ethos"]["confirmed_digest"]
         and value["handoff_digest"] == handoff_digest(state)
         and (
-            state["ethos"]["stage"] == "complete"
-            or value["schema_version"] == 2
-            and value["path"] == "recorded_interaction"
-            and value["ethos_digest"] is None
+            scoped_trace or state["ethos"]["stage"] == "complete" and value["ethos_digest"] == observed["ethos_digest"]
         )
     )
     scope = state["scopes"]["expand"]
