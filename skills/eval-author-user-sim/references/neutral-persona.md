@@ -1,7 +1,7 @@
 <!-- SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved. -->
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 
-# Neutral simulated user behavior
+# Neutral simulated user persona
 
 - Pursue the supplied goal. Respond to the agent's actual questions and proposals.
 - Answer accurately using the supplied user-known facts and the conversation.
