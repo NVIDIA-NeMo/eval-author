@@ -56,9 +56,19 @@ def start(modules, repo, path="starter_suite"):
     return save_scope(modules, repo, saved, value)
 
 
-@pytest.mark.parametrize("path", ["starter_suite", "audit_tool_gap", "recorded_interaction"])
-def test_scope_checkpoint_survives_resume_without_replacing_existing_context(modules, tmp_path, path):
+@pytest.mark.parametrize(
+    ("path", "existing_ethos"),
+    [
+        ("starter_suite", False),
+        ("audit_tool_gap", False),
+        ("recorded_interaction", False),
+        ("recorded_interaction", True),
+    ],
+)
+def test_scope_checkpoint_survives_resume_without_replacing_existing_context(modules, tmp_path, path, existing_ethos):
     state, expansion, _ = modules
+    if existing_ethos:
+        (tmp_path / "ETHOS.md").write_text("# Existing unconfirmed intent\n")
     saved = start(modules, tmp_path, path)
     resumed = state.initialize(tmp_path, journey="expand")
     assert resumed["scopes"] == saved["scopes"]
@@ -71,6 +81,7 @@ def test_scope_checkpoint_survives_resume_without_replacing_existing_context(mod
     assert expansion.record(resumed)["plan"] == PLAN
     if path == "recorded_interaction":
         assert resumed["ethos"]["confirmed_digest"] is None
+        assert not resumed["scopes"]["expand"]["needs_review"]
 
 
 @pytest.mark.parametrize("kind", ["approved", "declined", "revise"])
