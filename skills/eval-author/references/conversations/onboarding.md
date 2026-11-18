@@ -184,10 +184,9 @@ Pass the payload through `--input -` on stdin, without creating an input file:
 
 Use the actual selected journey and readiness reply. Supply a bounded description
 of the observed helper error (at most 2,000 characters) in `facts.state_error`.
-Optional `facts.rows` contains observed findings and their sources. For an audit
-that chose task review, add `facts.audit_mode: task_review` so the traces row
-renders as not needed, without saved state or fake trace availability.
-Unchecked rows remain Unknown;
+Optional `facts.rows` contains observed findings and their sources. For audits,
+pass the selected approach in `facts.audit_mode`, as in the prerequisite preview.
+Unchecked rows remain Unknown.
 `checking` is not a final status. No `state`, `revision`, recommendations,
 custom blockers, Ethos, draft, or question inputs are accepted. This stage is
 not available through the no-input `--stage` preview mode.
@@ -266,8 +265,6 @@ When `scopes.expand.lifecycle` is present, use the
 [expansion continuation contract](expansion.md) after shared onboarding or
 recovery is complete. These onboarding stages remain available for unresolved
 prerequisites, Ethos, and active blockers.
-The saved `recorded_interaction` scope uses `expansion_scope` directly with its
-existing scoped trace entry; it does not enter these full onboarding stages.
 An already-selected improvement path goes directly to its actual downstream
 decision after Ethos confirmation under the
 [shared handoff](../shared-prerequisites.md#pause-after-ethos-confirmation),

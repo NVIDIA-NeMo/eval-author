@@ -34,9 +34,42 @@ def upstream(wrapper, monkeypatch):
         MODULE_PREFIX + name: SimpleNamespace(**{SCALAR_CONSTANT: 25_000_000})
         for name in ("intra_skill_validator", "semantic_clustering")
     }
+    recognizer = Mock(return_value=False)
+    modules["skillevaluator.spdx"] = SimpleNamespace(is_spdx_only_html_comment=recognizer)
+    modules["skillevaluator.deduplication.utils.chunker"] = SimpleNamespace(is_spdx_only_html_comment=recognizer)
     modules["skillevaluator.cli"] = SimpleNamespace(cli=Mock())
     monkeypatch.setattr(wrapper, "import_module", modules.__getitem__)
     return modules
+
+
+def test_real_chunker_preserves_content_and_lines(wrapper, upstream, monkeypatch):
+    chunker = pytest.importorskip("skillevaluator.deduplication.utils.chunker")
+    spdx = pytest.importorskip("skillevaluator.spdx")
+    collector = pytest.importorskip("skillevaluator.deduplication.utils.skill_collector")
+    monkeypatch.setattr(chunker, "is_spdx_only_html_comment", chunker.is_spdx_only_html_comment)
+    upstream["skillevaluator.spdx"] = spdx
+    upstream["skillevaluator.deduplication.utils.chunker"] = chunker
+    files = collector.collect_files(ROOT / "skills/eval-author")
+    before = [chunk for file in files for chunk in chunker.chunk_file(file)]
+    from check_copyright_headers import _nvidia_header
+
+    header = _nvidia_header("html").strip()
+    expected = [chunk for chunk in before if chunk.text != header]
+    assert len(expected) < len(before)
+    wrapper.main()
+    after = [chunk for file in files for chunk in chunker.chunk_file(file)]
+    assert after == expected
+    recognize = chunker.is_spdx_only_html_comment
+    assert recognize(header)
+    assert recognize(header.replace(" -->\n<!-- ", "\n"))
+    for invalid in (
+        header + "\nKeep this instruction.",
+        header.replace("Apache-2.0", "MIT"),
+        header.replace("NVIDIA", "OTHER"),
+        header + "\n<!-- extra -->",
+        header.replace("SPDX-License-Identifier:", "Keep this instruction. SPDX-License-Identifier:"),
+    ):
+        assert not recognize(invalid)
 
 
 @pytest.mark.parametrize("module_name", ["intra_skill_validator", "semantic_clustering"])
@@ -68,6 +101,32 @@ def test_both_allowances_are_applied_before_cli_dispatch(wrapper, upstream):
     upstream["skillevaluator.cli"].cli.assert_called_once_with()
 
 
+def test_split_spdx_header_is_recognized_before_chunking(wrapper, upstream):
+    from_header = (
+        "<!-- SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved. -->\n"
+        "<!-- SPDX-License-Identifier: Apache-2.0 -->"
+    )
+    original = upstream["skillevaluator.spdx"].is_spdx_only_html_comment
+    canonical = from_header.replace(" -->\n<!-- ", "\n")
+    original.side_effect = lambda text: text == canonical
+    wrapper.main()
+    recognize = upstream["skillevaluator.deduplication.utils.chunker"].is_spdx_only_html_comment
+    assert recognize(from_header)
+    assert recognize(canonical)
+    assert not recognize(from_header + "\nKeep this instruction.")
+    assert not recognize(from_header.replace("Apache-2.0", "MIT"))
+    assert not recognize(from_header.replace("NVIDIA", "OTHER"))
+    assert not recognize(from_header + "\n<!-- extra -->")
+
+
+def test_spdx_binding_drift_fails_without_partial_mutation(wrapper, upstream):
+    upstream["skillevaluator.deduplication.utils.chunker"].is_spdx_only_html_comment = Mock()
+    before = {name: vars(module).copy() for name, module in upstream.items()}
+    with pytest.raises(ValueError, match="upstream SPDX contract changed"):
+        wrapper.main()
+    assert {name: vars(module) for name, module in upstream.items()} == before
+
+
 @pytest.mark.parametrize("argv", [["wrapper"], ["wrapper", "validate"], ["wrapper", "similarity-check"]])
 def test_non_context_commands_fail_before_imports(wrapper, upstream, monkeypatch, argv):
     monkeypatch.setattr(sys, "argv", argv)
@@ -94,6 +153,8 @@ def native(wrapper, monkeypatch):
     validator = wrapper.import_module(MODULE_PREFIX + "intra_skill_validator")
     clustering = wrapper.import_module(MODULE_PREFIX + "semantic_clustering")
     cli = wrapper.import_module("skillevaluator.cli")
+    chunker = wrapper.import_module("skillevaluator.deduplication.utils.chunker")
+    monkeypatch.setattr(chunker, "is_spdx_only_html_comment", chunker.is_spdx_only_html_comment)
     # Record the original values for teardown; main must perform the real override.
     for module in (validator, clustering):
         monkeypatch.setattr(module, SCALAR_CONSTANT, getattr(module, SCALAR_CONSTANT))

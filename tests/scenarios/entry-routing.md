@@ -28,13 +28,17 @@ conversational replay.
 Request first evals, an audit, and expansion in separate synthetic NeMo Gym and Harbor
 repositories without saved decisions. For full audits, unless testing unknown or missing traces, include
 the user's explicit statement that traces from completed evaluation runs exist;
-leave their source and location unselected. The first orientation has the same
-three checklist items: confirm
-the agent/setup, confirm Ethos, then the selected build/audit/improve item. If the
-goal is unknown, ask whether to create, audit, or improve; explicit inventory
-remains a scoped option.
-The first final response contains only the fixed welcome, exact checklist, and “Ready to
-get started?” for a known goal. For an unknown goal, use the shorter welcome
+leave their source and location unselected. For creation and audit, orientation
+shows the fixed welcome and three-item checklist: confirm the agent/setup,
+confirm Ethos, then the selected journey. Creation asks “Ready to get started?”;
+audit asks for the audit approach unless the user already selected it.
+For general expansion requests, orientation shows the neutral acknowledgment,
+supported-path bullets, and final action question from
+[expansion templates](../../skills/eval-author/scripts/conversation_flows/expansion_templates.py),
+without a checklist or readiness question. If the goal is unknown, ask whether
+to create, audit, or improve; explicit inventory remains a scoped option.
+The first final response contains only the applicable rendered opening.
+For an unknown goal, use the shorter welcome
 “Welcome to Eval Author! This skill helps you build, audit, and improve evaluations against your agent’s intended behavior.”
 followed by the goal question and three choices. Reserve “Here’s what we’ll work
 through:” for introductions followed by a checklist.
@@ -47,19 +51,23 @@ reads, Ethos validation, prerequisite checks or questions, other helper commands
 writes, and delegation all fail this opening checkpoint, except for the bounded
 saved-state lookup for an explicit audit described below. That lookup runs
 without assistant narration. Fresh audits show no separate opening acknowledgment.
-Inspect the final response that remains visible after the turn: a welcome or
-checklist shown only in progress messages does not pass.
+Inspect the final response that remains visible after the turn: an opening shown
+only in progress messages does not pass.
 
 If the goal was initially unclear, choose each goal in separate runs. That reply
-must match the renderer's no-input `goal_selected` output for that goal: the
-canonical introduction, matching three-item checklist, and readiness question as
-the final visible response, then end the turn. Do not repeat the welcome or show
+must match the renderer's no-input `goal_selected` output for that goal: creation
+and audit show their canonical introduction and checklist, followed by readiness
+or approach selection respectively; expansion shows the same supported-path menu
+as its orientation. End the turn at that decision. Do not repeat the welcome or show
 prerequisite work yet. The same source-loading exception applies, and only
 the pure renderer preview may run. No repository/state reads, probes, other helper
 commands, state writes, or delegation may occur during this goal-selection reply.
-The first checklist item is current; no items are complete.
+When a checklist is shown, its first item is current and no items are complete.
 
-Reply to **Ready to get started?**. Only now can prerequisite work begin. The
+Reply to creation's readiness question, select an audit approach, or select an
+authoring improvement path. That answer permits the applicable prerequisite
+work without another readiness question. Selecting audit from the improvement
+menu instead follows audit entry and approach selection before checks. The
 turn opens with the canonical grounding sentence and initial status table. An
 unblocked final reply has the canonical completed-results sentence, completed
 findings table, optional Recommendations, and one checklist under **Next Steps**
@@ -76,15 +84,15 @@ repository findings, prior confirmations, and defaults. Check both an explicitly
 selected provider and an unspecified provider: a Harbor default is not a claim
 that the user selected Harbor, and a repository name alone is not confirmed
 agent identity. Explicit choices do not need to be asked again.
-After the actual readiness reply, render `prerequisites` with the canonical
-grounding sentence above the initial status table, then begin bounded checks.
+After that actual reply or path/approach selection, render `prerequisites` with
+the canonical grounding sentence above the initial status table, then begin bounded checks.
 Populate that table only from current conversation facts, without reading saved
 state or repository files or probing to fill it. Unchecked rows use their
 canonical defaults: Checking, Unknown with the trace requirement for audit
 traces, and Needed before agent runs for authoring agent access. Supplied known
 facts retain their actual evidence status. `--ready` or `ready: true` represents
-the actual reply; rendering supplies no readiness. No extra skill-generated
-preamble, skill-use announcement, checking notice, or progress summary surrounds
+the actual reply or path/approach selection; rendering supplies no readiness.
+No extra skill-generated preamble, skill-use announcement, checking notice, or progress summary surrounds
 the rendering. Mandatory host/tool UI messages remain outside this output
 expectation; no extra notice is generated for a local skill.
 
@@ -149,7 +157,11 @@ appears.
   explaining that measurement requires traces from evaluations that have already
   run; unknown availability stays **Unknown**, an explicit user statement that
   traces exist is **Confirmed by you**, and confirmed absence is **Missing**
-- Unknown or missing trace availability blocks full audit onboarding: finish
+- With unknown availability, check retained jobs under the
+  [retained-run lookup](../../skills/eval-author/references/shared-prerequisites.md#locate-retained-evaluation-runs)
+  before asking for runs. Verified completed agent-run metadata plus trace-file
+  presence can satisfy availability without selecting or reading the traces
+- Availability still unknown or explicitly missing blocks full audit onboarding: finish
   accessible checks, save `data` in phase `setup` with the actual prerequisite
   status, and supply `id: data` plus the exact loaded audit `skill_link`. Render
   the canonical trace row, blocker, question, and linked skill-pause attribution.
@@ -242,46 +254,62 @@ repeating prerequisite findings.
 Count across the entire prerequisite turn, including progress and final channels:
 both variants have one initial status table and one completed table in final,
 each introduced by its canonical grounding sentence. An unblocked turn has one
-checklist; a blocked turn has no checklist. No third table appears. The earlier orientation turn is
-separate and still ends at its readiness question. No duplicate rendering or
-assistant-authored restatement of the findings or checklist passes this check.
+checklist; a blocked turn has no checklist. No third table appears. The earlier
+orientation turn is separate and ends at its readiness, approach, or path question.
+No duplicate rendering or assistant-authored restatement of the findings or
+checklist passes this check.
 
 ### Ethos completion and the pause before evaluation work
 
 Finish the canonical saved-content validation and review, then confirm the saved
-Ethos. Repeat for create, audit, and expand with NeMo Gym and Harbor. Inspect the final
-visible response: it links `ETHOS.md`, reports confirmation, shows **Next Steps**
-and the shared progress checklist, and ends with the selected goal's exact
-readiness/continuation sentence. Completed prerequisites and Ethos are checked;
-the selected third item remains unchecked and current.
+Ethos. Repeat for create, audit, and expand with NeMo Gym and Harbor, following
+the [shared completion procedure](../../skills/eval-author/references/shared-prerequisites.md#pause-after-ethos-confirmation):
+fresh creation without a saved design or source choice asks the canonical source
+question directly; other unstarted creation and audit cases retain their
+applicable continuation decision. These responses link `ETHOS.md`, report
+confirmation, and show **Next Steps** and the shared progress checklist with the
+first two items complete and the journey item unchecked and current. A returning
+audit resumes its already-requested checkpoint directly.
 
-No source-selection or case-planning question, new suite or trace inspection,
-runtime probe, scaffolding, or downstream delegation occurs in this turn.
-The saved state retains the exact confirmed Ethos digest, pending continuation
-question, and intended handoff. A draft-only approval or unreviewed saved file
-must not trigger this completion response. Blockers suppress Next Steps,
-the checklist, and readiness language as elsewhere in the shared flow.
+For an already-selected improvement path, confirm Ethos and continue the selected
+authoring workflow to its actual next decision in the same turn. Reuse the path,
+audit selection, and settled answers; do not add a completion-readiness question
+or repeat the path menu. A saved unresolved entry decision uses expansion
+continuation. Construction and execution still require their own applicable
+agreements; a path selection does not supply either.
 
-Reply “Continue” and verify that source/scope selection begins from the saved
-context without repeating the readiness pause or Ethos interview. Also resume
-from a fresh chat while that continuation question is pending, and verify that
-an interrupted pause cannot silently start evaluation work.
+The saved state retains the exact confirmed Ethos digest, actual pending
+decision, and intended handoff. A draft-only approval or unreviewed saved file
+must not trigger completion. Blockers suppress Next Steps, the checklist, and
+readiness language as elsewhere in the shared flow. While a source or
+continuation answer remains pending, do not inspect new suite or trace sources,
+probe runtimes, scaffold tasks, or delegate dependent work.
+
+Answer the applicable source or continuation question and verify that work
+resumes without repeating that decision or the Ethos interview. Also resume from
+a fresh chat while a decision is pending: the saved question must survive, and
+an interrupted pause cannot silently start dependent evaluation work.
 
 ## 2. Expansion does not imply an audit
 
 Request “help me onboard to expand my evals” with no audit findings. Preserve the
-expansion goal and run the shared entry. Do not route automatically to audit or
-fabricate a coverage report. Starter-suite expansion resumes first-eval scope
+expansion goal and show the supported-path menu. Repeat after a completed prior
+journey; the same neutral menu appears without claiming prior shared work. Then
+repeat with an explicitly selected path or an active pending decision: continue
+that work without another menu. Do not route automatically to audit or fabricate
+a coverage report. Starter-suite expansion resumes first-eval scope
 planning; selected audit recommendations continue to supported authoring without
 another proposal offer. Explicit requests for additional planning use task-create.
+The recorded-interaction choice keeps the scoped trace handoff's source, privacy,
+and candidate-admission requirements instead of acquiring a full suite interview.
 When no supported authoring flow matches the supplied suite, save the pending handoff
 and explain the missing capability.
 
 ### Existing suite uses an unsupported format
 
 Request improvements to a synthetic NAT or DeepEval suite with an existing
-`ETHOS.md` and saved Harbor authoring state. After the opening and readiness reply,
-show the canonical grounding sentence and initial status table using only known
+`ETHOS.md` and saved Harbor authoring state. After the opening and selection of an
+authoring path, show the canonical grounding sentence and initial status table using only known
 context. Complete independent checks, then render the completed eight-row table
 with its grounding sentence and Blockers once in final. The framework row must
 identify the incompatible format; the saved Harbor setup does not establish
@@ -458,9 +486,10 @@ boundaries. Exercise these variants for both origins and applicable contexts:
 | No saved state | Lookup exits 0 with `state: null` and `persisted: false`. Show only fresh orientation, with no opening acknowledgment or state initialization |
 | Malformed, unreadable, or foreign-repository state | Lookup exits 2. Preserve it, explain why audit checks pause, and offer a specific recovery action without inspecting artifacts or manufacturing approval |
 | Shared work remains unfinished | Resume its pending prerequisite or Ethos decision |
-| Trace availability unknown or missing | After any required acknowledgment, show the actual prerequisite blocker in final, retaining earlier journey completion and Ethos confirmation; do not read Ethos or traces or run evaluations |
+| Trace availability unknown | After any required acknowledgment, check retained jobs. If availability remains unresolved, show the prerequisite blocker in final without reading Ethos or traces or running evaluations |
+| Trace availability explicitly missing | Reuse the absence answer and show the prerequisite blocker without searching to disprove it |
 | Audit tooling missing | Report only unresolved audit requirements; do not repeat unrelated interviews |
-| Trace availability confirmed, run paths only candidates | Ask only for the missing source/location; do not inspect candidates |
+| Trace availability confirmed, run paths only candidates | Offer relevant retained-run candidates for source selection without opening trace contents |
 | Ethos content changed, missing, or selected agent changed | Reopen the affected intent review after applicable prerequisites pass |
 | Audit already has a pending question | After any required acknowledgment, preserve its scope and resume that actual question in the same turn |
 | Bootstrap invitation remains pending or is declined | Do not enter the audit or inspect its inputs |

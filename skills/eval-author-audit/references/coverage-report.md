@@ -5,8 +5,9 @@
 
 ## Artifact names
 
-- Introduce `.eval-author/audit-coverage-report.md` as the audit's readable review artifact.
+- Introduce `.eval-author/report_markdown/audits.md` as the audit's readable review artifact, and the **Audit** tab of `.eval-author/report.html` as the same report for people in a browser.
 - Treat `.eval-author/.working/audit/report-content.json` as authored input and the Markdown as generated, read-only output.
+- Audits written before this location existed live at `.eval-author/audit-coverage-report.md`. The renderer writes the new location and removes the old file only when it is an unedited generated report; it keeps an edited or hand-written one and reports `legacy_report_retained`. Until the first audit, `audits.md` is a placeholder whose first line is the suite report's audit placeholder marker; treat it as no audit.
 - Keep the specification, measurement JSON, source bindings, and journey state internal unless explicitly requested.
 - Use the [audit renderer](../../eval-author/references/conversations/audit.md) for conversation checkpoints and verified report links.
 
@@ -19,6 +20,7 @@
 - Preserve stable IDs, user corrections, agreed scope, and decisions while updating authored input.
 - Keep narrative separate from facts computed from the specification, native measurements, and receipts. Leave missing task-to-run mappings unresolved.
 - Preserve the audit's recorded date and code revision. Render no history or trend claims from refresh time.
+- Read `identity.commit` and `identity.dirty` from git (`git rev-parse HEAD`, and whether `git status --porcelain` is empty). When the repository has no git history, omit both fields without asking the user; the report then has no Audited commit line.
 - Run the validator before rendering. Repair the named input fields when validation fails.
 - After rendering, check that task identifiers parse as Markdown links. If one appears as plain text, correct its authored field to use the task identifier and rerender. The renderer rebuilds the link from the task's canonical path, so this is a repair step, not a reason to block the report.
 
@@ -35,17 +37,20 @@ tasks, fixtures, and verifiers, labels all run coverage unmeasured, and writes
 `measurement` lifecycle record. Do not describe it as a deferred or incomplete
 measured audit, or reuse historical run findings as current evidence.
 
-- Link the generated Markdown after a successful write. Report actual validation and rendering outcomes only.
+- After a successful render, the renderer refreshes the suite report itself, so `report.html` (Audit tab), the `report_markdown/` reports, and the generated section of `.eval-author/README.md` match the new audit. Do not run a separate refresh for it. Its result names `suite_report`; a `suite_report_error` means the audit Markdown is current but the HTML is not. Report that error to the user as it is.
+- Link the generated Markdown after a successful write. Link `report.html#audit` only when the result has no `suite_report_error`. When it does, link the current Markdown and say the HTML could not be refreshed, and pass the error to the conversation renderer as `suite_report_error`. Report actual validation and rendering outcomes only.
 - Preserve the existing report when inputs are invalid, stale, or unavailable.
 - Never interpret or merge direct Markdown edits. When the renderer reports `generated_output_modified`, make the requested correction in the field it names and rerun. To discard the edits instead, rerun with `--discard-edits <sha>` using the digest in the error. The edited copy is kept at `.eval-author/.working/audit/edited-report-<sha>.md`.
 - Leave hand-authored legacy reports readable until the user requests conversion. On conversion, author validated content from the reviewed facts and preserve stable IDs, decisions, and links. Pass the old Markdown's SHA-256 with `--convert-legacy <digest>` only for that explicit conversion. The renderer retains its original bytes outside the generated report.
-- Leave HTML, all READMEs, and the suite report generator unchanged.
+- Leave task READMEs, authored suite README content outside its generated markers, and the suite report generator unchanged. Never write `report.html` or the generated README section by hand.
 
 ## Inspect verifier behavior and retained controls
 
+- If a selected evaluation is neither a Harbor task nor a NeMo Gym environment, warn the user before inspecting it, following the shared [task format guidance](../../eval-author/references/task-format.md): the audit continues, but Eval Author can't check that evaluation for data leakage or isolate its hidden material. Record its verifier review as `evidence_limit` that names the unsupported format.
 - Inspect each selected task's reachable grading path and agent-visible inputs using the shared [simple-cheat screen](../../eval-author/references/task-validation.md#screen-simple-cheats).
 - Follow entry points and guards through assertions and reward writers. Include inspected code, mounts, expected data, and writable report paths in `suite_files` before scope approval.
 - Assess each cheat family, valid alternatives, and realistic wrong answers against the task. Link control definitions in the task README's Verifier section without editing it during an audit.
+- Apply the mapping and authority rules of the shared [verifier review](../../eval-author/references/task-validation.md#review-the-verifier-before-running) to every selected task, whatever its origin; its control declarations stay under the audit's execution approvals. Map each scored check to the agent-visible requirement and the correctness authority behind its expected value. A check that rejects instruction-following work, or an expected value that contradicts its source, is `false_rejection`. An expected value with no identifiable source is `evidence_limit` that names the missing authority. A material requirement that no check enforces is `weak_verifier`. Use `inspection` basis unless a saved receipt shows the outcome. Mark an inspection finding `confirmed` only after reading all agent-visible task material; otherwise keep it `unproven`.
 - Inspect retained task measurements and acceptance records, including failures and overrides. Follow selected manifests to native results only within authorized sources. Exclusion from agent coverage doesn't exclude control evidence from verifier review.
 - Record each discovered issue separately, with its task revision, explanation, basis, and evidence. Keep false acceptance, false rejection, agent failure, missing trigger exposure, and unusable execution evidence distinct.
 - Retain current and historical failures. A later passing control doesn't erase another failure on the same revision. Check individual assertions even when aggregate reward is zero.
@@ -58,17 +63,22 @@ python <eval-author-skill-dir>/scripts/audit_verifier_evidence.py --repo . \
 ```
 
 - Save its JSON result beneath `.eval-author/.working/audit/` and retain its file evidence in `measurement.evidence`. For task review, which records no measurement, bind the saved result as a `file` entry in `findings.inputs` alongside the renderer's typed `bindings`. Use the renderer's typed `bindings` for findings inputs.
-- Resolve missing explained findings and review grading logic before presenting findings for acceptance. The checker cannot assess the accuracy of the explanation.
+- Resolve missing explained findings and review grading logic before recording findings. The checker cannot assess the accuracy of the explanation.
 - Use `--report <path>` with explicit task and evidence paths only for legacy Markdown reports. That compatibility path retains the old heading-based check.
 
 ## Review and bindings
 
-- Follow [guided decisions](guided-audit.md#4-generate-and-review-coverage-report) for source selection, scope approval, findings review, and the next action.
+- Follow [guided decisions](guided-audit.md#4-generate-and-review-coverage-report) for source selection, scope approval, findings presentation, and the optional next action.
 - Review all declared checks through the generated coverage tables. Use the generated Markdown heading links for scope review, starting at `#capabilities-audited`.
 - Record `findings.report` with the generated Markdown's path and SHA-256, and `findings.content` with the authored JSON's path and SHA-256.
-- Copy the renderer's `bindings` into `findings.inputs`. Retain the existing provenance in `findings.source` and bind findings acceptance to the current derived digest.
-- Revalidate after content, task, receipt, or other bound input changes. Changed content reopens findings review. Changed inspected task or specification inputs retain the existing scope and measurement invalidation rules.
-- Record acceptance in workflow state without rewriting the report merely to mark it accepted.
+- Copy the renderer's `bindings` into `findings.inputs`. Retain the existing provenance in `findings.source` ; the current derived findings digest marks them reviewed.
+- Revalidate after content, task, receipt, or other bound input changes. Changed content makes the recorded findings stale until they are regenerated and recorded again. Changed inspected task or specification inputs retain the existing scope and measurement invalidation rules.
+- Once the findings are recorded and current, save the audit's history snapshot once. Do not run it on report refresh, and rerunning it for the same reviewed content changes nothing. History is kept in `.eval-author/.working/audit-history/`, outside the per-audit folder.
+
+```bash
+python <audit-skill-dir>/scripts/audit_spec/history.py --repo . \
+  --content .eval-author/.working/audit/report-content.json
+```
 
 ## Findings, limitations, and next actions
 
@@ -92,11 +102,11 @@ A recommendation's priority is advice until the user agrees it.
 When the user selects specific improvements, update the lifecycle's `next_action`
 with `kind: improve`, its current `findings_digest`, the reply's `source`, and a
 nonempty `recommendation_ids` list such as `["R1", "R3"]`. Use the normal
-revision-checked journey-state update after saving findings acceptance. The same
-update can record acceptance and selection when the reply settles both. Selection
-is checked against the bound report content, including its action types.
+revision-checked journey-state update after recording current findings. Findings
+need no user acceptance. Selection is checked against the bound report content,
+including its action types.
 `collect_evidence` and `fix_agent` may also record matching recommendation IDs;
-`finish` records no IDs. Acceptance alone records no new next action.
+`finish` records no IDs. Recording findings alone records no new next action.
 
 The helper saves an `audit_handoff` in `scopes.expand` with the selected IDs,
 originating report/content references, findings digest, and decision source.
@@ -116,7 +126,8 @@ using the report's existing recommendations, without offering another proposal
 pass. Selection does not approve construction or agent execution; retain current
 approvals and resolve only the next required decision. If implementation is not
 supported, preserve the handoff and explain the limit rather than offering a
-written recommendation as the next deliverable. Do not restart the audit.
+written recommendation as the next deliverable. Apply the audit skill’s
+[continuation rule](../SKILL.md#start-a-guided-audit).
 If selected IDs are absent from the evolved report or its source context differs,
 retain the original decision and ask only how to reconcile that missing context.
 
@@ -128,9 +139,6 @@ it does not claim validated grading, successful agent execution, or better
 coverage. Record those facts only when their own evidence exists. Do not add
 progress for unselected recommendations. Refresh the same report through the
 validator and renderer; a progress edit does not undo the originating selection.
-For an active digest-bound expansion, follow the receiving flow's
-[report follow-through boundary](../../eval-author/references/conversations/expansion.md#report-follow-through)
-before refreshing these bound files.
 
 Leave freshness checks unchanged. If task files changed, earlier measurements
 cannot establish current coverage. Explain that limitation and retain the

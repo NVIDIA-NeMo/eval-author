@@ -15,6 +15,9 @@ from pathlib import PurePosixPath
 
 BUILD_STEPS = ("environment", "environment_check", "grading", "artifacts")
 REMAINING_STEPS = ("tasks", "environment_check", "validation", "artifacts")
+ARTIFACT_EVIDENCE = {".eval-author/report.html", ".eval-author/report_markdown/tasks.md"}
+# Receipts saved before the task table moved out of the suite README; still valid, never current.
+LEGACY_ARTIFACT_EVIDENCE = {".eval-author/report.html", ".eval-author/README.md"}
 
 
 def fingerprint(value: object) -> str:
@@ -194,11 +197,11 @@ def validate(value: dict) -> None:
                     raise ValueError("Remaining-task artifact refresh requires provenance and retained evidence")
                 _decision(artifacts)
                 _evidence(artifacts["evidence"])
-                if len(artifacts["evidence"]) != 2 or {ref["path"] for ref in artifacts["evidence"]} != {
-                    ".eval-author/report.html",
-                    ".eval-author/README.md",
-                }:
-                    raise ValueError("Retain both the actual suite report and its Markdown mirror")
+                if len(artifacts["evidence"]) != 2 or {ref["path"] for ref in artifacts["evidence"]} not in (
+                    ARTIFACT_EVIDENCE,
+                    LEGACY_ARTIFACT_EVIDENCE,
+                ):
+                    raise ValueError("Retain both the actual suite report and its Markdown task report")
         for key, task in value["tasks"].items():
             _text(key)
             _path(task["path"])
@@ -461,6 +464,7 @@ def _remaining_progress(
         current
         and artifacts
         and artifacts["digest"] == digest
+        and {ref["path"] for ref in artifacts["evidence"]} == ARTIFACT_EVIDENCE
         and all(observed["files"].get(ref["path"]) == ref["digest"] for ref in artifacts["evidence"])
     )
     steps = {key: "complete" if count["completed"] == count["total"] else "pending" for key, count in counts.items()}
@@ -965,6 +969,8 @@ def transition(repo, previous: dict, updated: dict) -> None:
             raise ValueError("Bind remaining-task progress to the current design and approved first task")
         artifacts = remaining["artifacts"]
         if artifacts and artifacts != (prior_remaining or {}).get("artifacts"):
+            if {ref["path"] for ref in artifacts["evidence"]} != ARTIFACT_EVIDENCE:
+                raise ValueError("Retain both the actual suite report and its Markdown task report")
             if not now["remaining_build"]["artifacts_current"] or any(
                 now["remaining_build"]["steps"][step] != "complete" for step in REMAINING_STEPS[:2]
             ):

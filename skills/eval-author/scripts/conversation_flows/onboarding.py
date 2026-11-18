@@ -81,7 +81,9 @@ def canonical_blocker(state: dict, blocker: dict) -> dict | None:
 
 def prerequisite_table(journey: str, facts: dict, *, state: dict | None = None, checking: bool = False) -> str:
     selected_mode = (
-        audit_state.mode(state) if state is not None else audit_state.check_kind(facts.get("audit_mode", "measured"))
+        audit_state.mode(state)
+        if state is not None
+        else audit_state.check_kind(facts.get("audit_mode", audit_state.DEFAULT_MODE))
     )
     rows = copy.AUDIT_ROWS if journey == "audit" else copy.AUTHORING_ROWS
     supplied = mapping(facts.get("rows", {}), "rows", {key for key, _ in rows})
@@ -430,13 +432,13 @@ def render(payload: dict) -> str:
     ):
         raise ValueError("Use audit_resume for saved audit checkpoints after shared onboarding is complete")
     expansion = expansion_state.record(state) if state["journey"] == "expand" else None
-    if expansion is not None:
+    if expansion is not None and not state_only:
         checkpoint = "expansion_scope" if expansion["schema_version"] == 2 else "expansion_continue"
-        if expansion["schema_version"] == 2 and expansion["path"] == "recorded_interaction":
-            raise ValueError("Use expansion_scope for the saved recorded interaction scope")
-        if not state_only and expansion_state.scope_ready(state):
+        if expansion_state.checkpoint_ready(state) and (
+            expansion["pending"] is not None or state["pending_question"] is None
+        ):
             raise ValueError(f"Use {checkpoint} for saved expansion checkpoints after shared onboarding is complete")
-        if not state_only and expansion["pending"] is not None:
+        if expansion["pending"] is not None:
             question = literal(expansion["pending"]["question"], "expansion question")
             if facts.get("question") is not None and literal(facts["question"], "question") == question:
                 raise ValueError(f"Use {checkpoint} for the saved expansion question after shared recovery")

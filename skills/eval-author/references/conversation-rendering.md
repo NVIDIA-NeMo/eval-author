@@ -30,8 +30,8 @@ copy belongs to that flow's template module, not a second prose template.
 The renderer presents decisions; it never makes them. It does not inspect the
 repository, load or save journey state, probe prerequisites, validate files,
 delegate work, choose sources, run evaluations, or grant approval. Reading its
-output cannot establish readiness, Ethos confirmation, permission to continue,
-or authorization to spend. Persist actual user replies and observed findings
+output cannot establish readiness, Ethos confirmation, or permission to continue.
+Persist actual user replies and observed findings
 through the existing state helper before rendering stateful responses.
 
 ## Audit entry and resumption
@@ -128,15 +128,14 @@ settings, results, and the optional audit handoff. Its stages require reconciled
 saved state and use the `first_eval_` prefix; they have no stateless preview.
 
 [Audit rendering](conversations/audit.md) continues an audit with unresolved
-source selections, proposed-check approval, measurement progress, findings review,
+source selections, proposed-check approval, measurement progress, findings,
 and optional next actions. Its `audit_` stages use reconciled audit state and
 observations, with the Audit coverage report as the single review document.
 
-[Expansion entry and scope](conversations/expansion.md) presents a saved unresolved
-entry decision with `expansion_continue`, or the proposed task table, limits, and
-explicit construction decision with `expansion_scope`. Both use current context
-and source observations. Later construction, validation, and execution stages
-remain owned by their respective follow-up workflows.
+[Expansion continuation](conversations/expansion.md) presents the saved unresolved
+post-onboarding entry decision using current intent and retained handoff bindings.
+Use `expansion_continue` for that entry decision and `expansion_scope` for the
+existing authoring workflow's saved planning checkpoint.
 
 [conversation_renderer.py](../scripts/conversation_renderer.py) dispatches through
 an explicit [journey/stage registry](../scripts/conversation_flows/__init__.py)
@@ -144,8 +143,11 @@ to implemented flow renderers. Duplicate registrations are rejected. Implemented
 flows are [onboarding.py](../scripts/conversation_flows/onboarding.py),
 [first_eval.py](../scripts/conversation_flows/first_eval.py),
 [audit.py](../scripts/conversation_flows/audit.py), and
-[expansion.py](../scripts/conversation_flows/expansion.py), with copy in their
-respective `_templates.py` modules.
+[expansion.py](../scripts/conversation_flows/expansion.py). Flow-specific fixed
+copy lives in the corresponding `_templates.py` modules where needed.
+[expansion_templates.py](../scripts/conversation_flows/expansion_templates.py)
+supplies the improvement entry menu rendered by onboarding; expansion continuation
+uses shared labels and the saved pending question.
 Shared formatting and escaping live in
 [conversation_formatting.py](../scripts/conversation_formatting.py).
 

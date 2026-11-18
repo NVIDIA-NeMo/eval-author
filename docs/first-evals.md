@@ -51,7 +51,7 @@ with known-correct and relevant incorrect results, including valid alternatives
 where permitted. Missing judge inputs appear as focused questions before task
 creation. Unavailable tools or failing access appear under **Blockers**, with the
 action needed to continue. If access later stops working, completed drafts stay
-saved while the affected work pauses. The model and budget questions for running
+saved while the affected work pauses. The model and execution settings for running
 your agent still follow suite approval.
 On resume, a fully authored and validated suite can refresh its report or return
 to review without repeating judge setup for checks that are already complete.
@@ -66,12 +66,15 @@ After you approve the first task, Eval Author builds and validates the remainder
 Its checklist shows task counts and progress through environment checks, verifier
 validation, and the README/report refresh.
 You then review the whole authored suite, with more detail in the HTML report
-or mirrored README. Approve the tasks or request changes. Every task's required
+or the Markdown task report (`.eval-author/report_markdown/tasks.md`). Approve the tasks or request changes. Every task's required
 verifier checks, including model-based checks when used, must pass before this
 review.
 After you approve the suite, Eval Author presents the concrete settings,
-attempt counts, limits, and unresolved execution needs. Approving the design or
-tasks does not authorize paid runs; applicable prior authorization is reused.
+attempt counts, any limits you set, and unresolved execution needs. Eval Author
+runs the model calls needed for your requested work, including judge validation,
+retries, and reruns after repairs, without asking for cost approval or a call
+allowance. It honors limits you explicitly set. Task reviews and execution-scope
+decisions still apply.
 Repeating an input adds attempts rather than new examples.
 During execution, a standard checklist shows completed attempts, observed run
 status, and execution errors.

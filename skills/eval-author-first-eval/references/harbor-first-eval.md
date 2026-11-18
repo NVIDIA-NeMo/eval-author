@@ -119,8 +119,7 @@ config is runnable from YAML presence.
 ## 9. Evaluate the agent
 
 Confirm the resolved task set, actual agent, model, and agreed attempts using the
-parent skill's execution checks. With established execution and spend
-authorization, run from the repository root:
+parent skill's execution checks. With agent execution in the requested scope, run from the repository root:
 
 ```bash
 harbor job start -c .eval-author/run.yaml

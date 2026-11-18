@@ -15,6 +15,8 @@ from test_skill_contract import (
     _write_audit,
     _write_capability_judgments,
 )
+from test_trace_loading import SCRIPT as TRACE_LOADING
+from test_trace_loading import gym_record, mlflow_record
 
 
 def measured(
@@ -25,6 +27,7 @@ def measured(
     source_kind="atif",
     run_id="fixture-run",
     include_unrelated=False,
+    check_determinism=False,
 ):
     audit = _write_audit(tmp_path)
     if trace is None:
@@ -55,15 +58,15 @@ def measured(
         command.append("--skip-evidence-class")
     else:
         command.extend(["--evidence-class", evidence_class])
-    for _ in range(2):
-        code, result, stderr = _run_json_script(_AUDIT_MEASURE, *command)
-        assert code == 0, stderr or result
-        assert result["run_id"] == run_id
-        contents = {path.relative_to(out): path.read_bytes() for path in out.rglob("*.json")}
-        if _ == 0:
-            original = contents
-        else:
-            assert contents == original
+    code, result, stderr = _run_json_script(_AUDIT_MEASURE, *command)
+    assert code == 0, stderr or result
+    assert result["run_id"] == run_id
+    if check_determinism:
+        original = {path.relative_to(out): path.read_bytes() for path in out.rglob("*.json")}
+        code, repeated, stderr = _run_json_script(_AUDIT_MEASURE, *command)
+        assert code == 0, stderr or repeated
+        assert repeated["run_id"] == run_id
+        assert {path.relative_to(out): path.read_bytes() for path in out.rglob("*.json")} == original
     measurements = result["measurements"]
     if include_unrelated:
         unrelated = tmp_path / "unrelated.json"
@@ -92,12 +95,67 @@ def measured(
         command.extend(["--coverage", measurement["coverage"]])
     code, result, stderr = _run_json_script(_AUDIT_REPORT, *command)
     assert code == 0, stderr or result
-    before = report.read_bytes()
-    code, _, _ = _run_json_script(_AUDIT_REPORT, *command)
-    assert code == 0 and report.read_bytes() == before
+    if check_determinism:
+        before = report.read_bytes()
+        code, repeated, stderr = _run_json_script(_AUDIT_REPORT, *command)
+        assert code == 0, stderr or repeated
+        assert report.read_bytes() == before
     code, result, _ = _run_json_script(_AUDIT_REPORT, "--verify-existing", str(report))
     assert code == 0, result
     return audit, trace, judgments, report
+
+
+def test_ordinary_measured_setup_invokes_each_cli_once(tmp_path, monkeypatch):
+    calls = []
+    real_run = subprocess.run
+
+    def counted_run(command, *args, **kwargs):
+        calls.append(command)
+        return real_run(command, *args, **kwargs)
+
+    monkeypatch.setattr(subprocess, "run", counted_run)
+    measured(tmp_path)
+    assert [(Path(command[1]), "--verify-existing" in command) for command in calls] == [
+        (_AUDIT_MEASURE, False),
+        (_AUDIT_REPORT, False),
+        (_AUDIT_REPORT, True),
+    ]
+
+
+@pytest.mark.parametrize("source_kind", ["atif", "gym", "mlflow", "trace"])
+@pytest.mark.parametrize("evidence_class", ["agent_under_test", "reference_solution", None])
+def test_measurement_and_aggregate_are_byte_deterministic(tmp_path, monkeypatch, source_kind, evidence_class):
+    trace = tmp_path / "trace.json"
+    if source_kind in ("atif", "trace"):
+        _write_atif_trace(trace, tool_calls=["customer.lookup"])
+        if source_kind == "trace":
+            prepared = tmp_path / "prepared"
+            code, result, stderr = _run_json_script(
+                TRACE_LOADING, "--source-kind", "atif", "--input", str(trace), "--output-dir", str(prepared)
+            )
+            assert code == 0, stderr or result
+            trace = prepared / "traces.normalized.jsonl"
+    elif source_kind == "gym":
+        trace.write_text(json.dumps(gym_record()) + "\n")
+    else:
+        trace.write_text(json.dumps({"traces": [mlflow_record()]}))
+
+    calls = []
+    real_run = subprocess.run
+
+    def counted_run(command, *args, **kwargs):
+        calls.append((Path(command[1]), "--verify-existing" in command))
+        return real_run(command, *args, **kwargs)
+
+    monkeypatch.setattr(subprocess, "run", counted_run)
+    measured(tmp_path, evidence_class, trace=trace, source_kind=source_kind, check_determinism=True)
+    assert calls == [
+        (_AUDIT_MEASURE, False),
+        (_AUDIT_MEASURE, False),
+        (_AUDIT_REPORT, False),
+        (_AUDIT_REPORT, False),
+        (_AUDIT_REPORT, True),
+    ]
 
 
 @pytest.mark.parametrize("mutation", ["trace", "audit", "source", "measurement", "aggregate", "judgment"])

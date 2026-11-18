@@ -56,8 +56,8 @@ candidate admission, environment preparation, construction and native qualificat
 This source mode does not require an audit gap and does not claim coverage closure.
 Skip the audit selector and gap-only scaffold/acceptance steps; use the selected
 provider's native task initialization and the handoff's qualification procedure.
-For active expansion, use the [expansion scope checkpoint](../eval-author/references/conversations/expansion.md#saved-entry-and-scope-records)
-before construction. Preserve the trace handoff's scoped entry and privacy/admission gates.
+For journey `expand`, [save and render the existing task scope](../eval-author/references/conversations/expansion.md#existing-scope-checkpoint)
+after applicable privacy/admission checks, reusing an already agreed answer.
 
 ## Purpose
 
@@ -69,7 +69,7 @@ pending work belong only in `.eval-author/.working/journey-state.json`; recommen
 remain a user-facing deliverable and native evidence remains immutable.
 Reuse prior findings and answers. For guided audits and `scopes.expand.audit_handoff`, follow the
 [selected audit continuation](../eval-author/references/conversations/expansion.md#selected-audit-improvements)
-instead of requiring another proposal step. Accepting findings alone does not
+instead of requiring another proposal step. Recording findings alone does not
 select implementation work.
 For task creation, consume the core's shared prerequisite result, including direct
 invocation. Proposal-only requests keep their supplied-input scope. Reuse the
@@ -141,7 +141,7 @@ path is not permission to include another corpus. Ask about an unresolved source
 before searching or reading it. Proposal-only work can use the available reviewed
 findings without requiring new traces or a creation-scope checkpoint.
 
-When available, read the **Audit coverage report** (`.eval-author/audit-coverage-report.md`)
+When available, read the **Audit coverage report** ([its location](../eval-author-audit/references/coverage-report.md#artifact-names))
 for test mappings, findings, limitations, and agreed next actions. Check its applicability
 against the underlying specification and reports; a mapped test does not establish
 measured coverage. The Markdown report supplies context, while measurement JSON
@@ -150,7 +150,7 @@ absence alone does not require repeating an otherwise usable audit.
 
 Keep the audit's [artifact names](../eval-author-audit/references/coverage-report.md#artifact-names)
 in proposal replies and links: Audit specification (`audit.md`), Audit coverage
-report (`audit-coverage-report.md`), and Coverage measurements (JSON)
+report (`report_markdown/audits.md`), and Coverage measurements (JSON)
 (`audit-coverage-report.json`). Review status does not change these names.
 
 Read available aggregate measurements, relevant per-trace `details.json` and
@@ -252,20 +252,20 @@ input hashes and native check mappings, and bind it when preparing run evidence.
 Declare prerequisites only when they matter to the task; plan a bypass control
 that targets the dependent check. A declaration is not proof of necessity.
 
-Before generating task instructions, fixtures, or scaffolds, follow the shared
-[coverage-planning checkpoint](../eval-author/references/coverage-planning.md)
-for source selection, priorities, breadth, and a possible pilot. Resolve Gym or
-Harbor with the core's [provider-selection rule](../eval-author/SKILL.md#select-the-evaluation-provider).
-For Journey 3, save/render the [expansion scope checkpoint](../eval-author/references/conversations/expansion.md#saved-entry-and-scope-records)
-and use its per-task construction guard before these writes. Retain exact task
-and example selections, planned attempts, limits, and deferred recommendations.
-A failed guard pauses construction while retaining the plan and artifacts.
-Direct scoped creation without an expansion lifecycle keeps the shared planning
-agreement in journey state. Reuse settled scope without another approval.
-Apply [guarded report follow-through](../eval-author/references/conversations/expansion.md#report-follow-through) before refreshing the recommendation; keep the
-planning record out of agent-facing instructions. After questions or detours,
-resume with decisions intact. Repeats map to Gym dataset rows or Harbor tasks;
-keep estimates conditional until the provider is settled.
+Before generating task instructions, fixtures, or scaffolds, use the shared
+[coverage-planning checkpoint](../eval-author/references/coverage-planning.md).
+For journey `expand`, [save and render this same checkpoint](../eval-author/references/conversations/expansion.md#existing-scope-checkpoint)
+with `expansion_scope`; do not introduce another proposal or approval stage.
+Use the core's [provider-selection rule](../eval-author/SKILL.md#select-the-evaluation-provider)
+to resolve NeMo Gym or Harbor when mapping scope to execution counts. NeMo Gym repeats
+selected dataset rows, while Harbor repeats tasks. Keep estimates conditional
+if that choice remains open.
+Present priorities and breadth for review, offering a minimal pilot and expansion.
+Reuse already agreed scope. Save the agreement in `.eval-author/.working/journey-state.json`
+with the shared coverage-planning fields, and reflect it in the selected
+recommendation in the Audit coverage report. Keep it out of agent-facing instructions.
+Answer questions or complete scoped detours, then resume this checkpoint with
+the existing decisions intact.
 
 Explain how the agreement maps to the selected tool gap. The deterministic
 pipeline creates one tool-gap draft at a time; repeated runs test closure on
@@ -399,8 +399,9 @@ merely to make it pass.
 
 ## Step 6: run the real agent twice
 
-Running a model spends credentials. Do it only when the user asked for the run
-or approved it. Use the repository's proven agent configuration and point it at
+Run the real agent when it is part of the user's requested task creation.
+Follow the shared [model-call policy](../eval-author/references/shared-prerequisites.md#model-calls-for-requested-work).
+Use the repository's proven agent configuration and point it at
 the draft. Record each attempt as its own invocation with fresh native output:
 one NeMo Gym repeat per recorded run, or one Harbor trial per run with a distinct
 trial name. One job with two attempts cannot back two receipts. Keep all outputs
@@ -493,7 +494,7 @@ referencing the verification and its retained evidence. Otherwise keep **Draft**
 Report native control rewards, both
 real-agent rewards, both run/trace paths, and the verify JSON. If either repeat
 misses the tool, revise the task and rerun both attempts.
-Apply [guarded handoff timing](../eval-author/references/conversations/expansion.md#report-follow-through) and
+After acceptance, follow
 [Keep task paths stable](../eval-author/SKILL.md#keep-task-paths-stable)
 when adding the task to the runnable suite. Acceptance changes status and explicit
 suite membership at the existing task path; it does not copy or move the task.
@@ -501,7 +502,7 @@ Finish and link the suite's review and rerun guide at handoff, including when
 execution is blocked. Preserve the actual agent settings in the full-suite and selected-item
 commands; link measured coverage reports separately from run instructions.
 
-At the [permitted report handoff](../eval-author/references/conversations/expansion.md#report-follow-through), reconcile agreed scope with delivered examples in
+At the handoff, reconcile agreed scope with delivered examples in
 the selected recommendation in the Audit coverage report, including partial or blocked
 work. Show planned and delivered distinct input counts per behavior, links to
 their tasks, and generated, validated, and actually executed examples separately.
@@ -518,8 +519,7 @@ task creation additionally needs an actionable measured tool gap, Python 3.11+,
 and the selected native runtime: NeMo Gym in its separate environment or a Harbor
 CLI supporting `harbor task init`. Docker is needed for Docker-backed execution;
 measurement uses the audit skill's dependencies.
-Use the repository's proven agent configuration and authorize real-agent spend
-before starting those jobs.
+Use the repository's proven agent configuration for jobs within the requested scope.
 
 ## Limitations
 

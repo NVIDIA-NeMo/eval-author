@@ -234,7 +234,7 @@ def remaining_started(creation, *, active="tasks", artifacts=False):
             "source": "Observed suite artifact refresh",
             "evidence": [
                 {"path": ".eval-author/report.html", "digest": SHA},
-                {"path": ".eval-author/README.md", "digest": SHA},
+                {"path": ".eval-author/report_markdown/tasks.md", "digest": SHA},
             ],
         }
 
@@ -334,6 +334,8 @@ def links(creation):
     result = {
         "report": {"target": root + "/.eval-author/report.html"},
         "readme": {"target": root + "/.eval-author/README.md"},
+        "tasks_markdown": {"target": root + "/.eval-author/report_markdown/tasks.md"},
+        "runs_markdown": {"target": root + "/.eval-author/report_markdown/runs.md"},
         "tasks_view": {"target": root + "/.eval-author/report.html", "fragment": "cases"},
         "task_readme": {"target": root + "/.eval-author/tasks/refund/README.md"},
         "rerun": {"target": root + "/.eval-author/README.md", "fragment": "rerun-evaluations"},
@@ -637,7 +639,7 @@ def test_default_proposal_stays_small_and_explains_the_next_review(creation, tas
     output = renderer.render(payload(creation, "proposal"))
     assert copy.PROPOSAL_PROCESS.format(tasks=task_count, examples=task_count) in output
     assert output.endswith(copy.PROPOSAL_QUESTION + "\n")
-    assert "Time/cost limits" not in output
+    assert "User-specified limits" not in output
 
 
 @pytest.mark.parametrize("stage", ["proposal", "saved_design", "prepare_first", "build_progress"])
@@ -692,8 +694,8 @@ def test_fixed_trace_options_and_saved_selection(creation):
     assert output == PLANNING_PROGRESS + "\n\n" + (
         "We’ll use your confirmed `ETHOS.md` to propose your first evaluation tasks. "
         "Existing traces can help us use realistic requests, but they aren’t required.\n\n"
-        "Would you like to use existing traces, or start from `ETHOS.md`?\n\n"
-        "- Start from ETHOS.md\n- Use existing traces\n"
+        "Would you like to include existing traces when designing your first evaluations?\n\n"
+        "- Continue without traces\n- Include existing traces\n"
     )
     assert "synthetic" not in output
     record["plan"]["trace_choice"] = "none"
@@ -737,7 +739,7 @@ def test_design_checkpoints_keep_workflow_progress_before_the_decision(creation,
 def test_source_answer_is_required_before_any_proposal(creation):
     _, record, _, renderer, copy = creation
     record["plan"].pop("trace_choice")
-    with pytest.raises(ValueError, match="choice of existing traces or ETHOS.md"):
+    with pytest.raises(ValueError, match="choice of whether to include existing traces"):
         renderer.render(payload(creation, "proposal"))
     output = renderer.render(payload(creation, "resume"))
     assert copy.TRACE_QUESTION in output
@@ -1224,7 +1226,7 @@ def test_suite_review_is_a_linked_deterministic_checkpoint_before_execution_choi
         "Your evaluation suite is ready for review: 2 tasks; 2 distinct input examples. "
         "It follows your approved design and confirmed `ETHOS.md`.\n\n"
         f"Review your tasks in the [HTML report’s Tasks view](<{root}/.eval-author/report.html#cases>) "
-        f"or [mirrored README](<{root}/.eval-author/README.md>).\n\n"
+        f"or the [Markdown task report](<{root}/.eval-author/report_markdown/tasks.md>).\n\n"
         "| Task | Expected outcome | Verifier |\n|---|---|---|\n"
         "| **refund** - Respect policy | Correct disposition | **Custom code + LLMaJ** Pass at 1 when the refund state and reply both match policy, otherwise score 0. |\n"
         "| **reject** - Respect policy | Correct disposition | **Custom code** Pass at 1 when the request is rejected and state stays unchanged, otherwise score 0. |\n\n"
@@ -1237,7 +1239,7 @@ def test_suite_review_is_a_linked_deterministic_checkpoint_before_execution_choi
     assert output.index("HTML report’s Tasks view") < output.index(copy.SUITE_REVIEW_TABLE)
     assert output.endswith(copy.SUITE_QUESTION + "\n")
     assert "### Blockers" not in output and "No live-run credential" not in output
-    assert "Agent/model" not in output and "Time/cost limits" not in output
+    assert "Agent/model" not in output and "User-specified limits" not in output
     assert "settings" not in output and "SKILL.md" not in output
     assert "Review your evaluations in" not in output
     assert json.dumps(state, sort_keys=True) == before
@@ -1300,7 +1302,7 @@ def test_suite_review_requires_actual_tasks_environments_and_refreshed_artifacts
         renderer.render(payload(creation, "review_suite", links=links(creation)))
     remaining_started(creation, active=None, artifacts=True)
     request = payload(creation, "review_suite", links=links(creation))
-    request["facts"]["observations"]["files"][".eval-author/README.md"] = None
+    request["facts"]["observations"]["files"][".eval-author/report_markdown/tasks.md"] = None
     with pytest.raises(ValueError, match="Suite review requires"):
         renderer.render(request)
     record["tasks"]["reject"]["environment"]["status"] = "blocked"
@@ -1483,7 +1485,7 @@ def test_saved_design_missing_source_and_fields_remain_unknown(creation):
     output = renderer.render(payload(creation, "resume"))
     assert "| refund | Not recorded |" in output
     assert "Not recorded; the source choice still needs confirmation." in output
-    assert "Would you like to use existing traces" not in output
+    assert "Would you like to include existing traces" not in output
 
 
 def test_explicit_continue_reuses_approval_without_reasking_on_every_resume(creation):
@@ -1578,7 +1580,7 @@ def test_review_leads_with_grounding_and_action_before_item_summaries(creation, 
         "Your first task, **refund**, is ready for review. "
         "It follows your approved design and confirmed `ETHOS.md`.\n\n"
         f"Review your first task in the [HTML report’s Tasks view](<{root}/.eval-author/report.html#cases>) "
-        f"or [mirrored README](<{root}/.eval-author/README.md>).\n\n"
+        f"or the [Markdown task report](<{root}/.eval-author/report_markdown/tasks.md>).\n\n"
     )
     positions = [
         output.index(label) for label in ("| Task |", "| **refund** -", "**Status:**", "**Verifier limitation:**")
@@ -1588,7 +1590,7 @@ def test_review_leads_with_grounding_and_action_before_item_summaries(creation, 
     assert "Agent execution: not completed" in output and copy.FIRST_QUESTION in output
     assert "report.html#cases>)" in output and "/tasks/refund/README.md>)" in output
     assert output.count("/.eval-author/report.html") == 1
-    assert output.count("/.eval-author/README.md") == 1
+    assert output.count("/.eval-author/report_markdown/tasks.md") == 1
     assert output.count("/.eval-author/tasks/refund/README.md") == 1
     assert output.endswith(copy.FIRST_QUESTION + "\n")
     assert "Review your evaluations in" not in output and "skill" not in output
@@ -1634,7 +1636,7 @@ def test_late_settings_and_explicit_execution_authorization(creation):
     assert [row.split("**")[1].rstrip(":") for row in output.splitlines() if row.startswith("- **")] == [
         "Attempts",
         "Validation",
-        "Time/cost limits",
+        "User-specified limits",
         "Open questions",
     ]
     assert "Agent/model" not in output and "Tasks and examples" not in output
@@ -2113,10 +2115,13 @@ def test_results_preserve_exact_attempt_rerun_and_final_audit_invitation(creatio
     assert "/refund-1/result.json>)" in output and "README.md#rerun-evaluations>)" in output
     assert "unknown" in output
     assert (copy.AUDIT_QUESTION in output) == (decision == "pending")
-    assert output.count("[HTML report]") == output.count("[mirrored README]") == 1
+    second, target = (
+        ("[suite README]", "README.md") if provider == "gym" else ("[Markdown runs report]", "report_markdown/runs.md")
+    )
+    assert output.count("[HTML report]") == output.count(second) == 1
     assert "Review your evaluations in" not in output
     assert f"[HTML report](<{state['repository']}/.eval-author/report.html>)" in output
-    assert f"[mirrored README](<{state['repository']}/.eval-author/README.md>)" in output
+    assert f"{second}(<{state['repository']}/.eval-author/{target}>)" in output
     review = "Review your native Gym runs" if provider == "gym" else "Review your runs"
     assert ("its **Runs** view currently supports Harbor runs only" in output) == (provider == "gym")
     if provider == "harbor":
@@ -2417,11 +2422,11 @@ def pending_setup(creation):
         "mode": "model",
         "requirements": [
             "Use the actual configured judge for known correct and incorrect responses",
-            "Authorize at most 6 judge calls, 60 seconds each, $1 maximum, no retries",
+            "Use a compatible runtime for the configured judge",
         ],
         "open_questions": [
             "Which existing judge configuration should these checks use?",
-            "Is its credential available, and do you authorize these bounded verifier checks?",
+            "Is its credential available in the execution environment?",
         ],
         "source": "Inspected the approved design's model-based verifier requirements",
     }

@@ -1,0 +1,119 @@
+<!-- SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved. -->
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="1540" viewBox="0 0 1440 1540" role="img" aria-labelledby="title description">
+<title id="title">Helix workflow: definitions, publication, execution and collection</title>
+<desc id="description">Experiment YAML references cases, execution and analysis YAML. Cases reference agents and tasks YAML. Publication consumes the prepared definitions and publication settings and writes references.json. Execution uses those references and execution settings and writes runs/baseline.json and runs/mutant.json. Collection writes execution.json, case results.json indexes and native trial result.json files. Optional source download retrieves exact agent and task files only when their sources have been retained; missing or changed sources produce an error.</desc>
+<defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M1 1 L9 5 L1 9 Z" fill="#64748b"/></marker>
+<style>
+text {font-family:Arial,Helvetica,sans-serif;fill:#24364b}
+.title {font-size:28px;font-weight:700}.stage {font-size:21px;font-weight:700}
+.name {font-family:Menlo,Consolas,monospace;font-size:17px;font-weight:600}
+.body {font-size:16px}.small {font-size:14px;fill:#58677a}
+.edge {fill:none;stroke:#64748b;stroke-width:1.8;stroke-linejoin:round;marker-end:url(#arrow)}
+</style></defs><rect width="1440" height="1540" fill="white"/>
+
+<text x="36" y="43" class="title">Helix resource flow</text>
+<text x="36" y="73" class="body">Proposed tools and filenames • YAML definitions → tools → output files</text>
+<text x="1050" y="43" class="small">Yellow: YAML   Blue: tool   Green: file</text>
+<path d="M36 100 H1404" stroke="#dce2e9"/>
+<text x="36" y="135" class="stage">1  Definitions</text>
+<rect x="550" y="157" width="340" height="76" rx="10" fill="#fff9e9" stroke="#d7b65b"/>
+<text x="566" y="185" class="name">experiment.yml</text>
+<text x="566" y="210" class="body">Selects the experiment’s subfiles</text>
+<rect x="240" y="280" width="300" height="76" rx="10" fill="#fff9e9" stroke="#d7b65b"/>
+<text x="256" y="308" class="name">cases.yml</text>
+<text x="256" y="333" class="body">Selects agents and tasks per case</text>
+<rect x="610" y="280" width="340" height="76" rx="10" fill="#fff9e9" stroke="#d7b65b"/>
+<text x="626" y="308" class="name">execution.yml</text>
+<text x="626" y="333" class="body">Settings for running on Helix</text>
+<rect x="1020" y="280" width="350" height="76" rx="10" fill="#fff9e9" stroke="#d7b65b"/>
+<text x="1036" y="308" class="name">analysis.yml</text>
+<text x="1036" y="333" class="body">Settings for analyzing results</text>
+<path class="edge" d="M720 233 V256 H390 V280"/>
+<path class="edge" d="M720 256 H780 V280"/>
+<path class="edge" d="M780 256 H1195 V280"/>
+<rect x="60" y="404" width="300" height="76" rx="10" fill="#fff9e9" stroke="#d7b65b"/>
+<text x="76" y="432" class="name">agents.yml</text>
+<text x="76" y="457" class="body">Defines the baseline and mutants</text>
+<rect x="410" y="404" width="300" height="76" rx="10" fill="#fff9e9" stroke="#d7b65b"/>
+<text x="426" y="432" class="name">tasks.yml</text>
+<text x="426" y="457" class="body">Defines benchmark task membership</text>
+<path class="edge" d="M390 356 V380 H210 V404"/>
+<path class="edge" d="M390 380 H560 V404"/>
+<text x="76" y="506" class="small">→ agent.yaml + bundled source files</text>
+<text x="426" y="506" class="small">→ unchanged task directories</text>
+<text x="1036" y="405" class="small">Prepared and signed before publication.</text>
+<text x="1036" y="430" class="small">Analysis uses the collected results.</text>
+<path d="M36 545 H1404" stroke="#dce2e9"/>
+<text x="36" y="580" class="stage">2  Publication</text>
+<rect x="60" y="607" width="360" height="76" rx="10" fill="#fff9e9" stroke="#d7b65b"/>
+<text x="76" y="635" class="name">publication.yml</text>
+<text x="76" y="660" class="body">Settings for publishing to Helix</text>
+<rect x="520" y="607" width="360" height="76" rx="10" fill="#edf4ff" stroke="#80a4d5"/>
+<text x="536" y="635" class="name">helix_publish.py</text>
+<text x="536" y="660" class="body">Upload or reuse agents, tasks, or both</text>
+<rect x="980" y="607" width="390" height="76" rx="10" fill="#eef8f1" stroke="#88b69a"/>
+<text x="996" y="635" class="name">references.json</text>
+<text x="996" y="660" class="body">IDs, task revisions and source hashes</text>
+<path class="edge" d="M420 645 H520"/>
+<path class="edge" d="M880 645 H980"/>
+<text x="536" y="708" class="small">Input: signed cases and selected sources</text>
+<text x="996" y="708" class="small">Helix stores agents, tasks and a pinned taskset.</text>
+<path d="M36 750 H1404" stroke="#dce2e9"/>
+<text x="36" y="785" class="stage">3  Execution</text>
+<rect x="60" y="812" width="360" height="76" rx="10" fill="#fff9e9" stroke="#d7b65b"/>
+<text x="76" y="840" class="name">execution.yml</text>
+<text x="76" y="865" class="body">Settings for running on Helix</text>
+<rect x="520" y="812" width="360" height="76" rx="10" fill="#edf4ff" stroke="#80a4d5"/>
+<text x="536" y="840" class="name">helix_execute.py</text>
+<text x="536" y="865" class="body">Run one agent against all benchmark tasks</text>
+<rect x="980" y="797" width="390" height="76" rx="10" fill="#eef8f1" stroke="#88b69a"/>
+<text x="996" y="825" class="name">runs/baseline.json</text>
+<text x="996" y="850" class="body">Baseline run IDs and input references</text>
+<rect x="980" y="889" width="390" height="76" rx="10" fill="#eef8f1" stroke="#88b69a"/>
+<text x="996" y="917" class="name">runs/mutant.json</text>
+<text x="996" y="942" class="body">Mutant run IDs and input references</text>
+<path class="edge" d="M420 850 H520"/>
+<path class="edge" d="M1370 645 H1390 V734 H930 V780 H700 V812"/>
+<path class="edge" d="M880 850 H938 V835 H980"/>
+<path class="edge" d="M938 850 V927 H980"/>
+<text x="536" y="921" class="small">Input: references.json</text>
+<text x="536" y="948" class="small">One invocation per selected agent.</text>
+<path d="M36 995 H1404" stroke="#dce2e9"/>
+<text x="36" y="1030" class="stage">4  Collection</text>
+<rect x="60" y="1057" width="360" height="76" rx="10" fill="#eef8f1" stroke="#88b69a"/>
+<text x="76" y="1085" class="name">references.json + run receipts</text>
+<text x="76" y="1110" class="body">Published identities and selected runs</text>
+<rect x="520" y="1057" width="360" height="76" rx="10" fill="#edf4ff" stroke="#80a4d5"/>
+<text x="536" y="1085" class="name">helix_collect.py</text>
+<text x="536" y="1110" class="body">Download, verify and format results</text>
+<rect x="980" y="1057" width="390" height="76" rx="10" fill="#eef8f1" stroke="#88b69a"/>
+<text x="996" y="1085" class="name">execution.json</text>
+<text x="996" y="1110" class="body">Experiment index: cases → result indexes</text>
+<rect x="980" y="1153" width="390" height="76" rx="10" fill="#eef8f1" stroke="#88b69a"/>
+<text x="996" y="1181" class="name">results.json</text>
+<text x="996" y="1206" class="body">Per-case trial index and measurements</text>
+<rect x="980" y="1249" width="390" height="76" rx="10" fill="#eef8f1" stroke="#88b69a"/>
+<text x="996" y="1277" class="name">result.json + native files</text>
+<text x="996" y="1302" class="body">Per-trial result, agent evidence and logs</text>
+<path class="edge" d="M420 1095 H520"/>
+<path class="edge" d="M880 1095 H980"/>
+<path class="edge" d="M930 1095 V1191 H980"/>
+<path class="edge" d="M930 1191 V1287 H980"/>
+<text x="536" y="1162" class="small">Output root: results/experiment-001/</text>
+<text x="536" y="1190" class="small">Existing case/agent/run/trial layout.</text>
+<text x="536" y="1218" class="small">Feeds validation and analysis.yml settings.</text>
+<text x="60" y="1285" class="small">Collection also downloads sources when needed.</text>
+<path d="M36 1360 H1404" stroke="#dce2e9"/>
+<rect x="60" y="1390" width="360" height="76" rx="10" fill="#edf4ff" stroke="#80a4d5"/>
+<text x="76" y="1418" class="name">helix_sources.py</text>
+<text x="76" y="1443" class="body">Optional: download exact source versions</text>
+<rect x="520" y="1390" width="360" height="76" rx="10" fill="#eef8f1" stroke="#88b69a"/>
+<text x="536" y="1418" class="name">downloaded-baseline/</text>
+<text x="536" y="1443" class="body">Original agent and task paths, hash-checked</text>
+<path class="edge" d="M420 1428 H520"/>
+<text x="980" y="1418" class="small">Helix client settings: connection and login.</text>
+<text x="980" y="1446" class="small">Exact downloads require retained source versions.</text>
+<text x="36" y="1510" class="small">Filenames match the command examples; run/output names are caller-selected. Nested result paths follow the existing results-format contract.</text>
+</svg>

@@ -203,6 +203,11 @@ def _tree(trace: Trace) -> tuple[dict[str, Span], dict[str, str | None], dict[st
     return spans, parents, owners
 
 
+def spans_by_id(trace: Trace) -> dict[str, Span]:
+    """Every span keyed by id, in depth-first tree order."""
+    return _tree(trace)[0]
+
+
 def agent_spans(trace: Trace) -> list[Span]:
     """AGENT spans in depth-first tree order."""
     from trace_ingest import SpanKind

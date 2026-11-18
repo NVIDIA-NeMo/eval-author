@@ -55,13 +55,6 @@ For tool calls, environment runs `inventory-tool-calls`, `plan-tool-call-access`
 `resolve-tool-call-access`, and, for reviewed mock decisions,
 `generate-mock-tool-calls`. Invoke each through `trace_tools.py` using the
 [fixture argument contracts](../../eval-author-environment/references/trace-derived-fixtures.md).
-For an active Journey 3 expansion, use the saved
-[expansion scope and construction guard](conversations/expansion.md#present-and-record-the-decision)
-before generating mocks, task instructions, fixtures, or scaffolds. Read-only
-source inspection and access planning can inform the scope after source selection
-and privacy review. Do not require completed admission merely to present it.
-Reuse the selected source and settled choices; scope agreement neither admits
-the candidate nor authorizes actual-agent execution.
 Generation follows privacy review and access decisions; admission follows
 materialization. Replay fixtures contain agent-visible observations, never
 private verifier truth. Preserve real/mock/none choices and runtime registration.
