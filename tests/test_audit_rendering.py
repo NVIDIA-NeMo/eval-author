@@ -217,7 +217,8 @@ def checkpoint(modules, stage):
                 for label, reason in [
                     (
                         "grader improvement",
-                        "Verify the refund transaction instead of accepting a keyword in the final response.",
+                        "Verify the refund transaction instead of accepting a keyword in the final response. "
+                        "Applying this recommendation to the existing grader inside Eval Author is not yet supported.",
                     ),
                     ("new scenario", "Exercise a refund request after identity verification fails."),
                 ]
@@ -256,6 +257,7 @@ def continuation(modules, scenario):
         "missing_traces": "blockers",
         "returning_findings": "findings",
         "selected_improvement": "next_action",
+        "specific_improvement": "next_action",
         "limited_findings": "findings",
         "partial_findings": "findings",
     }[scenario]
@@ -321,12 +323,14 @@ def continuation(modules, scenario):
             "links": {"report": payload["facts"]["links"]["report"]},
         }
         return payload
-    elif scenario == "selected_improvement":
+    elif scenario in {"selected_improvement", "specific_improvement"}:
         lifecycle["next_action"] = {
             "kind": "improve",
             "findings_digest": progress(payload, modules)["findings_digest"],
-            "source": "User accepted the findings and chose to plan both improvements",
+            "source": "User chose to plan both improvements from the recorded findings",
         }
+        if scenario == "specific_improvement":
+            lifecycle["next_action"]["recommendation_ids"] = ["R1", "R2"]
     elif scenario in {"limited_findings", "partial_findings"}:
         lifecycle["measurement"].update(
             status="partial" if scenario == "partial_findings" else "deferred",
@@ -743,3 +747,22 @@ def test_changed_task_bindings_tell_the_user_the_approval_no_longer_applies(modu
     message = flow.measurement_status(lifecycle, progress(payload, modules))
     assert message.startswith("Tasks recorded in the findings changed after approval: suites/refund.")
     assert "no longer apply" in message
+
+
+def test_recommendation_ids_stay_internal(modules):
+    payload = checkpoint(modules, "findings")
+    for item, identifier in zip(payload["facts"]["recommendations"], ["R4", "R2"], strict=True):
+        item["id"] = identifier
+    rendered = modules[2].render(payload)
+    assert "1. **Grader improvement:**" in rendered
+    assert "2. **New scenario:**" in rendered
+    assert "R4" not in rendered and "R2" not in rendered
+
+
+@pytest.mark.parametrize("ids", [["R1", "R1"], ["R0", "R2"], ["<script>", "R2"]])
+def test_findings_reject_invalid_recommendation_ids(modules, ids):
+    payload = checkpoint(modules, "findings")
+    for item, identifier in zip(payload["facts"]["recommendations"], ids, strict=True):
+        item["id"] = identifier
+    with pytest.raises(ValueError, match="recommendation IDs"):
+        modules[2].render(payload)

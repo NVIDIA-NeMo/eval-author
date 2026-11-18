@@ -173,7 +173,7 @@ def compare(current: dict, earlier: dict) -> dict:
 
 
 def main(argv: list[str] | None = None) -> int:
-    """Record the reviewed audit as a snapshot. Run once after findings acceptance."""
+    """Record the completed audit as a snapshot. Run once after recording final findings."""
     parser = argparse.ArgumentParser(description=main.__doc__)
     parser.add_argument("--repo", type=Path, default=Path.cwd())
     parser.add_argument("--content", type=Path, default=Path(".eval-author/.working/audit/report-content.json"))

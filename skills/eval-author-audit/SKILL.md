@@ -54,12 +54,20 @@ coverage denominator from `<ethos_path>` and
 reviewed audit items, then can measure traces and aggregate coverage reports
 against it. It identifies coverage gaps and recommends improvements grounded in
 the findings and evidence limits, then writes a human-readable
-`report_markdown/audits.md` and reviews it with the user. Detailed task proposals
-expand in this same report through the
-[improvement handoff](references/coverage-report.md#findings-limitations-and-next-actions). Task
-construction and execution keep their existing scope and approval boundaries.
+`report_markdown/audits.md` and reviews it with the user. Selected recommendations
+continue through the [improvement handoff](references/coverage-report.md#selected-improvement-handoff-and-follow-through),
+without another recommendation pass. Explicit requests for additional planning
+can expand the same report; proposal-only requests stop there. Task construction
+and execution keep their existing scope and approval boundaries.
 
 ## Start a guided audit
+
+Continue the saved audit at its current unresolved decision; do not restart it
+because a chat resumes, prerequisites recover, or an improvement handoff returns.
+Reuse settled selections and approvals while their bindings remain current.
+Reopen only decisions affected by changed inputs or missing evidence. Start a new
+audit only when the user requests one; reconcile changed scope in the existing
+audit instead of silently discarding its history.
 
 Before classifying a full-audit request as fresh, follow the core's
 [Return to an audit](../eval-author/references/shared-prerequisites.md#return-to-an-audit).
@@ -482,12 +490,12 @@ audit; keep their scope. Read-only and `suggest` requests remain read-only.
 - For audit-generation inputs and reconciliation modes, return to
   [Step 2: Generate Or Reconcile Audit.md](#step-2-generate-or-reconcile-auditmd).
 - Follow the [findings and next-step handoff](references/guided-audit.md#after-review-offer-the-next-step)
-  before entering [`eval-author-task-create`](../eval-author-task-create/SKILL.md).
-- The proposal step considers tools, capabilities, and failure cases. Automatic
+  for the selected next action.
+- Audit recommendations consider tools, capabilities, and failure cases. Automatic
   task creation still accepts only uncovered tool items with
   `reason: not_covered_by_any_input_report`. Items with
-  `reason: not_measured_by_any_method` remain unmeasured, even when the proposal
-  step suggests a candidate scenario for them.
+  `reason: not_measured_by_any_method` remain unmeasured, even when a
+  recommendation identifies a candidate scenario for them.
 
 ## Scripts
 
