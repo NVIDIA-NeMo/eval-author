@@ -57,16 +57,18 @@ as `scopes.expand.lifecycle` through the latest revision-checked update. Use
 `starter_suite`, `audit_tool_gap`, or `recorded_interaction` for `path`. The plan
 contains `summary`, `tasks` (`task`, `scenario`, `outcome`, `verification`),
 `breadth`, `limits`, and `deferred`; the [validator](../../scripts/expansion_state.py)
-owns its shape. Carry the existing corpus/example selection, attempt settings,
-exclusions, and cost constraints into `breadth` and `limits`; preserve unaffected
-scope fields. Save the actual unanswered scope question in both lifecycle
+owns its shape. Retain corpus/example selection and counts in `breadth` as saved
+planning context. Present material counts and source/scenario choices in
+`summary` or the task rows, and exclusions, attempt settings, and cost constraints
+in `limits`; do not add a separate breadth section. Preserve unaffected scope fields.
+Save the actual unanswered scope question in both lifecycle
 `pending` and top-level `pending_question`; use no question when it is settled.
 
 Populate `deferred` only with work the user explicitly selected or postponed
 that remains outside this plan, including selected unsupported audit improvements.
 Otherwise save `[]` so the section is omitted. Do not add speculative cases or
-routine later authoring, validation, or execution steps. Keep untested coverage
-and exclusions in `breadth` and `limits`.
+routine later authoring, validation, or execution steps. Keep relevant coverage
+limits and exclusions in `limits`.
 
 Reload normal state and render `expansion_scope` with its exact revision and
 `facts.expansion_observations`. Record the user's actual answer as lifecycle

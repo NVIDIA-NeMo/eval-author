@@ -19,7 +19,6 @@ UNSUPPORTED_GRADER_REPAIR = (
 SCOPE_HEADING = "### Task plan"
 SCOPE_FIELDS = {
     "summary": "**Improvement:** {value}",
-    "breadth": "**Coverage breadth:** {value}",
     "limits": "**Limits:** {value}",
 }
 SCOPE_TABLE = "| Task | Scenario | Expected outcome | Verification |\n|---|---|---|---|"

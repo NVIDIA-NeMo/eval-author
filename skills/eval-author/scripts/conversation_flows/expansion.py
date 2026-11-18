@@ -40,9 +40,7 @@ def _scope(state: dict, progress: dict) -> str:
         )
         rows.append("| " + " | ".join(cells) + " |")
     parts.append("\n".join(rows) if plan["tasks"] else copy.SCOPE_EMPTY)
-    parts.extend(
-        copy.SCOPE_FIELDS[key].format(value=literal(plan[key], f"scope {key}")) for key in ("breadth", "limits")
-    )
+    parts.append(copy.SCOPE_FIELDS["limits"].format(value=literal(plan["limits"], "scope limits")))
     if plan["deferred"]:
         parts.append(
             copy.SCOPE_DEFERRED + "\n\n" + "\n".join("- " + literal(item, "deferred work") for item in plan["deferred"])

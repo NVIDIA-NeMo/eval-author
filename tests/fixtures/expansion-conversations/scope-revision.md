@@ -15,8 +15,6 @@
 |---|---|---|---|
 | Partial refund | A customer requests part of an eligible order's price | Refund the requested amount and retain the remaining balance | Check the saved refund amount and order balance |
 
-**Coverage breadth:** One task using the existing task-creation workflow
-
 **Limits:** At most two construction attempts; running the agent requires separate approval
 
 **Deferred work:**
