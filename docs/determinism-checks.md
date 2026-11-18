@@ -33,9 +33,8 @@ that presentation guarantee does not establish deterministic workflow execution.
 ## Fictional task scenario
 
 The source-only package in `tools/rubric_task_scenario/` reproduces a fictional
-refund-task assessment. It supersedes `tools/rubric_sim_demo/` as the task-level
-fictional example; the older synthetic-anchor/compatibility demo is retained
-unchanged, not a competing authority for task qualification.
+refund-task assessment and renders the full canonical per-check report. To compare
+the base with mutations, use the [rubric mutation demo](#rubric-mutation-demo).
 Use an already installed Python 3.12 or 3.13 on macOS or Linux (the local ledger
 uses `fcntl`). From the checkout root, choose a **new directory outside the
 checkout**, with an existing parent and no symlink ancestors:
@@ -98,6 +97,41 @@ PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -B -m pytest -q tests/test_rubric_tas
 These tests exercise consumed style isolation, rejected/contradictory/out-of-scope
 fictional dispositions, parallel outcome/state mismatches, unauthorized trace use,
 stale-packet invalidation and bundled-source drift. They are not the full suite.
+
+## Rubric mutation demo
+
+`tools/rubric_sim_demo/run_demo.py` scores the refund base and 16 mutations on all
+21 rubric rows. The base scores 3 on 20 rows. AUDIT-04-B is N/A because no exploit
+is confirmed. Every mutation scores lower on at least one row and higher on none.
+
+```bash
+.venv/bin/python tools/rubric_sim_demo/run_demo.py --output "$HOME/rubric-sim-1" --offline
+```
+
+The command writes `summary.md` (the score table and the reason for each drop),
+`summary.json` and `runs.json`. It runs the scoring three times and fails if the
+results differ, if the base misses its target, or if a mutation does not rank lower.
+
+- **Real execution:** the refund scorer, the socket ledger and the Harbor task parser
+  run locally. No Docker or network access is needed.
+- **One check per row:** `checks.py` names one tool for each criterion. Each control
+  feeds only one row. Only a row's own tool can give a 0. A missing prerequisite gives a 1.
+- **Independent review:** restricted `claude -p` sessions with no tools, no MCP
+  servers and no settings. Each session receives only the files that `agents.py`
+  passes inline, and their hashes are recorded. Answers are cached in `agent_cache/`.
+  `--offline` replays the cache. Without `--offline`, a cache miss calls the model.
+  `--no-agents` caps the independent rows at 2.
+- **Owner decisions:** `policy.json` is a simulated one-time owner declaration.
+  `heldout.freeze.json` freezes the agent-authored held-out attacks.
+
+Mutation kinds:
+
+- Task mutations: the recipes in `examples/refund/mutations/`, plus trace-secret,
+  answer-exposure, unpinned-image and invalid-manifest.
+- Evidence mutations: withhold-reference, withhold-heldout, heldout-tuned and stale-evidence.
+- Review mutations: no-independent-review and no-owner-review.
+
+The agents and the policy file are not human approval. The demo does not qualify the rubric.
 
 ## One-skill Harbor assessment
 
