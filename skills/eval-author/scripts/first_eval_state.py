@@ -377,25 +377,14 @@ def _sources(value: dict) -> tuple[dict, set]:
 
 def observe(repo, state: dict) -> dict:
     """Read only declared task trees/evidence using the existing bounded lifecycle helpers."""
-    from journey_state import MAX_TASK_BYTES, _file_digest, _task_local_path, task_digest
+    from journey_state import observe_artifacts
 
     value = record(state)
     observed = {"tasks": {}, "files": {}}
     if value is None:
         return observed
     validate(value)
-    tasks, files = _sources(value)
-    for key, path in tasks.items():
-        try:
-            observed["tasks"][key] = task_digest(repo, path)
-        except (OSError, ValueError):
-            observed["tasks"][key] = None
-    for path in sorted(files):
-        try:
-            observed["files"][path] = _file_digest(_task_local_path(repo, path), MAX_TASK_BYTES)[0]
-        except (OSError, ValueError):
-            observed["files"][path] = None
-    return observed
+    return observe_artifacts(repo, *_sources(value))
 
 
 def execution_settings(value: dict) -> dict:

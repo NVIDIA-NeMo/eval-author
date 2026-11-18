@@ -5,7 +5,8 @@
 
 Use the [shared rendering entry point](../../scripts/conversation_renderer.py)
 with `stage: expansion_continue` for an unresolved entry decision or
-`stage: expansion_scope` for the selected authoring flow's existing scope review.
+`stage: expansion_scope` for the selected authoring flow's existing scope review,
+then `stage: expansion_progress` during agreed creation and validation.
 Rendering does not construct tasks, validate grading, or authorize execution.
 For an unselected improvement path, use the core's
 [expansion entry](../../SKILL.md#expansion-handoff) before shared checks;
@@ -83,6 +84,44 @@ owner. Shared prerequisite and Ethos recovery take precedence. Task-create keeps
 selection, eligibility, authoring, validation, and execution-authorization rules;
 this checkpoint adds no construction command or evidence-validation layer.
 
+## Creation and validation progress
+
+After scope agreement, continue the selected authoring workflow and render
+`expansion_progress` for meaningful progress changes and on resume. This is a
+status checkpoint, not another approval pause. Shared prerequisite and Ethos
+recovery still take precedence; pause only work that depends on a blocker.
+
+Save optional `creation` in the existing schema-2 lifecycle through the latest
+revision-checked update. Its `tasks` map uses `expansion_state.task_key(row)` for
+each agreed task row. Each entry retains the native task `path`, current `sha256`,
+and `validation`, initially `null`. A validation record contains
+`sha256`, `status` (`passed`, `failed`, or `blocked`), `source`, and retained
+`evidence: [{path, digest}]`. Record the owning workflow's actual native-control
+outcome, bound to the task revision, following [task validation](../task-validation.md).
+A scaffold, filename, saved boolean, or intended repair does not establish a
+passing result. The progress observer checks task and evidence freshness; the
+existing workflow owns native validation, without a second receipt validator.
+Controls do not establish agent performance or measured audit-gap closure.
+
+Set `active` to the actually started task and activity as
+`{task: <task key>, status: creating|validating|repairing|blocked, detail: <activity>}`,
+or `null` when no work is active. Save `pending: {question, source}` only for an
+actual unresolved question, keeping top-level `pending_question` in sync; otherwise
+save `null`. Reload normal state and pass current `facts.expansion_observations`
+to the renderer. Fixed copy belongs to the
+[expansion templates](../../scripts/conversation_flows/expansion_templates.py).
+
+Account for every agreed task, including tasks not yet created. Keep partial
+artifacts and failed evidence, and repair drafts only through the existing
+[repair procedure](../task-validation.md#repair-and-retain) and its budgets.
+After task or evidence changes, renew only affected validation. Retain historical
+task-map entries after scope edits; they do not replace or reduce the current
+agreed set. Return scope or cost changes to the existing scope checkpoint.
+Derived `creation.ready_for_review` requires current passing validation for the
+complete agreed set. It permits the owning workflow's authored-task review;
+it does not accept tasks, approve their review, authorize agent execution, or
+complete the journey.
+
 ## Shared checkpoint contract
 
 Extend this flow at real decision boundaries using the following ownership and
@@ -121,7 +160,8 @@ records fail validation instead of being interpreted as current decisions.
 Schema version 1 retains the entry record described below. Schema version 2
 saves the selected authoring workflow's existing coverage-planning checkpoint
 through `expansion_state.new_scope`: a plan for display, its actual user decision,
-and an optional unresolved question. The
+and an optional unresolved question, with optional
+[creation and validation progress](#creation-and-validation-progress). The
 [validator](../../scripts/expansion_state.py) owns the exact presentation fields.
 Task-create continues to own gap selection, authoring, native validation, and
 acceptance; starter expansion and trace mode retain their existing workflows.

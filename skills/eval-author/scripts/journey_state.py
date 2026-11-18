@@ -505,6 +505,22 @@ def task_digest(repo: Path, task: str) -> str:
     return digest(json.dumps(sorted(entries)).encode())
 
 
+def observe_artifacts(repo: Path, tasks: dict[str, str], files: set[str]) -> dict:
+    """Read declared task trees and evidence without interpreting native results."""
+    observed: dict = {"tasks": {}, "files": {}}
+    for key, path in tasks.items():
+        try:
+            observed["tasks"][key] = task_digest(repo, path)
+        except (OSError, ValueError):
+            observed["tasks"][key] = None
+    for path in sorted(files):
+        try:
+            observed["files"][path] = _file_digest(_task_local_path(repo, path), MAX_TASK_BYTES)[0]
+        except (OSError, ValueError):
+            observed["files"][path] = None
+    return observed
+
+
 def record_task(repo: Path, *, task: str, status: str, source: str, evidence: list[str] | None = None) -> dict:
     """Record the calling flow's decision; its existing validation still owns acceptance."""
     references = evidence or []

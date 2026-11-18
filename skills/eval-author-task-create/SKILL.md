@@ -66,7 +66,7 @@ Read `eval-author` for the shared evidence standard and boundaries. Read
 requested recommendations or additional planning across tools, capabilities,
 and failure cases. For proposal-only requests, stop after Step 1. Shared lifecycle decisions and
 pending work belong only in `.eval-author/.working/journey-state.json`; recommendations
-remain a user-facing deliverable and native evidence remains immutable.
+remain a user-facing deliverable and native evidence remains immutable. For journey `expand`, follow [creation and validation progress](../eval-author/references/conversations/expansion.md#creation-and-validation-progress).
 Reuse prior findings and answers. For guided audits and `scopes.expand.audit_handoff`, follow the
 [selected audit continuation](../eval-author/references/conversations/expansion.md#selected-audit-improvements)
 instead of requiring another proposal step. Recording findings alone does not

@@ -434,12 +434,19 @@ def render(payload: dict) -> str:
     expansion = expansion_state.record(state) if state["journey"] == "expand" else None
     if expansion is not None and not state_only:
         checkpoint = "expansion_scope" if expansion["schema_version"] == 2 else "expansion_continue"
-        if expansion_state.checkpoint_ready(state) and (
-            expansion["pending"] is not None or state["pending_question"] is None
+        if (
+            expansion["schema_version"] == 2
+            and expansion.get("creation") is not None
+            and expansion["decision"]
+            and expansion["decision"]["kind"] == "approved"
+            and not state["scopes"]["expand"].get("needs_review")
         ):
+            checkpoint = "expansion_progress"
+        pending = expansion_state.pending(expansion)
+        if expansion_state.checkpoint_ready(state) and (pending is not None or state["pending_question"] is None):
             raise ValueError(f"Use {checkpoint} for saved expansion checkpoints after shared onboarding is complete")
-        if expansion["pending"] is not None:
-            question = literal(expansion["pending"]["question"], "expansion question")
+        if pending is not None:
+            question = literal(pending["question"], "expansion question")
             if facts.get("question") is not None and literal(facts["question"], "question") == question:
                 raise ValueError(f"Use {checkpoint} for the saved expansion question after shared recovery")
             if (

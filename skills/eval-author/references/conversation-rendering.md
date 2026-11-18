@@ -135,7 +135,8 @@ observations, with the Audit coverage report as the single review document.
 [Expansion continuation](conversations/expansion.md) presents the saved unresolved
 post-onboarding entry decision using current intent and retained handoff bindings.
 Use `expansion_continue` for that entry decision and `expansion_scope` for the
-existing authoring workflow's saved planning checkpoint.
+existing authoring workflow's saved planning checkpoint. Use `expansion_progress`
+for creation and validation of that agreed task set.
 
 [conversation_renderer.py](../scripts/conversation_renderer.py) dispatches through
 an explicit [journey/stage registry](../scripts/conversation_flows/__init__.py)
