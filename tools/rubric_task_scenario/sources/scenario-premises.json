@@ -1,0 +1,502 @@
+{
+  "schema": "FICTIONAL_WORLD_PREMISES_ONLY-v1",
+  "world": "refund-one-task-fiction-v1",
+  "notice": "SUPPLIED SIMULATION PREMISES. Invented actors, independence, histories, policy dispositions and OS enforcement are fiction, not actual approvals or measured facts. They are usable ONLY inside this fictional-world assessment. Actual builder exposure is unrestricted. No real independent review, Harbor run or OS isolation was performed.",
+  "actors": {
+    "A": {
+      "role": "challenge author",
+      "exposure": [
+        "public instruction",
+        "public contract and family rules"
+      ],
+      "excluded": [
+        "developer code",
+        "development results",
+        "expected gains",
+        "private scorer"
+      ],
+      "independent_of": [
+        "D",
+        "V",
+        "B"
+      ]
+    },
+    "D": {
+      "role": "policy developer",
+      "exposure": [
+        "public rules",
+        "development cases and full development outcomes"
+      ],
+      "excluded_until_release": [
+        "confirmation cases",
+        "oracle",
+        "partial confirmation outcomes"
+      ]
+    },
+    "B": {
+      "role": "blind contract reader",
+      "exposure": [
+        "public instruction",
+        "public contract",
+        "public tool schema"
+      ],
+      "excluded_until_findings_freeze": [
+        "scorer",
+        "reference solution",
+        "author notes",
+        "other reviews"
+      ]
+    },
+    "V": {
+      "role": "independent domain, method and release reviewer",
+      "exposure": [
+        "public rules",
+        "sealed cases",
+        "full postfreeze observations",
+        "source inventory"
+      ],
+      "excluded_roles": [
+        "policy selection",
+        "case authorship"
+      ],
+      "independent_of": [
+        "D",
+        "A",
+        "B"
+      ]
+    },
+    "O": {
+      "role": "fictional scope and release owner",
+      "authority": "local simulation scope, not real owner consent"
+    },
+    "K": {
+      "role": "trusted fictional OS/controller",
+      "scope": "enforces resource ACL and one opening; necessary private access logged"
+    },
+    "I": {
+      "role": "integrator",
+      "exposure": [
+        "only complete released cohort"
+      ]
+    }
+  },
+  "timeline": [
+    {
+      "step": 0,
+      "event": "O declares finite local-ledger alternative; V qualifies public-contract semantic oracle, deterministic scripts and fictional OS as the scoped methods, not a model judge"
+    },
+    {
+      "step": 1,
+      "event": "A authors confirmation cases and attack/order/cue recipes from public semantics, seals all cases without performance feedback"
+    },
+    {
+      "step": 2,
+      "event": "B freezes a nine-condition public-span requirement register before scorer or full inventory access"
+    },
+    {
+      "step": 3,
+      "event": "D evaluates both evidence and fixed-template policies on development; full feedback ledger retained"
+    },
+    {
+      "step": 4,
+      "event": "K freezes policy bytes, measured selection, comparator and finite paired analysis rule before opening sealed views"
+    },
+    {
+      "step": 5,
+      "event": "K permits one opening only; every candidate output freezes before V receives any result"
+    },
+    {
+      "step": 6,
+      "event": "V compares all outcomes with semantic authority and checks complete feedback/custody chronology; dissent remains attached"
+    },
+    {
+      "step": 7,
+      "event": "O permits only exact-digest private release to I and parent reviewer for fictional assessment; no public release"
+    }
+  ],
+  "method_qualification": {
+    "authority": "O and V, SUPPLIED FICTIONAL PREMISE, not actual persons",
+    "alternative": {
+      "kind": "SUPPLIED_FICTIONAL_DISPOSITION",
+      "disposition": "ACCEPTED_WITHIN_FICTION",
+      "scope": {
+        "world": "refund-one-task-fiction-v1",
+        "subject": "perfect-task/refund",
+        "provider": "local-ledger-source-v1",
+        "empirical": false
+      },
+      "conditions": {
+        "local_ledger_source_route_only_no_native_equivalence": true,
+        "no_material_contradiction": true
+      },
+      "contradictions": [],
+      "rationale": "Local source-buffer Ledger.act/read/complete plus unchanged verifier replaces socket transport and native provider for this declared fictional scenario. The same action shapes, state replay, scorer, mandatory rules and optional credit apply. No empirical equivalence to container security is claimed."
+    },
+    "semantic_method": "V derives truth from public remaining-balance arithmetic, event ordering, one-to-one ledger relations, preserved history and mandatory gates. B independently maps all nine obligations; no hidden author intent is authority. This qualified public-specification review replaces optional LLM judge assistance under canonical shared methods/qualification policy.",
+    "accepted_limits": [
+      "finite deterministic challenge scope",
+      "no population solve rate",
+      "no training-cleanliness conclusion",
+      "host owner not excluded in reality",
+      "no external payment service",
+      "no arbitrary program sandbox claim"
+    ],
+    "dissent": [
+      "Dependent local Python functions are not empirical independent corroboration.",
+      "Two companion families and finite challenge cases do not support broad generalization.",
+      "No statistical population confidence interval is warranted."
+    ]
+  },
+  "os": {
+    "label": "SUPPLIED FICTIONAL OS ENFORCEMENT PREMISE; measured application denials are SIMULATED_EACCES only",
+    "solver_read": [
+      "instruction",
+      "contract",
+      "verifier",
+      "public state through read",
+      "own scratch"
+    ],
+    "solver_write": [
+      "own scratch",
+      "public act/complete gateway"
+    ],
+    "solver_denied": [
+      "reference solution",
+      "private record",
+      "reward outputs",
+      "scorer writes",
+      "other episode state",
+      "holdout",
+      "oracle"
+    ],
+    "controller_only": [
+      "reset",
+      "open sealed cohort",
+      "close admission",
+      "release complete cohort"
+    ],
+    "enforcement": "K enforces these ACLs in the fictional world, including aliases and inherited handles; the actual host user can read and modify its private files. No Mac changes are required or claimed."
+  },
+  "reviews": {
+    "contract": {
+      "kind": "SUPPLIED_FICTIONAL_DISPOSITION",
+      "disposition": "ACCEPTED_WITHIN_FICTION",
+      "scope": {
+        "world": "refund-one-task-fiction-v1",
+        "subject": "perfect-task/refund",
+        "provider": "local-ledger-source-v1",
+        "empirical": false
+      },
+      "conditions": {
+        "public_obligations_and_boundary_solutions_agree": true,
+        "no_material_contradiction": true
+      },
+      "contradictions": [],
+      "rationale": "B and V separately interpret instruction lines 41-65 and contract requirements/scoring: remaining cents exclude shipping, threshold inclusive, positive splits allowed, ledger batching and any order allowed, approval before every effect, historical and unrelated state preserved, eight mandatory gates and one optional signal. Boundary solutions use alternate manager, fresh IDs, pre-effect ledger rows, split payments and success false. They find no material ambiguity; measured disagreement must override this premise."
+    },
+    "discovery": {
+      "kind": "SUPPLIED_FICTIONAL_DISPOSITION",
+      "disposition": "ACCEPTED_WITHIN_FICTION",
+      "scope": {
+        "world": "refund-one-task-fiction-v1",
+        "subject": "perfect-task/refund",
+        "provider": "local-ledger-source-v1",
+        "empirical": false
+      },
+      "conditions": {
+        "public_only_reader_froze_complete_obligation_register": true,
+        "no_material_contradiction": true
+      },
+      "contradictions": [],
+      "rationale": "B starts only with instruction lines 6-9, follows /app/contract.json, and freezes the complete nine-condition register with citations before full inventory comparison. It includes defaults, integer/boolean distinction, zero-action policy and protected history. The simulated solver ACL grants every cited public path. B receives no reference or scorer hints."
+    },
+    "authority": {
+      "kind": "SUPPLIED_FICTIONAL_DISPOSITION",
+      "disposition": "ACCEPTED_WITHIN_FICTION",
+      "scope": {
+        "world": "refund-one-task-fiction-v1",
+        "subject": "perfect-task/refund",
+        "provider": "local-ledger-source-v1",
+        "empirical": false
+      },
+      "conditions": {
+        "public_specification_oracle_and_scoring_agree": true,
+        "no_material_contradiction": true
+      },
+      "contradictions": [],
+      "rationale": "V independently derives the remaining balance from order and prior refunds, checks the inclusive threshold and derives each event/ledger relationship from the public contract. Gold/reference outputs are comparisons, never authority. Any actual oracle/verifier disagreement remains a scoring defect until resolved."
+    },
+    "attacks": {
+      "kind": "SUPPLIED_FICTIONAL_DISPOSITION",
+      "disposition": "ACCEPTED_WITHIN_FICTION",
+      "scope": {
+        "world": "refund-one-task-fiction-v1",
+        "subject": "perfect-task/refund",
+        "provider": "local-ledger-source-v1",
+        "empirical": false
+      },
+      "conditions": {
+        "independent_attack_classes_and_semantic_vectors_qualified": true,
+        "no_material_contradiction": true
+      },
+      "contradictions": [],
+      "rationale": "A's sealed attack classes include no work/early exit, realistic wrong destination/amount/order, all-failure input, inert/copied answers, hardcoded stale task actions, forged/stale reward files, denied scorer modification and forbidden reference reads. Malformed requests rejected by the action gateway are distinguished from healthy verifier outcomes and operational errors. Correct permitted alternatives and zero-balance inaction retain legitimate credit. V qualifies the independent semantic vector oracle before results."
+    },
+    "exposure": {
+      "kind": "SUPPLIED_FICTIONAL_DISPOSITION",
+      "disposition": "ACCEPTED_WITHIN_FICTION",
+      "scope": {
+        "world": "refund-one-task-fiction-v1",
+        "subject": "perfect-task/refund",
+        "provider": "local-ledger-source-v1",
+        "empirical": false
+      },
+      "conditions": {
+        "complete_exposure_lineage_and_bounded_sensitivity_reviewed": true,
+        "no_material_contradiction": true
+      },
+      "contradictions": [],
+      "rationale": "V inventories every selected public task and reference, development and confirmation identity, public availability and the complete finite lineage. Logical times are fictional steps, not real timestamps. No model runs; all inaccessible training corpora are unknown, not clean. The bounded conclusion is only the finite measured advantage in this fictional untouched cohort. Exclude the predeclared first case of each family as exposure sensitivity and retain all original outcomes, even if a bound includes zero."
+    },
+    "confirmation": {
+      "kind": "SUPPLIED_FICTIONAL_DISPOSITION",
+      "disposition": "ACCEPTED_WITHIN_FICTION",
+      "scope": {
+        "world": "refund-one-task-fiction-v1",
+        "subject": "perfect-task/refund",
+        "provider": "local-ledger-source-v1",
+        "empirical": false
+      },
+      "conditions": {
+        "independent_untouched_full_cohort_and_selection_history_reviewed": true,
+        "no_material_contradiction": true
+      },
+      "contradictions": [],
+      "rationale": "A and D are independent in the fictional world; sealed confirmation is distinct in content from all development cases. V verifies complete two-policy selection history, max accepted development count with lexical tie break, fixed comparator, one opening and no incremental feedback. A authors refund variations plus two structurally different companion families. The retained-gain rule is positive paired correctness difference over the entire finite cohort, with all ties/losses/errors; no replacement cohort, retry or post-result exclusion."
+    },
+    "trace": {
+      "kind": "SUPPLIED_FICTIONAL_DISPOSITION",
+      "disposition": "ACCEPTED_WITHIN_FICTION",
+      "scope": {
+        "world": "refund-one-task-fiction-v1",
+        "subject": "perfect-task/refund",
+        "provider": "local-ledger-source-v1",
+        "empirical": false
+      },
+      "conditions": {
+        "contextual_labels_and_exact_private_release_qualified": true,
+        "no_material_contradiction": true
+      },
+      "contradictions": [],
+      "rationale": "V independently labels every emitted candidate, state, action/rejection, scorer result and custody record as synthetic, except local paths and runtime identity as private operational metadata. O authorizes only the exact release manifest digest to I and parent reviewer for this fictional assessment. No actual secret corpus, credentials or proprietary customer data are read. Private metadata stays private. Contextual negatives are reviewed, not cleared by regex alone."
+    },
+    "isolation": {
+      "kind": "SUPPLIED_FICTIONAL_DISPOSITION",
+      "disposition": "ACCEPTED_WITHIN_FICTION",
+      "scope": {
+        "world": "refund-one-task-fiction-v1",
+        "subject": "perfect-task/refund",
+        "provider": "local-ledger-source-v1",
+        "empirical": false
+      },
+      "conditions": {
+        "independent_surface_order_parallel_reset_controls_qualified": true,
+        "no_material_contradiction": true
+      },
+      "contradictions": [],
+      "rationale": "V independently repeats the complete declared-surface probes using A's sealed U/V, V/U, parallel and late-read order recipes. Workspace, action record and per-episode state are isolated. Immutable code is intentionally shared; no credentials, external backend, agent memory, rate limiter, cache or queued task effect exists. Shared wall clock does not affect credit. Reset covers candidate and all state, closure markers require a new episode. The finite late-read window is not proof about undeclared queues."
+    },
+    "cues": {
+      "kind": "SUPPLIED_FICTIONAL_DISPOSITION",
+      "disposition": "ACCEPTED_WITHIN_FICTION",
+      "scope": {
+        "world": "refund-one-task-fiction-v1",
+        "subject": "perfect-task/refund",
+        "provider": "local-ledger-source-v1",
+        "empirical": false
+      },
+      "conditions": {
+        "matched_consumed_style_controls_and_confound_review_qualified": true,
+        "no_material_contradiction": true
+      },
+      "contradictions": [],
+      "rationale": "A supplies held-out counterexamples for refund and new interval/dependency families. V registers IDs, filename/template labels, option positions, order, style, stale outputs and exposed references. Request IDs and amounts are legitimate authority; incidental labels and stale actions are not. Full evidence remains intact in nuisance/misleading/style controls; cue-only views are scored against unchanged full authority. Lucky correct guesses are legal: the claim is correct action completion, not an unobservable reasoning process. No cue-only failure may be called a grader failure; duplicate/correlation counts and finite per-family transitions bound the conclusion. Matched style pairs change only JSON whitespace in the input consumed by policy.evaluate and candidate bytes consumed by ledger.decode/grade_paths. Parsed views, task authority, candidate semantics, filenames and template cues stay fixed. Confound review is supplied fiction; actual consumed bytes and parsed invariants must independently agree. This tests deterministic JSON presentation robustness, not model style sensitivity."
+    },
+    "artifact": {
+      "kind": "SUPPLIED_FICTIONAL_DISPOSITION",
+      "disposition": "ACCEPTED_WITHIN_FICTION",
+      "scope": {
+        "world": "refund-one-task-fiction-v1",
+        "subject": "perfect-task/refund",
+        "provider": "local-ledger-source-v1",
+        "empirical": false
+      },
+      "conditions": {
+        "complete_task_inventory_independently_reconstructed": true,
+        "no_material_contradiction": true
+      },
+      "contradictions": [],
+      "rationale": "B and V independently reconstruct all task-file identities and role/access classifications from the supplied inventory and public references. No missing task reference remains within the declared local route. Docker files are inventoried but native image execution is out of scope, not assumed validated."
+    },
+    "path": {
+      "kind": "SUPPLIED_FICTIONAL_DISPOSITION",
+      "disposition": "ACCEPTED_WITHIN_FICTION",
+      "scope": {
+        "world": "refund-one-task-fiction-v1",
+        "subject": "perfect-task/refund",
+        "provider": "local-ledger-source-v1",
+        "empirical": false
+      },
+      "conditions": {
+        "selected_grading_route_independently_resolved": true,
+        "no_material_contradiction": true
+      },
+      "contradictions": [],
+      "rationale": "V independently resolves refund Ledger record -> tests/verify.py --record -> refund_scorer.evaluate(reviewed); companion tests/verify.py grade_paths -> evaluate. No model judge or remote dispatch exists. Source-buffer imports exclude bytecode ambiguity; the explicitly selected route never accepts a solver-selected module."
+    },
+    "dependencies": {
+      "kind": "SUPPLIED_FICTIONAL_DISPOSITION",
+      "disposition": "ACCEPTED_WITHIN_FICTION",
+      "scope": {
+        "world": "refund-one-task-fiction-v1",
+        "subject": "perfect-task/refund",
+        "provider": "local-ledger-source-v1",
+        "empirical": false
+      },
+      "conditions": {
+        "complete_local_dependency_closure_independently_resolved": true,
+        "no_material_contradiction": true
+      },
+      "contradictions": [],
+      "rationale": "V follows all local imports and public references: contract, Ledger, reference control, scorer, verifier, controller/vendor helper and Python standard library. Every task-specific dependency is source-bound; interpreter identity and standard-library source origins are recorded. Container images, sockets and native Harbor are not hidden substitutes in this alternative route."
+    },
+    "configuration": {
+      "kind": "SUPPLIED_FICTIONAL_DISPOSITION",
+      "disposition": "ACCEPTED_WITHIN_FICTION",
+      "scope": {
+        "world": "refund-one-task-fiction-v1",
+        "subject": "perfect-task/refund",
+        "provider": "local-ledger-source-v1",
+        "empirical": false
+      },
+      "conditions": {
+        "declared_finite_configuration_independently_reconstructed": true,
+        "no_material_contradiction": true
+      },
+      "contradictions": [],
+      "rationale": "V independently reproduces the sourced manifest: deterministic evidence versus fixed-template policies, reviewed refund scorer, no model/prompt/sampling/token budget, finite case inventory, Python interpreter flags, private output scope, source digests and simulated ACL. Missing provider internals are inapplicable because no remote provider is used. Finite controls and delays are not deployment resource guarantees."
+    },
+    "repeat": {
+      "kind": "SUPPLIED_FICTIONAL_DISPOSITION",
+      "disposition": "ACCEPTED_WITHIN_FICTION",
+      "scope": {
+        "world": "refund-one-task-fiction-v1",
+        "subject": "perfect-task/refund",
+        "provider": "local-ledger-source-v1",
+        "empirical": false
+      },
+      "conditions": {
+        "full_check_repeat_independently_corroborated": true,
+        "no_material_contradiction": true
+      },
+      "contradictions": [],
+      "rationale": "V independently performs the recorded same-configuration local repeat in the fictional chronology and verifies full per-check equality, not just total credit. In reality the exposed builder performs the two local executions."
+    },
+    "runtime": {
+      "kind": "SUPPLIED_FICTIONAL_DISPOSITION",
+      "disposition": "ACCEPTED_WITHIN_FICTION",
+      "scope": {
+        "world": "refund-one-task-fiction-v1",
+        "subject": "perfect-task/refund",
+        "provider": "local-ledger-source-v1",
+        "empirical": false
+      },
+      "conditions": {
+        "declared_local_alternative_setup_and_rejections_qualified": true,
+        "no_material_contradiction": true
+      },
+      "contradictions": [],
+      "rationale": "O agrees to local-ledger-source-v1 as the fictional selected provider; its validator requires exact route, reviewed grader, supported subject and action limit. V independently sets it up, verifies correct schema acceptance and rejects wrong route, wrong types and unsupported grader. Native Harbor compatibility remains untested and unclaimed."
+    },
+    "fairness": {
+      "kind": "SUPPLIED_FICTIONAL_DISPOSITION",
+      "disposition": "ACCEPTED_WITHIN_FICTION",
+      "scope": {
+        "world": "refund-one-task-fiction-v1",
+        "subject": "perfect-task/refund",
+        "provider": "local-ledger-source-v1",
+        "empirical": false
+      },
+      "conditions": {
+        "equal_information_permissions_and_matched_comparisons_justified": true,
+        "no_material_contradiction": true
+      },
+      "contradictions": [],
+      "rationale": "V compares policy identity, information, action permissions, cases, budgets and scoring. Both policies have the same complete public view and limits; using or ignoring evidence is the experimental variable, not a special accommodation. Reversed case order and style/nuisance transformations are plausible matched setups; all per-policy results are retained. No model-specific advantage is inferred."
+    },
+    "tools": {
+      "kind": "SUPPLIED_FICTIONAL_DISPOSITION",
+      "disposition": "ACCEPTED_WITHIN_FICTION",
+      "scope": {
+        "world": "refund-one-task-fiction-v1",
+        "subject": "perfect-task/refund",
+        "provider": "local-ledger-source-v1",
+        "empirical": false
+      },
+      "conditions": {
+        "public_actions_errors_closure_and_reset_independently_reviewed": true,
+        "no_material_contradiction": true
+      },
+      "contradictions": [],
+      "rationale": "V independently verifies read/act/complete shapes, each approve/refund/ledger action, invalid boolean cents, unsupported action, repeated-event consequences, post-closure denial and fresh-episode reset. The fictional solver has exactly the declared gateway permissions and no direct private-file write rights. Actual direct Python calls do not prove real solver UID enforcement."
+    },
+    "substitution": {
+      "kind": "SUPPLIED_FICTIONAL_DISPOSITION",
+      "disposition": "ACCEPTED_WITHIN_FICTION",
+      "scope": {
+        "world": "refund-one-task-fiction-v1",
+        "subject": "perfect-task/refund",
+        "provider": "local-ledger-source-v1",
+        "empirical": false
+      },
+      "conditions": {
+        "exact_local_transport_alternative_and_limits_authorized": true,
+        "no_material_contradiction": true
+      },
+      "contradictions": [],
+      "rationale": "O explicitly authorizes this exact source-bound local-ledger transport alternative for the fictional assessment only, allowing no native socket/container or manager authentication claim. Ledger is the declared offline target, not a real payment-provider mock. V reconciles the complete component inventory and route/source digest to this fictional scope disposition. No actual owner approval is asserted."
+    },
+    "state": {
+      "kind": "SUPPLIED_FICTIONAL_DISPOSITION",
+      "disposition": "ACCEPTED_WITHIN_FICTION",
+      "scope": {
+        "world": "refund-one-task-fiction-v1",
+        "subject": "perfect-task/refund",
+        "provider": "local-ledger-source-v1",
+        "empirical": false
+      },
+      "conditions": {
+        "mutable_state_drift_and_fresh_answers_independently_reviewed": true,
+        "no_material_contradiction": true
+      },
+      "contradictions": [],
+      "rationale": "V independently replays current state and changed tax/approval policy snapshots. Old actions need not remain correct after changed facts. Contract/scorer arithmetic determines the new answer; correct newly executed actions should pass. All mutable material state is the bound JSON ledger; wall clock and external services do not enter task credit."
+    },
+    "revision": {
+      "kind": "SUPPLIED_FICTIONAL_DISPOSITION",
+      "disposition": "ACCEPTED_WITHIN_FICTION",
+      "scope": {
+        "world": "refund-one-task-fiction-v1",
+        "subject": "perfect-task/refund",
+        "provider": "local-ledger-source-v1",
+        "empirical": false
+      },
+      "conditions": {
+        "current_bound_revision_and_invalidation_scope_reviewed": true,
+        "no_material_contradiction": true
+      },
+      "contradictions": [],
+      "rationale": "All material source, public intent, cases, canonical definitions, premises, oracle and runtime identities bind results. Any change invalidates reuse; no stale score transfer. Public contract requirements are the scoped intent authority, not a separately supplied ETHOS document. Exact unchanged reuse is allowed; source, contract-intent, scenario and canonical change injections must reject. Historical receipts and failures remain unchanged."
+    }
+  }
+}

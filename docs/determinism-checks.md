@@ -30,6 +30,75 @@ trajectories or free-form prose. The
 separately requires byte-identical messages for identical rendering inputs;
 that presentation guarantee does not establish deterministic workflow execution.
 
+## Fictional task scenario
+
+The source-only package in `tools/rubric_task_scenario/` reproduces a fictional
+refund-task assessment. It supersedes `tools/rubric_sim_demo/` as the task-level
+fictional example; the older synthetic-anchor/compatibility demo is retained
+unchanged, not a competing authority for task qualification.
+Use an already installed Python 3.12 or 3.13 on macOS or Linux (the local ledger
+uses `fcntl`). From the checkout root, choose a **new directory outside the
+checkout**, with an existing parent and no symlink ancestors:
+
+```bash
+python3 -I -S -B tools/rubric_task_scenario/run.py --output "$HOME/rubric-task-scenario-1"
+```
+
+This single command verifies the source map, materializes its exact allowlisted
+sources under `source/`, executes fresh local task and custody controls, instantiates
+explicit fictional review dispositions, assesses unchanged canonical definitions,
+and writes `source/execution/report.md`, `report.html`, `assessment.json` and
+`FINAL-VERIFICATION.json`. It prints freshly observed row/status/control counts,
+not a predetermined score target. `execution.log` and all generated evidence remain
+in the private output directory. Existing output is rejected; use a new directory
+to repeat. A failed run retains its partial output and diagnostic log.
+
+The package reuses byte-identical repository rubric definitions, renderer and refund
+task sources. `source-map.json` records each source, its current and original hash,
+and the packaging adaptations. Bundled source identity is checked before and after
+execution; this is **not** the original host's historical-integrity check. Historical
+runs, failed attempts, personal runtime manifests and approval records are not bundled.
+A source-map mismatch requires review of changed sources, not automatic repinning.
+
+Actual measurements include task credit, full per-check outcomes, deliberate invalid
+input, reset/order/parallel controls, source drift checks, and finite paired gains.
+Style-only controls change JSON whitespace in consumed policy inputs and candidate
+representations while preserving parsed semantics and other cues; they do not test
+language-model style sensitivity. The checker compares semantic outcomes separately
+from the file scorer's deliberately changed candidate-byte digest.
+
+**Fiction is not evidence of real-world qualification.** Reviewer identities,
+independence, untouched history, owner dispositions and OS enforcement are supplied
+story premises. Their structured acceptance, scope, conditions, contradictions and
+source/evidence bindings are validated; rationale prose is retained for review, not
+semantically adjudicated by this deterministic adapter. Each criterion has its own
+top-anchor predicate. This finite package supports those predicates and justified
+N/A only; failures remain Unassessed rather than receiving a generic 0/1/2 based
+on check counts. Task-control accepted/rejected/error outcomes remain separate
+from rubric scores. N/A rows stay in the total catalog and are excluded only from
+the applicable top-anchor denominator. Binding the fictional
+premises to a fresh run creates no real approval. Affirmative fiction cannot override
+the implemented measurement gates. This is a separate fictional assessment adapter,
+not the ordinary empirical assessment CLI or an empirical operator-store admission.
+No network, models, credentials, Docker, installs or account changes are used.
+
+Repeats establish this finite local workflow's reproducibility, not broad rubric
+qualification, blinded review, arbitrary-program isolation, model performance or
+native Harbor compatibility. Timestamps, runtime origins, output paths and resulting
+manifest hashes may differ; byte-identical full output is not promised. Generated
+runtime metadata can identify the local machine: keep outputs private. Independent
+review of the packaged assessment remains separate from a successful command.
+
+Focused regressions, using the existing development environment:
+
+```bash
+PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -B -m pytest -q tests/test_rubric_task_scenario.py
+```
+
+These tests exercise consumed style isolation, rejected/contradictory/out-of-scope
+fictional dispositions, parallel outcome/state mismatches, unauthorized trace use,
+stale-packet invalidation and bundled-source drift. They are not the full suite.
+
 ## One-skill Harbor assessment
 
 The experimental skill can inspect a selected Harbor package and produce a private

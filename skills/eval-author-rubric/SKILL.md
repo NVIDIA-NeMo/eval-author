@@ -61,6 +61,39 @@ sessions. A user may continue that same assessment explicitly; do not infer a ne
 assessment from retained files. Respect withdrawal immediately. Opt-in to assessment
 is separate from execution or write permission, which remains governed below.
 
+## Fictional simulation authoring mode
+
+When the user asks to modify this skill or build/repeat a fictional rubric example,
+that is authoring, not an empirical assessment of a real task. In this explicit
+mode, authors may supply invented independent reviewers, custody, histories and
+owner dispositions. Do not require real reviewer recruitment, accounts, signatures
+or empirical approval intake merely to author these fixtures. Actual code execution
+and writes still require the user's applicable permission; this mode grants no
+model, network or native-runtime permission.
+
+Use unchanged canonical definitions and criterion-specific predicates. Keep typed
+fictional dispositions, scope, conditions, contradictions and bindings distinct from
+executed measurements. Rejected, missing or contradictory premises must not earn
+their claimed anchor; affirmative fiction cannot override failed measurements.
+Expected scores belong outside assessor inputs. Do not assign 0/1/2 from a universal
+check-count ladder when their criterion-specific predicates are not implemented.
+Report task credit/control verdicts separately from rubric scores, and account for
+N/A separately within the full selected catalog and applicable denominator.
+
+The repository checkout's `tools/rubric_task_scenario/run.py` is the supported
+repeatable task-level example; see `docs/determinism-checks.md`, “Fictional task
+scenario,” in that checkout for its single command. These repository-only tools are
+not shipped in skill-only installations. This scenario supersedes the earlier
+`tools/rubric_sim_demo/` for task-level fiction; the old synthetic-anchor demo remains
+unchanged for compatibility. The emitted scope is `FICTIONAL_WORLD_CANONICAL_ASSESSMENT-v1`
+with `empirical_qualification=false`, not an empirical receipt or owner-store event.
+
+The opt-in gate and empirical evidence/approval protections below remain unchanged
+for actual task assessment. Never feed fictional dispositions into that path or
+remove their scope label to promote the result. Independent review of authored
+fixtures may itself be a fictional premise; real publication review is a separate
+engineering decision, not an invented rubric prerequisite.
+
 ## Purpose
 
 Read `eval-author` for the shared evidence standard and boundaries. Select only
