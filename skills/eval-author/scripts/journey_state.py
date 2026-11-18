@@ -25,6 +25,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import audit_state  # noqa: E402
+import expansion_state  # noqa: E402
 import first_eval_state  # noqa: E402
 from conversation_templates import CHECKLIST_LABELS, JOURNEYS  # noqa: E402
 from runtime_policy import load as runtime_policy  # noqa: E402
@@ -270,6 +271,10 @@ def validate(state: dict, *, check_size: bool = True) -> None:
         first_eval_state.validate(creation_scope["first_eval"])
     audit_scope = state["scopes"].get("audit", {})
     expansion_scope = state["scopes"].get("expand", {})
+    if isinstance(expansion_scope, dict) and "entry_choice" in expansion_scope:
+        expansion_state.validate_entry_choice(expansion_scope["entry_choice"])
+    if isinstance(expansion_scope, dict) and "lifecycle" in expansion_scope:
+        expansion_state.validate(expansion_scope["lifecycle"])
     if isinstance(expansion_scope, dict) and "audit_handoff" in expansion_scope:
         audit_state.validate_handoff(expansion_scope["audit_handoff"])
     if isinstance(audit_scope, dict) and "mode" in audit_scope:
@@ -437,6 +442,7 @@ def load_state(repo: Path, *, state_only: bool = False) -> dict:
         creation = first_eval_state.progress(repo, state)
         if creation is not None and not creation["complete"]:
             state["journey_status"]["create"] = "in_progress"
+    expansion_state.reconcile_question(repo, state)
     return state
 
 
@@ -566,6 +572,8 @@ def checklist(state: dict, *, state_only: bool = False, audit: dict | None = Non
     completed = state["journey_status"].get(journey) == "complete" and journey not in blocked
     if journey == "audit":
         completed = bool(completed and audit and audit["complete"])
+    elif journey == "expand" and expansion_state.record(state) is not None:
+        completed = False
     elif isinstance(state["scopes"].get(journey), dict):
         completed = completed and not state["scopes"][journey].get("needs_review")
     rows = [
@@ -647,6 +655,12 @@ def view(state: dict, *, state_only: bool = False) -> dict:
     audit_checks = not state_only and state["journey"] == "audit"
     audit_observations = audit_state.observe(Path(state["repository"]), state) if audit_checks else None
     audit = audit_state.derive(state, audit_observations) if audit_observations is not None else None
+    expansion_observations = (
+        expansion_state.observe(Path(state["repository"]), state)
+        if not state_only and state["journey"] == "expand"
+        else None
+    )
+    expansion = expansion_state.derive(state, expansion_observations) if expansion_observations is not None else None
     state = audit_presentation_state(state, audit)
     if (
         creation is not None
@@ -670,6 +684,8 @@ def view(state: dict, *, state_only: bool = False) -> dict:
         "first_eval": creation,
         "audit_observations": audit_observations,
         "audit": audit,
+        "expansion_observations": expansion_observations,
+        "expansion": expansion,
     }
 
 
@@ -770,6 +786,8 @@ def initialize(
                     and scope.get("needs_review")
                 ):
                     state["journey_status"][selected] = "in_progress"
+        if not state_only:
+            expansion_state.reconcile_question(repo, state)
         save(repo, state)
         return state
 
@@ -827,20 +845,29 @@ def update(repo: Path, patch: dict, *, expected_revision: int | None = None, sta
     if state_only and "scopes" in patch:
         scopes = patch["scopes"]
         if (
-            not isinstance(scopes, dict)
-            or set(scopes) != {"audit"}
-            or not isinstance(scopes["audit"], dict)
-            or set(scopes["audit"])
-            not in ({"framework", "framework_source"}, {"mode"}, {"framework", "framework_source", "mode"})
+            isinstance(scopes, dict)
+            and set(scopes) == {"expand"}
+            and isinstance(scopes["expand"], dict)
+            and set(scopes["expand"]) == {"entry_choice"}
         ):
-            raise ValueError(
-                "State-only updates accept only audit framework and framework_source observations or mode decisions"
-            )
-        for field, value in scopes["audit"].items():
-            if field == "mode":
-                audit_state.validate_mode(value)
-            else:
-                _text(value, f"scopes.audit.{field}")
+            expansion_state.validate_entry_choice(scopes["expand"]["entry_choice"])
+        else:
+            if (
+                not isinstance(scopes, dict)
+                or set(scopes) != {"audit"}
+                or not isinstance(scopes["audit"], dict)
+                or set(scopes["audit"])
+                not in ({"framework", "framework_source"}, {"mode"}, {"framework", "framework_source", "mode"})
+            ):
+                raise ValueError(
+                    "State-only updates accept only audit framework and framework_source observations or mode decisions, "
+                    "or expansion entry_choice"
+                )
+            for field, value in scopes["audit"].items():
+                if field == "mode":
+                    audit_state.validate_mode(value)
+                else:
+                    _text(value, f"scopes.audit.{field}")
     if "ethos" in patch:
         if (
             not isinstance(patch["ethos"], dict)
@@ -894,6 +921,27 @@ def update(repo: Path, patch: dict, *, expected_revision: int | None = None, sta
                 raise ValueError("Retain the selected audit handoff when updating expansion scope")
             if expected_revision is None:
                 raise ValueError("Audit handoff scope updates require --expected-revision from the latest show")
+        if isinstance(expand_patch, dict) and "entry_choice" in expand_patch:
+            expansion_state.validate_entry_choice(expand_patch["entry_choice"])
+            if state["journey"] != "expand":
+                raise ValueError("Expansion entry choices require the expansion journey")
+            if expected_revision is None:
+                raise ValueError("Expansion entry choices require --expected-revision from the latest show")
+        retained_expansion = expansion_state.record(state) is not None
+        typed_expansion = isinstance(expand_patch, dict) and ("lifecycle" in expand_patch or retained_expansion)
+        expansion_status = isinstance(patch.get("journey_status"), dict) and "expand" in patch["journey_status"]
+        if retained_expansion and isinstance(scope_patch, dict) and "expand" in scope_patch:
+            if not isinstance(expand_patch, dict):
+                raise ValueError("Retain structured expansion progress when updating its scope")
+        if (
+            typed_expansion
+            or retained_expansion
+            and (expansion_status or state["journey"] == "expand" and "pending_question" in patch)
+        ):
+            if state["journey"] != "expand":
+                raise ValueError("Select the expansion journey before updating expansion progress")
+            if expected_revision is None:
+                raise ValueError("Expansion updates require --expected-revision from the latest show")
         if isinstance(expand_patch, dict) and "audit_handoff" in expand_patch:
             if expand_patch["audit_handoff"] != (
                 prior_expand.get("audit_handoff") if isinstance(prior_expand, dict) else None
@@ -925,15 +973,20 @@ def update(repo: Path, patch: dict, *, expected_revision: int | None = None, sta
         if path_changed and expected_revision is None:
             raise ValueError("Selecting ETHOS.md requires --expected-revision from the latest show")
         if state_only and "scopes" in patch:
-            if state["journey"] != "audit":
-                raise ValueError("State-only framework observations require the audit journey")
-            if not isinstance(state["scopes"].get("audit", {}), dict):
-                raise ValueError("Saved audit scope must be a mapping; preserve it for review before updating")
+            if "audit" in patch["scopes"]:
+                if state["journey"] != "audit":
+                    raise ValueError("State-only framework observations require the audit journey")
+                if not isinstance(state["scopes"].get("audit", {}), dict):
+                    raise ValueError("Saved audit scope must be a mapping; preserve it for review before updating")
         prior_draft = copy.deepcopy(state["ethos"]["draft"])
         for field, value in patch.items():
             if state_only and field == "scopes":
                 # Metadata changes preserve source selections and historical decisions.
-                state["scopes"].setdefault("audit", {}).update(copy.deepcopy(value["audit"]))
+                selected = "expand" if "expand" in value else "audit"
+                prior_scope = state["scopes"].get(selected, {})
+                if not isinstance(prior_scope, dict):
+                    prior_scope = {"legacy_context": prior_scope}
+                state["scopes"][selected] = {**copy.deepcopy(prior_scope), **copy.deepcopy(value[selected])}
             elif field in {"prerequisites", "ethos", "scopes", "journey_status"}:
                 if not isinstance(value, dict):
                     raise ValueError(f"{field} must be a mapping")
@@ -944,6 +997,21 @@ def update(repo: Path, patch: dict, *, expected_revision: int | None = None, sta
                     changes["audit"] = {**copy.deepcopy(prior_audit), **changes["audit"]}
                 if (
                     field == "scopes"
+                    and isinstance(expand_patch, dict)
+                    and isinstance(prior_expand, dict)
+                    and (typed_expansion or "entry_choice" in expand_patch)
+                ):
+                    changes["expand"] = {**copy.deepcopy(prior_expand), **changes["expand"]}
+                if (
+                    field == "scopes"
+                    and isinstance(expand_patch, dict)
+                    and (typed_expansion or "entry_choice" in expand_patch)
+                    and not isinstance(prior_expand, dict)
+                ):
+                    changes["expand"] = {"legacy_context": copy.deepcopy(prior_expand), **changes["expand"]}
+                if (
+                    field == "scopes"
+                    and not typed_expansion
                     and isinstance(expand_patch, dict)
                     and isinstance(prior_expand, dict)
                     and "audit_handoff" in prior_expand
@@ -994,6 +1062,7 @@ def update(repo: Path, patch: dict, *, expected_revision: int | None = None, sta
         validate(state, check_size=state_only)
         if not state_only and state["journey"] != "audit":
             first_eval_state.transition(repo, previous, state)
+            expansion_state.transition(repo, previous, state)
             creation = first_eval_state.progress(repo, state)
             if patch.get("journey_status", {}).get("create") == "complete" and creation and not creation["complete"]:
                 raise ValueError("Creation completion requires current selected native runs and their exact review")
@@ -1039,9 +1108,13 @@ def confirm_ethos(
             raise ValueError("The reviewed ETHOS.md path must match the selected document; supply --ethos")
         if reviewed_digest != ethos_digest(repo, ethos_path):
             raise ValueError("ETHOS.md differs from the reviewed content; review the saved file")
+        if state["ethos"]["remaining_questions"]:
+            raise ValueError("Resolve the saved intent questions before confirming ETHOS.md")
+        review_pending = state["ethos"]["stage"] != "complete"
         state["ethos"].update(
             stage="complete", confirmed_digest=reviewed_digest, confirmation_source=source, validation=validation
         )
+        expansion_state.reconcile_question(repo, state, answered_ethos_review=review_pending)
         save(repo, state)
         return state
 
