@@ -399,8 +399,8 @@ merely to make it pass.
 
 ## Step 6: run the real agent twice
 
-Run the real agent when it is part of the user's requested task creation.
-Follow the shared [model-call policy](../eval-author/references/shared-prerequisites.md#model-calls-for-requested-work).
+For journey `expand`, first use [task review and execution approval](../eval-author/references/conversations/expansion.md#task-review-and-execution-approval).
+Run the real agent within the requested scope and shared [model-call policy](../eval-author/references/shared-prerequisites.md#model-calls-for-requested-work).
 Use the repository's proven agent configuration and point it at
 the draft. Record each attempt as its own invocation with fresh native output:
 one NeMo Gym repeat per recorded run, or one Harbor trial per run with a distinct

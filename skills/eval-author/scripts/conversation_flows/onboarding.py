@@ -442,8 +442,14 @@ def render(payload: dict) -> str:
             and not state["scopes"]["expand"].get("needs_review")
         ):
             checkpoint = "expansion_progress"
+        reviewing = checkpoint == "expansion_progress" and expansion.get("review") is not None
+        if reviewing:
+            checkpoint = "expansion_review"
         pending = expansion_state.pending(expansion)
-        if expansion_state.checkpoint_ready(state) and (pending is not None or state["pending_question"] is None):
+        ready = expansion_state.review_ready(state) if reviewing else expansion_state.checkpoint_ready(state)
+        if ready and (
+            state["pending_question"] is None or pending and state["pending_question"] == pending["question"]
+        ):
             raise ValueError(f"Use {checkpoint} for saved expansion checkpoints after shared onboarding is complete")
         if pending is not None:
             question = literal(pending["question"], "expansion question")

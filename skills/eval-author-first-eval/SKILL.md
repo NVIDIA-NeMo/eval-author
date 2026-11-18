@@ -357,8 +357,8 @@ first-task pattern where it remains applicable; reopen only affected review and
 validation claims rather than requiring new approval of unchanged tasks.
 
 Use the provider references for native authoring and execution, preserving main's
-Draft/Accepted lifecycle and finalized task documentation. Show concrete execution
-settings when agent execution is ready and reuse existing authorization. Update
+Draft/Accepted lifecycle and finalized task documentation. Use the
+[task review and execution approval checkpoint](../eval-author/references/conversations/expansion.md#task-review-and-execution-approval), reusing applicable authorization. Update
 the suite README/report outside validated task trees, reconcile retained versus
 added work, and retain the existing expansion progress and handoff. Do not claim
 that the create-only renderer or record establishes expansion completion.

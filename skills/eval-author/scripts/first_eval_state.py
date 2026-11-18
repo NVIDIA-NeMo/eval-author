@@ -76,6 +76,47 @@ def _settings_fields(settings: object) -> bool:
     )
 
 
+def validate_execution_settings(settings: object) -> None:
+    try:
+        if not _settings_fields(settings):
+            raise ValueError(
+                "Execution settings require agent_model, attempts, validation, limits, and a list of open_questions"
+            )
+    except (KeyError, TypeError, AttributeError) as exc:
+        raise ValueError("Malformed structured creation record") from exc
+
+
+def validate_selection(provider: str, selection: dict | None) -> None:
+    try:
+        if selection is not None:
+            _evidence([selection["config"], *selection.get("inputs", [])])
+            for key in ("agent", "model", "source"):
+                _text(selection[key])
+            _decision(selection.get("authorization"))
+            if "settings_digest" in selection:
+                _digest(selection["settings_digest"])
+            if selection.get("bridge"):
+                _text(selection["bridge"]["source"])
+                _evidence(selection["bridge"]["evidence"])
+            _strings([case["task_id"] for case in selection["cases"]])
+            for case in selection["cases"]:
+                _strings(case["example_ids"])
+                if type(case["attempts"]) is not int or case["attempts"] < 1:
+                    raise ValueError("Attempts must be positive integers")
+                if provider == "gym":
+                    rows = case.get("rows", [])
+                    if (
+                        not selection.get("inputs")
+                        or len(rows) != len(case["example_ids"])
+                        or len(set(rows)) != len(rows)
+                    ):
+                        raise ValueError("Gym requires selected complete input rows and their retained inputs")
+                    if any(type(row) is not int or row < 1 for row in rows):
+                        raise ValueError("Gym rows must be unique one-based row numbers")
+    except (KeyError, TypeError, AttributeError) as exc:
+        raise ValueError("Malformed structured creation record") from exc
+
+
 def record(state: dict) -> dict | None:
     scope = state["scopes"].get("create", {})
     return scope.get("first_eval") if isinstance(scope, dict) else None
@@ -238,32 +279,7 @@ def validate(value: dict) -> None:
                     _evidence(check["evidence"])
                     if check["status"] not in {"passed", "failed", "blocked"}:
                         raise ValueError("Unknown task check status")
-        selection = value["selection"]
-        if selection is not None:
-            _evidence([selection["config"], *selection.get("inputs", [])])
-            for key in ("agent", "model", "source"):
-                _text(selection[key])
-            _decision(selection.get("authorization"))
-            if "settings_digest" in selection:
-                _digest(selection["settings_digest"])
-            if selection.get("bridge"):
-                _text(selection["bridge"]["source"])
-                _evidence(selection["bridge"]["evidence"])
-            _strings([case["task_id"] for case in selection["cases"]])
-            for case in selection["cases"]:
-                _strings(case["example_ids"])
-                if type(case["attempts"]) is not int or case["attempts"] < 1:
-                    raise ValueError("Attempts must be positive integers")
-                if value["provider"] == "gym":
-                    rows = case.get("rows", [])
-                    if (
-                        not selection.get("inputs")
-                        or len(rows) != len(case["example_ids"])
-                        or len(set(rows)) != len(rows)
-                    ):
-                        raise ValueError("Gym requires selected complete input rows and their retained inputs")
-                    if any(type(row) is not int or row < 1 for row in rows):
-                        raise ValueError("Gym rows must be unique one-based row numbers")
+        validate_selection(value["provider"], value["selection"])
         runs = value["runs"]
         if runs:
             _strings([run["id"] for run in runs])
@@ -341,10 +357,8 @@ def validate(value: dict) -> None:
         _decision(value.get("execution_settings_presented"))
         _decision(value.get("suite_review_presented"))
         _decision(value.get("suite_approval"))
-        if "execution_settings" in value and not _settings_fields(value["execution_settings"]):
-            raise ValueError(
-                "Execution settings require agent_model, attempts, validation, limits, and a list of open_questions"
-            )
+        if "execution_settings" in value:
+            validate_execution_settings(value["execution_settings"])
     except (KeyError, TypeError, AttributeError) as exc:
         raise ValueError("Malformed structured creation record") from exc
 
