@@ -111,36 +111,9 @@ def test_native_projection_cannot_substitute_expected_outcomes_after_summary(tmp
 
 
 @pytest.mark.parametrize("mode", ["fixture", "native"])
-def test_known_applicable_gaps_survive_native_health(tmp_path, mode):
-    output = tmp_path / "evidence"
-    if mode == "native":
-        synthetic_job(output)
-    else:
-        retained = runner.prepare(output)
-        (output / "panel.json").write_text(runner.encoded(runner.run_panel(output, retained)))
-    result, report = cli(output, selection_for(output, "reviewed", mode))
-    assert result.returncode in (0, 1), report
-    item = report["items"]["AC-02"]
-    metadata = report["measurements"]["scorer_controls"]["applicability"]
-    assert metadata["scope"] == (
-        "Both selected refund grading arms over the fixed scripted-event vocabulary, "
-        "including the native submission/worker/result path."
-    )
-    assert set(metadata["unresolved_classes"]) == {
-        "all-failure-stub",
-        "native-submission-early-exit",
-        "native-stale-success-after-later-failure",
-        "native-scorer-test-tampering",
-    }
-    assert not {"all-failure-program-stub", "scorer-test-program-tampering"} & set(metadata["excluded_classes"])
-    assert set(metadata["unresolved_classes"].values()) <= set(item["remaining_gaps"])
-    assert all((gap in item["remaining_gaps"]) == (mode == "fixture") for gap in metadata["fixture_gaps"])
-    assert item["score"] == 1
-    assert item["evidence_strength"] == "E2"
+def test_scorer_reports_preserve_findings_bindings_and_applicable_gaps(tmp_path, mode):
+    import hashlib
 
-
-@pytest.mark.parametrize("mode", ["fixture", "native"])
-def test_ac03_scores_verified_solver_success_with_one_shared_finding(tmp_path, mode):
     output = tmp_path / "evidence"
     if mode == "native":
         synthetic_job(output)
@@ -167,11 +140,38 @@ def test_ac03_scores_verified_solver_success_with_one_shared_finding(tmp_path, m
         assert value is not None
     assert item["evidence_refs"] == ["#/measurements/scorer_controls/findings/0"]
     assert all(report["items"][ident]["score"] is None for ident in ("AC-01", "AC-04"))
-    _, reviewed = cli(output, selection_for(output, "reviewed", mode))
+    retained = json.loads((output / "selection.json").read_text())
+    binding = observed["binding"]
+    assert binding["selection_sha256"] == hashlib.sha256(runner.encoded(retained).encode()).hexdigest()
+    assert binding["input_sha256"] == {row["id"]: row["digest"] for row in retained["artifacts"]}
+    assert binding["mode"] == mode
+    assert binding["grader"] == "baseline"
+    revision = "sha256:" + hashlib.sha256(runner.encoded(binding).encode()).hexdigest()
+    assert report["items"]["AC-03"]["subject_revision"] == revision
+
+    result, reviewed = cli(output, selection_for(output, "reviewed", mode))
+    assert result.returncode in (0, 1), reviewed
     assert reviewed["items"]["AC-03"]["score"] is None
     assert reviewed["items"]["AC-03"]["status"] == "NOT_ASSESSED"
     assert reviewed["measurements"]["scorer_controls"]["findings"] == []
     assert reviewed["items"]["AC-03"]["remaining_gaps"]
+    item = reviewed["items"]["AC-02"]
+    metadata = reviewed["measurements"]["scorer_controls"]["applicability"]
+    assert metadata["scope"] == (
+        "Both selected refund grading arms over the fixed scripted-event vocabulary, "
+        "including the native submission/worker/result path."
+    )
+    assert set(metadata["unresolved_classes"]) == {
+        "all-failure-stub",
+        "native-submission-early-exit",
+        "native-stale-success-after-later-failure",
+        "native-scorer-test-tampering",
+    }
+    assert not {"all-failure-program-stub", "scorer-test-program-tampering"} & set(metadata["excluded_classes"])
+    assert set(metadata["unresolved_classes"].values()) <= set(item["remaining_gaps"])
+    assert all((gap in item["remaining_gaps"]) == (mode == "fixture") for gap in metadata["fixture_gaps"])
+    assert item["score"] == 1
+    assert item["evidence_strength"] == "E2"
 
 
 @pytest.mark.parametrize("mode", ["fixture", "native"])
@@ -188,28 +188,6 @@ def test_selected_root_symlink_cannot_borrow_another_evidence_root(tmp_path, mod
     assert result.returncode == 2
     assert report["status"] == "invalid"
     assert "items" not in report
-
-
-@pytest.mark.parametrize("mode", ["fixture", "native"])
-def test_scored_subject_binds_whole_selected_task_and_configuration(tmp_path, mode):
-    import hashlib
-
-    output = tmp_path / "evidence"
-    if mode == "native":
-        synthetic_job(output)
-    else:
-        retained = runner.prepare(output)
-        (output / "panel.json").write_text(runner.encoded(runner.run_panel(output, retained)))
-    retained = json.loads((output / "selection.json").read_text())
-    _, report = cli(output, selection_for(output, "baseline", mode))
-    observed = report["measurements"]["scorer_controls"]
-    binding = observed["binding"]
-    assert binding["selection_sha256"] == hashlib.sha256(runner.encoded(retained).encode()).hexdigest()
-    assert binding["input_sha256"] == {row["id"]: row["digest"] for row in retained["artifacts"]}
-    assert binding["mode"] == mode
-    assert binding["grader"] == "baseline"
-    revision = "sha256:" + hashlib.sha256(runner.encoded(binding).encode()).hexdigest()
-    assert report["items"]["AC-03"]["subject_revision"] == revision
 
 
 @pytest.mark.parametrize("artifact", ["contract", "controls", "scorer", "runtime", "dispatch", "applicability"])

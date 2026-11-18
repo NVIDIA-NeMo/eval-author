@@ -6,7 +6,6 @@ import json
 import os
 import subprocess
 import sys
-from copy import deepcopy
 from pathlib import Path
 
 import pytest
@@ -32,15 +31,12 @@ def provenance_demo_process():
     return invoke()
 
 
-@pytest.mark.parametrize("contract", ["version", "order"])
-def test_provenance_cli_preserves_canonical_report_contract(provenance_demo_process, contract):
+def test_provenance_cli_preserves_canonical_report_contract(provenance_demo_process):
     process = provenance_demo_process
     assert process.returncode == 0, process.stderr
     panel = json.loads(process.stdout)
-    if contract == "version":
-        assert panel["schema"] == "rubric-provenance-demo-v2"
-        assert all(case["report"]["schema"] == "rubric-measurements-v3" for case in panel["cases"])
-        return
+    assert panel["schema"] == "rubric-provenance-demo-v2"
+    assert all(case["report"]["schema"] == "rubric-measurements-v3" for case in panel["cases"])
     definitions = json.loads(
         (ROOT / "skills/eval-author-rubric/references/artifact-configuration-provenance.json").read_text()
     )
@@ -55,7 +51,7 @@ def test_provenance_cli_preserves_canonical_report_contract(provenance_demo_proc
 
 
 def test_reconstruction_recovered_binds_exact_source_step(provenance_demo_process):
-    process = deepcopy(provenance_demo_process)
+    process = provenance_demo_process
     assert process.returncode == 0, process.stdout + process.stderr
     cases = {case["id"]: case for case in json.loads(process.stdout)["cases"]}
     assert "reconstruction-recovered" in cases
@@ -87,7 +83,7 @@ def test_reconstruction_recovered_binds_exact_source_step(provenance_demo_proces
 def test_reconstruction_defects_preserve_known_identity_and_neighbor(
     suffix, status, code, declaration, provenance_demo_process
 ):
-    process = deepcopy(provenance_demo_process)
+    process = provenance_demo_process
     assert process.returncode == 0, process.stdout + process.stderr
     cases = {case["id"]: case for case in json.loads(process.stdout)["cases"]}
     assert "reconstruction-" + suffix in cases
@@ -113,7 +109,7 @@ def test_reconstruction_defects_preserve_known_identity_and_neighbor(
 
 def test_generation_demo_uses_cli_and_preserves_canonical_rows(provenance_demo_process):
     assert RUNNER.is_file(), "The independent rubric provenance demo is missing"
-    process = deepcopy(provenance_demo_process)
+    process = provenance_demo_process
     assert process.returncode == 0, process.stdout + process.stderr
     assert process.stderr == ""
     panel = json.loads(process.stdout)
