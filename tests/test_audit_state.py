@@ -6,6 +6,7 @@ import hashlib
 import importlib
 import json
 from pathlib import Path
+from types import ModuleType
 
 import pytest
 
@@ -676,3 +677,144 @@ def test_finalization_is_bound_to_the_current_findings_report(audit):
     observed["files"][revised["path"]] = revised["digest"]
     progress = audit.derive(state, observed)
     assert progress["stage"] == "findings_review" and not progress["complete"]
+
+
+def specific_selection(
+    audit: ModuleType,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    kind: str = "improve",
+    ids: object = None,
+    mode: str = "measured",
+) -> tuple[dict, dict, dict, Path]:
+    if mode == "task_review":
+        state, value, observed = task_review(audit)
+        value["checks_approval"] = {
+            "digest": audit.derive(state, observed)["checks_digest"],
+            "source": "User approved the task-review checks",
+        }
+        report = {"path": ".eval-author/report_markdown/audits.md", "digest": audit.fingerprint("Task findings")}
+        value["findings"] = {"report": report, "source": "Recorded the completed task analysis"}
+        value["findings_final"] = {"digest": report["digest"], "source": "Finished the task analysis"}
+        observed["files"][report["path"]] = report["digest"]
+    else:
+        state, value, observed = reviewed(audit)
+    raw = json.dumps(
+        {
+            "recommendations": [
+                {"id": "R1", "action": "new_task"},
+                {"id": "R2", "action": "revise_task"},
+                {"id": "R3", "action": "repair_verifier"},
+                {"id": "R4", "action": "collect_evidence"},
+                {"id": "R5", "action": "fix_agent"},
+            ]
+        }
+    ).encode()
+    path = tmp_path / "report-content.json"
+    path.write_bytes(raw)
+    ref = {"path": path.name, "digest": hashlib.sha256(raw).hexdigest()}
+    value["findings"].update(content=ref, inputs=[])
+    observed["files"][path.name] = ref["digest"]
+    digest = audit.derive(state, observed)["findings_digest"]
+    previous = copy.deepcopy(state)
+    value["next_action"] = {
+        "kind": kind,
+        "findings_digest": digest,
+        "source": "User selected these report recommendations",
+        "recommendation_ids": ["R1", "R2", "R3"] if ids is None else ids,
+    }
+    monkeypatch.setattr(audit, "observe", lambda *_: observed)
+    return previous, state, observed, path
+
+
+@pytest.mark.parametrize("mode", ["measured", "task_review"])
+@pytest.mark.parametrize("legacy_review", [False, True])
+def test_specific_improvements_follow_recorded_findings_without_acceptance(
+    audit: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, mode: str, legacy_review: bool
+) -> None:
+    previous, state, observed, _ = specific_selection(audit, tmp_path, monkeypatch, mode=mode)
+    value = audit.record(state)
+    assert value["findings_review"] is None
+    if legacy_review:
+        receipt = {"digest": audit.fingerprint("Obsolete findings"), "source": "Earlier findings acceptance"}
+        audit.record(previous)["findings_review"] = copy.deepcopy(receipt)
+        value["findings_review"] = receipt
+    audit.transition(tmp_path, previous, state)
+    audit.retain_handoff(previous, state)
+    resumed = json.loads(json.dumps(state))
+    progress = audit.derive(resumed, observed)
+    assert progress["complete"] and progress["next_action_current"]
+    assert progress["stage"] == "complete" and progress["pending_checkpoint"] is None
+    assert audit.record(resumed)["findings_review"] == value["findings_review"]
+    assert resumed["scopes"]["expand"]["audit_handoff"]["recommendation_ids"] == ["R1", "R2", "R3"]
+    assert not resumed["scopes"]["expand"]["confirmed"]
+
+
+@pytest.mark.parametrize(
+    "kind,ids",
+    [
+        ("improve", ["R1", "R2", "R3"]),
+        ("collect_evidence", ["R4"]),
+        ("fix_agent", ["R5"]),
+    ],
+)
+def test_specific_selection_matches_reviewed_report(audit, tmp_path, monkeypatch, kind, ids):
+    previous, state, _observed, _path = specific_selection(audit, tmp_path, monkeypatch, kind=kind, ids=ids)
+    audit.transition(tmp_path, previous, state)
+    audit.retain_handoff(previous, state)
+    if kind == "improve":
+        handoff = state["scopes"]["expand"]["audit_handoff"]
+        audit.validate_handoff(handoff)
+        assert handoff["recommendation_ids"] == ids
+        assert handoff["report"] == audit.record(state)["findings"]["report"]
+        assert not state["scopes"]["expand"]["confirmed"]
+    else:
+        assert "expand" not in state["scopes"]
+
+
+@pytest.mark.parametrize("ids", [[], ["R1", "R1"], ["R99"], ["R4"], ["../R1"], [1]])
+def test_invalid_or_mismatched_recommendation_selection_is_rejected(audit, tmp_path, monkeypatch, ids):
+    previous, state, _observed, _path = specific_selection(audit, tmp_path, monkeypatch, ids=ids)
+    with pytest.raises(ValueError, match="recommendation|next action"):
+        audit.transition(tmp_path, previous, state)
+
+
+@pytest.mark.parametrize("change", ["content", "report", "decision"])
+def test_selection_cannot_use_stale_review(audit, tmp_path, monkeypatch, change):
+    previous, state, observed, path = specific_selection(audit, tmp_path, monkeypatch)
+    if change == "content":
+        path.write_text('{"recommendations": []}')
+    elif change == "report":
+        observed["files"][audit.record(state)["findings"]["report"]["path"]] = audit.fingerprint("changed")
+    else:
+        audit.record(state)["next_action"]["findings_digest"] = audit.fingerprint("old review")
+    with pytest.raises(ValueError, match="changed|reviewed current findings"):
+        audit.transition(tmp_path, previous, state)
+
+
+def test_finish_removes_previous_handoff_without_erasing_audit(audit, tmp_path, monkeypatch):
+    previous, state, _observed, _path = specific_selection(audit, tmp_path, monkeypatch)
+    audit.transition(tmp_path, previous, state)
+    audit.retain_handoff(previous, state)
+    before_finish = copy.deepcopy(state)
+    lifecycle = audit.record(state)
+    lifecycle["next_action"] = {
+        key: value for key, value in lifecycle["next_action"].items() if key != "recommendation_ids"
+    }
+    lifecycle["next_action"]["kind"] = "finish"
+    audit.transition(tmp_path, before_finish, state)
+    audit.retain_handoff(before_finish, state)
+    assert "audit_handoff" not in state["scopes"]["expand"]
+    assert lifecycle["findings"] == audit.record(before_finish)["findings"]
+
+
+def test_specific_handoff_retains_legacy_expansion_context(audit, tmp_path, monkeypatch):
+    previous, state, _observed, _path = specific_selection(audit, tmp_path, monkeypatch)
+    previous["scopes"]["expand"] = state["scopes"]["expand"] = "Earlier pending additions"
+    audit.transition(tmp_path, previous, state)
+    audit.retain_handoff(previous, state)
+    scope = state["scopes"]["expand"]
+    assert scope["legacy_context"] == "Earlier pending additions"
+    assert scope["audit_handoff"]["recommendation_ids"] == ["R1", "R2", "R3"]
+    assert not scope["confirmed"]

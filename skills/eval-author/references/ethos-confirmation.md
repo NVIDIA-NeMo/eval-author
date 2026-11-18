@@ -180,6 +180,8 @@ unchanged draft when applicable, then use `confirm-ethos` with `--ethos` set to
 the selected repository-relative path, the latest `--expected-revision`, the
 computed digest, the user's confirmation reference as
 `--source`, and the validator result's provenance as `--validation`. Preserve
+unresolved intent questions until the canonical workflow resolves them;
+`confirm-ethos` rejects a nonempty `ethos.remaining_questions` list. Preserve
 the validation details in a linked working artifact or the conversation; do
 not pass a structured validation object as if it were the helper's provenance
 string. An explicit `--ethos` must match the saved selection; omitting it retains
@@ -189,13 +191,13 @@ schema or heading validation. Use only the
 confirmed exact content for downstream cases or audit items. Validation alone
 is not intent confirmation. Present the returned path and unresolved gaps, then follow the
 shared [completion pause](shared-prerequisites.md#pause-after-ethos-confirmation).
-For a new shared flow, end the turn after the rendered `confirmed` response with its pending decision.
-An already-requested [returning audit](shared-prerequisites.md#return-to-an-audit)
-uses that procedure's continuation instead.
+That procedure selects the response, including direct continuation for an
+already-selected improvement path or returning audit. End the turn at its
+actual pending decision.
 For fresh creation without a saved design or source choice, the shared pause
 includes the source question instead of a readiness question. Wait for its
 answer before planning or inspecting traces; do not ask the same choice again
-in a later turn. Other flows retain their continuation. Do not delegate
+in a later turn. Do not delegate
 evaluation work before the applicable reply.
 If Blockers remain, use the blocked response instead.
 

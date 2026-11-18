@@ -28,11 +28,70 @@ trajectories or free-form prose. The
 separately requires byte-identical messages for identical rendering inputs;
 that presentation guarantee does not establish deterministic workflow execution.
 
+## Overall rubric showcase
+
+Run the identity, provenance, scorer, verification-integrity, task-contract/Ethos
+and synthetic criterion-rule demos. Then inspect their retained results in one HTML page:
+
+```bash
+uv run --locked python tools/run_rubric_showcase.py \
+  --output "$PWD/.eval-author/showcase-new"
+uv run --locked python tools/run_rubric_showcase.py \
+  --verify-existing "$PWD/.eval-author/showcase-new"
+```
+
+Use a new directory. Open its `index.html`. The page links each score to the
+emitted rubric report. It shows all paired refund controls, including operational
+and ambiguous cases. AC-02 scores come from the actual reports, not task-credit
+counts. Receipt-consistency group scores remain separate from canonical scores.
+
+This command starts no models or Docker containers. It runs fixture scorers,
+synthetic native-result producers, the existing rubric commands, and scorer replay.
+Missing evidence stays unassessed. The page lists the controls needed for stronger
+AC-02 scores and the saved-envelope acceptance/recovery path that is not yet shown.
+It does not turn partial acceptance claims into complete workflow acceptance.
+
+The criterion-rule panel exercises 0, 1, 2, 3 and missing-evidence cases for all
+18 populated criteria. The separate `criterion_demonstration` field labels these
+as synthetic examples, not measured task scores. The real fixture panels emit
+`provenance.task-artifact-access`, `provenance.grading-path`,
+`provenance.grading-dependency-access`, AC-02, AC-03's forged-success defect and
+task-contract.discoverable-requirements's hidden requirement. Remaining real-task
+scores still need criterion-specific evidence adapters, scoped human adjudication,
+native probes or independent corroboration.
+The coverage and diversity pillars remain unimplemented.
+
+Run only the task-contract source controls with:
+
+```bash
+uv run --locked python tools/run_task_contract_demo.py \
+  --output "$PWD/.eval-author/task-contract-new"
+```
+
+This writes `panel.json` and `report.md`. The source controls expose a planted
+hidden requirement and retain unassessed judgments; they do not establish owner
+confirmation. Use the overall showcase's `--verify-existing` command to validate
+its retained task-contract panel alongside the other reports.
+
+Run only the scoring-rule panel with:
+
+```bash
+uv run --locked python tools/run_criterion_scoring_demo.py \
+  --output "$PWD/.eval-author/criterion-rules-new"
+uv run --locked python tools/run_criterion_scoring_demo.py \
+  --verify-existing "$PWD/.eval-author/criterion-rules-new"
+```
+
+Fresh-root comparisons retain raw path-bound evidence and compare explicitly
+scoped semantic results. Matching repeated fixtures establish neither independent
+corroboration nor identical behavior across machines. Bundle verification checks
+retained data against current rules. Its hashes are not authenticated attestations.
+
 ## Rubric identity measurements
 
-The experimental rubric demo assesses source-bound task access (`DISC-01-A`),
-explicit grading-path identification (`DISC-01-B`), and grading-dependency access
-with a retained completeness review (`DISC-01-C`). Raw identity, route,
+The experimental rubric demo assesses source-bound task access (`provenance.task-artifact-access`),
+explicit grading-path identification (`provenance.grading-path`), and grading-dependency access
+with a retained completeness review (`provenance.grading-dependency-access`). Raw identity, route,
 configuration, relationship, and approval measurements remain separate from
 canonical criterion scores. See the
 [rubric measurement contract](../skills/eval-author-rubric/references/identity.md)
@@ -45,7 +104,7 @@ uv run --locked python tools/run_rubric_measurements.py --format text
 uv run --locked python tools/run_rubric_measurements.py
 ```
 
-The default output is `rubric-mutation-panel-v3` JSON. It contains 14 raw-measurement
+The default output is `rubric-mutation-panel-v4` JSON. It contains 14 raw-measurement
 regressions, five canonical score variants, and 13 source configuration, freshness,
 Ethos, and authority-reference variants in `evidence_cases`. Both
 assessment panels invoke the actual measurement CLI without mocking helper outputs.
@@ -61,7 +120,7 @@ case IDs and omits success claims when any case mismatches. Correctly detecting 
 planted defect does not cause a nonzero exit.
 It also checks that CLI assessment leaves the selected input bytes unchanged.
 
-| Variant | DISC-01-A | DISC-01-B | DISC-01-C |
+| Variant | provenance.task-artifact-access | provenance.grading-path | provenance.grading-dependency-access |
 | --- | --- | --- | --- |
 | Valid declared inventory | 2 | 2 | 2 |
 | Wrong scorer | 2 | 0 | 2 |
@@ -190,7 +249,7 @@ python skills/eval-author-rubric/scripts/measure.py \
   --root /path/to/package --selection /path/to/private-selection.json
 ```
 
-It emits `rubric-measurements-v2` JSON without modifying workflow state. Exit 1
+It emits `rubric-measurements-v3` JSON without modifying workflow state. Exit 1
 means failed/unknown raw predicates or comparisons still requiring review. Exit 2
 means invalid input. Exit 0 does not mean every canonical item is assessed or that
 native preflight passed. Configuration acceptability remains unassessed.
@@ -434,9 +493,12 @@ from 0/E2 for forbidden credit to 1/E2 for partial defenses with known gaps.
 These rubric scores use the existing scale from 0 to 3, separate from each arm's task
 credit. Scores are not averaged into an overall quality score.
 
-The optional assessment selects AC-02 only. AC-01, AC-03 and AC-04 remain
-unassessed in this slice. A validated native run adds evidence of execution but
-does not by itself close missing attack controls or justify a score of 2.
+The assessment also emits AC-03 = 0/E2 when the verified `no-work` control earns
+credit from solver-authored success. AC-02 and AC-03 cite one shared finding.
+They are not independent defects. The reviewed arm's AC-03 remains unassessed
+because these controls do not establish its full consumer-ownership boundary.
+AC-01 and AC-04 remain unassessed. A validated native run adds execution evidence
+but does not by itself close missing attack controls or justify a score of 2.
 Human authority and independent corroboration are not inferred from fixture
 expectations or matching hashes.
 

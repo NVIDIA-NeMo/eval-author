@@ -41,6 +41,36 @@ def measure(root, selection, ethos_validator=None):
     json.dumps(selection, allow_nan=False)
     if not isinstance(selection, dict):
         raise ValueError("selection must be an object")
+    supported = {
+        "approval_sources",
+        "approvals",
+        "artifacts",
+        "authority",
+        "decisions",
+        "contract_controls",
+        "criterion_evidence",
+        "declared_config",
+        "entrypoint",
+        "ethos",
+        "expected_scorer",
+        "freshness",
+        "external",
+        "layout",
+        "leakage",
+        "links",
+        "native",
+        "nodes",
+        "observed_config",
+        "overlap",
+        "reconstruction",
+        "reuse",
+        "route",
+        "rubric_scope",
+        "scorer_controls",
+        "sourced_config",
+    }
+    if selection.keys() - supported:
+        raise ValueError("unsupported selection field")
     artifacts = selection.get("artifacts", [])
     identity = identify(root, artifacts)
     route = (
@@ -127,8 +157,41 @@ def measure(root, selection, ethos_validator=None):
             or any(path.is_symlink() for path in (selected_root, *selected_root.parents))
         ):
             raise ValueError("selected evidence changed during assessment")
+    if "contract_controls" in selection:
+        from rubric_contract_controls import assess_contract_controls
+
+        contract_rows = assess_contract_controls(root, selection)
+        for ident, row in contract_rows.items():
+            if ident in items and items[ident]["score"] is not None:
+                if row["score"] != items[ident]["score"]:
+                    raise ValueError("conflicting canonical scores")
+            else:
+                items[ident] = row
+        if assess_contract_controls(root, selection) != contract_rows or identify(root, artifacts) != identity:
+            raise ValueError("selected evidence changed during assessment")
+    demonstration = {}
+    recorded = {}
+    if "criterion_evidence" in selection:
+        from rubric_evidence_scoring import assess_evidence
+
+        evidence_rows = assess_evidence(root, selection)
+        for ident, row in evidence_rows.items():
+            if not row["selected"]:
+                continue
+            if row["assessment_scope"] == "synthetic-scoring-demonstration":
+                demonstration[ident] = row
+            else:
+                recorded[ident] = row
+                if ident not in items:
+                    items[ident] = row
+                elif row["score"] is not None and row["score"] != items[ident]["score"]:
+                    raise ValueError("conflicting canonical scores")
+        if assess_evidence(root, selection) != evidence_rows or identify(root, artifacts) != identity:
+            raise ValueError("selected evidence changed during assessment")
     return {
-        "schema": "rubric-measurements-v2",
+        **({"criterion_demonstration": demonstration} if demonstration else {}),
+        **({"recorded_criterion_evidence": recorded} if recorded else {}),
+        "schema": "rubric-measurements-v3",
         "experimental": True,
         "scope": "explicit-local-selection",
         "preflight_success": False,
@@ -151,17 +214,22 @@ def main(argv=None):
     args = parser.parse_args(argv)
     try:
         report = measure(args.root.absolute(), loads(args.selection.read_text()), args.ethos_validator)
-        output = json.dumps(report, sort_keys=True, indent=2, allow_nan=False)
+        output = json.dumps(report, indent=2, allow_nan=False)
         if args.verify_existing:
             root = args.root.absolute()
             data, reason = read_selected(root, args.verify_existing.absolute().relative_to(root).as_posix())
-            if reason or data is None or json.dumps(loads(data), sort_keys=True, indent=2, allow_nan=False) != output:
+            if (
+                reason
+                or data is None
+                or json.dumps(loads(data), sort_keys=True, allow_nan=False)
+                != json.dumps(report, sort_keys=True, allow_nan=False)
+            ):
                 raise ValueError("retained report disagrees with current evidence")
     except (OSError, ValueError, TypeError, KeyError):
         print(
             json.dumps(
                 {
-                    "schema": "rubric-measurements-v2",
+                    "schema": "rubric-measurements-v3",
                     "status": "invalid",
                     "code": "selection.invalid",
                     "preflight_success": False,

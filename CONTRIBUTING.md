@@ -123,7 +123,7 @@ sign-off trailers in the resulting commit.
 
 ## CI trust boundary
 
-The checked-in CI workflow tests same-repository pull requests targeting `main`,
+The checked-in CI workflow tests same-repository pull requests targeting `main`
 and pushes to `main`, manual dispatches, and daily runs on GitHub-hosted Ubuntu
 runners. It uses a read-only
 `GITHUB_TOKEN`, disables persisted checkout credentials and shared dependency
