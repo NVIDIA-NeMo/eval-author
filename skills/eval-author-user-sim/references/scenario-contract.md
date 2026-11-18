@@ -37,7 +37,7 @@ supported. Nonrecursive aliases are allowed within these limits.
 
 ## Shared neutral behavior
 
-The execution adapter must apply the shared [neutral user behavior](neutral-behavior.md)
+The execution adapter must apply the shared [neutral user persona](neutral-persona.md)
 together with the task scenario. The Harbor translator reads that same source.
 
 These are reusable behavior defaults. Personality traits, demographic profiles,

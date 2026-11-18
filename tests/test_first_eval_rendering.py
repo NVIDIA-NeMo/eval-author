@@ -122,11 +122,11 @@ def test_proposal_displays_selected_interaction_without_inferring_legacy_type(cr
         conversation_scenario="Ask for a return | then answer <confirm>.",
     )
     output = renderer.render(payload(creation, "proposal"))
-    assert "| **User Simulation**<br>**refund** - Respect policy |" in output
+    assert "| **User Simulation:** **refund** - Respect policy |" in output
     assert "**State carried between requests:** Keep the same customer session." in output
     assert "**Conversation scenario:** Ask for a return &#124; then answer &lt;confirm&gt;." in output
-    assert "**Single Turn**<br>" not in output
-    assert "**Scripted Multi-step**<br>" not in output
+    assert "**Single Turn:** " not in output
+    assert "**Scripted Multi-step:** " not in output
 
 
 def payload(creation, stage, **facts):
@@ -397,7 +397,7 @@ def test_proposal_is_concise_deterministic_and_read_only(creation):
     )
     assert output == renderer.render(payload(creation, "resume"))
     assert copy.PROPOSAL_TABLE in output
-    assert "Request &#124; with newline<br>continued" not in output
+    assert "Request &#124; with newline continued" not in output
     assert output.endswith(copy.PROPOSAL_QUESTION + "\n")
     assert output.index("Other regions remain untested") < output.index("I’ll build **refund** first.")
     assert "- **Agent/model:" not in output and "Blockers" not in output and "SKILL.md" not in output
@@ -667,9 +667,9 @@ def test_task_ids_are_literal_in_tables_and_build_labels(creation, stage):
     output = renderer.render(payload(creation, stage))
     escaped = r"refund\_\*\[choice\]&#124;&lt;b&gt;"
     if stage == "proposal":
-        assert f"| **{escaped}<br>next** - Respect policy |" in output
+        assert f"| **{escaped} next** - Respect policy |" in output
     elif stage == "saved_design":
-        assert f"| {escaped}<br>next |" in output
+        assert f"| {escaped} next |" in output
     if stage == "proposal":
         assert f"I’ll build **{escaped} next** first." in output
     elif stage in {"prepare_first", "build_progress"}:
@@ -1367,7 +1367,7 @@ def test_suite_review_uses_current_plan_content_and_deduplicates_task_limitation
     monkeypatch.setattr(Path, "read_bytes", forbidden)
     monkeypatch.setattr(importlib.import_module("journey_state"), "now", forbidden)
     output = renderer.render(request)
-    assert "Do not \\[dispatch\\]" in output and "&#124; queue<br>\\#\\#\\# forged" in output
+    assert "Do not \\[dispatch\\]" in output and "&#124; queue \\#\\#\\# forged" in output
     assert output.count("Other regions untested") == 1
     assert json.dumps(state, sort_keys=True) == before
 
@@ -2683,7 +2683,7 @@ def test_proposal_shows_each_verifier_type_and_scoring_rule_before_setup_questio
     assert copy.VALIDATION_SETUP_INTRO not in output and state == before
     record["plan"]["tasks"][1]["scoring_rule"] = "Model judge <script>bad</script> | **override**\ncontinued"
     escaped = renderer.render(payload(creation, "proposal"))
-    assert "Model judge &lt;script&gt;bad&lt;/script&gt; &#124; \\*\\*override\\*\\*<br>continued" in escaped
+    assert "Model judge &lt;script&gt;bad&lt;/script&gt; &#124; \\*\\*override\\*\\* continued" in escaped
     assert "<script>" not in escaped and "| **override**" not in escaped
 
 
@@ -2704,3 +2704,31 @@ def test_fully_validated_legacy_tasks_can_show_report_bookkeeping_without_setup_
     output = renderer.render(payload(creation, stage))
     assert "report" in output and copy.VALIDATION_SETUP_QUESTION not in output
     assert "In progress" in output
+
+
+@pytest.mark.parametrize("html_enabled", [False, True])
+@pytest.mark.parametrize("interaction_type", ["single_turn", "scripted_multi_step", "user_sim"])
+def test_task_table_renders_without_html_support(creation, html_enabled, interaction_type):
+    from conversation_flows.first_eval import task_table
+    from interaction_types import interaction_type_label
+    from markdown_it import MarkdownIt
+
+    row = {
+        "task_id": "IMP-01",
+        "behavior_tested": "Import the document.\nSave it in the selected project.",
+        "expected_outcome": "Save exactly one source.\nName its path in the reply.",
+        "verifier_type": "Custom code",
+        "scoring_rule": "Pass at 1 when the saved source matches, otherwise score 0.",
+        "interaction_type": interaction_type,
+    }
+    output = task_table([row])
+    tokens = MarkdownIt("commonmark", {"html": html_enabled}).enable("table").parse(output)
+    children = [child for token in tokens for child in token.children or []]
+    displayed = " ".join(child.content for child in children if child.type == "text")
+    assert sum(token.type == "td_open" for token in tokens) == 3
+    assert not any(child.type == "html_inline" for child in children)
+    assert "<br>" not in displayed
+    assert interaction_type_label(interaction_type) + ":" in displayed
+    assert "Import the document. Save it in the selected project." in displayed
+    assert "Save exactly one source. Name its path in the reply." in displayed
+    assert row["scoring_rule"] in displayed
