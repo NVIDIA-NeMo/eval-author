@@ -8,6 +8,6 @@
 | Partial refund | Checks passed |
 | Duplicate refund request | Repairing |
 
-The duplicate-request grader accepted a second refund. I’m correcting that check.
+The duplicate-request verifier accepted a second refund. I’m correcting that check.
 
 **Limits:** At most two construction attempts; running the agent requires separate approval

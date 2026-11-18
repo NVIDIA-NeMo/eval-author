@@ -313,9 +313,9 @@ unanswered scope question. Once scope is agreed, the selected authoring workflow
 continues without another approval step. Permission to run the agent remains separate.
 
 During creation, progress shows every agreed task, which drafts exist, and which
-grading checks passed, failed, or remain incomplete. It preserves partial work
+verifier checks passed, failed, or remain incomplete. It preserves partial work
 and blockers when you return. Changes to task files or evidence reopen affected
-validation; passing grading checks does not measure your agent's performance.
+validation; passing verifier checks does not measure your agent's performance.
 Once all agreed tasks have current passing checks, the authored tasks are ready
 for review. Running the agent requires its own authorization.
 

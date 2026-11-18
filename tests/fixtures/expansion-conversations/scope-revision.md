@@ -19,6 +19,6 @@
 
 **Deferred work:**
 
-- Repairing an unrelated existing grader
+- Repairing an unrelated existing verifier
 
 Which refund scenario instead?
