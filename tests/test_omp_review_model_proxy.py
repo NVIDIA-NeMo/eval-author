@@ -147,6 +147,7 @@ def test_streams_response_and_meters_every_usage_category(start):
         ("/v1/messages", "POST", {"tools": [{"type": "web_fetch_20250910", "name": "web_fetch"}]}, 400),
         ("/v1/messages", "POST", {"metadata": {"user_id": "u", "tags": ["x"]}}, 400),
         ("/v1/messages", "POST", {"context_management": {"edits": [{"type": "compact_20260112"}]}}, 400),
+        ("/v1/messages", "POST", {"context_management": {"edits": [{"type": ["clear_thinking_20251015"]}]}}, 400),
     ],
 )
 def test_rejects_other_paths_models_limits_and_routing_fields(start, path, method, body, status):

@@ -62,7 +62,8 @@ REQUEST_FIELDS = {
     "top_p",
 }
 # Context edits that only drop content; compaction is excluded because its sampling pass is billed outside `usage`.
-CONTEXT_EDITS = {"clear_thinking_20251015", "clear_tool_uses_20250919"}
+# A tuple, so unhashable values from the request compare unequal instead of raising.
+CONTEXT_EDITS = ("clear_thinking_20251015", "clear_tool_uses_20250919")
 SKIPPED_RESPONSE_HEADERS = {"connection", "content-encoding", "content-length", "keep-alive", "transfer-encoding"}
 USAGE_FIELDS = ("input_tokens", "output_tokens", "cache_creation_input_tokens", "cache_read_input_tokens")
 CACHE_SPLIT_FIELDS = ("ephemeral_5m_input_tokens", "ephemeral_1h_input_tokens")
