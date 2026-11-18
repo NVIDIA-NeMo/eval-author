@@ -319,6 +319,30 @@ def synthetic_job(tmp_path):
     return native, trial
 
 
+def test_native_check_delegates_loaded_envelope(tmp_path, monkeypatch):
+    from unittest.mock import Mock
+
+    native, _ = synthetic_job(tmp_path)
+    spies = {
+        name: Mock(wraps=getattr(native.common, name))
+        for name in ("completed_job", "completed_trial", "completed_phases")
+    }
+    for name, spy in spies.items():
+        monkeypatch.setattr(native.common, name, spy)
+    assert native.summarize(tmp_path, 0)["status"] == "passed"
+    for spy in spies.values():
+        spy.assert_called_once()
+        assert isinstance(spy.call_args.args[0], dict)
+    for name, field, value, error in (
+        ("completed_job", "n_total_trials", True, "wrong trial count"),
+        ("completed_trial", "exception_info", {}, "unfinished trial"),
+        ("completed_phases", "verifier", {"started_at": "start", "finished_at": None}, "unfinished phase"),
+    ):
+        args, kwargs = spies[name].call_args
+        with pytest.raises(ValueError, match=f"^{error}$"):
+            getattr(native.common, name)({**args[0], field: value}, *args[1:], **kwargs)
+
+
 def test_summary_rejects_transient_expected_bytes_at_consumption(tmp_path, monkeypatch):
     native, trial = synthetic_job(tmp_path)
     monkeypatch.setattr(native.common, "execute", lambda *a, **k: pytest.fail("native launch forbidden"))
