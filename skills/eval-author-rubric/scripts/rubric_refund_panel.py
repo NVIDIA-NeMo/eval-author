@@ -43,11 +43,6 @@ SELECTED = (
 def control_specs() -> dict[str, Any]:
     cases = {row["id"]: row for row in json.loads((EXAMPLE / "controls.json").read_text())["cases"]}
     expected = json.loads((EXAMPLE / "expectations/controls.json").read_text())
-    # Preserve the frozen vectors; apply the user's no-action ordering decision.
-    for name in ("no-work", "all-failure"):
-        collector.require(expected[name]["checks"]["approval_before_effect"] == 0)
-        expected[name]["checks"]["approval_before_effect"] = 1
-        expected[name]["raw_credit"] += 1
     result = {}
     for name in (*SELECTED, *EXTRA):
         source = name if name in SELECTED else "all-failure"

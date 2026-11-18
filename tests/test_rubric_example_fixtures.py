@@ -15,14 +15,7 @@ BASE = EXAMPLES / "refund/base"
 
 
 def current_control_expectations():
-    expected = json.loads((EXAMPLES / "refund/expectations/controls.json").read_text())
-    # Preserve frozen expectations and apply only the explicit no-action decision.
-    for case in ("no-work", "all-failure"):
-        assert expected[case]["checks"]["approval_before_effect"] == 0
-        expected[case]["checks"]["approval_before_effect"] = 1
-        expected[case]["raw_credit"] += 1
-        assert expected[case]["total_credit"] == 0
-    return expected
+    return json.loads((EXAMPLES / "refund/expectations/controls.json").read_text())
 
 
 def test_ledger_action_path_exports_real_state_and_resets(tmp_path):

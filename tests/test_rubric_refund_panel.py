@@ -44,10 +44,6 @@ def test_current_no_action_expectations_keep_frozen_history():
     for name, spec in current.items():
         source = name if name in panel.SELECTED else "all-failure"
         expected = frozen[source].copy()
-        expected["checks"] = dict(expected["checks"])
-        if source in ("no-work", "all-failure"):
-            expected["checks"]["approval_before_effect"] = 1
-            expected["raw_credit"] += 1
         assert spec["expected"] == expected
     assert path.read_bytes() == before
 

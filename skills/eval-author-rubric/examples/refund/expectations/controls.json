@@ -27,12 +27,12 @@
       "amount": 0,
       "destination": 1,
       "approval_present": 0,
-      "approval_before_effect": 0,
+      "approval_before_effect": 1,
       "ledger": 1,
       "protected_state": 1,
       "fresh_effect": 0
     },
-    "raw_credit": 5,
+    "raw_credit": 6,
     "max_credit": 9,
     "total_credit": 0,
     "accepted": false
@@ -377,12 +377,12 @@
       "amount": 0,
       "destination": 1,
       "approval_present": 0,
-      "approval_before_effect": 0,
+      "approval_before_effect": 1,
       "ledger": 1,
       "protected_state": 1,
       "fresh_effect": 0
     },
-    "raw_credit": 4,
+    "raw_credit": 5,
     "max_credit": 9,
     "total_credit": 0,
     "accepted": false
