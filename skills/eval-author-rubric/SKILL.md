@@ -71,7 +71,7 @@ the area or criterion IDs explicitly requested by the user:
   artifact, configuration, and provenance.
 - **Artifact, configuration, and provenance:** use
   [the canonical assessment](references/artifact-configuration-provenance.md)
-  for its original criterion IDs and item-specific anchors. Artifact, configuration,
+  for its `provenance.*` criteria and item-specific anchors. Artifact, configuration,
   and provenance opt-in does not select anti-cheat.
 - **Data leakage and forged credit:** use
   [the leakage and credit assessment](references/leakage-and-credit.md) for
@@ -80,7 +80,7 @@ the area or criterion IDs explicitly requested by the user:
   other area.
 - **Task contract and scoring authority:** use
   [the task contract assessment](references/task-contract-authority.md) for
-  CREATE-03, CREATE-04, and CREATE-05-A. Selecting this area selects neither of
+  its `task-contract.*` criteria. Selecting this area selects neither of
   the others, and selecting another area does not select it.
 
 If the named-rubric request leaves the area ambiguous, clarify the scope once
@@ -160,7 +160,7 @@ controls. Preserve legitimate inaction and partial-credit semantics.
 
 ### 4. Present the scoped assessment
 
-For each selected criterion, report its original ID, applicability, score or
+For each selected criterion, report its ID, applicability, score or
 explicit unassessed status, evidence strength, measurement, evidence references,
 limitation, and next action.
 Use that criterion's scoring rules. Do not transfer anti-cheat evidence floors to
