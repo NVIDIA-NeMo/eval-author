@@ -6,7 +6,7 @@
 Use the [shared rendering entry point](../../scripts/conversation_renderer.py)
 with `stage: expansion_continue` for an unresolved entry decision or
 `stage: expansion_scope` for the selected authoring flow's existing scope review.
-Rendering does not construct tasks, validate grading, or authorize execution.
+Rendering does not construct tasks, validate verifiers, or authorize execution.
 For an unselected improvement path, use the core's
 [expansion entry](../../SKILL.md#expansion-handoff) before shared checks;
 continuation retains an already-selected path and its unresolved decision.
