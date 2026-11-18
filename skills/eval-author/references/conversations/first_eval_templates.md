@@ -29,12 +29,12 @@ doesn't display them.
 
 Include `interaction_type` using the shared
 [interaction planning rules](../coverage-planning.md#choose-the-interaction-type).
-The renderer places the type label as a bold heading above the behavior in the
-Task cell. For example, a proposed row renders as:
+The renderer places the type label as a bold prefix on the same line as the
+Task cell content. For example, a proposed row renders as:
 
 | Task | Expected outcome | Verifier |
 |---|---|---|
-| **Single Turn**<br>**INV-01-exact-sku-lookup** - Look up the requested SKU. | Return the matching SKU and its stock count. | **Custom code** Pass at 1 when the requested SKU and count match exactly, otherwise score 0. |
+| **Single Turn:** **INV-01-exact-sku-lookup** - Look up the requested SKU. | Return the matching SKU and its stock count. | **Custom code** Pass at 1 when the requested SKU and count match exactly, otherwise score 0. |
 
 The renderer shows state requirements, prerequisite checks, and conversation scenarios
 below the table so the user can review the proposed exchange before authoring.

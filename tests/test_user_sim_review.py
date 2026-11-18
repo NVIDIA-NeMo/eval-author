@@ -302,7 +302,7 @@ def test_authored_report_and_review_keep_interaction_type_and_bound_neutral_scen
     flow = importlib.import_module("conversation_flows.first_eval")
     checked = flow.authored_rows(value, {"task_rows": rows}, observed, ["refund"])
     output = flow.task_table(checked)
-    assert "**User Simulation**<br>**refund**" in output
+    assert "**User Simulation:** **refund**" in output
     assert "Neutral scenario: refund" in output
     assert ".eval-author/tasks/refund/user-sim.yaml" in output
     assert "PRIVATE-ORDER-2084" not in output

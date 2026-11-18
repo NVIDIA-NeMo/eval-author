@@ -34,7 +34,7 @@ SAVED_DESIGN_QUESTION = "Would you like to continue this saved design, revise it
 PROPOSAL_INTRO = "Here are the proposed evaluation tasks."
 TASK_TABLE = "| Task | Expected outcome | Verifier |\n|---|---|---|"
 PROPOSAL_TABLE = TASK_TABLE
-INTERACTION_TYPE = "**{label}**<br>"
+INTERACTION_TYPE = "**{label}:** "
 INTERACTION_TITLE = "**{task_id}: interaction details**"
 INTERACTION_FIELDS = {
     "state_requirements": "State carried between requests",
@@ -130,7 +130,7 @@ SUITE_REVIEW_STATUS = (
 SUITE_QUESTION = "Do these tasks look good? Approve the suite or tell me what to change before we choose how to run it."
 SETTINGS_INTRO = "Here are the settings for running the approved tasks."
 SETTINGS_LABELS = ("Attempts", "Validation", "User-specified limits", "Open questions")
-NEUTRAL_SCENARIO = "<br>Neutral scenario: {task_id} ({path})"
+NEUTRAL_SCENARIO = " - Neutral scenario: {task_id} ({path})"
 SIMULATOR_SETTINGS_PENDING = (
     "- **User simulation:** Neutral user. Simulator identity and conversation limits remain unresolved."
 )

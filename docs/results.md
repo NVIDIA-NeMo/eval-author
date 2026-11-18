@@ -78,6 +78,9 @@ are not labeled passed or failed. Standalone controls and other individual trial
 remain accessible in the separate Legacy trials section and are not combined
 into inferred jobs.
 
+Markdown tables use inline labels and text separators, so they render in
+terminal interfaces without HTML support.
+
 ## User-simulation scenarios
 
 For an approved Harbor **User-sim** task with
