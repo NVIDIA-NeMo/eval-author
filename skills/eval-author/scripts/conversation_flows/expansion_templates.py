@@ -26,9 +26,9 @@ SCOPE_EMPTY = "No tasks are proposed yet."
 SCOPE_DEFERRED = "**Deferred work:**"
 SCOPE_STATUS = {
     "scope": "",
-    "scope_approved": "This task plan is agreed. I’ll continue with task creation.",
+    "scope_approved": "This task plan is agreed.",
     "scope_declined": "You declined this task plan.",
-    "scope_revision": "Revise this task plan before continuing.",
+    "scope_revision": "",
 }
 
 

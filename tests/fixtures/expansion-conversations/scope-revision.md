@@ -21,6 +21,4 @@
 
 - Repairing an unrelated existing grader
 
-Revise this task plan before continuing.
-
 Which refund scenario instead?

@@ -21,4 +21,4 @@
 
 - Repairing an unrelated existing grader
 
-This task plan is agreed. I’ll continue with task creation.
+This task plan is agreed.
