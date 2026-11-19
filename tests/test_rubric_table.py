@@ -45,7 +45,9 @@ def test_table_assesses_materialized_refund_without_manual_selection(tmp_path):
     assert not report["legacy_evidence_items"].keys() & report["items"].keys()
     assert report["undefined_criteria"]["METHOD-J1"]["score"] is None
     assert "METHOD-J1" not in report["items"]
-    assert report["items"]["AUDIT-05-B"]["score"] == 1
+    from rubric_leakage_current import observed_score
+
+    assert observed_score(report["items"]["AUDIT-05-B"]) == 1
     assert report["items"]["AUDIT-04-B"]["score"] is None
     assert table_cli(tmp_path / "case/assessment", "--verify-existing", tmp_path / "review").returncode == 1
 

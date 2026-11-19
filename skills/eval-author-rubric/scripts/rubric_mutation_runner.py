@@ -17,7 +17,14 @@ import example_fixtures as fixtures
 
 # Import the owning entrypoint first so its shared runtime paths are installed.
 import rubric_table
-from rubric_leakage_current import GAPS, canonical_definitions, current_expectations, definitions_digest, inventory
+from rubric_leakage_current import (  # noqa: E402
+    GAPS,
+    canonical_definitions,
+    current_expectations,
+    definitions_digest,
+    inventory,
+    observed_score,
+)
 
 SCRIPTS = Path(__file__).resolve().parent
 TASK = "assessment/task/task.toml"
@@ -82,7 +89,7 @@ def observed_rows(assessment: dict[str, Any]) -> dict[str, Any]:
         check_ids = [check.get("check_id") or check.get("id") for check in checks]
         if check_ids != [check["id"] for check in definition["checks"]]:
             raise ValueError("incomplete check inventory")
-        score = row["score"]
+        score = observed_score(row)
         if score is not None and (type(score) is not int or score not in range(4)):
             raise ValueError("invalid observed score")
         result[ident] = {
@@ -1352,7 +1359,7 @@ def run_matrix(
         raise ValueError("current combined base failed")
     if saved.get("definitions_sha256") == definitions_digest() and {
         k: r["score"] for k, r in observed_rows(baseline).items()
-    } != {k: r["score"] for k, r in saved["report"]["items"].items()}:
+    } != {k: observed_score(r) for k, r in saved["report"]["items"].items()}:
         raise ValueError("current base differs from supplied same-definition milestone")
     scopes = selected_scopes(root, original)
     runs = []

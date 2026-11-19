@@ -69,7 +69,7 @@ def test_current_ordinary_pairs_reach_matrix_and_extension_without_replay(tmp_pa
     fault = result["operational_failure_controls"][0]
     assert fault["actual"] is None and fault["matched"] is False and fault["numeric_drop"] is False
     assert all(fault["case"] != a["case"] for c in result["cells"] for a in c["attempts"])
-    assert len(result["cells"]) == 84 and len(result["missing_evidence_cells"]) == 21
+    assert len(result["cells"]) == 92 and len(result["missing_evidence_cells"]) == 23
     assert "METHOD-J1" not in result["base_scores"]
     extension.enrich(result)
     enriched = next(r for r in result["rows"] if r["case"] == defect["case"])
@@ -130,7 +130,7 @@ def test_check_id_only_report_normalization(tmp_path):
     path = tmp_path / "synthetic-report.json"
     path.write_text(json.dumps({"report": {"items": items}}))
     rows = runner.observed_rows({"state": "assessed", "report": str(path)})
-    assert len(rows) == 21 and sum(len(r["checks"]) for r in rows.values()) == 70
+    assert len(rows) == 23 and sum(len(r["checks"]) for r in rows.values()) == 76
 
 
 @pytest.mark.parametrize("deferred", [False, True])

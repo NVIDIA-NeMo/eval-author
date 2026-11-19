@@ -18,6 +18,7 @@ no top-level ``harbor`` name for the enclosing directory to be found under.
 from __future__ import annotations
 
 import contextlib
+import inspect
 import shutil
 import subprocess
 import sys
@@ -28,17 +29,27 @@ from fnmatch import fnmatchcase
 from pathlib import Path
 
 from _checks import ADVISORY, FAIL, PASS, REQUIRED, WARN, CheckResult, check
+from harbor.agents.base import BaseAgent
 from harbor.agents.factory import AgentFactory
+from harbor.agents.protocols import ACPAgentMixin
+from harbor.bridges.acp import ACPBridgeKwargs
+from harbor.cli.config_sources import load_config_source as load_config_source
 from harbor.environments.factory import EnvironmentFactory
 from harbor.job import Job
-from harbor.models.agent.name import AgentName
+from harbor.models.bridge import BridgeKind
 from harbor.models.environment_type import EnvironmentType
 from harbor.models.job.config import JobConfig
 from harbor.models.task.config import TaskConfig
 from harbor.models.task.paths import TaskPaths
 from harbor.models.task.task import Task
+from harbor.models.trial.config import AgentConfig
+from harbor.trial.simulated_user import (
+    load_user_persona,
+    load_user_prompt_template,
+    validate_user_agent_version_pin,
+)
 from harbor.utils.env import get_required_host_vars
-from harbor.utils.import_path import import_class
+from harbor_acp import validate_acp_target_settings, validate_acpx_config_file
 from providers.harbor._explore import ConfigCandidate
 from pydantic import ValidationError
 from working_paths import scratch_directory
@@ -97,6 +108,7 @@ async def judge_config(candidate: ConfigCandidate, repo_root: Path) -> Validatio
 
         job = await _resolve(config, outcome, repo_root)
         _check_agent(config, outcome)
+        _check_user_inputs(config, outcome)
         _check_backend(config, outcome)
         outcome.checks.append(check_config_file(candidate.path, repo_root))
         if job is None:
@@ -114,6 +126,7 @@ async def judge_config(candidate: ConfigCandidate, repo_root: Path) -> Validatio
             )
             return outcome
         task_dirs = _check_tasks(resolved, outcome)
+        _check_task_interactions(config, task_dirs, outcome)
         _check_coverage(config, resolved, outcome)
         _check_required_env_vars(config, task_dirs, outcome)
     return outcome
@@ -224,7 +237,8 @@ def _check_required_env_vars(config: JobConfig, task_dirs: list[Path], outcome: 
 
     def collect(env: dict[str, str], declared_in: Path) -> None:
         for name, default in get_required_host_vars(env):
-            required.setdefault(name, RequiredEnvVar(name, default, declared_in))
+            if name not in required or default is None:
+                required[name] = RequiredEnvVar(name, default, declared_in)
 
     for task_dir in task_dirs:
         task_config = _task_config(task_dir)
@@ -238,6 +252,8 @@ def _check_required_env_vars(config: JobConfig, task_dirs: list[Path], outcome: 
     collect(config.verifier.env, Path("<job config>"))
     for agent in config.agents:
         collect(agent.env, Path("<job config>"))
+    if config.user_agent is not None:
+        collect(config.user_agent.env, Path("<user-agent config>"))
     outcome.required_env_vars = sorted(required.values(), key=lambda item: item.name)
     names = ", ".join(item.name for item in outcome.required_env_vars)
     outcome.checks.append(
@@ -298,37 +314,154 @@ def _task_config(task_dir: Path) -> TaskConfig | None:
         return None
 
 
+def _agent_class(agent: AgentConfig) -> type[BaseAgent]:
+    import_path = agent.import_path or (agent.name if ":" in (agent.name or "") else None)
+    local_import = import_path and import_path.split(":", 1)[0].split(".", 1)[0] != "harbor"
+    with _evict_module_tree(import_path) if local_import else contextlib.nullcontext():
+        agent_class = AgentFactory.get_agent_class_from_config(agent)
+    if not issubclass(agent_class, BaseAgent) or inspect.isabstract(agent_class):
+        raise TypeError("The configured class must implement Harbor BaseAgent")
+    return agent_class
+
+
 def _check_agent(config: JobConfig, outcome: ValidationOutcome) -> None:
-    for agent in config.agents:
-        if agent.import_path is not None:
-            with _evict_module_tree(agent.import_path):
-                try:
-                    imported = import_class(agent.import_path, label="agent")
-                except (Exception, SystemExit) as exc:
-                    outcome.checks.append(
-                        _check(
-                            "agent",
-                            FAIL,
-                            "Cannot import agent {}: {}: {}".format(agent.import_path, type(exc).__name__, exc),
-                        )
-                    )
-                else:
-                    outcome.checks.append(
-                        _check("agent", PASS, "Agent {} imports as a class.".format(imported.__name__))
-                    )
-        elif agent.name is not None:
+    roles = [("agent", agent) for agent in config.agents]
+    if config.user_agent is not None:
+        roles.append(("user-agent", config.user_agent))
+    resolved: list[tuple[str, AgentConfig, type[BaseAgent]]] = []
+    for role, agent in roles:
+        try:
+            agent_class = _agent_class(agent)
+        except (Exception, SystemExit) as exc:
+            outcome.checks.append(
+                _check(
+                    role, FAIL, f"Cannot load Harbor {role} {agent.import_path or agent.name}: {type(exc).__name__}."
+                )
+            )
+            continue
+        outcome.checks.append(_check(role, PASS, f"Harbor {role} class {agent_class.__name__} is available."))
+        resolved.append((role, agent, agent_class))
+    user_class = next((cls for role, _, cls in resolved if role == "user-agent"), None)
+    for role, agent, agent_class in resolved:
+        user = config.user_agent
+        if role != "agent" or user is None:
+            continue
+        compatible = user.bridge.kind in agent_class.capabilities.bridges and (
+            user.bridge.kind != BridgeKind.ACP or issubclass(agent_class, ACPAgentMixin)
+        )
+        outcome.checks.append(
+            _check(
+                "user-agent-bridge",
+                PASS if compatible else FAIL,
+                f"Target {agent_class.__name__} "
+                + (
+                    "declares the required interactive bridge interface."
+                    if compatible
+                    else "lacks the required interactive bridge interface."
+                ),
+                hint="A declared interface still needs a continuing-session run against the actual agent.",
+            )
+        )
+        if agent.load_trajectory is not None:
+            outcome.checks.append(
+                _check("user-agent-session", FAIL, "Harbor cannot combine user_agent with target load_trajectory.")
+            )
+        if compatible and user.bridge.kind == BridgeKind.ACP:
             try:
-                AgentFactory.get_agent_class(AgentName(agent.name))
-            except Exception as exc:
+                validate_acp_target_settings(agent, agent_class)
+            except ValueError as error:
+                outcome.checks.append(_check("user-agent-settings", FAIL, str(error)))
+        if user.kwargs.get("version") is not None and user_class is not None:
+            try:
+                validate_user_agent_version_pin(
+                    agent_class.name(), agent.kwargs.get("version"), user_class.name(), user.kwargs["version"]
+                )
+            except ValueError:
                 outcome.checks.append(
                     _check(
-                        "agent",
+                        "user-agent-version",
                         FAIL,
-                        "Cannot load Harbor agent {}: {}: {}".format(agent.name, type(exc).__name__, exc),
+                        "Target and simulator pin conflicting versions of the same installed agent.",
                     )
                 )
-            else:
-                outcome.checks.append(_check("agent", PASS, "Built-in agent {} is available.".format(agent.name)))
+
+
+def _check_user_inputs(config: JobConfig, outcome: ValidationOutcome) -> None:
+    user = config.user_agent
+    if user is None:
+        return
+    try:
+        load_user_prompt_template(user.user_prompt_template_path, persona_path=user.user_persona_path)
+        load_user_persona(user.user_persona_path)
+        if user.bridge.prompt_path is not None:
+            user.bridge.prompt_path.read_text(encoding="utf-8")
+        if user.bridge.kind == BridgeKind.ACP:
+            kwargs = ACPBridgeKwargs.model_validate(user.bridge.kwargs)
+            if kwargs.acpx_config_path is not None:
+                validate_acpx_config_file(kwargs.acpx_config_path)
+    except (OSError, ValueError, UnicodeError) as exc:
+        outcome.checks.append(
+            _check(
+                "user-agent-inputs",
+                FAIL,
+                f"Harbor rejected simulator or bridge inputs ({type(exc).__name__}).",
+                hint="Check the persona, prompt template, bridge prompt, and ACPX config paths with Harbor's validators.",
+            )
+        )
+    else:
+        outcome.checks.append(
+            _check("user-agent-inputs", PASS, "Harbor accepts the simulator prompt and bridge inputs.")
+        )
+    outcome.checks.append(
+        _check(
+            "user-agent-proof",
+            WARN,
+            "Static checks do not prove opening-message fidelity, isolated user facts, session continuity, or retained target evidence.",
+            severity=ADVISORY,
+            proven=False,
+            hint="Verify these properties in an actual continuing conversation. Harbor's stock ACP roles share a filesystem.",
+        )
+    )
+
+
+def _check_task_interactions(config: JobConfig, task_dirs: list[Path], outcome: ValidationOutcome) -> None:
+    tasks = [task for path in task_dirs if (task := _task_config(path)) is not None]
+    if config.user_agent is not None and config.user_agent.bridge.kind == BridgeKind.ACP:
+        if any(task.environment.mcp_servers for task in tasks):
+            for agent in config.agents:
+                try:
+                    agent_class = _agent_class(agent)
+                except (Exception, SystemExit):
+                    continue  # The agent import check already reports the blocker.
+                try:
+                    validate_acp_target_settings(agent, agent_class, task_mcp_servers=True)
+                except ValueError as error:
+                    outcome.checks.append(_check("user-agent-settings", FAIL, str(error)))
+    multi_step = any(task.steps for task in tasks)
+    if not multi_step:
+        return
+    if config.user_agent is not None:
+        outcome.checks.append(
+            _check("user-agent-task", FAIL, "Harbor does not support user-agent bridges on multi-step tasks.")
+        )
+        return
+    if not any(task.steps and len(task.steps) > 1 for task in tasks):
+        return
+    for agent in config.agents:
+        if not agent.resume_trajectory:
+            continue
+        try:
+            agent_class = _agent_class(agent)
+        except (Exception, SystemExit):
+            continue  # The agent import check already reports the blocker.
+        if not agent_class.capabilities.resume:
+            outcome.checks.append(
+                _check(
+                    "agent-resume",
+                    FAIL,
+                    "The selected multi-step runner cannot preserve its native conversation session.",
+                )
+            )
 
 
 def _check_backend(config: JobConfig, outcome: ValidationOutcome) -> None:

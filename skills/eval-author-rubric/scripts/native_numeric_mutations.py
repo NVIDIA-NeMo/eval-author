@@ -586,7 +586,10 @@ def reports(bundle, registry, output, base_matrix):
     if matrix:
         base_saved = json.loads(Path(matrix["base"]["report"]).read_text())
         repair_saved = json.loads(Path(matrix["repair"]["report"]).read_text())
-        collector.require({k: v["score"] for k, v in repair_saved["report"]["items"].items()} == matrix["base_scores"])
+        from rubric_leakage_current import observed_score
+
+        repair_scores = {k: observed_score(v) for k, v in repair_saved["report"]["items"].items()}
+        collector.require(repair_scores == matrix["base_scores"])
         collector.require(base_saved["selection"] == repair_saved["selection"])
     projection = validate(bundle, admission(bundle, registry))
     extension = {

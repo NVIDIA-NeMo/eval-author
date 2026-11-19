@@ -13,13 +13,23 @@ tool can establish a defect (0).
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Callable
 
 Score = int | str  # 0-3, "N/A" (not triggered) or "U" (unassessed: evidence missing)
 Ev = dict[str, Any]
 U = "U"
 NA = "N/A"
+SUITE_NEEDED = "suite-level: the demo suite is one task, so only an observed defect can be scored"
+
+REFERENCES = Path(__file__).resolve().parents[2] / "skills/eval-author-rubric/references"
+LEVELS = {
+    item["id"]: item.get("level", "task")
+    for name in ("leakage-and-credit", "task-contract-authority", "artifact-configuration-provenance")
+    for item in json.loads((REFERENCES / f"{name}.json").read_text())["items"]
+}
 
 ATTACKS = (
     "no-work",
@@ -55,7 +65,7 @@ SHARED = {
         "AUDIT-03": "attack cases",
         "CREATE-02": "cue-only cases",
         "task-contract.clear-contract": "valid alternatives",
-        "AUDIT-05-S03": "all cases, as the confirmation set",
+        "AUDIT-05-S03": "freeze identity of the confirmation set",
         "ENV-03-S01": "reversed-order replay",
     },
     "reference control": {
@@ -82,6 +92,10 @@ class Check:
     criterion: str
     tool: str
     fn: Callable[[Ev], tuple[Score, str]]
+
+    @property
+    def level(self) -> str:
+        return LEVELS[self.criterion]
 
 
 def _ctrl(ev: Ev, ids: tuple[str, ...]) -> dict | None:
@@ -140,38 +154,16 @@ def audit_04b(ev: Ev) -> tuple[Score, str]:
 def audit_05b(ev: Ev) -> tuple[Score, str]:
     if ev["exposure_hits"]:
         return 0, "answer present on solver-visible surface: " + ", ".join(ev["exposure_hits"])
-    if ev["oracle_total"] is None:
-        return U, "answer unknown without the contract; exposure scan blocked"
-    if not _pol(ev, "exposure_statement"):
-        return U, "no bounded exposure statement supplied"
     r = _agent(ev, "exposure-reviewer")
-    if r is None:
-        return 2, "deterministic scan clean and statement bounded; independent exposure review absent"
-    if r["answer_exposed"]:
-        return 1, "independent reviewer disputes scan: " + ", ".join(r["where"])
-    return 3, "scan and independent exposure review agree: no answer exposure"
+    if r and r["answer_exposed"]:
+        return 0, "independent reviewer found the answer on: " + ", ".join(r["where"])
+    return U, SUITE_NEEDED + " (exposure sensitivity needs a task population)"
 
 
 def audit_05s03(ev: Ev) -> tuple[Score, str]:
-    if ev["heldout"] is None:
-        return U, "no confirmation set run"
-    if not ev["heldout_frozen"]:
+    if ev["heldout"] is not None and not ev["heldout_frozen"]:
         return 0, "held-out set changed after freeze but is still presented as untouched confirmation"
-    if not _pol(ev, "selection_rule"):
-        return U, "no frozen confirmation rule supplied"
-    if not _agrees(ev["heldout"]):
-        return 2, "frozen confirmation ran but did not corroborate the result"
-    prov = ev["heldout_provenance"] or {}
-    independent = prov.get("role") == "heldout-author" and set(prov.get("input_names", [])) == {
-        "contract.json",
-        "instruction.md",
-    }
-    if independent and ev["agents_enabled"]:
-        return 3, (
-            "demo reading: an independently authored frozen confirmation set reproduces every expected result; "
-            "selection history and a retained-gain measurement are not established"
-        )
-    return 2, "frozen confirmation agrees; independent authorship absent"
+    return U, SUITE_NEEDED + " (needs a selection history across candidates)"
 
 
 def trace_04a(ev: Ev) -> tuple[Score, str]:
@@ -206,11 +198,19 @@ def create_02(ev: Ev) -> tuple[Score, str]:
         return 0, "success cue alone earned credit"
     held = _heldout(ev, "cue_only")
     if ev["agents_enabled"] and held and not any(v["forbidden"] for v in held.values()) and _agrees(held):
-        return 3, (
-            "demo reading: generated and independently authored cue-only controls earn nothing; "
-            "a single task family, so new-family corroboration is not established"
-        )
+        return 3, "generated and independently authored cue-only controls earn nothing on this task"
     return 2, "generated cue-only controls earn nothing; independent counterexamples absent"
+
+
+def audit_04b_suite(ev: Ev) -> tuple[Score, str]:
+    score, reason = audit_04b(ev)
+    if score == NA:
+        return NA, "no exploit confirmed anywhere in the one-task suite; containment is trigger-based"
+    return (0, reason) if score == 0 else (U, SUITE_NEEDED + " (needs retained affected and new tasks)")
+
+
+def create_02_suite(ev: Ev) -> tuple[Score, str]:
+    return U, SUITE_NEEDED + " (needs new task families)"
 
 
 def clear_contract(ev: Ev) -> tuple[Score, str]:
@@ -438,11 +438,13 @@ def revision(ev: Ev) -> tuple[Score, str]:
 CHECKS = [
     Check("AUDIT-03", "forbidden-credit panel (16 declared attacks + held-out)", audit_03),
     Check("AUDIT-04-B", "exploit containment ledger", audit_04b),
+    Check("AUDIT-04-B-SUITE", "containment ledger across the suite", audit_04b_suite),
     Check("AUDIT-05-B", "solver-surface answer scan + exposure reviewer", audit_05b),
-    Check("AUDIT-05-S03", "held-out freeze + confirmation results", audit_05s03),
+    Check("AUDIT-05-S03", "held-out freeze verification", audit_05s03),
     Check("TRACE-04-A", "trace secret scan + trace labeler", trace_04a),
     Check("ENV-03-S01", "repeat/reverse/parallel reset panel", env_03),
     Check("CREATE-02", "cue-only panel", create_02),
+    Check("CREATE-02-SUITE", "cue panel across task families", create_02_suite),
     Check("task-contract.clear-contract", "contract reviewer + lint + boundary panel", clear_contract),
     Check("task-contract.discoverable-requirements", "optional-signal control + blind solver", discoverable),
     Check("task-contract.scoring-authority", "spec oracle + adjudicator", scoring_authority),
@@ -460,10 +462,10 @@ CHECKS = [
 ]
 
 
-def rank(value: Score) -> int:
-    """Ordering for preference only: N/A is not a deficit; U (not established) ranks below any score."""
+def rank(value: Score) -> float:
+    """Preference order only: N/A is no deficit; U (not established) sits above a demonstrated defect (0)."""
     if value == NA:
         return 3
     if value == U:
-        return -1
+        return 0.5
     return int(value)

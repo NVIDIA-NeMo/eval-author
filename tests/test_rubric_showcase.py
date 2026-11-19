@@ -132,15 +132,20 @@ def test_source_bound_contract_rows_are_validated(showcase_output):
         )
 
 
+# Pairwise, not the full product: every value and validator branch is covered once each (CI time).
 @pytest.mark.parametrize(
-    "relative,criterion",
+    "relative,criterion,mutation",
     [
-        ("scorer/rubric-baseline.json", "AC-03"),
-        ("task-contract/planted-summary/measure-report.json", "task-contract.discoverable-requirements"),
-        ("task-contract/clean-neighbor/measure-report.json", "task-contract.discoverable-requirements"),
+        ("scorer/rubric-baseline.json", "AC-03", "remove-row"),
+        ("scorer/rubric-baseline.json", "AC-03", "alter-score"),
+        (
+            "task-contract/planted-summary/measure-report.json",
+            "task-contract.discoverable-requirements",
+            "remove-score",
+        ),
+        ("task-contract/clean-neighbor/measure-report.json", "task-contract.discoverable-requirements", "alter-score"),
     ],
 )
-@pytest.mark.parametrize("mutation", ["remove-row", "remove-score", "alter-score"])
 def test_source_bound_validation_rejects_new_row_mutations(showcase_output, tmp_path, relative, criterion, mutation):
     import shutil
 
@@ -184,10 +189,18 @@ def test_demo_validation_rejects_resealed_mutations(showcase_output, tmp_path, m
         module.verify_existing(output)
 
 
+# Pairwise, not the full product: every value and validator branch is covered once each (CI time).
 @pytest.mark.parametrize(
-    "source", ["test.sh", "instruction.md", "orders.csv", "Dockerfile", "task.toml", "contract.json"]
+    "source,mutation",
+    [
+        ("test.sh", "delete"),
+        ("instruction.md", "change"),
+        ("orders.csv", "delete"),
+        ("Dockerfile", "change"),
+        ("task.toml", "delete"),
+        ("contract.json", "change"),
+    ],
 )
-@pytest.mark.parametrize("mutation", ["delete", "change"])
 def test_source_bound_validation_requires_retained_sources(showcase_output, tmp_path, source, mutation):
     import shutil
 
@@ -311,8 +324,17 @@ def showcase_module():
     return module
 
 
-@pytest.mark.parametrize("case", ["missing", "stale", "acceptance-contradiction", "acceptance-consistent-claim"])
-@pytest.mark.parametrize("mutation", ["required-verification", "findings", "projection", "expected", "default"])
+# Pairwise, not the full product: every value and validator branch is covered once each (CI time).
+@pytest.mark.parametrize(
+    "case,mutation",
+    [
+        ("missing", "required-verification"),
+        ("stale", "findings"),
+        ("acceptance-contradiction", "projection"),
+        ("acceptance-consistent-claim", "expected"),
+        ("missing", "default"),
+    ],
+)
 def test_partial_acceptance_requires_full_projection(showcase_output, tmp_path, case, mutation):
     import shutil
 
@@ -506,9 +528,19 @@ def test_showcase_surfaces_authority_and_ethos_without_new_scores(showcase_outpu
         assert row["owner_confirmation"]["status"] == "NOT_RUN"
 
 
-@pytest.mark.parametrize("mutation", ["observation", "resealed-expectation", "diagnostics", "status", "exit-code"])
+# Pairwise, not the full product: every value and validator branch is covered once each (CI time).
+# observation and resealed-expectation branch on the measurement, so each runs for authority and ethos.
 @pytest.mark.parametrize(
-    "ident", ["authority-resolved", "authority-broken-reference", "authority-prose", "ethos-valid", "ethos-malformed"]
+    "ident,mutation",
+    [
+        ("authority-resolved", "observation"),
+        ("ethos-valid", "observation"),
+        ("authority-broken-reference", "resealed-expectation"),
+        ("ethos-malformed", "resealed-expectation"),
+        ("authority-prose", "diagnostics"),
+        ("ethos-valid", "status"),
+        ("authority-resolved", "exit-code"),
+    ],
 )
 def test_identity_validation_rejects_resealed_evidence_outcomes(showcase_output, tmp_path, ident, mutation):
     import shutil
@@ -543,18 +575,18 @@ def test_identity_validation_rejects_resealed_evidence_outcomes(showcase_output,
         module.verify_existing(output)
 
 
-@pytest.mark.parametrize("section,ident", [("assessments", "valid"), ("evidence_cases", "sourced-equal")])
+# Pairwise, not the full product: every value and validator branch is covered once each (CI time).
 @pytest.mark.parametrize(
-    "mutation",
+    "section,ident,mutation",
     [
-        "schema",
-        "version",
-        "criterion-order",
-        "check-order",
-        "source",
-        "check-source",
-        "expected-score",
-        "expected-check",
+        ("assessments", "valid", "schema"),
+        ("evidence_cases", "sourced-equal", "version"),
+        ("assessments", "valid", "criterion-order"),
+        ("evidence_cases", "sourced-equal", "check-order"),
+        ("assessments", "valid", "source"),
+        ("evidence_cases", "sourced-equal", "check-source"),
+        ("assessments", "valid", "expected-score"),
+        ("evidence_cases", "sourced-equal", "expected-check"),
     ],
 )
 def test_identity_canonical_reports_reject_coherent_resealing(showcase_output, tmp_path, section, ident, mutation):

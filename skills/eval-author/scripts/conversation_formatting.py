@@ -35,7 +35,7 @@ def literal(value: object, label: str, *, table: bool = False) -> str:
     value = html.escape(value, quote=False)
     value = re.sub(r"([\\`*\[\]_{}#!])", r"\\\1", value).replace("|", "&#124;")
     value = re.sub(r"^([-+]|[0-9]+[.)])(?= )", r"\\\1", value)
-    return value.replace("\n", "<br>")
+    return " ".join(value.split())
 
 
 def mapping(value: object, label: str, keys: set[str]) -> dict:

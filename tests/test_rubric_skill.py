@@ -85,8 +85,18 @@ CANONICAL_AREAS = {
         {"rubric_version", "items"},
     ),
     "leakage-and-credit": (
-        ["AUDIT-03", "AUDIT-04-B", "AUDIT-05-B", "AUDIT-05-S03", "TRACE-04-A", "ENV-03-S01", "CREATE-02"],
-        23,
+        [
+            "AUDIT-03",
+            "AUDIT-04-B",
+            "AUDIT-04-B-SUITE",
+            "AUDIT-05-B",
+            "AUDIT-05-S03",
+            "TRACE-04-A",
+            "ENV-03-S01",
+            "CREATE-02",
+            "CREATE-02-SUITE",
+        ],
+        29,
         {"rubric_version", "items"},
     ),
 }

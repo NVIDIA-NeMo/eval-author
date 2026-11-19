@@ -54,10 +54,10 @@ def test_all_controls_reach_ordinary_assessment_with_separate_authority(tmp_path
     ident, arm = recipes.CONTROL_CASES[case]
     report = rubric_table.assess_table(root, selected, None)
     recipes.verify_observation(report, case)
-    assert report["items"][ident]["score"] != 3
+    assert current.observed_score(report["items"][ident]) != 3
     assert report["measurements"]["leakage_bounded"]["synthetic_fixture"] is True
     if arm in {"missing", "operational"}:
-        assert report["items"][ident]["score"] is None
+        assert current.observed_score(report["items"][ident]) is None
         return
     observation = controls.collect(root, selected)
     assert observation is not None
@@ -66,7 +66,9 @@ def test_all_controls_reach_ordinary_assessment_with_separate_authority(tmp_path
     if ident == "CREATE-02":
         intake.record(root, selected, synthetic_event, kind="agent")
     assessed = rubric_table.assess_table(root, selected, None)
-    assert assessed["items"][ident]["score"] == (2 if case == "CREATE-02.0" else recipes.expectations(case)[ident])
+    assert current.observed_score(assessed["items"][ident]) == (
+        2 if case == "CREATE-02.0" else recipes.expectations(case)[ident]
+    )
     # The historical zero target remains external. Correct cue-selected actions
     # cannot contradict a task that claims only correct action execution.
     assert assessed["items"][ident]["assessment_scope"] == controls.SCOPE

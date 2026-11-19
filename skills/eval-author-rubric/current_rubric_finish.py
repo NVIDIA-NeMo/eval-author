@@ -1343,9 +1343,10 @@ def provenance_review_sources(directory: Path = PROVENANCE_REVIEW) -> dict[str, 
                 "unknown historical exposure source",
             )
             continue
-        if path == Path(__file__).resolve():
+        if path.parts[-3:] == Path(__file__).resolve().parts[-3:]:
             # This inspected, unexecuted adapter is the only moving input. Keep its
             # exact historical bytes; the new consumer gets a separate identity.
+            # Match by repo-relative path so another checkout or worktree resolves the same entry.
             path = RUNS / "finish-provenance-release-integration-current/historical-orchestration" / path.name
         data = pin(path, entry["sha256"])
         require(

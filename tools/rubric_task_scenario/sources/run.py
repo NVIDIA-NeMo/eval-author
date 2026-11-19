@@ -175,6 +175,17 @@ def main():
             "passed": a.assess(bad, premises)["items"]["CREATE-02"]["score"] != 3,
         }
     )
+    bad = copy.deepcopy(evidence)
+    bad["cues"] = [x for x in bad["cues"] if not (x["family"] == "dependency-release" and x["class"] == "style")]
+    # Rebind the fictional review to the changed packet so only the evidence gap differs.
+    rebound = a._dispositions.bind_templates(a.read(ROOT / "scenario-premises.json"), bad, manifest)
+    companion_gap = a.assess(bad, rebound)["items"]
+    tests.append(
+        {
+            "case": "companion-family gap moves only the suite row",
+            "passed": companion_gap["CREATE-02"]["score"] == 3 and companion_gap["CREATE-02-SUITE"]["score"] != 3,
+        }
+    )
     bad = copy.deepcopy(premises)
     bad["expected_scores"] = {x: 3 for x in defs}
     try:

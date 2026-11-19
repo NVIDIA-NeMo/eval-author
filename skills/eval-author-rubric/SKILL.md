@@ -115,7 +115,8 @@ the area or criterion IDs explicitly requested by the user:
   and provenance opt-in does not select anti-cheat.
 - **Data leakage and forged credit:** use
   [the leakage and credit assessment](references/leakage-and-credit.md) for
-  AUDIT-03, AUDIT-04-B, AUDIT-05-B, AUDIT-05-S03, TRACE-04-A, ENV-03-S01, and CREATE-02.
+  AUDIT-03, AUDIT-04-B, AUDIT-04-B-SUITE, AUDIT-05-B, AUDIT-05-S03, TRACE-04-A,
+  ENV-03-S01, CREATE-02, and CREATE-02-SUITE.
   It maps the anti-cheat AC criteria to these IDs; selecting it selects no
   other area.
 - **Task contract and scoring authority:** use
@@ -124,9 +125,10 @@ the area or criterion IDs explicitly requested by the user:
   the others, and selecting another area does not select it.
 
 An explicit request for "all populated areas" selects every populated criterion.
-For the mutable all-populated simulation, use the seven leakage canonical rows
-instead of four overlapping AC scoring rows: 21 criteria and 70 checks, not 25
-criteria. Preserve the AC evidence-floor guidance and original rows in evidence
+For the mutable all-populated simulation, use the nine leakage canonical rows
+instead of four overlapping AC scoring rows: 23 criteria and 76 checks. Score an evaluation only on its 19 task-level criteria. Report the 4
+suite-level criteria as not applicable to a single task; see
+[task and suite levels](references/leakage-and-credit.md#task-and-suite-levels). Preserve the AC evidence-floor guidance and original rows in evidence
 history. Never map AC-01's score to exposure disclosure, cue resistance or
 forbidden credit. METHOD-J1 stays Unassessed until its definition exists.
 Do not ask another area-selection question for that request. A supplied task
@@ -241,7 +243,7 @@ verifier-source readability separately from confirmed leaks. The access panel
 uses agent source review and native UID 65534 controls, not independent held-out
 corroboration. Do not promote the corresponding canonical criterion without its own additional evidence. Pass
 `--docker-plugins` on Docker Desktop. The entrypoint also prepares the NOP
-configuration companion, renders the 21 current canonical rows plus an explicit
+configuration companion, renders the 23 current canonical rows plus an explicit
 undefined METHOD-J1 notice, and replays the result. Existing native consumers run
 before current-scope reconciliation; retain their observations and original
 legacy rows without transferring old scores or decisions. The current leakage

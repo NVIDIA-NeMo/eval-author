@@ -25,12 +25,14 @@ LEGACY_CROSSWALK = {
 SOURCES = ("artifact-configuration-provenance", "task-contract-authority", "leakage-and-credit")
 GAPS = {
     "AUDIT-03": "Approve the exact attack applicability/per-check-credit matrix, including forbidden answer access and valid inaction; execute every unresolved class through the native scorer. Held-out independently authored attacks are still required for 3.",
-    "AUDIT-04-B": "Supply a scoped owner containment disposition for each confirmed affected revision, and healthy repair replay on retained affected AND new tasks; independent cross-family attacks remain unrun. An exact rollback is not this repair panel.",
+    "AUDIT-04-B": "Supply a scoped owner containment disposition for the confirmed affected revision and a healthy repair replay on this task; independent attacks remain unrun. An exact rollback is not this repair panel.",
+    "AUDIT-04-B-SUITE": "Supply containment dispositions for every affected retained task and healthy repair replay on retained affected AND new tasks; independent cross-family attacks remain unrun.",
     "AUDIT-05-B": "Supply exposure timestamps, searched and unknown corpus scope, and owner review of the bounded contamination statement. Retain original-population and exposed-subset sensitivity results; independent provenance review remains absent.",
     "AUDIT-05-S03": "Supply the chronological candidate/feedback ledger with every evaluated alternative and actual access lineage; obtain owner approval of a frozen confirmation/reuse rule and run untouched confirmation or authorized reuse-boundary controls.",
     "TRACE-04-A": "Supply private eligible-channel/candidate coverage, contextual and sampled-negative review, and qualified policy dispositions bound to exact material digest, recipients and use. Independent labels/release audit remain absent; never publish sensitive spans.",
     "ENV-03-S01": "Obtain owner disposition of isolated/shared surfaces (including caches, credentials, clock, queues and longitudinal exceptions). Complete predecessor/order/session comparisons and independent parallel/delayed-effect probes; stochastic repeats only if deterministic residuals require them.",
-    "CREATE-02": "Qualify cue relevance, unchanged requirements, feasibility, scorer and valid alternatives. Run paired cue-only, nuisance-swap, misleading-cue and style-only controls with per-class transitions/uncertainty; independent held-out new-family counterexamples remain absent.",
+    "CREATE-02": "Qualify cue relevance, unchanged requirements, feasibility, scorer and valid alternatives. Run paired cue-only, nuisance-swap, misleading-cue and style-only controls with per-class transitions/uncertainty; independent held-out counterexamples remain absent.",
+    "CREATE-02-SUITE": "Select independently authored new task families and run the task-level cue controls on each; cross-family comparison remains absent.",
 }
 
 
@@ -42,6 +44,59 @@ def canonical_definitions() -> dict[str, dict[str, Any]]:
                 raise ValueError("duplicate canonical criterion")
             result[item["id"]] = item
     return result
+
+
+SUITE_REASON = (
+    "Suite-level criterion: it needs evidence from other tasks, task families or selection history, "
+    "so it is not scored for a single task."
+)
+
+
+def level(definition: dict[str, Any]) -> str:
+    return definition.get("level", "task")
+
+
+def task_definitions() -> dict[str, dict[str, Any]]:
+    return {k: v for k, v in canonical_definitions().items() if level(v) == "task"}
+
+
+def suite_definitions() -> dict[str, dict[str, Any]]:
+    return {k: v for k, v in canonical_definitions().items() if level(v) == "suite"}
+
+
+def observed_score(row: dict[str, Any]) -> Any:
+    """Task rows: the task score. Suite rows: the score this task's evidence supports for the suite."""
+    if row.get("level") == "suite":
+        return (row.get("suite_evidence") or {}).get("score")
+    return row["score"]
+
+
+def apply_levels(report: dict[str, Any]) -> dict[str, Any]:
+    """Score only task criteria for one evaluation; keep suite rows' observations as suite evidence."""
+    for ident, definition in canonical_definitions().items():
+        row = report.get("items", {}).get(ident)
+        if row is None:
+            continue
+        row["level"] = level(definition)
+        if row["level"] != "suite" or (row["assessment_state"] == "NOT_APPLICABLE" and row["score"] is None):
+            continue
+        row["suite_evidence"] = {
+            key: deepcopy(row.get(key))
+            for key in ("score", "evidence_strength", "findings", "evidence_refs", "remaining_gaps")
+        }
+        row.update(
+            score=None,
+            status="NOT_APPLICABLE",
+            assessment_state="NOT_APPLICABLE",
+            execution_state="NOT_APPLICABLE",
+            evidence_strength=None,
+            applicability_reason=SUITE_REASON,
+            remaining_gaps=[GAPS[ident]],
+            next_action="Assess this criterion for the suite, not for a single task.",
+        )
+        for check in row["check_results"]:
+            check.update(outcome="NOT_APPLICABLE", remaining_gap=None)
+    return report
 
 
 def definitions_digest() -> str:
@@ -78,7 +133,7 @@ def inventory() -> dict[str, Any]:
             for ident, definition in definitions.items()
             for check in definition["checks"]
         ],
-        "count_basis": "11 provenance + 3 contract + 7 leakage; four overlapping legacy scoring rows replaced, not added. METHOD-J1 has no defined checks/anchors and is excluded from numeric denominators.",
+        "count_basis": "11 provenance + 3 contract + 9 leakage (7 task-level, 2 suite-only); four overlapping legacy scoring rows replaced, not added. METHOD-J1 has no defined checks/anchors and is excluded from numeric denominators.",
     }
 
 
@@ -381,7 +436,7 @@ def assess_current(root: Path, selection: dict[str, Any], report: dict[str, Any]
             raise ValueError("bounded leakage observations changed during projection")
     if source_observations(root, selection) != sources or identify(root, selection.get("artifacts", [])) != before:
         raise ValueError("current-scope evidence changed during projection")
-    return result
+    return apply_levels(result)
 
 
 def apply_bounded(report: dict[str, Any], projection: dict[str, Any], *, root: Path, selection: dict[str, Any]) -> None:

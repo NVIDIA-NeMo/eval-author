@@ -34,6 +34,13 @@ SAVED_DESIGN_QUESTION = "Would you like to continue this saved design, revise it
 PROPOSAL_INTRO = "Here are the proposed evaluation tasks."
 TASK_TABLE = "| Task | Expected outcome | Verifier |\n|---|---|---|"
 PROPOSAL_TABLE = TASK_TABLE
+INTERACTION_TYPE = "**{label}:** "
+INTERACTION_TITLE = "**{task_id}: interaction details**"
+INTERACTION_FIELDS = {
+    "state_requirements": "State carried between requests",
+    "prerequisite_checks": "Prerequisite checks",
+    "conversation_scenario": "Conversation scenario",
+}
 NOT_DOCUMENTED = "Not documented"
 FIRST_CHOICE = "I’ll build **{task_id}** first."
 PROPOSAL_PROCESS = (
@@ -123,6 +130,15 @@ SUITE_REVIEW_STATUS = (
 SUITE_QUESTION = "Do these tasks look good? Approve the suite or tell me what to change before we choose how to run it."
 SETTINGS_INTRO = "Here are the settings for running the approved tasks."
 SETTINGS_LABELS = ("Attempts", "Validation", "User-specified limits", "Open questions")
+NEUTRAL_SCENARIO = " - Neutral scenario: {task_id} ({path})"
+SIMULATOR_SETTINGS_PENDING = (
+    "- **User simulation:** Neutral user. Simulator identity and conversation limits remain unresolved."
+)
+SIMULATOR_SETTINGS = "- **Simulated user:** Neutral, using {agent_model}\n- **Conversation limits:** {limits}"
+RESULT_INTERACTION_TYPE = "**Interaction type:** {label}."
+RESULT_USER_SIM = (
+    "**Neutral scenario:** {task_id} ({path}). **Simulator:** {agent_model}. **Conversation limits:** {limits}."
+)
 NO_OPEN_QUESTIONS = "None."
 CHECKS_PASSED = (
     "The verifiers have already passed their checks. I’ll reuse those saved results; "
@@ -259,6 +275,25 @@ by directory membership. Report any missing planned task files without creating
 them. Do not substitute another agent, reimplement its decisions, or change what
 the tasks measure to make the connection work.
 
+Honor each saved interaction_type. Single-turn needs one ordinary invocation. Scripted
+multi-step needs the specified state continuity and checked prerequisites. If a
+prerequisite fails, retain that failure and mark later behavior unexercised.
+User-sim needs adaptive messages in one continuing session. Verify expected
+scenario paths before using them, apply the shared neutral behavior and scenario
+stopping rules, and retain the selected simulator model and execution limits.
+For Harbor ACP, check both the advertised bridge capability and ACPAgentMixin.
+Use one native single-step task per adaptive scenario, not a Harbor multi-step
+task. Check both agent roles and their required credentials before running.
+
+Prove the opening request, follow-up exchange, termination, and task-state reset
+against the actual target. Keep simulator inputs outside the target's visible
+context and tools. Harbor's stock ACP roles share a filesystem, so prompt text
+alone cannot enforce this separation. Retain raw bridge conversation, separate
+simulator and target logs, target tool observations, independent state checks,
+native grading, and errors. Verify export files exist even when the native job
+succeeds. Simulator messages are not target actions. Report unsupported
+capabilities without changing the chosen type or substituting another agent.
+
 Keep this as repository engineering work outside Eval Author. Do not modify its
 workflow state or approvals, mark the integration verified, or claim an agent
 baseline from adapter completion or control results. Agent/model evaluation runs
@@ -281,3 +316,9 @@ LINK_LABELS = {
     "rerun": "saved run instructions",
     "task_rerun": "Task-specific run instructions",
 }
+
+
+SIMULATION_DISABLED = """User simulation is disabled for this suite. Saved tasks and results remain available.
+Say “enable user simulation” to make experimental simulation authoring and execution available,
+or revise the design to use Single Turn or Scripted Multi-step. Enabling simulation
+keeps the usual task review and execution authorization checks."""

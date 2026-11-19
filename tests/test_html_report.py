@@ -160,10 +160,10 @@ def test_task_heading_preserves_complete_readme_title(tmp_path, heading, display
     assert "heading_id" not in item
     assert item["title"] == heading
     markdown = markdown_report(tmp_path, "tasks")
-    assert "| <strong><code>" + report.markdown_text(heading) + "</code></strong><br>" in markdown
+    assert "| **" + report.markdown_text(heading) + "** - " in markdown
     assert "<small>" not in markdown
-    assert "<code>tasks/refund</code>" in markdown
-    assert "<br>harbor<br>" not in markdown
+    assert "tasks/refund" in markdown
+    assert " - harbor - " not in markdown
 
 
 @pytest.mark.parametrize("kind", ["Custom code", "LLM-as-judge", "Custom code + LLM-as-judge"])
@@ -175,7 +175,7 @@ def test_metadata_grader_type_wins_and_readme_type_is_fallback(tmp_path, kind, s
     item = report.refresh(tmp_path)["tasks"][0]
     assert item["grading_kind"] == kind
     assert item["grading_summary"] == summary
-    assert f"{kind}<br>{summary}" in markdown_report(tmp_path, "tasks")
+    assert f"{kind} - {summary}" in markdown_report(tmp_path, "tasks")
     # A subsequent refresh must read the edited README rather than retain the old type.
     (tmp_path / path / "README.md").write_text("## Grading\n\nType: Custom code\n\n" + summary)
     assert report.refresh(tmp_path)["tasks"][0]["grading_kind"] == "Custom code"
@@ -796,9 +796,16 @@ def test_browser_task_titles_graders_and_gym_actions(tmp_path, grading_kind, wit
     if with_proposals:
         import first_eval_state
         import journey_state
-        from test_first_eval_state import start
+        from test_first_eval_state import save, start
 
-        start((journey_state, first_eval_state), tmp_path)
+        record = start((journey_state, first_eval_state), tmp_path)
+        record["plan"]["tasks"][0]["interaction_type"] = "single_turn"
+        record["plan"]["tasks"][1].update(
+            interaction_type="user_sim",
+            state_requirements="Keep the same session.",
+            conversation_scenario="Choose an offered option and confirm it.",
+        )
+        save((journey_state, first_eval_state), tmp_path, record)
     data = report.refresh(
         tmp_path,
         patch={"tasks": {harbor_path: {"grading_kind": grading_kind, "grading_rule": "All state checks pass."}}},
@@ -840,6 +847,13 @@ for(const table of descendants(ids['case-tables']).filter(node=>node.tag==='tabl
 for(const row of taskRows()){
   const task=input.data.tasks.find(task=>task.id===row.dataset.task);
   assert.equal(row.children.length,6);
+  const behavior=row.children[2];
+  if(task.planned_interaction){
+    assert.equal(behavior.children[0].tag,'strong');
+    assert.equal(behavior.children[0].textContent,task.planned_interaction);
+    assert(!descendants(row.children[0]).some(node=>node.textContent===task.planned_interaction));
+  }
+  assert.equal(behavior.children.at(-1).textContent,task.behavior||'Not documented');
   assert.equal(row.children[0].children[0].textContent,task.title||task.name);
   assert(!descendants(row.children[0]).some(node=>node.textContent===task.provider));
   assert.equal(row.children[1].children[0].textContent,task.readiness[0].toUpperCase()+task.readiness.slice(1));
@@ -1157,6 +1171,7 @@ def test_copied_script_and_template_installation(tmp_path):
         "working_paths.py",
         "journey_state.py",
         "first_eval_state.py",
+        "interaction_types.py",
         "expansion_state.py",
         "audit_state.py",
         "conversation_templates.py",
@@ -1202,7 +1217,7 @@ def test_task_readiness_is_projected_without_changing_tasks_or_suite_selection(t
     assert row["path"] == path
     markdown = markdown_report(tmp_path, "tasks")
     assert "| Status |" in markdown
-    assert "**Accepted**<br>Existing workflow review completed" in markdown
+    assert "**Accepted** - Existing workflow review completed" in markdown
     assert "| Accepted | 1 | You approved this exact task revision" in markdown
     assert report.previous_report(tmp_path / ".eval-author/report.html")[0]["tasks"] == accepted["tasks"]
     assert (tmp_path / path / "README.md").read_bytes() == before_task
@@ -1231,7 +1246,7 @@ def test_repository_root_task_keeps_unknown_readiness_without_hiding_other_tasks
     assert rows[path]["readiness"] == "draft"
     assert rows[path]["readiness_reason"] == "Case creation in progress"
     assert report.previous_report(tmp_path / ".eval-author/report.html")[0]["tasks"] == data["tasks"]
-    assert "**Unknown**<br>" in markdown_report(tmp_path, "tasks")
+    assert "**Unknown** - " in markdown_report(tmp_path, "tasks")
     assert state_path.read_bytes() == before_state
     assert report.refresh(tmp_path) == data
 
@@ -1290,8 +1305,8 @@ def test_incomplete_inventory_recomputes_retained_task_readiness(tmp_path, chang
     assert report.previous_report(tmp_path / ".eval-author/report.html")[0]["tasks"] == data["tasks"]
     markdown = markdown_report(tmp_path, "tasks")
     assert "Inventory unverified" in markdown
-    assert "**Draft**<br>" in markdown
-    assert "**Accepted**<br>" not in markdown
+    assert "**Draft** - " in markdown
+    assert "**Accepted** - " not in markdown
     assert journey_state.state_path(tmp_path).read_bytes() == before_state
 
 
@@ -1543,15 +1558,17 @@ def test_markdown_mirrors_report_tabs_rows_and_links(tmp_path, with_proposals):
     assert all(item["status"] == "proposed" for item in data["tasks"][:proposal_count])
     assert [item["path"] for item in data["tasks"][proposal_count:]] == [path, sibling, other]
     tokens = markdown_tokens(tmp_path) + markdown_tokens(tmp_path, "runs")
+    children = [child for token in tokens for child in token.children or []]
+    assert not any(child.type == "html_inline" for child in children)
     headings = headings_of(tokens)
     assert headings == [("h1", "Tasks"), ("h2", "Status summary"), ("h2", "Task list"), ("h1", "Runs")]
     # Status summary, task list, and runs.
     assert len([token for token in tokens if token.type == "table_open"]) == 3
     raw = markdown_report(tmp_path, "tasks", "runs")
-    rows = [line for line in raw.splitlines() if line.startswith("| <strong><code>")]
+    rows = [line for line in raw.splitlines() if line.startswith("| **")]
     assert len(rows) == len(data["tasks"])
     for row, item in zip(rows, data["tasks"], strict=True):
-        assert row.startswith("| <strong><code>" + report.markdown_text(item["title"] or item["name"]) + "</code>")
+        assert row.startswith("| **" + report.markdown_text(item["title"] or item["name"]) + "**")
     assert "Settings" not in raw
     assert "http://127.0.0.1:8081/task-definitions/with%20%23%20fragment" in raw
     assert "[Task README](../../evals/other%20suite/tasks/with%20%23%20fragment/README.md)" in raw
@@ -1564,9 +1581,9 @@ def test_markdown_mirrors_report_tabs_rows_and_links(tmp_path, with_proposals):
             if item[field]:
                 assert item[field] in text
     assert raw.count("| Task | Status | Behavior | Expected outcome | Verifier | Actions |") == 1
-    assert "| Custom code<br>" in raw
+    assert "| Custom code - " in raw
     assert "All state checks pass." not in text
-    assert "| Not documented<br>" in raw
+    assert "| Not documented - " in raw
     assert "1/2 passed" in text
     assert "agent · completed" in text
     assert all(part in text for part in data["runs"][0]["date"].split("T"))
@@ -1668,7 +1685,7 @@ def test_readme_sections_preserve_paragraphs_and_lists_in_both_reports(tmp_path)
     data = report.refresh(tmp_path)
     assert data["tasks"][0]["behavior"] == behavior
     raw = markdown_report(tmp_path, "tasks")
-    assert "First paragraph.<br><br>- Check one.<br>- Check two." in raw
+    assert "First paragraph. - Check one. - Check two." in raw
 
 
 def test_expected_result_summary_is_shared_by_reports_and_preserves_readme_details(tmp_path):
