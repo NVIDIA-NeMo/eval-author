@@ -1,0 +1,32 @@
+{
+  "schema": "rubric-example-expectation-v1",
+  "id": "withhold-reference",
+  "category": "missing_evidence",
+  "target_criteria": [
+    "AC-02"
+  ],
+  "target_checks": [
+    "AC-02:Deterministic"
+  ],
+  "intended_score": null,
+  "observed_score": null,
+  "status": "planned_expectation_not_measurement",
+  "finding": "The selected local panel omits its executed reference result.",
+  "evidence_basis": {
+    "method": "local_source_or_control_inspection",
+    "limit": "Replay the full local panel before withholding its reference. Missing evidence cannot establish zero."
+  },
+  "collateral_criteria": [
+    "provenance.evidence-revision-consistency"
+  ],
+  "unchanged_neighbors": [
+    "fixed_assessment_request",
+    "unmodified_scorer_source"
+  ],
+  "rerun_controls": [
+    "all_local_controls",
+    "ledger_controls",
+    "all_source_bound_native_controls"
+  ],
+  "repair": "Restore the base in a new directory and generate fresh evidence. Preserve the prior package."
+}

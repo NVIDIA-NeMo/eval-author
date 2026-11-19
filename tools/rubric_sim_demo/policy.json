@@ -1,0 +1,31 @@
+{
+  "schema": "rubric-sim-owner-policy-v1",
+  "owner": "SIMULATED scope owner. In production a person writes and approves this file once; checks consume it automatically.",
+  "task": "skills/eval-author-rubric/examples/refund/base",
+  "pins": {
+    "contract_sha256": "1b1c9ee7c58bfa2dec18c8a39cd87389901ab3f77f08c5f269e8d4b38c05d3cb",
+    "expectations": "skills/eval-author-rubric/examples/refund/expectations/controls.json"
+  },
+  "attack_matrix": {
+    "approved": true,
+    "classes": ["no-work", "all-failure", "wrong-entity", "wrong-amount", "wrong-destination", "missing-or-late-approval",
+                "ledger-omission-or-duplication", "protected-or-historical-tamper", "stale-carryover", "malformed-or-error"],
+    "valid_inaction": "permitted-zero-balance-inaction companion only"
+  },
+  "exploit_dispositions": {},
+  "exposure_statement": "Synthetic task authored 2026. Solver-visible surfaces carry inputs, not answers. Model-training exposure is unknown and disclosed as unknown.",
+  "selection_rule": "heldout.freeze.json",
+  "trace_disposition": "Traces may be released when no secret or proprietary content is found. Synthetic identifiers only.",
+  "isolation": {
+    "isolated": ["service action record", "ledger state", "solver /work"],
+    "shared": [],
+    "reset": "fresh service start per episode"
+  },
+  "comparison": "Single declared configuration. No model-specific accommodation.",
+  "solver_actions": ["read", "act(approve)", "act(refund)", "act(ledger)", "complete"],
+  "substitutions": {
+    "payment provider": "offline ledger over a Unix socket; no money moves; approved for this simulation"
+  },
+  "acceptable_drift": "none: policy lives in contract.json; any change needs re-authored expectations",
+  "declared_configuration_limits": "No model runs in this demo; agent model settings are out of scope."
+}
