@@ -21,8 +21,9 @@ AUDIT_SELECTION_ACKNOWLEDGMENTS = {
 }
 AUDIT_SELECTIONS = "**Selected improvements:** {value}"
 AUDIT_NEXT_STEPS = (
-    "I’ll check which changes Eval Author supports, then show you the task plan and any limits. "
-    "For supported additions, we’ll agree any missing scope before I create and validate the tasks for your review. "
+    "I’ll check which changes Eval Author supports and explain any limits. "
+    "For supported additions, I’ll show you the task plan and resolve any missing scope "
+    "before creating and validating the tasks for your review. "
     "I’ll reuse existing decisions and confirm any missing settings and permission before running your agent."
 )
 AUDIT_LIMITS = "**Known support limits:** {value}"

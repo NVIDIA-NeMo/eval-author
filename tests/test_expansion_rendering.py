@@ -108,7 +108,7 @@ def test_audit_selection_opening_precedes_planning_without_changing_saved_decisi
     state, _, renderer = modules
     saved = start(modules, tmp_path, "audit_tool_gap")
     saved["scopes"]["expand"].pop("lifecycle")
-    selected = ["R1", "R3", "R4"][:count]
+    selected = ["R3"] if count == 1 else ["R1", "R3", "R4"][:count]
     saved["scopes"]["expand"]["audit_handoff"]["recommendation_ids"] = selected
     saved["prerequisites"]["runtime"] = {"status": "missing", "source": "Runtime needs recovery"}
     state.save(tmp_path, saved)

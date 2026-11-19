@@ -42,10 +42,12 @@ For repairs within an existing authoring flow, use the
 The audit handoff does not add a general workflow for editing existing suite
 cases or graders. Describe an unavailable implementation path as not yet
 supported, retaining the audit's recommendation without offering to write it
-again. For an unsupported grader repair, use `UNSUPPORTED_GRADER_REPAIR` from
+again. For an unsupported verifier repair, use `UNSUPPORTED_GRADER_REPAIR` from
 [expansion_templates.py](../../scripts/conversation_flows/expansion_templates.py).
-Lead with that explanation without a bookkeeping preamble. Keep any report-update
-failure in a separate paragraph. Do not apply this limitation to supported
+Include known limits in the opening above without repeating them afterward. If a
+limit is discovered later, explain it without another selection acknowledgment.
+When all selected changes are unsupported, do not offer or enter task planning.
+Keep any report-update failure in a separate paragraph. Do not apply this limitation to supported
 authoring or repair work or describe it as a blanket prohibition on source edits.
 
 `expansion_continue` presents a saved unresolved entry question; it is not a
