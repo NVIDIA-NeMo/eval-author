@@ -498,8 +498,8 @@ Open `.eval-author/report.html` in a browser. It is a single offline file with
 four tabs:
 
 - **Tasks** lists every task with its status, the behavior it tests, its expected
-  outcome, and its verifier. A summary above the table counts **Proposed**,
-  **Draft**, **Accepted**, and **Unknown** tasks. Open a task's README, or its
+  outcome, and its verifier, with **Draft** tasks first. A summary above the table
+  counts **Proposed**, **Draft**, **Accepted**, and **Unknown** tasks. Open a task's README, or its
   Harbor task viewer where available.
 - **Runs** lists each evaluation job with its role, completion, and combined reward.
 - **Audit** shows the latest [audit coverage report](#coverage-audits). Task names
@@ -534,7 +534,7 @@ counts appear separately; an incomplete job's score is labeled partial. Missing
 rewards do not become zeroes. Without a documented reward range, the numeric
 total appears without a graph. Native scores without a documented pass rule
 are not labeled passed or failed. Standalone controls and other individual trials
-remain accessible in the separate Legacy trials section and are not combined
+remain accessible in the separate Individual attempts section and are not combined
 into inferred jobs.
 
 Markdown tables use inline labels and text separators, so they render in
