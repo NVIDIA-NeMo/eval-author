@@ -166,7 +166,7 @@ def recommendations(facts: dict) -> str | None:
 
 def blocker_section(state: dict, facts: dict, *, confirmed: bool, state_only: bool = False) -> str | None:
     active = journey_state.active_blockers(
-        state, state_only=state_only, ethos_optional=not state_only and expansion_state.trace_scope(state)
+        state, state_only=state_only, ethos_optional=not state_only and expansion_state.trace_ethos_optional(state)
     )
     explanations = facts.get("blockers", [])
     if not isinstance(explanations, list):

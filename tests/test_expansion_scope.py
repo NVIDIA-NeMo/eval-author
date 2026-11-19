@@ -2,11 +2,12 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import copy
+import hashlib
 import importlib
 from pathlib import Path
 
 import pytest
-from journey_state_support import expansion_start, setup_ready
+from journey_state_support import ethos_ready, expansion_start, setup_ready
 
 SCRIPTS = Path(__file__).resolve().parents[1] / "skills/eval-author/scripts"
 QUESTION = "Create this partial-refund task?"
@@ -254,10 +255,12 @@ def test_scope_resume_rejects_stale_context_until_a_review_question_is_saved(mod
 
 
 @pytest.mark.parametrize("observations", [None, "old_revision", "wrong_repository", "changed_ethos"])
-def test_scope_resume_requires_current_observations(modules, tmp_path, observations):
+@pytest.mark.parametrize("stage", ["results", "ethos", "resume"])
+def test_scope_resume_requires_current_observations(modules, tmp_path, observations, stage):
     _, _, renderer = modules
     saved = start(modules, tmp_path)
     payload = resume_payload(modules, tmp_path, saved)
+    payload["stage"] = stage
     observed = payload["facts"]["expansion_observations"]
     if observations is None:
         payload["facts"] = {}
@@ -269,6 +272,126 @@ def test_scope_resume_requires_current_observations(modules, tmp_path, observati
         observed["ethos_digest"] = "a" * 64
     with pytest.raises(ValueError, match="observations|context changed"):
         renderer.render(payload)
+
+
+@pytest.mark.parametrize("path", ["starter_suite", "recorded_interaction"])
+@pytest.mark.parametrize("ethos_stage", ["review", "interview", "draft", "write", "explore"])
+@pytest.mark.parametrize("render_stage", ["ethos", "resume"])
+def test_ethos_recovery_precedes_expand_blockers(modules, tmp_path, path, ethos_stage, render_stage):
+    state, expansion, renderer = modules
+    saved = start(modules, tmp_path, path)
+    snapshot = copy.deepcopy(saved)
+    question = "Which actions require human approval?"
+    (tmp_path / "ETHOS.md").write_text("# Inspected agent behavior\n")
+    ethos = snapshot["ethos"]
+    ethos.update(
+        stage=ethos_stage,
+        confirmed_digest=None,
+        confirmation_source=None,
+        validation=None,
+        remaining_questions=[question] if ethos_stage == "explore" else [],
+    )
+    facts = {"ethos": {"status": "existing", "link": str(tmp_path / "ETHOS.md"), "summary": "Inspected agent behavior"}}
+    if ethos_stage in {"draft", "write"}:
+        draft_path = ".eval-author/.working/review-draft.md"
+        draft_bytes = b"# Revised agent behavior\n"
+        (tmp_path / draft_path).write_bytes(draft_bytes)
+        ethos["draft"] = {"path": draft_path, "digest": hashlib.sha256(draft_bytes).hexdigest()}
+        ethos["draft_confirmed"] = ethos_stage == "write"
+        ethos["draft_source"] = "User approves draft" if ethos_stage == "write" else None
+        facts["draft"] = {"link": str(tmp_path / draft_path), "digest": ethos["draft"]["digest"]}
+    snapshot["pending_question"] = question
+    snapshot["blockers"] = [{"id": "fixture_access", "phase": "expand", "message": "Fixture access unavailable"}]
+    state.validate(snapshot)
+    assert not expansion.checkpoint_ready(snapshot)
+    assert not expansion.trace_ethos_optional(snapshot)
+    before = state.state_path(tmp_path).read_bytes()
+    payload = {"stage": render_stage, "state": snapshot, "revision": snapshot["revision"], "facts": facts}
+    original = copy.deepcopy(payload)
+    output = renderer.render(payload)
+    assert "### Next Steps" in output
+    assert "Fixture access unavailable" not in output
+    assert question in output and QUESTION not in output
+    if ethos_stage == "review":
+        assert "Inspected agent behavior" in output
+    if ethos_stage in {"draft", "write"}:
+        assert "review-draft.md" in output
+    assert payload == original
+    assert state.state_path(tmp_path).read_bytes() == before
+
+
+@pytest.mark.parametrize("approved", [False, True])
+@pytest.mark.parametrize("change", ["unchanged", "restored", "changed"])
+def test_reconfirmed_ethos_reconciles_the_question_without_reopening_scope(modules, tmp_path, approved, change):
+    state, expansion, renderer = modules
+    saved = start(modules, tmp_path)
+    if approved:
+        value = copy.deepcopy(expansion.record(saved))
+        value["decision"] = {"kind": "approved", "source": "User approves"}
+        value["pending"] = None
+        saved = save_scope(modules, tmp_path, saved, value)
+    original_scope = copy.deepcopy(expansion.record(saved))
+    original_ethos = (tmp_path / "ETHOS.md").read_bytes()
+    if change == "unchanged":
+        review = state.update(
+            tmp_path,
+            {"ethos": {"stage": "review"}, "pending_question": "Does this intent still match?"},
+            expected_revision=saved["revision"],
+        )
+    else:
+        (tmp_path / "ETHOS.md").write_text("# Changed agent intent\n")
+        review = state.initialize(tmp_path, journey="expand")
+    answered_question = review["pending_question"]
+    assert review["ethos"]["stage"] == "review"
+    if change == "restored":
+        (tmp_path / "ETHOS.md").write_bytes(original_ethos)
+    confirmed = state.confirm_ethos(
+        tmp_path,
+        reviewed_digest=state.ethos_digest(tmp_path),
+        source="User confirms reviewed behavior",
+        validation="Parser passed",
+        expected_revision=review["revision"],
+    )
+    resumed = state.initialize(tmp_path, journey="expand")
+    if change == "unchanged":
+        assert resumed["scopes"]["expand"] == saved["scopes"]["expand"]
+        assert confirmed["pending_question"] == resumed["pending_question"] == (None if approved else QUESTION)
+        output = renderer.render(resume_payload(modules, tmp_path, resumed))
+        assert answered_question not in output
+        assert (QUESTION in output) == (not approved)
+        return
+    assert confirmed["pending_question"] is None
+    assert resumed["pending_question"] is None
+    assert resumed["ethos"]["stage"] == "complete"
+    assert resumed["scopes"]["expand"]["needs_review"]
+    assert not resumed["scopes"]["expand"]["confirmed"]
+    assert expansion.record(resumed) == original_scope
+    with pytest.raises(ValueError, match="context changed"):
+        renderer.render(resume_payload(modules, tmp_path, resumed))
+    recovery_question = "Review the scope against the confirmed behavior?"
+    updated = state.update(tmp_path, {"pending_question": recovery_question}, expected_revision=resumed["revision"])
+    output = renderer.render(resume_payload(modules, tmp_path, updated))
+    assert recovery_question in output
+    assert answered_question not in output and QUESTION not in output
+
+
+@pytest.mark.parametrize("path", ["starter_suite", "recorded_interaction"])
+@pytest.mark.parametrize("stage", ["results", "ethos", "resume", "confirmed"])
+def test_all_ready_onboarding_stages_accept_fresh_scope_observations(modules, tmp_path, path, stage):
+    state, expansion, renderer = modules
+    saved = start(modules, tmp_path, path)
+    if stage == "confirmed":
+        if path == "recorded_interaction":
+            saved = ethos_ready(state, tmp_path)
+        value = expansion.new_scope(saved, path=path, plan=PLAN, question=None, source="User approves scope")
+        value["decision"] = {"kind": "approved", "source": "User approves"}
+        value["pending"] = None
+        saved = save_scope(modules, tmp_path, saved, value)
+    payload = resume_payload(modules, tmp_path, saved)
+    payload["stage"] = stage
+    output = renderer.render(payload)
+    assert "### Next Steps" in output
+    assert (QUESTION in output) == (stage != "confirmed")
 
 
 def test_plan_revision_requires_a_new_decision(modules, tmp_path):

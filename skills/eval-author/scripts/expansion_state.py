@@ -261,22 +261,30 @@ def trace_scope(state: dict) -> bool:
     )
 
 
+def trace_ethos_optional(state: dict) -> bool:
+    return (
+        trace_scope(state)
+        and state["ethos"]["stage"] not in ("review", "interview", "draft", "write")
+        and not state["ethos"]["remaining_questions"]
+    )
+
+
 def checkpoint_ready(state: dict) -> bool:
     from journey_state import active_blockers, checklist
 
     if not trace_scope(state):
         return entry_ready(state)
     return (
-        state["journey"] == "expand"
+        trace_ethos_optional(state)
         and checklist(state)[0]["complete"]
         and not active_blockers(state, ethos_optional=True)
-        and state["ethos"]["stage"] not in ("review", "interview", "draft", "write")
-        and not state["ethos"]["remaining_questions"]
     )
 
 
 def reconcile_question(repo, state: dict, *, answered_ethos_review: bool = False) -> None:
     value = record(state)
+    if value is not None and value["schema_version"] == 2 and answered_ethos_review:
+        state["pending_question"] = None
     if (
         value is None
         or not value["pending"]
