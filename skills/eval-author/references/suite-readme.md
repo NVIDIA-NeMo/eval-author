@@ -324,19 +324,23 @@ and one task URL in browser local storage. Harbor selects the first free port
 in 8080–8089 for either mode; it has no separate task-viewer port default. The
 report starts with jobs on 8080 and tasks on 8081, preserving saved overrides.
 Use the actual address printed by each viewer's launch command when it differs.
-Clicking an action checks that URL's
+Clicking an action attempts to check that URL's
 `/api/config` and the requested item's detail endpoint before navigating in the
 same tab. Verify task source paths and native run IDs so a same-named item in
 another catalog does not silently substitute for the requested item. A running
 viewer can serve existing aliases if its API resolves the correct source path.
 Do not create catalog symlinks or scan arbitrary local ports.
 
-Task mode serves immediate child task directories. If the item is missing or
-the mode is wrong, show the specific problem with Settings and a launch command.
-A three-second timeout or browser-blocked request must say the viewer could not
-be reached, not that it is definitely stopped. Offer retry and direct navigation
-when a browser cannot perform the check. The report itself works offline; only
-viewer clicks make these read-only requests. Verify options and routes against
+Task mode serves immediate child task directories. When the API is readable,
+show a missing item or wrong mode with Settings and a launch command.
+If a cross-origin fetch rejects with a `TypeError`, navigate directly in the
+same tab without requiring the viewer mode, item, or source checks to complete.
+The browser cannot distinguish a blocked check from a stopped viewer; confirm
+the intended task or run on the opened page, which shows the browser's connection
+error if the viewer is stopped. A three-second timeout or same-origin fetch
+failure must say the viewer could not be reached, not that it is definitely
+stopped, and offer retry and direct navigation. The report itself works offline;
+only viewer clicks make these read-only requests. Verify options and routes against
 the installed version; the report routes match Harbor 0.24.0.
 
 Keep the existing walkthrough below: explain the relevant task, run, and saved
