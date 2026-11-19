@@ -43,20 +43,26 @@ def test_existing_plan_matches_fixture_and_is_unchanged_after_resume(modules, tm
     assert resumed["pending_question"] == saved["pending_question"]
 
 
-@pytest.mark.parametrize("change", ["context", "provider_round_trip", "later_question", "recovery"])
+@pytest.mark.parametrize(
+    "change", ["context", "provider_round_trip", "provider_recovery", "later_question", "recovery"]
+)
 def test_scope_continuation_leaves_other_questions_with_their_owner(modules, tmp_path, change):
     state, _, renderer = modules
     saved = decide(modules, tmp_path, start(modules, tmp_path), "approved")
     if change == "context":
         (tmp_path / "ETHOS.md").write_text("# Changed agent intent\n")
         saved = state.load_state(tmp_path)
-        message = "reconcile.*authoring workflow"
-    elif change == "provider_round_trip":
-        state.initialize(tmp_path, setup="harbor")
-        saved = setup_ready(state, tmp_path, journey="expand")
-        assert modules[1].derive(saved, modules[1].observe(tmp_path, saved))["context_current"]
-        assert saved["scopes"]["expand"]["needs_review"]
-        message = "reconcile.*authoring workflow"
+        message = "shared onboarding"
+    elif change in ("provider_round_trip", "provider_recovery"):
+        saved = state.initialize(tmp_path, setup="harbor")
+        if change == "provider_round_trip":
+            saved = setup_ready(state, tmp_path, journey="expand")
+            assert modules[1].derive(saved, modules[1].observe(tmp_path, saved))["context_current"]
+            assert saved["scopes"]["expand"]["needs_review"]
+            message = "reconcile.*authoring workflow"
+        else:
+            assert not modules[1].checkpoint_ready(saved)
+            message = "shared onboarding"
     else:
         patch = {"pending_question": "Which account should this task use?"}
         if change == "recovery":
@@ -103,8 +109,10 @@ def test_supplied_plan_prose_stays_inside_its_paragraph_or_table_cell(modules, t
     assert "\\[click\\](https://example.com) &lt;tag&gt;" in text
 
 
-@pytest.mark.parametrize("count", [1, 2, 3])
-def test_audit_selection_opening_precedes_planning_without_changing_saved_decisions(modules, tmp_path, count):
+@pytest.mark.parametrize(("count", "all_unsupported"), [(1, True), (2, False), (2, True), (3, False)])
+def test_audit_selection_opening_precedes_planning_without_changing_saved_decisions(
+    modules, tmp_path, count, all_unsupported
+):
     state, _, renderer = modules
     from conversation_flows.expansion_templates import UNSUPPORTED_GRADER_REPAIR
 
@@ -125,20 +133,30 @@ def test_audit_selection_opening_precedes_planning_without_changing_saved_decisi
         "revision": saved["revision"],
         "facts": {
             "selected_improvements": {key: labels[key] for key in reversed(selected)},
-            "limits": UNSUPPORTED_GRADER_REPAIR,
+            "limits": (
+                "Neither selected change has a supported authoring path inside Eval Author."
+                if all_unsupported and count > 1
+                else UNSUPPORTED_GRADER_REPAIR
+            ),
+            "all_selected_unsupported": all_unsupported,
         },
     }
     before = copy.deepcopy(data)
     saved_bytes = state.state_path(tmp_path).read_bytes()
     text = renderer.render(data)
-    if count == 2:
-        expected = (FIXTURES / "audit-opening.md").read_text().split("\n\n", 1)[1]
+    if count == 1 or (count == 2 and not all_unsupported):
+        fixture = "audit-opening-unsupported.md" if all_unsupported else "audit-opening.md"
+        expected = (FIXTURES / fixture).read_text().split("\n\n", 1)[1]
         assert text == expected
     else:
         assert text.startswith(
-            "Your improvement selection is saved." if count == 1 else "Your improvement selections are saved."
+            "Both of your improvement selections are saved." if count == 2 else "Your improvement selections are saved."
         )
     assert "; ".join(labels[key] for key in selected) in text
+    if all_unsupported:
+        assert "I’ll check" not in text
+        assert "task plan" not in text
+        assert "running your agent" not in text
     assert data == before
     assert state.state_path(tmp_path).read_bytes() == saved_bytes
     resumed = state.initialize(tmp_path, journey="expand")
@@ -147,22 +165,41 @@ def test_audit_selection_opening_precedes_planning_without_changing_saved_decisi
     assert resumed["tasks"] == saved["tasks"]
 
 
-@pytest.mark.parametrize("change", ["no_handoff", "missing_selection", "extra_selection", "revision"])
+@pytest.mark.parametrize(
+    "change",
+    [
+        "no_handoff",
+        "missing_selection",
+        "extra_selection",
+        "revision",
+        "unsupported_without_limits",
+        "unsupported_not_bool",
+        "unsupported_number",
+    ],
+)
 def test_audit_opening_requires_the_retained_selection_and_current_state(modules, tmp_path, change):
     _, _, renderer = modules
     saved = start(modules, tmp_path, "audit_tool_gap")
+    labels = {"R1": "New case", "R3": "Repair verifier"}
+    facts: dict[str, object] = {"selected_improvements": labels}
     data = {
         "stage": "expansion_audit_opening",
         "state": saved,
         "revision": saved["revision"],
-        "facts": {"selected_improvements": {"R1": "New case", "R3": "Repair verifier"}},
+        "facts": facts,
     }
     if change == "no_handoff":
         saved["scopes"]["expand"].pop("audit_handoff")
     elif change == "missing_selection":
-        data["facts"]["selected_improvements"].pop("R3")
+        labels.pop("R3")
     elif change == "extra_selection":
-        data["facts"]["selected_improvements"]["R4"] = "Unselected case"
+        labels["R4"] = "Unselected case"
+    elif change.startswith("unsupported_"):
+        facts["all_selected_unsupported"] = {
+            "unsupported_without_limits": True,
+            "unsupported_not_bool": "true",
+            "unsupported_number": 1,
+        }[change]
     else:
         data["revision"] -= 1
     with pytest.raises(ValueError):

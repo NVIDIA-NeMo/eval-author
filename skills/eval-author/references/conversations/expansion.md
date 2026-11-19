@@ -21,8 +21,12 @@ Immediately after retaining the selection and entering `expand`, render
 `expansion_audit_opening` with the complete saved state and exact revision.
 Supply `facts.selected_improvements` as an object mapping exactly the handoff's
 selected recommendation IDs to their current report labels, plus `facts.limits`
-when a support limit is already known. Show the returned Markdown unchanged in
-commentary before eligibility checks, adapter investigation, or task-plan details,
+when a support limit is already known. Set `facts.all_selected_unsupported: true`
+only when the caller has established that those limits cover every selected
+improvement; supply `facts.limits` explaining them. The renderer then omits the
+support-check, planning, and execution next steps. Leave the flag absent or false
+when support remains unresolved for any selection. Show the returned Markdown
+unchanged in commentary before eligibility checks, adapter investigation, or task-plan details,
 then continue in the same turn. This opening needs no ready prerequisites or
 planning lifecycle and asks no new question. It acknowledges only the saved
 selection, without approving construction or execution. Resolve changed or
@@ -94,8 +98,9 @@ Changes to the plan require the user's decision on those changes.
 Resume an unanswered scope question through `expansion_scope`. After an answer,
 continue the existing authoring workflow and leave its later questions with that
 owner. Shared prerequisite and Ethos recovery take precedence. Task-create keeps
-selection, eligibility, authoring, validation, and execution-authorization rules;
-this checkpoint adds no construction command or evidence-validation layer.
+gap selection, eligibility, authoring, native validation, acceptance, and
+execution-authorization rules; this checkpoint adds no construction approval,
+command, or evidence-validation layer.
 
 ## Shared checkpoint contract
 
@@ -137,16 +142,12 @@ The scope record saves the selected authoring workflow's existing coverage-plann
 through `expansion_state.new_scope`: a plan for display, its actual user decision,
 and an optional unresolved question. The
 [validator](../../scripts/expansion_state.py) owns the exact presentation fields.
-Task-create continues to own gap selection, authoring, native validation, and
-acceptance; starter expansion and trace mode retain their existing workflows.
-There is no additional construction approval or command. Once its question is
-answered, this checkpoint leaves later authoring questions with their owner.
-Use the registered `resume` stage to show its checklist and saved question;
-`expansion_continue` remains specific to the unresolved entry decision.
+Follow [Existing scope checkpoint](#existing-scope-checkpoint) for workflow
+ownership, recovery priority, and continuation after scope review. Preserve the
+existing context bindings.
 All stateful onboarding stages follow the [scope observation contract](onboarding.md#stateful-responses).
 Stale bindings require a saved context-review question; shared blockers suppress
 the retained scope question until recovery.
-Preserve shared prerequisite/Ethos recovery and the existing context bindings.
 Do not save a parallel checklist, introduce another state file, or register
 future-stage placeholders. Reuse shared formatting and labels.
 

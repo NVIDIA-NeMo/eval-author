@@ -615,9 +615,11 @@ it uses the canonical `UNSUPPORTED_GRADER_REPAIR` copy in the
 under **Known support limits:** in the opening when already known, or explains
 the limit when discovered later without repeating the selection acknowledgment.
 It does not repeat a limit already shown or impose a blanket source-edit
-prohibition. If all selected changes are unsupported, it does not enter task
-planning. Any report-update failure appears in a separate paragraph. Selection
-alone does not approve construction or agent execution.
+prohibition. When all selected changes are already known to be unsupported,
+the opening acknowledges the selection and explains the limits without
+promising another support check, task planning, or an agent run. It does not
+enter task planning. Any report-update failure appears in a separate paragraph.
+Selection alone does not approve construction or agent execution.
 
 **Explicit proposal-only request:** Reply instead: “Please expand the first
 recommendation into a detailed proposal.” The agent enters

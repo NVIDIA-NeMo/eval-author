@@ -262,7 +262,7 @@ selected dataset rows, while Harbor repeats tasks. Keep estimates conditional
 if that choice remains open.
 Present priorities and breadth for review, offering a minimal pilot and expansion.
 Reuse already agreed scope. Save the agreement in `.eval-author/.working/journey-state.json`
-with the shared coverage-planning fields, and reflect it in the selected
+with the shared [saved-agreement fields](../eval-author/references/coverage-planning.md#explain-ongoing-cost-and-settle-the-plan), and reflect it in the selected
 recommendation in the Audit coverage report. Keep it out of agent-facing instructions.
 Answer questions or complete scoped detours, then resume this checkpoint with
 the existing decisions intact.

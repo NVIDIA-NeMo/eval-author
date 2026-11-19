@@ -283,8 +283,10 @@ to render and retain this review and its actual answer.
 
 Wait for unresolved scope choices, incorporate feedback in the saved
 agreement, then generate the agreed cases. Before the first generation or
-scaffolding call, save the accepted revision with the user's decision, current
-example IDs/counts, task mapping, and attempt settings. Replace superseded
+scaffolding call, save the accepted revision with the user's decision, selected
+corpus and exclusions, priorities and cost constraints, pilot or expansion status, all
+[per-behavior planning fields](#plan-breadth-per-behavior), current example
+IDs/counts, task mapping, and attempt settings. Replace superseded
 current values or label them as history; an approval recorded only in the
 conversation while the plan still says "pending" is not a saved agreement.
 Reuse decisions and authorization
