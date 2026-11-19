@@ -104,6 +104,9 @@ def observations(record):
                 for ref in [record["selection"]["config"], *record["selection"].get("inputs", [])]
             }
         )
+        files.update(
+            {ref["path"]: ref["digest"] for ref in (record["selection"].get("bridge") or {}).get("evidence", [])}
+        )
     for run in record["runs"]:
         files.update({ref["path"]: ref["digest"] for ref in run["evidence"]})
         for attempt in run["attempts"]:
@@ -111,7 +114,28 @@ def observations(record):
     summary = (record["run_review"] or {}).get("summary")
     if summary:
         files[summary["path"]] = summary["digest"]
-    return {"tasks": {key: task["sha256"] for key, task in record["tasks"].items()}, "files": files}
+    simulation = (record["selection"] or {}).get("user_sim")
+    return {
+        "tasks": {key: task["sha256"] for key, task in record["tasks"].items()},
+        "files": files,
+        "directories": {simulation["working_directory"]: True} if simulation else {},
+    }
+
+
+def test_proposal_displays_selected_interaction_without_inferring_legacy_type(creation):
+    state, record, _, renderer, _ = creation
+    state["scopes"]["create"]["user_simulation"] = {"enabled": True, "source": "enable user simulation"}
+    record["plan"]["tasks"][0].update(
+        interaction_type="user_sim",
+        state_requirements="Keep the same customer session.",
+        conversation_scenario="Ask for a return | then answer <confirm>.",
+    )
+    output = renderer.render(payload(creation, "proposal"))
+    assert "| **User Simulation:** **refund** - Respect policy |" in output
+    assert "**State carried between requests:** Keep the same customer session." in output
+    assert "**Conversation scenario:** Ask for a return &#124; then answer &lt;confirm&gt;." in output
+    assert "**Single Turn:** " not in output
+    assert "**Scripted Multi-step:** " not in output
 
 
 def payload(creation, stage, **facts):
@@ -258,7 +282,10 @@ def selected(creation):
     }
     record["selection"] = {
         "config": {"path": ".eval-author/run.yaml", "digest": SHA},
-        "cases": [{"task_id": key, "example_ids": [key + "-example"], "attempts": 1} for key in record["tasks"]],
+        "cases": [
+            {"task_id": task["id"], "example_ids": task["example_ids"], "attempts": 1}
+            for task in record["plan"]["tasks"]
+        ],
         "agent": "support",
         "model": "configured-model",
         "source": "Explicit run selection",
@@ -382,7 +409,7 @@ def test_proposal_is_concise_deterministic_and_read_only(creation):
     )
     assert output == renderer.render(payload(creation, "resume"))
     assert copy.PROPOSAL_TABLE in output
-    assert "Request &#124; with newline<br>continued" not in output
+    assert "Request &#124; with newline continued" not in output
     assert output.endswith(copy.PROPOSAL_QUESTION + "\n")
     assert output.index("Other regions remain untested") < output.index("I’ll build **refund** first.")
     assert "- **Agent/model:" not in output and "Blockers" not in output and "SKILL.md" not in output
@@ -652,9 +679,9 @@ def test_task_ids_are_literal_in_tables_and_build_labels(creation, stage):
     output = renderer.render(payload(creation, stage))
     escaped = r"refund\_\*\[choice\]&#124;&lt;b&gt;"
     if stage == "proposal":
-        assert f"| **{escaped}<br>next** - Respect policy |" in output
+        assert f"| **{escaped} next** - Respect policy |" in output
     elif stage == "saved_design":
-        assert f"| {escaped}<br>next |" in output
+        assert f"| {escaped} next |" in output
     if stage == "proposal":
         assert f"I’ll build **{escaped} next** first." in output
     elif stage in {"prepare_first", "build_progress"}:
@@ -1352,7 +1379,7 @@ def test_suite_review_uses_current_plan_content_and_deduplicates_task_limitation
     monkeypatch.setattr(Path, "read_bytes", forbidden)
     monkeypatch.setattr(importlib.import_module("journey_state"), "now", forbidden)
     output = renderer.render(request)
-    assert "Do not \\[dispatch\\]" in output and "&#124; queue<br>\\#\\#\\# forged" in output
+    assert "Do not \\[dispatch\\]" in output and "&#124; queue \\#\\#\\# forged" in output
     assert output.count("Other regions untested") == 1
     assert json.dumps(state, sort_keys=True) == before
 
@@ -1944,6 +1971,78 @@ def test_adapter_handoff_uses_saved_agent_provider_ethos_and_only_agreed_task_pa
         "missing_connection": "Agent entry point missing",
     }
     assert "unselected-old-task" not in output
+
+
+@pytest.mark.parametrize("interaction_type", ["single_turn", "scripted_multi_step", "user_sim"])
+def test_adapter_handoff_carries_approved_interaction_requirements(creation, interaction_type):
+    state, record, _, renderer, _ = creation
+    task = record["plan"]["tasks"][0]
+    task["interaction_type"] = interaction_type
+    if interaction_type != "single_turn":
+        task["state_requirements"] = "Keep the same cart and conversation. Reset between attempts."
+    if interaction_type == "scripted_multi_step":
+        task["prerequisite_checks"] = ["Confirm the cart contains one item before removal."]
+    if interaction_type == "user_sim":
+        task["conversation_scenario"] = "Select an option actually offered, then confirm it."
+        record["execution_settings"]["user_sim"] = {
+            "agent_model": "neutral-simulator / chosen-model",
+            "conversation_limits": "120 seconds",
+        }
+    built(creation)
+    state["blockers"] = [{"id": "agent-integration", "phase": "create", "message": "Needs an interactive adapter"}]
+    output = renderer.render(payload(creation, "blockers"))
+    context = adapter_context(output)
+    row = context["tasks"][0]
+    assert row["interaction_type"] == interaction_type
+    if interaction_type != "single_turn":
+        assert row["state_requirements"] == task["state_requirements"]
+    if interaction_type == "scripted_multi_step":
+        assert row["prerequisite_checks"] == task["prerequisite_checks"]
+    if interaction_type == "user_sim":
+        assert row["conversation_scenario"] == task["conversation_scenario"]
+        assert row["expected_scenario_path"] == ".eval-author/tasks/refund/user-sim.yaml"
+        assert context["simulator_settings"] == record["execution_settings"]["user_sim"]
+    assert "one continuing session" in output
+    assert "Simulator messages are not target actions" in output
+
+
+@pytest.mark.parametrize("current", [True, False])
+def test_adapter_handoff_includes_only_inputs_for_current_settings(creation, current):
+    state, record, helper, renderer, _ = creation
+    record["plan"]["tasks"] = record["plan"]["tasks"][:1]
+    record["plan"]["tasks"][0].update(
+        interaction_type="user_sim",
+        state_requirements="Keep session",
+        conversation_scenario="Confirm the actual offer",
+    )
+    record["execution_settings"]["user_sim"] = {
+        "agent_model": "neutral-simulator / chosen-model",
+        "conversation_limits": "120 seconds",
+    }
+    selected(creation)
+    selection = record["selection"]
+    selection["inputs"] = [{"path": ".eval-author/persona.txt", "digest": SHA}]
+    if not current:
+        selection["settings_digest"] = "b" * 64
+    state["blockers"] = [{"id": "agent-integration", "phase": "create", "message": "Needs a connection"}]
+    context = adapter_context(renderer.render(payload(creation, "blockers")))
+    if current:
+        assert context["execution_inputs"] == {"config": selection["config"], "inputs": selection["inputs"]}
+    else:
+        assert "execution_inputs" not in context
+
+
+def test_adapter_handoff_does_not_leak_unapproved_scenario_requirements(creation):
+    state, record, _, renderer, _ = creation
+    record["plan"]["tasks"][0].update(
+        interaction_type="user_sim",
+        state_requirements="Keep session",
+        conversation_scenario="UNAPPROVED_SCENARIO",
+    )
+    state["blockers"] = [{"id": "agent-integration", "phase": "create", "message": "Needs a connection"}]
+    output = renderer.render(payload(creation, "blockers"))
+    assert adapter_context(output)["tasks"] == []
+    assert "UNAPPROVED_SCENARIO" not in output
 
 
 @pytest.mark.parametrize("change", ["provider", "design"])
@@ -2596,7 +2695,7 @@ def test_proposal_shows_each_verifier_type_and_scoring_rule_before_setup_questio
     assert copy.VALIDATION_SETUP_INTRO not in output and state == before
     record["plan"]["tasks"][1]["scoring_rule"] = "Model judge <script>bad</script> | **override**\ncontinued"
     escaped = renderer.render(payload(creation, "proposal"))
-    assert "Model judge &lt;script&gt;bad&lt;/script&gt; &#124; \\*\\*override\\*\\*<br>continued" in escaped
+    assert "Model judge &lt;script&gt;bad&lt;/script&gt; &#124; \\*\\*override\\*\\* continued" in escaped
     assert "<script>" not in escaped and "| **override**" not in escaped
 
 
@@ -2617,3 +2716,31 @@ def test_fully_validated_legacy_tasks_can_show_report_bookkeeping_without_setup_
     output = renderer.render(payload(creation, stage))
     assert "report" in output and copy.VALIDATION_SETUP_QUESTION not in output
     assert "In progress" in output
+
+
+@pytest.mark.parametrize("html_enabled", [False, True])
+@pytest.mark.parametrize("interaction_type", ["single_turn", "scripted_multi_step", "user_sim"])
+def test_task_table_renders_without_html_support(creation, html_enabled, interaction_type):
+    from conversation_flows.first_eval import task_table
+    from interaction_types import interaction_type_label
+    from markdown_it import MarkdownIt
+
+    row = {
+        "task_id": "IMP-01",
+        "behavior_tested": "Import the document.\nSave it in the selected project.",
+        "expected_outcome": "Save exactly one source.\nName its path in the reply.",
+        "verifier_type": "Custom code",
+        "scoring_rule": "Pass at 1 when the saved source matches, otherwise score 0.",
+        "interaction_type": interaction_type,
+    }
+    output = task_table([row])
+    tokens = MarkdownIt("commonmark", {"html": html_enabled}).enable("table").parse(output)
+    children = [child for token in tokens for child in token.children or []]
+    displayed = " ".join(child.content for child in children if child.type == "text")
+    assert sum(token.type == "td_open" for token in tokens) == 3
+    assert not any(token.type in {"html_inline", "html_block"} for token in [*tokens, *children])
+    assert "<br>" not in displayed
+    assert interaction_type_label(interaction_type) + ":" in displayed
+    assert "Import the document. Save it in the selected project." in displayed
+    assert "Save exactly one source. Name its path in the reply." in displayed
+    assert row["scoring_rule"] in displayed

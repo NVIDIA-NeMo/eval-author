@@ -46,6 +46,127 @@ evaluation runs are new evidence with their own run IDs; they do not silently
 enlarge or replace the source corpus. If corpus membership changes, update the
 agreement and identify affected plans, fixtures, and coverage claims for review.
 
+## Enable experimental user simulation
+
+User simulation is experimental and off by default for each suite. Treat
+“enable user simulation” and “enable experimental user simulation for this
+evaluation suite” as explicit opt-in. An explicit request to disable user
+simulation turns it off for that suite. Reuse the choice when resuming the same
+suite. Start a new suite with simulation off, unless the user enables it for
+that new suite. Installation, saved simulation files, task-design approval,
+and a general request for multi-turn coverage don't enable it.
+
+This is a scoped settings change, so it doesn't start onboarding, task creation,
+or a run. Use the active or explicitly named suite. If the suite is ambiguous,
+ask which suite the choice applies to. With a known repository but no suite yet,
+save the choice for its next authoring proposal. Preserve the active journey,
+pending question, existing approvals, and retained evidence.
+
+Read the saved metadata with `journey_state.py --repo <repo> --state-only show`.
+For an existing authoring scope, use its current revision for a state-only update:
+
+```json
+{"scopes": {"create": {"user_simulation": {"enabled": true, "source": "enable user simulation"}}}}
+```
+
+Use `create` for first-eval, including expansion routed to that flow, and
+`expand` for task-create. Retain the user's actual request in `source`. Use
+`enabled: false` for withdrawal. If state doesn't exist, initialize only the
+selected authoring journey with `--state-only init`, without probing prerequisites
+or inventing an agent or provider. Save through the existing revision-checked
+`--state-only update --input <patch.json> --expected-revision <revision>` command.
+The owning validator is `validate_user_simulation` in
+[`interaction_types.py`](../scripts/interaction_types.py). Missing metadata means off.
+
+While off, propose Single Turn or Scripted Multi-step when they can exercise the
+behavior. Keep behaviors requiring adaptive user replies as uncovered or blocked.
+Retain existing `user_sim` designs, scenarios, and results for inspection, with
+simulation authoring and execution blocked. Use `first_eval_simulation_disabled`
+for the saved first-eval suite's disabled status. Changing a task's type still
+requires design review. Don't silently turn an adaptive scenario into a script.
+
+With simulation enabled, normal design review, environment proof, integration
+checks, and execution authorization still apply. Before scenario authoring,
+translation, or execution, check the selected scope's saved choice. Direct helper
+invocation and native Harbor `user_agent` configuration don't establish opt-in.
+Discovery may inspect existing configurations and report their capabilities while
+authoring and execution stay off. Disabling preserves historical evidence and
+revokes first-eval run authorization. Re-enabling doesn't restore that authorization.
+Clear the saved choice when starting a different suite in the same scope.
+
+## Choose the interaction type
+
+- Apply the [simulation opt-in gate](#enable-experimental-user-simulation) before selecting interaction types.
+- Choose an interaction type for each task before saving or reviewing its
+  proposal. Save `interaction_type` alongside the request, expected behavior,
+  and grading rule.
+- For both Scripted Multi-step and User Simulation, save `state_requirements`. Describe
+  which session, conversation history, and environment state must continue
+  between requests and what resets between attempts.
+- Follow the field requirements validated by
+  [`interaction_types.py`](../scripts/interaction_types.py).
+- Choose based on the user input needed to exercise the behavior. Conversation
+  length, tool-call count, and a conversational interface alone don't justify
+  User Simulation.
+
+### Single Turn
+
+- Use `single_turn` when one user request can exercise the behavior. The agent
+  may make several tool calls to complete it.
+- For example, a delivery-date request that includes the order number and
+  postcode can require order lookup, carrier tracking, and policy checks without
+  needing another user message.
+
+### Scripted Multi-step
+
+- Use `scripted_multi_step` when predefined requests and checked intermediate
+  outcomes lead to the behavior under test. The expected progression must be
+  predictable, even if the agent's wording varies.
+- Use this type for critical paths that an adaptive conversation might miss.
+  For example, add a specified item to a cart, verify that it's there, then
+  request its removal. The removal request stays the same across valid replies.
+- Save a nonempty `prerequisite_checks` list. Each check must establish the
+  state needed by a later request. A failed prerequisite counts as a failure
+  and leaves the later behavior unexercised. A fixed script can't guarantee
+  that the agent reaches that behavior.
+
+### User Simulation
+
+- Use `user_sim` when later user messages must respond to what the agent
+  actually asks, offers, or does. The next message depends on the meaning of
+  the response, not just its wording. For example:
+  - The agent may ask for the order number or damage description first. The
+    simulator supplies the requested fact and keeps the other fact available.
+  - The agent may offer different replacement items as stock and prices change.
+    The simulator chooses an eligible item from the actual offer, within the
+    user's budget, and confirms that item's identifier.
+  - The agent may find that a requested appointment is no longer available.
+    The simulator accepts a suitable alternative or asks for another time based
+    on the user's availability and the agent's actual response.
+- Save `conversation_scenario` to describe the adaptive exchange, user-known
+  facts, allowed reactions, and observable agent behavior to check. Include any
+  delayed disclosure that the target behavior requires.
+- Reuse the task goal and fixtures. Start with a neutral user and shared behavior
+  defaults. Add disclosure or stopping rules only when the target behavior needs
+  them. Persona generation is outside this stage.
+
+### Ground the design in available evidence
+
+- When selected traces are available, identify turns where the next user input
+  depends on an earlier response. Cite the selected trace and turn identifiers
+  in the proposal's evidence. Distinguish choices among offered options from
+  wording differences or incidental chatter.
+- Treat traces as evidence of observed paths. Use Ethos and policy to establish
+  intended behavior. Without enough trace evidence, label the scenario synthetic
+  or uncertain. Don't invent observed exchanges.
+- Keep interaction type separate from execution stages and runner capabilities.
+  Missing runtime support leaves execution blocked. It doesn't change the
+  intended interaction type or establish that simulation ran.
+- Preserve task-create's existing source-mode and automatic tool-gap eligibility.
+- Leave legacy plans without a type unspecified until reviewed. Don't infer
+  Single Turn. A change to the interaction type or scenario changes the proposed
+  design and requires review of the affected agreement.
+
 ## Plan breadth per behavior
 
 Explain the counting units before discussing scope:

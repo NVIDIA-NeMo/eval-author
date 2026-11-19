@@ -1,0 +1,55 @@
+{
+  "skill_name": "eval-author-user-sim",
+  "evals": [
+    {
+      "id": "user-sim-author-retail-confirmation",
+      "prompt": "Use eval-author-user-sim as the internal authoring subskill called by first-eval. This is a bounded synthetic authoring exercise, not a native environment or actual-agent run. The parent has approved one Harbor task, return-headphones, with interaction_type user_sim. Its goal is to return the customer's wireless headphones for a refund to the original payment method. The agent must ask for the order identifier, propose the correct return, get explicit confirmation, then perform it. Later user replies must react to what the agent actually asks or proposes, with conversation state preserved. For this exercise use the supplied retail-context.json in /workspace/input as the prepared fixture source and do not run environment setup or native qualification. Write only under /workspace/input/.eval-author/tasks/return-headphones/. Create user-sim.yaml, update the task README with fixture provenance and conversation-dependent verifier requirements, and create a local deterministic transcript-control checker and synthetic controls. Exercise correct confirmation, action without confirmation, confirmation after action, and a final-answer-only shortcut. You may run local Python validation and controls. Do not run models, Docker, Harbor jobs, or the retail agent. Use the shared validator and return the files, results, and missing execution integration. Do not author another task or repeat onboarding.",
+      "expected_output": "Creates a contract-valid neutral user-sim.yaml with the approved task ID and goal, an opening request that omits the order ID, user facts grounded in the customer_1042/order_2084 fixture, and adaptive disclosure and correction/confirmation behavior. Keeps verifier_only data and the internal expected item identifier out of the simulator context. Updates the existing task README and implements local conversation controls which accept correct action after confirmation and reject missing/late confirmation and final-answer-only shortcuts. Runs the shared scenario validator and local controls, labels them synthetic verifier evidence, and reports that Harbor user-sim translation and an interactive runner remain missing. Does not claim actual-agent execution, native qualification, coverage, task acceptance, or first-task review readiness.",
+      "assertions": [
+        "Creates .eval-author/tasks/return-headphones/user-sim.yaml with schema_version 1, task_id return-headphones, the fixture-grounded goal, neutral user type or its default, and an opening request that does not disclose order_2084.",
+        "Grounds user facts in user_known and verifies their consistency with the matching environment order, without using order_2085 or inventing facts; does not copy VERIFIER_ONLY_SENTINEL_8173, expected_return_item_id, or hidden grader answers into simulator inputs.",
+        "Authors adaptive instructions to provide the order identifier when asked, confirm the appropriate proposed return, and seek correction for conflicting proposals rather than hardcoding the target agent's replies.",
+        "Runs the shared user_sim.py validator successfully on the generated artifact and exercises a local verifier that accepts confirmation before action but rejects missing confirmation, late confirmation, and a final answer without the required action.",
+        "Reports exact scenario, README, verifier, and control artifact paths and labels local controls as synthetic; keeps missing Harbor user-sim integration explicit and does not create extra tasks, execute either agent, or mark the task accepted or review-ready."
+      ],
+      "expected_skill": "eval-author-user-sim",
+      "files": ["files/retail-context.json"]
+    },
+    {
+      "id": "user-sim-conflicting-facts",
+      "prompt": "Use eval-author-user-sim within an already approved Harbor task-create flow. This is a response-only synthetic case, so do not create files, run commands, or ask onboarding questions. The agreed customer is customer_1042. The proposed simulator facts say order_2085 belongs to that customer, but the prepared environment says order_2085 belongs to customer_9000 and customer_1042 owns order_2084. There are identical headphones on both orders. Someone suggested changing the environment owner so the proposed scenario passes. The task also supplies a verifier-only canary and expected tool response for grading. Explain what can be reused, what blocks authoring, and what information the simulator should receive. The selected tool gap and approved task scope must remain unchanged.",
+      "expected_output": "Identifies the ownership mismatch as a scenario/fixture inconsistency rather than a failing agent. Preserves the prepared environment and approved customer, excludes verifier-only canary and expected tool response from simulator inputs, and returns the unresolved order identity to the parent for a grounded correction before authoring or execution. Does not silently rewrite fixture ownership, substitute another customer or task, claim the goal is reachable, or treat schema validity as semantic correctness.",
+      "assertions": [
+        "Names the customer/order mismatch and preserves the prepared environment rather than changing ownership to make the task pass.",
+        "Returns the inconsistent order selection to the caller for correction against the agreed scenario, preserving the selected tool gap and scope.",
+        "Keeps verifier-only canary, expected tool response, and hidden grading answers out of simulator inputs while retaining user-known facts that are supported.",
+        "Makes no file changes or execution claims and distinguishes semantic fixture consistency from structural YAML validation."
+      ],
+      "expected_skill": "eval-author-user-sim",
+      "files": []
+    },
+    {
+      "id": "user-sim-gym-route-blocked",
+      "prompt": "Use eval-author-user-sim as an internal call from first-eval. All context is inline and this is response-only: do not create files or run commands. We approved a user_sim task that needs the user to choose between options revealed by the agent. The selected provider is native NeMo Gym, and the first task has not been reviewed. A teammate suggests generating Harbor YAML anyway, flattening the whole conversation into instruction.md, or creating the remaining tasks while waiting. Which route should we take at this implementation stage?",
+      "expected_output": "Preserves native NeMo Gym and the approved adaptive User-sim design, reports that this first implementation only supports Harbor scenario authoring and that the native Gym authoring route is unsupported, and returns the blocker to first-eval. Does not switch to Harbor, flatten the adaptive exchange, generate scenario files, author remaining tasks, or claim an integration. Retains first-task review and existing parent checkpoints without restarting onboarding.",
+      "assertions": [
+        "Reports native NeMo Gym User-sim authoring as unsupported at this stage and preserves the selected provider and adaptive design.",
+        "Does not substitute Harbor, flatten the conversation, or silently change the test type to single-turn.",
+        "Returns the blocker to the parent before generating files, keeps first-task review before the remainder, and does not repeat onboarding or claim execution."
+      ],
+      "expected_skill": "eval-author-user-sim",
+      "files": []
+    },
+    {
+      "id": "user-sim-negative",
+      "prompt": "In two sentences, explain what a neutral simulated user is. Do not start authoring, inspect files, or run commands.",
+      "expected_output": "Explains that a neutral simulated user pursues a task goal and answers using known facts without added personality variation. Gives only the requested explanation and starts no workflow.",
+      "assertions": [
+        "Answers in about two sentences without invoking authoring, inspecting files, or executing commands.",
+        "Distinguishes neutral task behavior from generating a personality or demographic profile."
+      ],
+      "expected_skill": null,
+      "files": []
+    }
+  ]
+}

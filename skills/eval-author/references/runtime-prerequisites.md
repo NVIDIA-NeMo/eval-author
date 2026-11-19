@@ -20,6 +20,9 @@ ranges, Python requirements, and flow-specific import/CLI capabilities. It does
 not install, activate, upgrade, scan evals, or execute jobs. It does execute
 installed runtime probes, so inspect only trusted runtime locations.
 
+All Harbor-backed skill workflows require Harbor 0.24.0 or newer. Older releases
+must be upgraded before discovery, authoring, or execution checks can pass.
+
 ```bash
 python3.11 <skill_dir>/scripts/locate_runtime.py --repo /absolute/project --provider harbor --flow discovery
 python3.11 <skill_dir>/scripts/locate_runtime.py --repo /absolute/project --provider gym --flow authoring

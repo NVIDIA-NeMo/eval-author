@@ -117,6 +117,22 @@ def test_retargeting_same_content_ethos_does_not_reuse_creation_approval(modules
     assert confirmed["scopes"]["create"]["needs_review"]
 
 
+def test_interaction_change_invalidates_design_approval(modules, tmp_path):
+    value = start(modules, tmp_path)
+    value["plan"]["tasks"][0].update(interaction_type="single_turn")
+    save(modules, tmp_path, value)
+    approve(modules, tmp_path, value)
+    assert facts(modules, tmp_path)["scope_approved"]
+    value["plan"]["tasks"][0].update(
+        interaction_type="user_sim",
+        state_requirements="Preserve the same session and cart.",
+        conversation_scenario="Choose a returned option and confirm it when asked.",
+    )
+    saved = save(modules, tmp_path, value)
+    assert saved["scopes"]["create"]["first_eval"]["plan"]["tasks"][0]["interaction_type"] == "user_sim"
+    assert not facts(modules, tmp_path)["scope_approved"]
+
+
 def author(modules, repo, value, task_id):
     path = f".eval-author/tasks/{task_id}"
     evidence(repo, f"{path}/instruction.md", f"Request for {task_id}")
@@ -153,8 +169,16 @@ def review_first(modules, repo, value):
     return save(modules, repo, value)
 
 
-def ready(modules, repo, provider="harbor", examples=None):
+def ready(modules, repo, provider="harbor", examples=None, *, simulation=False):
     value = start(modules, repo, provider, examples)
+    if simulation:
+        state = modules[0]
+        state.update(
+            repo,
+            {"scopes": {"create": {"user_simulation": {"enabled": True, "source": "enable user simulation"}}}},
+            expected_revision=state.load_state(repo)["revision"],
+            state_only=True,
+        )
     approve(modules, repo, value)
     author(modules, repo, value, "refund")
     check(modules, repo, value, "refund", "environment")
@@ -168,7 +192,7 @@ def ready(modules, repo, provider="harbor", examples=None):
     return value
 
 
-def select(modules, repo, value, repeats=1):
+def select(modules, repo, value, repeats=1, *, user_sim_bindings=None, user_sim_settings=None):
     value["execution_settings"] = {
         "agent_model": "actual-agent / configured-model",
         "attempts": str(repeats),
@@ -176,6 +200,8 @@ def select(modules, repo, value, repeats=1):
         "limits": "180 seconds; no retries; $1 maximum",
         "open_questions": [],
     }
+    if user_sim_settings is not None:
+        value["execution_settings"]["user_sim"] = user_sim_settings
     save(modules, repo, value)
     value["execution_settings_presented"] = {
         "digest": facts(modules, repo)["settings_digest"],
@@ -193,6 +219,8 @@ def select(modules, repo, value, repeats=1):
         "source": "Inspected provider-resolved explicit selection",
         "settings_digest": facts(modules, repo)["settings_digest"],
     }
+    if user_sim_bindings is not None:
+        value["selection"].update(user_sim_bindings)
     if value["provider"] == "gym":
         value["selection"]["inputs"] = [evidence(repo, ".eval-author/selected.jsonl", "complete selected rows")]
         for case in value["selection"]["cases"]:
@@ -1669,6 +1697,12 @@ def test_saved_design_revise_or_new_preserves_artifacts_runs_and_reopens_the_rig
         {"scopes": {"create": {"trace_choice": "none"}}},
         expected_revision=modules[0].load_state(tmp_path)["revision"],
     )
+    modules[0].update(
+        tmp_path,
+        {"scopes": {"create": {"user_simulation": {"enabled": True, "source": "enable user simulation"}}}},
+        expected_revision=modules[0].load_state(tmp_path)["revision"],
+        state_only=True,
+    )
     prior = copy.deepcopy(value)
     task_bytes = {
         key: (tmp_path / task["path"] / "instruction.md").read_bytes() for key, task in value["tasks"].items()
@@ -1686,6 +1720,7 @@ def test_saved_design_revise_or_new_preserves_artifacts_runs_and_reopens_the_rig
     assert facts(modules, tmp_path)["next_stage"] == ("traces" if decision == "new" else "proposal")
     assert not facts(modules, tmp_path)["execution_authorized"]
     assert (modules[1].trace_choice(updated) is None) is (decision == "new")
+    assert ("user_simulation" in updated["scopes"]["create"]) is (decision != "new")
     retained["plan"]["trace_choice"] = "none"
     save(modules, tmp_path, retained)
     approve(modules, tmp_path, retained)

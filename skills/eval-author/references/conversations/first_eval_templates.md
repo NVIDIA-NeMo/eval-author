@@ -27,6 +27,21 @@ Store the proposed rule before asking for design approval. Keep
 `example_ids` and the actual input in the saved design even though the table
 doesn't display them.
 
+Include `interaction_type` using the shared
+[interaction planning rules](../coverage-planning.md#choose-the-interaction-type).
+The renderer places the type label as a bold prefix on the same line as the
+Task cell content. For example, a proposed row renders as:
+
+| Task | Expected outcome | Verifier |
+|---|---|---|
+| **Single Turn:** **INV-01-exact-sku-lookup** - Look up the requested SKU. | Return the matching SKU and its stock count. | **Custom code** Pass at 1 when the requested SKU and count match exactly, otherwise score 0. |
+
+The renderer shows state requirements, prerequisite checks, and conversation scenarios
+below the table so the user can review the proposed exchange before authoring.
+Keep the state requirements, prerequisite checks, and conversation scenario in
+the saved task fields when applicable. Older plans without a recorded type stay
+readable and do not acquire an inferred type.
+
 After authoring, refresh the report with task metadata keyed by the exact
 saved task path. Set `display_id` to the proposed `id` and add
 `scoring_rule` with the implemented score and pass condition. Keep

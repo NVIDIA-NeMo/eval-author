@@ -537,6 +537,31 @@ are not labeled passed or failed. Standalone controls and other individual trial
 remain accessible in the separate Legacy trials section and are not combined
 into inferred jobs.
 
+Markdown tables use inline labels and text separators, so they render in
+terminal interfaces without HTML support.
+
+## User-simulation scenarios
+
+For an approved Harbor **User-sim** task with
+[experimental user simulation enabled](first-evals.md#enable-experimental-user-simulation),
+Eval Author writes `user-sim.yaml` in the task directory. It describes the neutral user's goal, opening request, known
+facts, and any task-specific conversation rules. The task README links this file
+and explains which parts of the exchange the verifier checks.
+
+After you select execution settings, Eval Author can translate one scenario into
+a native Harbor `run.yaml` and private simulator prompt files in a separate
+directory under `.eval-author/.working/`. It preserves the selected target,
+environment, and verifier settings. Each scenario gets a separate configuration.
+Translation rejects tasks with `trajectory.json` and target
+`kwargs.prompt_template_path` settings because Harbor's ACP flow cannot preserve
+their behavior with user simulation.
+
+An interactive runner and checked information boundaries are still required
+before execution. The generated prompt requests the exact opening message, but
+the conversation evidence must confirm that the simulator sent it. Valid files
+and passing synthetic controls do not establish an actual-agent run or measured
+coverage. Native NeMo Gym User-sim authoring is not supported yet.
+
 ## Discovery and readiness
 
 Open `.eval-author/discovery.md`. An inventory describes the evaluations found,
@@ -588,10 +613,32 @@ item rerun commands, and known execution blockers.
 
 ## First evaluations
 
+Your first evaluations give you a small starting suite that you can expand over
+time. You agree on one to three evaluation tasks, then Eval Author builds one
+draft for you to review. Check that it tests the behavior you care about and
+grades the outcome fairly. Once you're happy with that first task, Eval Author
+builds and validates the remaining tasks in your agreed set. You review the
+suite before running it, then use the results to decide whether to add coverage.
+
 The HTML report and `report_markdown/tasks.md` show proposed, authored, validated, and
 executed task totals for your full saved plan. Use the
 [generated case review guide](#review-generated-cases) to inspect cases and their
 available evidence.
+
+Each proposed task identifies its **interaction type**:
+
+- **Single Turn** uses one user request. The agent can make several tool calls
+  to complete it.
+- **Scripted Multi-step** uses predefined requests and checks intermediate
+  outcomes before continuing. For example, add an item to a cart, check that
+  it's there, then request its removal.
+- **User Simulation** adapts later user messages to the agent's responses. For example,
+  a simulated customer chooses among the replacement items the agent actually
+  offers, then confirms the selected item.
+
+The interaction type describes the task's design. Runtime readiness and actual
+execution are tracked separately. Older saved plans can remain without a
+documented type until reviewed.
 
 Task controls check the task and its verifier: NeMo Gym's known-correct and negative
 verifier fixtures, or Harbor's no-op baseline and reference solution. Results

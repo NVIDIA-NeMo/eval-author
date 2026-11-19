@@ -38,6 +38,7 @@ from urllib.parse import quote, unquote
 # Isolated Python invocations must resolve the bundled sibling, never cwd code.
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import first_eval_state  # noqa: E402
+from interaction_types import INTERACTION_TYPE_LABELS, USER_SIM_SCENARIO_FILENAME, interaction_type_label  # noqa: E402
 from journey_state import load_state, task_digest, task_lifecycle  # noqa: E402
 from journey_state import state_path as journey_state_path
 from search_tasks import search_tasks, within_task_scope  # noqa: E402
@@ -161,6 +162,16 @@ TASK_SCHEMA["properties"]["title"] = NULL_TEXT
 TASK_SCHEMA["properties"]["heading_id"] = TEXT
 TASK_SCHEMA["properties"]["grading_summary"] = {"anyOf": [GRADING_SUMMARY, {"type": "null"}]}
 TASK_SCHEMA["properties"]["task_revision"] = NULL_TEXT
+TASK_SCHEMA["properties"]["planned_interaction"] = TEXT
+TASK_SCHEMA["properties"]["interaction_type"] = {"enum": list(INTERACTION_TYPE_LABELS)}
+TASK_SCHEMA["properties"]["user_sim_scenario"] = obj(
+    {
+        "task_id": TEXT,
+        "user_type": {"const": "neutral"},
+        "path": PATH,
+        "digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    }
+)
 TASK_SCHEMA["allOf"] = [
     {
         "if": {"properties": {"status": {"const": "proposed"}}},
@@ -757,6 +768,23 @@ def design_text(value: object) -> str | None:
     return value if len(value) <= 2000 else value[:1999] + "…"
 
 
+def user_sim_identity(repo: Path, task_id: str, task_path: str) -> first_eval_state.UserSimScenarioIdentity:
+    from user_sim import MAX_SCENARIO_BYTES, load_scenario
+
+    relative_path = task_path + "/" + USER_SIM_SCENARIO_FILENAME
+    path = local(repo, relative_path)
+    content = read_bytes(path, MAX_SCENARIO_BYTES)
+    scenario = load_scenario(path)
+    if scenario.task_id != task_id or content != read_bytes(path, MAX_SCENARIO_BYTES):
+        raise ValueError("The user-sim scenario must match the saved task identity and current bytes")
+    return {
+        "task_id": task_id,
+        "user_type": scenario.user_type,
+        "path": relative_path,
+        "digest": hashlib.sha256(content).hexdigest(),
+    }
+
+
 def project_plan(repo: Path, state: dict, tasks: list[dict], metadata: dict) -> dict | None:
     value = first_eval_state.record(state)
     if value is None:
@@ -770,7 +798,7 @@ def project_plan(repo: Path, state: dict, tasks: list[dict], metadata: dict) -> 
         counts["authored" if authored else "proposed"] += 1
         for field in ("validated", "executed"):
             counts[field] += int(progress["tasks"][task_id][field])
-        matches = []
+        matches: list[dict] = []
         if authored:
             root = Path(authored["path"])
             matches = [
@@ -828,6 +856,18 @@ def project_plan(repo: Path, state: dict, tasks: list[dict], metadata: dict) -> 
             tasks.extend(matches)
         for task in matches:
             task["plan_task_id"] = task_id
+            for field in ("interaction_type", "planned_interaction", "user_sim_scenario"):
+                task.pop(field, None)
+            if planned.get("interaction_type") is not None:
+                task["interaction_type"] = planned["interaction_type"]
+                task["planned_interaction"] = interaction_type_label(planned["interaction_type"])
+            if planned.get("interaction_type") == "user_sim" and authored and task["status"] == "found":
+                try:
+                    task["user_sim_scenario"] = user_sim_identity(repo, task_id, authored["path"])
+                except (OSError, ValueError):
+                    task["issues"].append(
+                        "The neutral user-sim scenario is missing, invalid, or inconsistent with this task."
+                    )
     return counts
 
 
@@ -1164,7 +1204,7 @@ def markdown_text(value: str) -> str:
     """Keep artifact text literal in Markdown headings and table cells."""
     value = escape(value, quote=False)
     value = re.sub(r"([\\`*_{}\[\]()#!|~])", r"\\\1", value)
-    return "<br>".join(value.splitlines())
+    return " ".join(value.split())
 
 
 def artifact_link(label: str, path: str, base: str = MARKDOWN_DIR) -> str:
@@ -1245,30 +1285,32 @@ def render_tasks_markdown(data: dict) -> str:
             else:
                 actions.append(artifact_link("Task README", task["readme_path"]))
         name_cell = [
-            "<strong><code>" + markdown_text(task.get("title") or task["name"]) + "</code></strong>",
+            "**" + markdown_text(task.get("title") or task["name"]) + "**",
+            *(
+                ["Neutral scenario: " + markdown_text(task["user_sim_scenario"]["task_id"])]
+                if task.get("user_sim_scenario")
+                else []
+            ),
             *(
                 ["Task ID: " + markdown_text(task["plan_task_id"])]
                 if task.get("plan_task_id") and task["plan_task_id"] != (task.get("title") or task["name"])
                 else []
             ),
             *(markdown_text(part) for part in name),
-            *(
-                ["<code>" + markdown_text(task["path"].removeprefix(".eval-author/")) + "</code>"]
-                if task["path"]
-                else []
-            ),
+            *([markdown_text(task["path"].removeprefix(".eval-author/"))] if task["path"] else []),
         ]
         readiness = task.get("readiness", "unknown")
         cells = [
-            "<br>".join(name_cell),
+            " - ".join(name_cell),
             "**"
             + READINESS_LABELS.get(readiness, READINESS_LABELS["unknown"])[0]
-            + "**<br>"
+            + "** - "
             + markdown_text(task.get("readiness_reason", "No task acceptance has been recorded.")),
-            markdown_text(task["behavior"] or "Not documented"),
+            ("**" + markdown_text(task["planned_interaction"]) + ":** " if task.get("planned_interaction") else "")
+            + markdown_text(task["behavior"] or "Not documented"),
             markdown_text(task["expected_outcome"] or "Not documented"),
-            markdown_text(grading) + "<br>" + markdown_text(task_grading_summary(task)),
-            "<br>".join(actions),
+            markdown_text(grading) + " - " + markdown_text(task_grading_summary(task)),
+            " - ".join(actions),
         ]
         lines.append("| " + " | ".join(cells) + " |")
     if data["tasks"]:
@@ -1621,7 +1663,7 @@ def markdown_runs(runs: list[dict], identity: str) -> list[str]:
             action = f"[Harbor viewer](http://127.0.0.1:8080/{run['route']})"
         cells = [
             markdown_text(run["date"].replace("T", "\n") if run["date"] else "Date not recorded"),
-            "<br>".join(markdown_text(part) for part in [run["name"], run["path"], " · ".join(labels), *run["issues"]]),
+            " - ".join(markdown_text(part) for part in [run["name"], run["path"], " · ".join(labels), *run["issues"]]),
             markdown_text("Inventory unverified" if run["status"] == "unverified" else run["score_label"]),
             action,
         ]
@@ -1701,6 +1743,8 @@ def refresh(
                         retained = {**old, "status": "unverified", "issues": issues}
                         if key == "tasks":
                             retained.pop("plan_task_id", None)
+                            for field in ("interaction_type", "planned_interaction", "user_sim_scenario"):
+                                retained.pop(field, None)
                         records.append(retained)
             readiness_warnings, plan_counts = apply_task_readiness(repo, tasks, metadata)
             warnings.extend(readiness_warnings)

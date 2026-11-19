@@ -3,7 +3,7 @@ name: eval-author
 description: >-
   Use for "help me with my evals", "help me onboard to expand my evals",
   "what's the state of the eval suite here?", "what happened in this trace?",
-  or requests to create, discover, audit, or improve evaluations.
+  or requests to create, discover, audit, or improve evaluations, or "enable user simulation".
   For fresh full workflows, follow this skill's entry rules: general requests show
   rendered orientation before repository work; selected improvement paths carry
   forward. Scoped utilities keep their scope.
@@ -13,8 +13,8 @@ description: >-
   get a brief acknowledgment, then continue without another readiness pause.
   Build first evals from ETHOS.md, work on existing suites, inspect a NeMo Intake
   run, or derive a trace environment (experimental). Owns the evidence standard
-  for every Eval Author flow. Creating, auditing, and improving evals require
-  confirmed ETHOS.md and do not change the agent implementation.
+  for all flows. Creation, audits, and improvements require confirmed ETHOS.md
+  and keep agent code unchanged.
 triggers:
   - help me build evals for my agent
   - my agent has no evals yet
@@ -34,6 +34,8 @@ triggers:
   - what happened in this agent trace
   - create an evaluation environment from a trace
   - which eval author step do I need
+  - enable user simulation
+  - disable user simulation
 not-for:
   - eval-author-first-eval (use to establish Ethos and build first evals without prior coverage)
   - eval-author-discover (use to run the discovery pass and get a runnable verdict)
@@ -43,6 +45,7 @@ not-for:
   - eval-author-rubric (experimental; only with explicit end-user opt-in, never by default)
   - eval-author-trace-environment (experimental; use only when explicitly requested or continuing its existing workspace)
   - eval-author-environment (use after an authoring sub-flow hands over its cases to build and prove their task environment)
+  - eval-author-user-sim (use inside authoring for an approved User-sim task after environment proof)
   - nemo-intake (use to instrument agents, ingest telemetry, or query Intake outside Eval Author)
   - nemo-experimentalist (use to run insight-driven optimization end to end, which drives the Eval Author agent itself)
   - nemo-evaluator (use to run an existing benchmark rather than work on a repository's own suite)
@@ -74,6 +77,10 @@ Work on repository-owned evaluation suites and understand agent traces. Route
 each request to the narrow sub-flow that owns it.
 
 ## Choose the entry route
+
+For “enable user simulation” or a request to enable or disable experimental user
+simulation, apply the scoped [simulation opt-in gate](references/coverage-planning.md#enable-experimental-user-simulation).
+This setting change keeps its scope and doesn't start the onboarding flow below.
 
 Use the requested outcome and prior answers before asking a question. Creating,
 auditing, and improving evals use the **Shared prerequisites and Ethos** flow
@@ -312,6 +319,7 @@ This file carries the standard and boundaries; the sub-flow carries the steps.
 | `eval-author-rubric` | **Experimental; explicit end-user opt-in only, never automatic.** Assess selected rubric items across validity, coverage, and diversity; populated validity areas are anti-cheat; artifact, configuration, and provenance; and task contract and scoring authority |
 | `eval-author-trace-environment` | **Experimental.** Continue an existing trace-environment workspace or handle an explicit request for this compatibility workflow |
 | `eval-author-environment` | Build and prove the environment a Harbor or NeMo Gym task runs in: provider fit, how each dependency is provided, starting data and reset, end-state export, and isolation. Not user-invocable; first-eval and task-create hand it their agreed cases |
+| `eval-author-user-sim` | Author and validate the neutral scenario and conversation-dependent checks for an approved Harbor User-sim task after environment proof. Not user-invocable; execution integration remains a separate blocker |
 
 `eval-author-audit` works one level above tasks: it generates and validates the
 coverage denominator, measures traces against it, and aggregates deterministic
