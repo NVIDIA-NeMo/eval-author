@@ -1,0 +1,12 @@
+{
+  "schema": "rubric-example-mutation-v1",
+  "id": "disabled-ledger",
+  "category": "runtime_configuration_defect",
+  "edits": [
+    {
+      "path": "environment/Dockerfile",
+      "old": "ENTRYPOINT [\"python\", \"-B\", \"/app/server.py\"]",
+      "new": "ENTRYPOINT [\"sh\", \"-c\", \"sleep infinity\"]"
+    }
+  ]
+}
