@@ -605,14 +605,19 @@ or background proposal agents. A broad audit-and-suggest request does not change
 this. A later explicit request may select the offered next action.
 Reply: “Let's work on the first recommendation.” The agent retains that selection
 and follows the selected audit continuation without another recommendation pass.
-It checks the applicable construction path, reuses agreed scope, and asks only
-for missing construction decisions. If implementation is unsupported, it explains
-the limit instead of offering another written repair proposal. For an unsupported
-grader repair, it leads with the canonical `UNSUPPORTED_GRADER_REPAIR` copy in
-the [expansion templates](../../skills/eval-author/scripts/conversation_flows/expansion_templates.py),
-without a bookkeeping preamble or a blanket source-edit prohibition. Any
-report-update failure appears in a separate paragraph. Selection alone does not
-approve construction or agent execution.
+It first renders `expansion_audit_opening` with the saved selections and any
+known support limits, then continues in the same turn to check the applicable
+construction path, reuse agreed scope, and ask only for missing construction
+decisions. If implementation is unsupported, it explains the limit instead of
+offering another written repair proposal. For an unsupported verifier repair,
+it uses the canonical `UNSUPPORTED_GRADER_REPAIR` copy in the
+[expansion templates](../../skills/eval-author/scripts/conversation_flows/expansion_templates.py)
+under **Known support limits:** in the opening when already known, or explains
+the limit when discovered later without repeating the selection acknowledgment.
+It does not repeat a limit already shown or impose a blanket source-edit
+prohibition. If all selected changes are unsupported, it does not enter task
+planning. Any report-update failure appears in a separate paragraph. Selection
+alone does not approve construction or agent execution.
 
 **Explicit proposal-only request:** Reply instead: “Please expand the first
 recommendation into a detailed proposal.” The agent enters
