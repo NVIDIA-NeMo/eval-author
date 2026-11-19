@@ -3,8 +3,9 @@
 
 """One owning check per rubric row.
 
-Each criterion has exactly one tool. Controls are partitioned so no control result
-feeds two rows. A check returns 0-3, "N/A" for a trigger-based exclusion, or "U"
+Each criterion has exactly one tool. The 22 declared refund controls are partitioned
+(PARTITION) so each feeds one row. Some evidence is deliberately shared across rows;
+SHARED lists it. A check returns 0-3, "N/A" for a trigger-based exclusion, or "U"
 (Unassessed) when its evidence is missing, unrun or blocked. Missing evidence is
 never a low score: only observed evidence can lower a row, and only the row's own
 tool can establish a defect (0).
@@ -46,6 +47,33 @@ PARTITION = {
     "task-contract.clear-contract": BOUNDARY,
     "task-contract.scoring-authority": REFERENCE,
     "task-contract.discoverable-requirements": OPTIONAL,
+}
+
+# Evidence read by more than one row, and why.
+SHARED = {
+    "held-out results": {
+        "AUDIT-03": "attack cases",
+        "CREATE-02": "cue-only cases",
+        "task-contract.clear-contract": "valid alternatives",
+        "AUDIT-05-S03": "all cases, as the confirmation set",
+        "ENV-03-S01": "reversed-order replay",
+    },
+    "reference control": {
+        "task-contract.scoring-authority": "expected credit",
+        "task-contract.discoverable-requirements": "tells a hidden requirement from a broken reference",
+    },
+    "independent-reviewer agent": {
+        "provenance.task-artifact-access": "inventory",
+        "provenance.grading-path": "grader",
+        "provenance.grading-dependency-access": "imports",
+        "provenance.declared-configuration": "manifest",
+        "provenance.dependency-substitution": "components",
+    },
+    "socket service run": {
+        "provenance.solver-tool-access": "action acceptance and rejection",
+        "provenance.observed-configuration": "credit agreement with the file route",
+        "ENV-03-S01": "fresh service per episode",
+    },
 }
 
 
@@ -139,7 +167,10 @@ def audit_05s03(ev: Ev) -> tuple[Score, str]:
         "instruction.md",
     }
     if independent and ev["agents_enabled"]:
-        return 3, "independently authored frozen confirmation set reproduces every expected result"
+        return 3, (
+            "demo reading: an independently authored frozen confirmation set reproduces every expected result; "
+            "selection history and a retained-gain measurement are not established"
+        )
     return 2, "frozen confirmation agrees; independent authorship absent"
 
 
@@ -175,7 +206,10 @@ def create_02(ev: Ev) -> tuple[Score, str]:
         return 0, "success cue alone earned credit"
     held = _heldout(ev, "cue_only")
     if ev["agents_enabled"] and held and not any(v["forbidden"] for v in held.values()) and _agrees(held):
-        return 3, "generated and independently authored cue-only controls earn nothing"
+        return 3, (
+            "demo reading: generated and independently authored cue-only controls earn nothing; "
+            "a single task family, so new-family corroboration is not established"
+        )
     return 2, "generated cue-only controls earn nothing; independent counterexamples absent"
 
 
@@ -309,12 +343,23 @@ def declared_config(ev: Ev) -> tuple[Score, str]:
 def observed_config(ev: Ev) -> tuple[Score, str]:
     if not ev["static"]["entrypoint_service"]:
         return 0, "image entrypoint does not start the declared ledger service"
-    if ev["controls"] is None:
-        return U, "observation blocked"
-    # "Independent repeat" is read as a fresh, separately executed environment, not a separate person.
-    if ev["repeat_identical"]:
-        return 3, "fresh independent repeat reproduces observations"
-    return 2, "observed agrees"
+    led = ev["ledger"]
+    if not led["ran"]:
+        return U, "declared ledger service not observed: " + led.get("reason", "")
+    if not led["valid_actions_ok"]:
+        return 1, "declared service started but valid actions did not complete"
+    controls = ev["controls"]
+    if controls is None:
+        return 2, "service observed; comparison with the file route blocked"
+    disagree = sorted(
+        k
+        for k, total in led["totals"].items()
+        if k in controls and controls[k]["observed"].get("total_credit") != total
+    )
+    if disagree:
+        return 1, "socket service and file route disagree on: " + ", ".join(disagree)
+    # Demo reading of "independent repeat": a separate execution route, not a separate person.
+    return 3, "a separate socket-service run reproduces the file-route credit for every valid control"
 
 
 def runtime_route(ev: Ev) -> tuple[Score, str]:
@@ -323,9 +368,11 @@ def runtime_route(ev: Ev) -> tuple[Score, str]:
         return U, "provider validator unavailable"
     if not h["valid"]:
         return 0, "Harbor rejects the task manifest"
-    # "Independent clean setup" is read as a fresh parse plus an invalid-manifest control.
     if h["invalid_manifest_rejected"]:
-        return 3, "Harbor validates; invalid-manifest control rejected"
+        return 3, (
+            "demo reading: Harbor validates and rejects an invalid-manifest control; "
+            "no clean environment setup or adapter run is performed"
+        )
     return 2, "Harbor validates"
 
 

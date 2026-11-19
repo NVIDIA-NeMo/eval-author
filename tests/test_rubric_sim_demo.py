@@ -57,10 +57,21 @@ def test_base_scores_twenty_threes_and_one_trigger_na(base_evidence):
     assert set(base.values()) == {3}
 
 
-def test_real_scorer_exploit_drops_only_forbidden_credit_rows(base_evidence, tmp_path):
-    mutated = run_demo.collect("approval-after-effect", tmp_path, use_agents=True, offline=True)
-    # Held-out confirmation also stops corroborating, so AUDIT-05-S03 falls from 3 to 2.
-    assert _dropped(_scores(base_evidence), _scores(mutated)) == {"AUDIT-03", "AUDIT-04-B", "AUDIT-05-S03"}
+@pytest.mark.parametrize(
+    ("case", "target", "exact"),
+    [
+        # Real scorer exploit; held-out confirmation also stops corroborating, so AUDIT-05-S03 falls to 2.
+        ("approval-after-effect", "AUDIT-03", {"AUDIT-03", "AUDIT-04-B", "AUDIT-05-S03"}),
+        # Reworded text has no recipe to match: the contract reviewer must find the contradiction itself.
+        ("contradictory-contract-reworded", "task-contract.clear-contract", None),
+        ("style-advantage", "provenance.comparison-fairness", None),
+    ],
+)
+def test_collected_mutations_are_detected_by_observation(base_evidence, tmp_path, case, target, exact):
+    mutated = _scores(run_demo.collect(case, tmp_path, use_agents=True, offline=True))
+    dropped = _dropped(_scores(base_evidence), mutated)
+    assert mutated[target] == 0
+    assert dropped == exact if exact else target in dropped
 
 
 def _with(ev: dict[str, Any], change) -> dict[str, Any]:
@@ -69,49 +80,64 @@ def _with(ev: dict[str, Any], change) -> dict[str, Any]:
     return changed
 
 
+def _disagreeing_confirmation(ev: dict[str, Any]) -> None:
+    for result in ev["heldout"].values():
+        result["mismatch_total"] = True
+
+
 @pytest.mark.parametrize(
-    ("mutation", "change", "row"),
+    ("change", "row", "score", "also"),
     [
-        ("trace-secret", lambda ev: ev.update(trace_hits=1), "TRACE-04-A"),
-        ("answer-exposure", lambda ev: ev.update(exposure_hits=["instruction.md"]), "AUDIT-05-B"),
-        ("unpinned-image", lambda ev: ev["static"].update(image_pinned=False), "provenance.declared-configuration"),
-        ("invalid-manifest", lambda ev: ev["harbor"].update(valid=False), "provenance.runtime-route"),
+        (lambda ev: ev.update(trace_hits=1), "TRACE-04-A", 0, set()),
+        (lambda ev: ev.update(exposure_hits=["instruction.md"]), "AUDIT-05-B", 0, set()),
+        (lambda ev: ev["static"].update(image_pinned=False), "provenance.declared-configuration", 1, set()),
+        (lambda ev: ev["harbor"].update(valid=False), "provenance.runtime-route", 0, set()),
         (
-            "stale-evidence",
             lambda ev: ev["evidence_bindings"].update(controls="0" * 64),
             "provenance.evidence-revision-consistency",
+            0,
+            set(),
         ),
+        # A disagreeing confirmation set loses the top anchor; held-out results are shared evidence
+        # (checks.SHARED), so the other rows that read them drop too.
+        (
+            _disagreeing_confirmation,
+            "AUDIT-05-S03",
+            2,
+            {"AUDIT-03", "CREATE-02", "task-contract.clear-contract"},
+        ),
+        # The socket service and the file route must agree for observed configuration.
+        (lambda ev: ev["ledger"]["totals"].update(reference=0), "provenance.observed-configuration", 1, set()),
+    ],
+    ids=[
+        "trace-secret",
+        "answer-exposure",
+        "unpinned-image",
+        "invalid-manifest",
+        "stale-evidence",
+        "confirmation-disagrees",
+        "service-disagrees",
     ],
 )
-def test_each_demo_mutation_drops_only_its_row(base_evidence, mutation, change, row):
-    assert _dropped(_scores(base_evidence), _scores(_with(base_evidence, change))) == {row}, mutation
+def test_each_change_lowers_only_its_rows(base_evidence, change, row, score, also):
+    changed = _scores(_with(base_evidence, change))
+    assert changed[row] == score
+    assert _dropped(_scores(base_evidence), changed) == {row} | also
+    assert also <= {r for readers in checks.SHARED.values() for r in readers}
 
 
-@pytest.mark.parametrize("case", ["contradictory-contract-reworded", "style-advantage"])
-def test_ported_mutations_are_detected_by_observation(base_evidence, tmp_path, case):
-    # Reworded text has no recipe to match: the contract reviewer must find the contradiction itself.
-    target = {
-        "contradictory-contract-reworded": "task-contract.clear-contract",
-        "style-advantage": "provenance.comparison-fairness",
-    }[case]
-    mutated = _scores(run_demo.collect(case, tmp_path, use_agents=True, offline=True))
-    assert mutated[target] == 0
-    assert target in _dropped(_scores(base_evidence), mutated)
-
-
-def test_missing_evidence_is_unassessed_not_low(base_evidence):
-    withheld = _with(base_evidence, lambda ev: ev.update(heldout=None))
-    assert _scores(withheld)["AUDIT-05-S03"] == checks.U
-    no_owner = _scores(_with(base_evidence, lambda ev: ev.update(policy=None)))
-    assert no_owner["task-contract.scoring-authority"] == checks.U
-
-
-def test_confirmation_must_agree_for_top_anchor(base_evidence):
-    def disagree(ev):
-        for result in ev["heldout"].values():
-            result["mismatch_total"] = True
-
-    assert _scores(_with(base_evidence, disagree))["AUDIT-05-S03"] == 2
+@pytest.mark.parametrize(
+    ("change", "row"),
+    [
+        (lambda ev: ev.update(heldout=None), "AUDIT-05-S03"),
+        (lambda ev: ev.update(policy=None), "task-contract.scoring-authority"),
+        (lambda ev: ev["ledger"].update(ran=False, reason="refused"), "provenance.observed-configuration"),
+        (lambda ev: ev.update(harbor={"valid": None, "invalid_manifest_rejected": None}), "provenance.runtime-route"),
+    ],
+    ids=["no-confirmation-set", "no-owner", "service-not-observed", "no-provider-validator"],
+)
+def test_missing_evidence_is_unassessed_not_low(base_evidence, change, row):
+    assert _scores(_with(base_evidence, change))[row] == checks.U
 
 
 def test_without_independent_review_top_anchors_cap_at_two(base_evidence):

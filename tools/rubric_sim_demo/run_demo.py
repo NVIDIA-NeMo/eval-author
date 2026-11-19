@@ -119,6 +119,8 @@ MUTATIONS: dict[str, tuple[str, str, str]] = {
     "no-independent-review": ("review", "restricted-input agents disabled", "AUDIT-03"),
     "no-owner-review": ("review", "owner policy file absent", "AUDIT-03"),
 }
+# Only the contract-reviewer agent reads the contract text for contradictions or ambiguity.
+NEEDS_AGENTS = {"contradictory-contract", "contradictory-contract-reworded", "ambiguous-contract"}
 CONTRADICTION = (
     "\nBinding amendment: Do not create any refund effect. Full credit requires zero refund effects. "
     "This amendment and all prior mandatory requirements apply simultaneously.\n"
@@ -297,7 +299,9 @@ def _toml(path: Path) -> tuple[bool, dict]:
 
 def _harbor(task_toml: Path) -> dict:
     code = "import sys;from harbor.models.task.config import TaskConfig as T;T.model_validate_toml(open(sys.argv[1]).read())"
-    py = str(ROOT / ".venv/bin/python")
+    py = sys.executable
+    if subprocess.run([py, "-c", "import harbor.models.task.config"], capture_output=True).returncode != 0:
+        return {"valid": None, "invalid_manifest_rejected": None}
     valid = subprocess.run([py, "-c", code, str(task_toml)], capture_output=True).returncode == 0
     with tempfile.TemporaryDirectory() as d:
         bad = Path(d) / "task.toml"
@@ -422,6 +426,7 @@ def collect(case: str, work: Path, *, use_agents: bool, offline: bool) -> dict:
             ),
             "boundary_rejected": all(led[k]["action_errors"] >= 1 for k in rejects),
             "responses": {k: v["responses"] for k, v in led.items()},
+            "totals": {k: led[k]["result"]["total_credit"] for k in valid},
         }
     except (ValueError, KeyError, OSError) as exc:
         ledger = {"ran": False, "reason": str(exc) or type(exc).__name__}
@@ -619,7 +624,7 @@ def _cell(value: Any) -> str:
     return str(value).replace("|", "/")
 
 
-def render(runs: list[dict], out: Path) -> dict:
+def render(runs: list[dict], out: Path, *, capped: bool = False) -> dict:
     ids = [c.criterion for c in CHECKS]
     cases = list(runs[0])
     vec = {c: [runs[0][c]["scores"][k]["score"] for k in ids] for c in cases}
@@ -640,13 +645,15 @@ def render(runs: list[dict], out: Path) -> dict:
             "unassessed": unassessed,
             "dropped": lowered + unassessed,
         }
-    base_ok = all(v == 3 or (k == "AUDIT-04-B" and v == NA) for k, v in base.items())
+    top = (2, 3) if capped else (3,)  # --no-agents caps independence-dependent rows at 2 by design
+    base_ok = all(v in top or (k == "AUDIT-04-B" and v == NA) for k, v in base.items())
     summary: dict[str, Any] = {
         "criteria": ids,
         "runs": len(runs),
         "consistent_across_runs": consistent,
         "base_ok": base_ok,
-        "every_mutation_lower": all(p["dominated"] for p in pref.values()),
+        "every_mutation_lower": all(p["dominated"] for c, p in pref.items() if not (capped and c in NEEDS_AGENTS)),
+        "undetectable_without_agents": sorted(c for c in pref if capped and c in NEEDS_AGENTS),
         "scores": vec,
         "preference": pref,
         "partition": {k: list(v) for k, v in PARTITION.items()},
@@ -658,8 +665,15 @@ def render(runs: list[dict], out: Path) -> dict:
     lines = [
         "# Rubric simulation demo",
         "",
-        f"Runs: {len(runs)} · consistent: **{consistent}** · base 20×3 + AUDIT-04-B N/A: **{base_ok}** "
-        f"· {len(mutations)} mutations, every one ranks below the base: **{summary['every_mutation_lower']}**",
+        f"Runs: {len(runs)} · consistent: **{consistent}** · "
+        + ("base at its capped target (2 or 3, no agents)" if capped else "base 20×3 + AUDIT-04-B N/A")
+        + f": **{base_ok}** "
+        f"· {len(mutations)} mutations, every one ranks below the base: **{summary['every_mutation_lower']}**"
+        + (
+            f" (excluding {len(summary['undetectable_without_agents'])} that only the contract-reviewer agent can detect)"
+            if summary["undetectable_without_agents"]
+            else ""
+        ),
         "",
         "Executable evidence is real. Independent review is restricted-input agents. Owner decisions are a "
         "SIMULATED policy file. `U` = Unassessed (evidence missing, unrun or blocked), never a low score.",
@@ -675,7 +689,9 @@ def render(runs: list[dict], out: Path) -> dict:
         collateral = [f"{k} {_cell(base[k])}→{_cell(row[k])}" for k in pref[c]["dropped"] if k != target]
         lines.append(
             f"| `{c}` | {kind} | {change} | {target} | {_cell(base.get(target, ''))} | {_cell(row.get(target, ''))} "
-            f"| {_cell(reasons[c].get(target, ''))} | {'; '.join(collateral) or 'none'} |"
+            f"| {_cell(reasons[c].get(target, ''))}"
+            + (" (not detectable without agents)" if c in summary["undetectable_without_agents"] else "")
+            + f" | {'; '.join(collateral) or 'none'} |"
         )
     lines += [
         "",
@@ -703,6 +719,9 @@ def main() -> int:
     cases = args.only or ALL_CASES
     if "base" not in cases:
         cases = ["base", *cases]
+    if args.no_agents:
+        # Without agents the base already equals the no-independent-review mutation.
+        cases = [c for c in cases if c != "no-independent-review"]
     runs = []
     with tempfile.TemporaryDirectory(prefix="rubric-sim-") as tmp:
         for _ in range(args.runs):
@@ -716,7 +735,7 @@ def main() -> int:
                 )
                 run[case] = {"scores": score(ev), "evidence": ev}
             runs.append(run)
-    summary = render(runs, args.output)
+    summary = render(runs, args.output, capped=args.no_agents)
     print((args.output / "summary.md").read_text())
     return 0 if summary["base_ok"] and summary["every_mutation_lower"] and summary["consistent_across_runs"] else 1
 

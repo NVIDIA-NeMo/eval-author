@@ -117,8 +117,11 @@ base misses its target, or if a mutation does not rank lower.
 
 - **Real execution:** the refund scorer, the socket ledger and the Harbor task parser
   run locally. No Docker or network access is needed.
-- **One check per row:** `checks.py` names one tool for each criterion. Each control
-  feeds only one row. Only a row's own tool can give a 0.
+- **One check per row:** `checks.py` names one tool for each criterion. The 22 declared
+  refund controls are split so each feeds one row. Some evidence is shared on purpose:
+  held-out results, the reference control, the independent reviewer and the socket
+  service run. `SHARED` in `checks.py` lists which rows read each one. Only a row's own
+  tool can give a 0.
 - **Missing evidence is `U` (Unassessed), not a low score.** A withheld, unrun or
   blocked input leaves the row Unassessed. `U` ranks below an established score, but
   the report keeps it apart from a measured drop.
@@ -145,6 +148,23 @@ Mutation kinds:
 - Evidence mutations (4): withhold-reference, withhold-heldout, heldout-tuned and
   stale-evidence.
 - Review mutations (2): no-independent-review and no-owner-review.
+
+Three base rows reach 3 under a demo reading that is weaker than the canonical anchor.
+Their reasons in `summary.md` say so:
+
+- **AUDIT-05-S03:** a frozen, agent-authored confirmation set reproduces every expected
+  result. Selection history and a retained-gain measurement are not established.
+- **CREATE-02:** cue-only controls earn nothing, but all cases use one task family.
+- **provenance.runtime-route:** Harbor validates the manifest and rejects an invalid one.
+  No clean environment setup or adapter run is performed.
+
+The [fictional task scenario](#fictional-task-scenario) covers these with companion task
+families, paired gains and explicit fictional premises.
+
+`--no-agents` skips the independent agents. The base target is then 2 or 3 on every row,
+and the no-independent-review mutation is dropped because the base already equals it.
+The Harbor check uses the running interpreter. Without Harbor installed,
+runtime-route is Unassessed, so the base misses its target and the command exits 1.
 
 The agents and the policy file are not human approval. The demo does not qualify the rubric.
 
