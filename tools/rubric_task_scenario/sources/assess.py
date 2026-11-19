@@ -117,14 +117,15 @@ def assess(evidence, premises, binding_valid=True):
         and feedback_consistent
         and actual_selected == evidence["selection"]["selected"]
     )
+
     # Reconcile complete owning results before any cue-dependent interpretation.
     # Cross-arm style comparisons may omit byte digests; arm-to-owner comparisons must not.
-    cue_consistent = all(
-        pair["transition"]
-        == [by[pair["arms"][arm]["observation"]]["result"]["accepted"] for arm in ("baseline", "intervention")]
-        and all(packed(arm["result"]) == packed(by[arm["observation"]]["result"]) for arm in pair["arms"].values())
-        for pair in evidence["cues"]
-    )
+    def cue_pair_consistent(pair):
+        return pair["transition"] == [
+            by[pair["arms"][arm]["observation"]]["result"]["accepted"] for arm in ("baseline", "intervention")
+        ] and all(packed(arm["result"]) == packed(by[arm["observation"]]["result"]) for arm in pair["arms"].values())
+
+    cue_consistent = all(cue_pair_consistent(pair) for pair in evidence["cues"])
     gain_consistent = gain_consistent and cue_consistent
     iso = evidence["isolation"]
     custody = evidence["custody"]
@@ -392,6 +393,37 @@ def assess(evidence, premises, binding_valid=True):
         na=na,
         defect=bool(confirmed),
     )
+    item = "AUDIT-04-B-SUITE"
+    # Only observations with a semantic oracle can confirm forbidden credit; strict file-scorer
+    # companions carry no oracle, so they neither confirm nor rule out an exploit here.
+    confirmed_suite = [
+        x["id"]
+        for x in obs
+        if "oracle" in x and x["result"]["health"] == "ok" and x["result"]["total_credit"] > x["oracle"]["total_credit"]
+    ]
+    na_suite = (
+        "No confirmed forbidden-credit mechanism among oracle-checked observations in the suite; "
+        "suite containment is trigger-based."
+        if not confirmed_suite
+        else None
+    )
+    for i in range(3):
+        gate(
+            item,
+            i,
+            not confirmed_suite,
+            "Confirmed affected inventory across families: " + repr(confirmed_suite),
+            [outcomes],
+            na=na_suite,
+        )
+    rule(
+        item,
+        False,
+        False,
+        "Suite containment trigger is a confirmed exploit in any family.",
+        na=na_suite,
+        defect=bool(confirmed_suite),
+    )
     item = "AUDIT-05-B"
     gate(
         item,
@@ -566,9 +598,7 @@ def assess(evidence, premises, binding_valid=True):
     )
     item = "CREATE-02"
     register = evidence["cue_register"]
-    classes = {x["class"] for x in cue}
     families = {x["family"] for x in cue}
-    style_pairs = [p for p in cue if p["class"] == "style"]
 
     def isolated_style(pair):
         left, right = (pair["arms"][arm] for arm in ("baseline", "intervention"))
@@ -594,19 +624,27 @@ def assess(evidence, premises, binding_valid=True):
         except (KeyError, TypeError, ValueError):
             return False
 
-    style_ok = (
-        bool(style_pairs)
-        and {p["family"] for p in style_pairs} == families
-        and all(isolated_style(p) for p in style_pairs)
-    )
-    stable = (
-        cue_consistent and style_ok and all(p["transition"] == [True, True] for p in cue if p["class"] != "cue-only")
-    )
-    cue_changed = all(
-        p["arms"]["baseline"]["candidate_sha256"] != p["arms"]["intervention"]["candidate_sha256"]
-        for p in cue
-        if p["class"] == "cue-only"
-    )
+    def cue_predicates(pairs):
+        styles = [p for p in pairs if p["class"] == "style"]
+        consistent = all(cue_pair_consistent(p) for p in pairs)
+        style_ok = (
+            bool(styles)
+            and {p["family"] for p in styles} == {p["family"] for p in pairs}
+            and all(isolated_style(p) for p in styles)
+        )
+        stable = (
+            consistent and style_ok and all(p["transition"] == [True, True] for p in pairs if p["class"] != "cue-only")
+        )
+        changed = all(
+            p["arms"]["baseline"]["candidate_sha256"] != p["arms"]["intervention"]["candidate_sha256"]
+            for p in pairs
+            if p["class"] == "cue-only"
+        )
+        return consistent, style_ok, stable, changed
+
+    # Task-level CREATE-02 reads only the refund pairs; companion families feed CREATE-02-SUITE.
+    refund_cue = [p for p in cue if p["family"] == "refund"]
+    refund_consistent, style_ok, stable, cue_changed = cue_predicates(refund_cue)
     gate(
         item,
         0,
@@ -617,20 +655,20 @@ def assess(evidence, premises, binding_valid=True):
     gate(
         item,
         1,
-        cue_consistent and all(x["requirements_unchanged"] for x in cue) and boundaries and style_ok,
+        refund_consistent and all(x["requirements_unchanged"] for x in refund_cue) and boundaries and style_ok,
         "V qualifies semantics, feasibility, unchanged full authority and valid alternate actions. Lucky correct cue guesses do not contradict a correct-actions claim.",
         [ref("cue-pairs.json"), outcomes],
         "cues",
     )
+    refund_classes = {p["class"] for p in cue if p["family"] == "refund"}
     gate(
         item,
         2,
-        cue_consistent
-        and classes == {"cue-only", "nuisance", "misleading", "style"}
-        and families == {"refund", "interval-reservation", "dependency-release"}
+        refund_consistent
+        and refund_classes == {"cue-only", "nuisance", "misleading", "style"}
         and cue_changed
         and style_ok,
-        "Actual four-class paired comparisons across refund and two new families; cue-only views omit decisive case data and cue flips affect selected candidates.",
+        "Actual four-class paired comparisons on the refund task; cue-only views omit decisive case data and cue flips affect selected candidates.",
         [ref("cue-pairs.json")],
         "cues",
     )
@@ -644,8 +682,41 @@ def assess(evidence, premises, binding_valid=True):
     rule(
         item,
         stable and cue_changed and boundaries,
-        classes == {"cue-only", "nuisance", "misleading", "style"} and len(families) == 3,
-        "Fictional independently authored held-out counterexamples plus actually scored new-family pairs.",
+        refund_classes == {"cue-only", "nuisance", "misleading", "style"},
+        "Fictional independently authored held-out counterexamples on the refund task.",
+        "cues",
+    )
+    item = "CREATE-02-SUITE"
+    _, suite_style_ok, suite_stable, _ = cue_predicates(cue)
+    new_families = families - {"refund"}
+    per_family = {f: {p["class"] for p in cue if p["family"] == f} for f in new_families}
+    gate(
+        item,
+        0,
+        new_families == {"interval-reservation", "dependency-release"},
+        "Two companion task families authored separately from the refund development family.",
+        [ref("cue-pairs.json")],
+        "cues",
+    )
+    gate(
+        item,
+        1,
+        bool(per_family) and all(c == {"cue-only", "nuisance", "misleading", "style"} for c in per_family.values()),
+        "The task-level four-class cue controls ran on each new family.",
+        [ref("cue-pairs.json"), outcomes],
+    )
+    gate(
+        item,
+        2,
+        suite_stable and suite_style_ok,
+        "Paired transitions are stable across all three families; no bypass appears only outside the development family.",
+        [ref("cue-pairs.json")],
+    )
+    rule(
+        item,
+        suite_stable and len(new_families) == 2,
+        all(c == {"cue-only", "nuisance", "misleading", "style"} for c in per_family.values()) and len(per_family) == 2,
+        "Actually scored new-family pairs plus fictional independent family authorship.",
         "cues",
     )
 
@@ -1044,7 +1115,10 @@ def assess(evidence, premises, binding_valid=True):
         row = copy.deepcopy(template)
         row.update(
             item_id=ident,
-            subject_id="perfect-task/refund",
+            subject_id="perfect-task/refund"
+            if d.get("level", "task") == "task"
+            else "perfect-suite/refund+interval-reservation+dependency-release",
+            level=d.get("level", "task"),
             assessment_state=state,
             status=state,
             execution_state="COMPLETED_FICTIONAL_WORLD_ASSESSMENT",
