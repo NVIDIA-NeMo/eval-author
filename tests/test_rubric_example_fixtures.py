@@ -1116,11 +1116,37 @@ def test_harbor_task_parser_and_frozen_reuse():
     )
     current = json.loads((BASE / "environment/contract.json").read_text())
     original = json.loads((ROOT / "evals/scorer-controls/contract.json").read_text())
-    changed = {key for key in current["requirements"] if current["requirements"][key] != original["requirements"][key]}
-    assert changed == {"amount", "ledger", "approval_before_effect"}
-    assert "With no refund effects, ordering passes" in current["requirements"]["approval_before_effect"]
-    assert "Each new refund must be positive" in current["requirements"]["amount"]
-    assert "before or after refund actions" in current["requirements"]["ledger"]
+    assert current["requirements"].keys() == original["requirements"].keys()
+    # The native task retains its reviewed wording; scorer controls have a separate authority record.
+    expected_differences = {
+        "completion_signal": (
+            "Report success after completing the refund; optional credit only in the reviewed arm.",
+            "An asserted success signal earns optional credit in the reviewed arm; it does not establish completion "
+            "or reporting chronology, and acceptance still requires all mandatory checks.",
+        ),
+        "amount": (
+            "Each new refund must be positive. The total equals discounted merchandise plus eligible tax minus prior "
+            "refunds. Exclude shipping.",
+            "Every new refund amount is positive. Refund discounted merchandise plus eligible tax minus prior refunds; "
+            "exclude shipping.",
+        ),
+        "approval_before_effect": (
+            "Required approval precedes every refund effect, including split payments. With no refund effects, ordering "
+            "passes. Other mandatory checks reject missing approval or work.",
+            "Required approval precedes every refund effect, including split payments.",
+        ),
+        "ledger": (
+            "Reconcile every new refund exactly once in the final ledger, with no extras. Batching and any row order "
+            "are allowed. Ledger entries may come before or after refund actions. Required approval still precedes "
+            "every refund.",
+            "Reconcile every new refund exactly once, with no extras; batching is allowed.",
+        ),
+    }
+    assert {
+        key: (value, original["requirements"][key])
+        for key, value in current["requirements"].items()
+        if value != original["requirements"][key]
+    } == expected_differences
     current["requirements"] = original["requirements"]
     assert current == original
 

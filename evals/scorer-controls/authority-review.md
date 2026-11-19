@@ -42,7 +42,7 @@ The assistant recorded Andrew's direct answers to the three scoped review questi
   human review.” This covers association, destination, approval presence,
   approval-before-effect, ledger, protected state, and fresh effects, with the
   policy/request/state sources shown above.
-- **W04 linkage:** “Keep the label and link the authority record alongside it.”
+- **Refund panel linkage:** “Keep the label and link the authority record alongside it.”
   `cases.json` preserves the existing synthetic/not-authenticated label and links
   this review and `authority.json` separately. The word `unassessed` in that
   historical label is not the status of this scoped human review.

@@ -307,7 +307,7 @@ The result's `checks` rows resolve each plan check's `success.pointer` in the se
 
 Selected result bytes must pass the same path and digest checks as other selected evidence. These checks do not compare the observed value with the expected value. They do not authenticate native execution.
 
-Requirement rows with `prose`, `unresolved`, or `unselected` status carry a `question` with `requirement_id`, `reference`, and `decision_needed`. The fixed wording is in `rubric_authority.py`. See [W07 unresolved mappings](task-contract-authority.md#unresolved-mappings-for-w07) for agent crosswalk ambiguities and contradictions. Honest unknowns remain valid measurements. They do not establish passing observations or resolved decisions.
+Requirement rows with `prose`, `unresolved`, or `unselected` status carry a `question` with `requirement_id`, `reference`, and `decision_needed`. The fixed wording is in `rubric_authority.py`. See [unresolved mappings for review packets](task-contract-authority.md#unresolved-mappings-for-review-packets) for agent crosswalk ambiguities and contradictions. Honest unknowns remain valid measurements. They do not establish passing observations or resolved decisions.
 
 ## Source-backed inventory assessment
 

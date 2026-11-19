@@ -62,6 +62,34 @@ def test_current_rule_pin_and_historical_identity_are_separate(tmp_path: Path, m
         module._current()
 
 
+def test_current_authority_guidance_rejects_prior_and_modified_rules(tmp_path: Path, monkeypatch):
+    import hashlib
+
+    import pytest
+
+    module = adapter()
+    name = "task-contract-authority.md"
+    raw = (module.REFERENCE / name).read_bytes()
+    start = raw.index(b"### Unresolved mappings")
+    end = raw.index(b"## Scoring rules", start)
+    prior = raw[:start] + raw[end:]
+    assert hashlib.sha256(prior).hexdigest() == "442781dc765ef18a1e5775245cfc3adeff03d625f73ded419777a1f36ddfdc9f"
+    original = b"It does not establish that the value is correct."
+    assert raw.count(original) == 1
+    altered = raw.replace(original, b"It establishes that the value is correct.")
+    for filename in module.RULES:
+        (tmp_path / filename).write_bytes((module.REFERENCE / filename).read_bytes())
+    monkeypatch.setattr(module, "REFERENCE", tmp_path)
+    module._current()
+
+    root, selection = materialized(tmp_path, "base")
+    for rejected in (prior, altered):
+        (tmp_path / name).write_bytes(rejected)
+        with pytest.raises(ValueError, match="unreviewed refund scoring rules"):
+            module.assess_refund_contract(root, selection)
+        assert module.project(root, selection) is None
+
+
 def test_ordinary_cli_consumes_defects_and_replays(tmp_path: Path):
     import rubric_mutation_runner
 

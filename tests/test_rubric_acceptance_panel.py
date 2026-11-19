@@ -1,13 +1,27 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
+import json
+
+from test_rubric_measurements import ROOT
 from test_rubric_measurements import rubric_panel as rubric_panel
 from test_rubric_measurements import rubric_panel_runs as rubric_panel_runs
 
 
 def test_one_command_package_acceptance_is_separate(rubric_panel):
     report = rubric_panel
-    assert report["counts"] == {"cases": 14, "assessments": 5, "evidence_cases": 13}
+    catalog = json.loads((ROOT / "evals/rubric-measurements/cases.json").read_text())
+    for report_key, catalog_key in (
+        ("cases", "raw_measurements"),
+        ("assessments", "assessments"),
+        ("evidence_cases", "evidence_cases"),
+    ):
+        assert [row["id"] for row in report[report_key]] == [row["id"] for row in catalog[catalog_key]]
+    assert report["counts"] == {
+        "cases": len(catalog["raw_measurements"]),
+        "assessments": len(catalog["assessments"]),
+        "evidence_cases": len(catalog["evidence_cases"]),
+    }
     package = report["package_acceptance"]
     assert package["status"] == "passed"
     assert package["runtime_acceptance"] == "not_measured"

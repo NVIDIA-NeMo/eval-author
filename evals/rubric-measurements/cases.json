@@ -351,7 +351,7 @@
       "id": "authority-refund",
       "mutation": "authority-refund",
       "cli_exit_code": 1,
-      "description": "The W04 refund authority record and contract are copied to repository-relative paths. Nine references resolve. No result is selected. The case executes neither the task nor the scorer and makes no claim of native execution.",
+      "description": "The refund authority record and contract are copied to repository-relative paths. Nine references resolve. No result is selected. The case executes neither the task nor the scorer and makes no claim of native execution.",
       "measurement": "authority",
       "status": "unknown",
       "codes": [
