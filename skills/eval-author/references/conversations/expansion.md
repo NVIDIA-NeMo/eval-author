@@ -291,6 +291,15 @@ user review. Accept only the approved subset, keeping other tasks and their
 unanswered review visible. Refresh the existing reports and suite guide after
 the decision without changing finalized task content.
 
+After the user accepts the results for the complete agreed set, save
+`execution.results_review` as `{digest, source}`: use the current derived
+`execution.selection_digest` and the actual post-run reply. This optional field
+binds the final review to the authorized tasks, agent, and settings; it does not
+replace individual task acceptance or the owning workflow's technical checks.
+Changed settings invalidate it. Before any rerun, clear it and retain earlier
+results as history; new results need a new user review. Do not reuse a pre-run
+decision's source or save this review together with initial run authorization.
+
 ## Shared checkpoint contract
 
 Extend this flow at real decision boundaries using the following ownership and

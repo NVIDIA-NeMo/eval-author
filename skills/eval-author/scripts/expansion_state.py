@@ -121,6 +121,7 @@ class ExecutionRecord(TypedDict):
     execution_settings_presented: BoundSource | None
     declined: BoundSource | None
     pending: PendingDecision | None
+    results_review: NotRequired[BoundSource | None]
 
 
 class ScopeRecord(TypedDict):
@@ -242,7 +243,13 @@ def _validate_review(value: dict) -> None:
             if key not in value:
                 continue
             checkpoint = value[key]
-            if "creation" not in value or not isinstance(checkpoint, dict) or set(checkpoint) != fields:
+            optional = {"results_review"} if key == "execution" else set()
+            if (
+                "creation" not in value
+                or not isinstance(checkpoint, dict)
+                or not fields <= set(checkpoint)
+                or set(checkpoint) - fields - optional
+            ):
                 raise ValueError("Review and execution checkpoints extend saved creation progress")
             question = checkpoint["pending"]
             if question is not None and (
@@ -276,6 +283,7 @@ def _validate_review(value: dict) -> None:
             validate_selection(value["setup"], execution["selection"])
             for key in ("execution_settings_presented", "declined"):
                 _bound(execution[key])
+            _bound(execution.get("results_review"))
     except (KeyError, TypeError, AttributeError) as exc:
         raise ValueError("Malformed expansion review or execution checkpoint") from exc
 
@@ -560,13 +568,14 @@ def _execution(state: dict, value: ScopeRecord, observed: dict, review: dict) ->
     )
     authorization = (selection or {}).get("authorization")
     declined = bool(saved["declined"] and saved["declined"]["digest"] == digest)
+    authorized = bool(current and presented and not declined and authorization and authorization["digest"] == digest)
+    results_review = saved.get("results_review")
     return {
         "selection_digest": digest,
         "selection_current": current,
         "presented": presented,
-        "authorized": bool(
-            current and presented and not declined and authorization and authorization["digest"] == digest
-        ),
+        "authorized": authorized,
+        "results_reviewed": bool(authorized and results_review and results_review["digest"] == digest),
         "declined": bool(review["approved"] and presented and declined),
     }
 
@@ -765,6 +774,23 @@ def _review_transition(previous: dict, updated: dict, old: dict | None, now: dic
             raise ValueError("Save the current execution settings and selection before recording their display")
     authorization = (execution["selection"] or {}).get("authorization")
     previous_authorization = (prior.get("selection") or {}).get("authorization")
+    results_review = execution.get("results_review")
+    if results_review and results_review != prior.get("results_review"):
+        if not (
+            old
+            and old["execution"]
+            and old["execution"]["authorized"]
+            and now["execution"]["results_reviewed"]
+            and old["execution"]["selection_digest"] == now["execution"]["selection_digest"]
+            and results_review["source"]
+            not in {
+                (authorization or {}).get("source"),
+                (review["decision"] or {}).get("source"),
+                (after.get("decision") or {}).get("source"),
+                (presentation or {}).get("source"),
+            }
+        ):
+            raise ValueError("Bind the actual post-run review reply to the current authorized execution")
     for decision, previous_decision, approved in (
         (authorization, previous_authorization, True),
         (execution["declined"], prior.get("declined"), False),

@@ -521,3 +521,29 @@ def test_results_reject_ambiguous_scope_stale_authorization_and_missing_review_q
     with pytest.raises(ValueError):
         renderer.render(data)
     assert state.state_path(tmp_path).read_bytes() == before
+
+
+def test_post_run_review_is_distinct_and_cannot_survive_changed_run_selection(modules, tmp_path):
+    saved, value = authorized(modules, tmp_path)
+    value["execution"]["results_review"] = bound(
+        modules, tmp_path, saved, "execution", value["execution"]["selection"]["authorization"]["source"]
+    )
+    assert_unchanged_error(modules, tmp_path, saved, value)
+    value["execution"]["results_review"]["source"] = "User accepts the displayed actual-agent results"
+    saved = save(modules, tmp_path, saved, value)
+    assert progress(modules, tmp_path, saved)["execution"]["results_reviewed"]
+    resumed = modules[0].initialize(tmp_path, journey="expand")
+    assert progress(modules, tmp_path, resumed)["execution"]["results_reviewed"]
+    value["execution"]["selection"]["cases"][0]["attempts"] = 3
+    saved = save(modules, tmp_path, resumed, value)
+    assert not progress(modules, tmp_path, saved)["execution"]["results_reviewed"]
+    value["execution"]["execution_settings_presented"] = bound(
+        modules, tmp_path, saved, "execution", "Displayed changed settings"
+    )
+    saved = save(modules, tmp_path, saved, value)
+    value["execution"]["selection"]["authorization"] = bound(
+        modules, tmp_path, saved, "execution", "User authorizes the changed settings"
+    )
+    saved = save(modules, tmp_path, saved, value)
+    assert progress(modules, tmp_path, saved)["execution"]["authorized"]
+    assert not progress(modules, tmp_path, saved)["execution"]["results_reviewed"]
