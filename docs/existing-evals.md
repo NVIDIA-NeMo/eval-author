@@ -296,6 +296,9 @@ evidence. Each recommendation explains its priority, expected behavior, how a
 verifier would check it, and supporting evidence.
 Recommendations distinguish agent failures from verifier defects and ungraded
 runs. Applicable controls must be executed before a task is described as screened.
+The audit's closing recommendations identify which actions Eval Author supports
+and which require separate work. Its closing question offers supported actions;
+the completed findings do not repeat the journey checklist.
 Missing evidence leaves screening unproven. Proposals expand the existing
 next actions in the Audit coverage report. Request this directly when you want
 additional planning; it is not a required follow-up to an audit.

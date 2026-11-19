@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -21,6 +22,61 @@ from pathlib import Path
 from check_workflow_scope import snapshot
 from discovery_determinism import encoded, read, sha
 from workflow_matrix import native_calls
+
+
+def rendered_reply_errors(raw: bytes, renderer_item_id: str) -> list[str]:
+    """Compare native delivery after a reviewer selects the actual renderer command.
+
+    The command-name check is a guard against selection mistakes, not attestation
+    of what executed. Empty errors establish delivery equality, not host acceptance.
+    """
+    try:
+        _, errors = native_calls("codex", raw, 0)
+        if errors:
+            return errors
+        events = [json.loads(line) for line in raw.splitlines() if line.strip()]
+    except (ValueError, KeyError, TypeError) as exc:
+        return [f"invalid native capture: {exc}"]
+    if (
+        sum(event.get("type") == "turn.completed" for event in events) != 1
+        or sum(event.get("type") == "turn.started" for event in events) > 1
+        or events[-1].get("type") != "turn.completed"
+    ):
+        return ["rendered delivery requires one complete native turn"]
+    commands, messages = [], []
+    for index, event in enumerate(events):
+        if event.get("type") != "item.completed":
+            continue
+        item = event["item"]
+        if item.get("type") == "agent_message":
+            messages.append((index, item))
+        command = item.get("command")
+        if (
+            item.get("type") == "command_execution"
+            and isinstance(command, str)
+            and re.search(r"(?<![\w.-])conversation_renderer\.py(?![\w.-])", command)
+        ):
+            commands.append((index, item))
+    selected = [(index, item) for index, item in commands if item.get("id") == renderer_item_id]
+    if len(selected) != 1:
+        return ["selected renderer command is missing or ambiguous"]
+    index, command = selected[0]
+    if any(event.get("type") == "turn.started" for event in events[index + 1 :]):
+        return ["selected renderer command belongs to a different native turn"]
+    output = command.get("aggregated_output")
+    if (
+        type(command.get("exit_code")) is not int
+        or command["exit_code"] != 0
+        or not isinstance(output, str)
+        or not output.rstrip("\r\n")
+    ):
+        return ["selected renderer command did not produce successful output"]
+    if not messages or messages[-1][0] <= index:
+        return ["final assistant reply must follow the renderer command"]
+    text = messages[-1][1].get("text")
+    if not isinstance(text, str) or text.rstrip("\r\n") != output.rstrip("\r\n"):
+        return ["final assistant reply differs from renderer output"]
+    return []
 
 
 def capture(
