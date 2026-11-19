@@ -86,12 +86,27 @@ this checkpoint adds no construction command or evidence-validation layer.
 
 ## Creation and validation progress
 
-After scope agreement, continue the selected authoring workflow and render
-`expansion_progress` for meaningful progress changes and on resume. This is a
-status checkpoint, not another approval pause. Shared prerequisite and Ethos
+After scope agreement, initialize the creation record below and set the first
+task's actual starting activity before substantial environment preparation or
+task construction. The `tasks` map may still be empty; do not wait for task files
+or validation results before showing progress. On resume, reuse the saved record
+and reconcile its current activity and evidence before continuing work.
+
+Render `expansion_progress` and send its complete returned Markdown unchanged in
+an assistant commentary message before that work begins. A renderer call, tool
+output, or saved Markdown file alone is not a visible progress update. Use this
+rendered task table instead of free-form construction narration. Repeat it when
+a task, activity, validation result, or actual blocker meaningfully changes,
+before a long-running validation check, and on resume before more work. The
+coordinating agent owns these messages; delegated workers return milestones and
+evidence so it can update the shared progress.
+
+Continue authorized work in the same turn after progress updates; do not add an
+approval pause. Use the rendered response as the final reply when its actual
+unresolved question requires the user's answer. Shared prerequisite and Ethos
 recovery still take precedence; pause only work that depends on a blocker.
 
-Save optional `creation` in the existing schema-2 lifecycle through the latest
+Save `creation` in the existing schema-2 lifecycle through the latest
 revision-checked update. Its `tasks` map uses `expansion_state.task_key(row)` for
 each agreed task row. Each entry retains the native task `path`, current `sha256`,
 and `validation`, initially `null`. A validation record contains
