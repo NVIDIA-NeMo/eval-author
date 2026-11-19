@@ -83,7 +83,11 @@ Each finding is `{kind, label, evidence}`; kinds are `strength`,
 `missing_scenario`, `grading_weakness`, `agent_failure`, `insufficient_evidence`.
 Lead `conclusion` with the established outcome. Each recommendation is
 `{kind, label, reason, support}`; kinds are `improve`, `create`, `collect_evidence`,
-`fix_agent`. Supply at most three prioritized recommendations.
+`fix_agent`. Supply every report recommendation in the same order as the
+[report’s Recommended next actions table](../../../eval-author-audit/references/report-sections.md#recommended-next-actions).
+The conversation accepts the report schema’s full recommendation capacity;
+there is no smaller presentation limit. The caller supplies the established
+priority order; the renderer preserves it.
 Set `support` to `supported` or `separate_work` for the actual recommended action
 in this suite, following the [selected audit continuation](expansion.md#selected-audit-improvements).
 Do not infer support from `kind`: inspecting existing verifier evidence does not

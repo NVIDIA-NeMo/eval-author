@@ -369,8 +369,9 @@ changes the content; regenerate the report and record the findings again.
 
 ### After review: offer the next step
 
-Supply up to three prioritized report recommendations in the `audit_findings`
-`recommendations` fact under the [audit presentation contract](../../eval-author/references/conversations/audit.md#stages-and-facts).
+Supply every report recommendation in the `audit_findings` `recommendations`
+fact under the [audit presentation contract](../../eval-author/references/conversations/audit.md#stages-and-facts),
+preserving the [report’s priority ordering](report-sections.md#recommended-next-actions).
 State any implementation limit in the affected recommendation's `reason`, and
 supply its `support` classification under that contract.
 The renderer labels support and offers only supported work; do not append another

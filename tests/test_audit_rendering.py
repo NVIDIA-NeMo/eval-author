@@ -823,3 +823,39 @@ def test_findings_reject_invalid_recommendation_ids(modules, ids):
         item["id"] = identifier
     with pytest.raises(ValueError, match="recommendation IDs"):
         modules[2].render(payload)
+
+
+def test_findings_preserve_all_report_recommendations_in_priority_order(modules):
+    payload = checkpoint(modules, "findings")
+    items = payload["facts"]["recommendations"]
+    for item, identifier in zip(items, ["R1", "R2"], strict=True):
+        item["id"] = identifier
+    items.extend(
+        [
+            {
+                "id": "R4",
+                "kind": "fix_agent",
+                "label": "agent correction",
+                "reason": "Fix the observed refund behavior separately before rerunning the evaluations.",
+                "support": "separate_work",
+            },
+            {
+                "id": "R3",
+                "kind": "collect_evidence",
+                "label": "additional evidence",
+                "reason": "Collect lower-priority evidence; support for this source has not been confirmed.",
+                "support": "unknown",
+            },
+        ]
+    )
+    original = copy.deepcopy(payload)
+    output = modules[2].render(payload)
+    positions = []
+    offer = output.rstrip().split("\n\n")[-1]
+    for index, item in enumerate(items, 1):
+        positions.append(output.index(f"{index}. **{item['label'].capitalize()}:**"))
+        assert item["reason"] in output
+        assert item["id"] not in output
+        assert (item["label"] in offer) == (item["support"] == "supported")
+    assert positions == sorted(positions)
+    assert payload == original

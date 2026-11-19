@@ -201,7 +201,8 @@ confirmed and the Evaluation coverage table), then Key findings. Recommended
 next actions is a single table, highest priority first, with **Priority**,
 **Finding / Advisory**, **Affected coverage** (the tool, capability, or failure
 case involved), and **Description** columns; the description gives the action and
-the proposed task.
+the proposed task. The closing conversation lists every recommendation in the
+same priority order, including each action’s implementation limits and support status.
 The Coverage report maps each audit item to its tasks and run evidence, followed by the task
 catalog, verifier cheat screening, scope and execution evidence, and
 definitions.

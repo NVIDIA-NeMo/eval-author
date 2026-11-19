@@ -46,7 +46,7 @@ def rows(value: object, label: str, *, maximum: int = 100) -> list:
 
 
 def recommendations(facts: dict) -> list[dict]:
-    result = rows(facts.get("recommendations", []), "recommendations", maximum=3)
+    result = rows(facts.get("recommendations", []), "recommendations", maximum=1000)
     labels = set()
     identifiers = []
     for item in result:
