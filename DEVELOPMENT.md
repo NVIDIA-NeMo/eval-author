@@ -307,6 +307,20 @@ These checks do not claim live routing acceptance.
 See [determinism checks](docs/determinism-checks.md) for discovery comparisons,
 bound audit/task evidence, factual ledgers, and advisory host/semantic accounting.
 
+### Native ACP session check
+
+The deterministic ACP fixture checks exact message delivery, state across turns,
+conversation export, and reset in a fresh session. It uses Harbor's ACPX config
+builder and ACPX 0.11.2, with no model calls or Docker. Put that version of `acpx`
+on `PATH`, or set `EVAL_AUTHOR_ACPX` to its executable, then run:
+
+```bash
+uv run --locked pytest -q tests/test_harbor_acp_session.py
+```
+
+The test skips when ACPX is absent and fails if its version differs. It checks
+local ACP plumbing, not a full Harbor trial or a real agent's behavior.
+
 ## Retained reference compatibility
 
 Receiving skills own the current trace reference contracts. The full legacy

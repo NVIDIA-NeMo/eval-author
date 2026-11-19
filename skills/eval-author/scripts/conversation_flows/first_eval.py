@@ -115,6 +115,25 @@ def applicable_blockers(state: dict) -> dict:
     return {item["id"]: item for item in state["blockers"] if item["phase"] in {"setup", "ethos", state["journey"]}}
 
 
+def adapter_task(record: dict, task: dict) -> dict:
+    context = {
+        "id": task["id"],
+        "example_ids": task["example_ids"],
+        "path": record["tasks"].get(task["id"], {}).get("path"),
+    }
+    for field in (
+        "interaction_type",
+        "state_requirements",
+        "prerequisite_checks",
+        "conversation_scenario",
+    ):
+        if field in task:
+            context[field] = task[field]
+    if task.get("interaction_type") == "user_sim" and context["path"]:
+        context["expected_scenario_path"] = str(PurePosixPath(context["path"]) / "user-sim.yaml")
+    return context
+
+
 def adapter_handoff(state: dict, reason: str) -> str:
     record = first_eval_state.record(state)
     provider = state["setup"]
@@ -130,18 +149,19 @@ def adapter_handoff(state: dict, reason: str) -> str:
         "provider": provider,
         "ethos_path": state["ethos"]["path"],
         "design_approved": approved,
-        "tasks": [
-            {
-                "id": task["id"],
-                "example_ids": task["example_ids"],
-                "path": record["tasks"].get(task["id"], {}).get("path"),
-            }
-            for task in record["plan"]["tasks"]
-        ]
-        if record and approved
-        else [],
+        "tasks": [adapter_task(record, task) for task in record["plan"]["tasks"]] if record and approved else [],
         "missing_connection": reason,
     }
+    if record and approved and any(task.get("interaction_type") == "user_sim" for task in record["plan"]["tasks"]):
+        settings = first_eval_state.execution_settings(record)
+        if "user_sim" in settings:
+            context["simulator_settings"] = settings["user_sim"]
+        selection = record.get("selection")
+        if selection and progress and selection.get("settings_digest") == progress["settings_digest"]:
+            context["execution_inputs"] = {
+                "config": selection["config"],
+                "inputs": selection.get("inputs", []),
+            }
     return copy.ADAPTER_HANDOFF.format(context=json_context(context))
 
 

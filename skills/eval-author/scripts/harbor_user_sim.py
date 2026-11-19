@@ -18,6 +18,7 @@ from typing import TYPE_CHECKING, Any
 
 import yaml
 from eval_author_shared.task_evidence import CONTROL_AGENT_ALIASES, digest
+from harbor_acp import validate_acpx_config_file
 from runtime_policy import require_supported
 from user_sim import UserSimError, UserSimScenario, load_scenario
 
@@ -191,15 +192,10 @@ def _external_inputs(native: JobConfig) -> tuple[Path, ...]:
 
 
 def _validate_acpx_input(native: JobConfig) -> None:
-    from harbor.bridges.acp import validate_acpx_config
-
     assert native.user_agent is not None
     path = native.user_agent.bridge.kwargs.get("acpx_config_path")
     if path is not None:
-        config = json.loads(Path(path).read_text())
-        if not isinstance(config, dict):
-            raise HarborTranslationError("ACPX overrides must contain an object")
-        validate_acpx_config(config)
+        validate_acpx_config_file(Path(path))
 
 
 def _snapshot_input(path: Path, snapshots: dict[str, str]) -> None:

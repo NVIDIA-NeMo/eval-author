@@ -76,6 +76,22 @@ remains disabled and doesn't become a grading or execution-readiness claim.
 ## Check the integration before execution
 
 Native schema validation is configuration compatibility, not runtime readiness.
+Preflight the exact emitted config with the selected Harbor interpreter:
+
+```bash
+python <eval-author-discover>/scripts/check_harbor_config.py \
+  --repo <target-repository> \
+  --config .eval-author/.working/user-sim/<task>-<revision>/run.yaml
+```
+
+This uses the discovery provider's native checks without scanning for other
+tasks. It checks both agent classes, bridge capability, simulator inputs,
+required environment variables, and backend availability. It doesn't start an
+agent or container. Exit 0 means preflight passed, 1 means a required check
+failed, and 2 means the inputs or selected Python runtime couldn't be loaded.
+A passing result still reports `runtime_verified: false` until an actual session
+has been checked. Keep its concrete failures in the existing integration handoff.
+
 The target must declare ACP support and implement Harbor's `ACPAgentMixin`.
 The simulator must support the shell interaction used by `acpx`. Verify both
 roles' model access and the actual target's policy, tools, and state continuity.

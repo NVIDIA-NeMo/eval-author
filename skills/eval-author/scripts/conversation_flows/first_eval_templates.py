@@ -266,6 +266,25 @@ by directory membership. Report any missing planned task files without creating
 them. Do not substitute another agent, reimplement its decisions, or change what
 the tasks measure to make the connection work.
 
+Honor each saved interaction_type. Single-turn needs one ordinary invocation. Scripted
+multi-step needs the specified state continuity and checked prerequisites. If a
+prerequisite fails, retain that failure and mark later behavior unexercised.
+User-sim needs adaptive messages in one continuing session. Verify expected
+scenario paths before using them, apply the shared neutral behavior and scenario
+stopping rules, and retain the selected simulator model and execution limits.
+For Harbor ACP, check both the advertised bridge capability and ACPAgentMixin.
+Use one native single-step task per adaptive scenario, not a Harbor multi-step
+task. Check both agent roles and their required credentials before running.
+
+Prove the opening request, follow-up exchange, termination, and task-state reset
+against the actual target. Keep simulator inputs outside the target's visible
+context and tools. Harbor's stock ACP roles share a filesystem, so prompt text
+alone cannot enforce this separation. Retain raw bridge conversation, separate
+simulator and target logs, target tool observations, independent state checks,
+native grading, and errors. Verify export files exist even when the native job
+succeeds. Simulator messages are not target actions. Report unsupported
+capabilities without changing the chosen type or substituting another agent.
+
 Keep this as repository engineering work outside Eval Author. Do not modify its
 workflow state or approvals, mark the integration verified, or claim an agent
 baseline from adapter completion or control results. Agent/model evaluation runs
