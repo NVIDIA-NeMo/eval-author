@@ -149,7 +149,12 @@ def pending(value: EntryRecord | ScopeRecord) -> PendingDecision | None:
             return question
         review = value.get("review")
         if review:
-            if review["decision"] and review["decision"]["decision"] == "approved" and value.get("execution"):
+            if (
+                review["decision"]
+                and review["decision"]["decision"] == "approved"
+                and review["decision"]["digest"] == _review_digest(value)
+                and value.get("execution")
+            ):
                 return value["execution"]["pending"]
             return review["pending"]
     return None
@@ -491,15 +496,21 @@ def _creation(value: ScopeRecord, observed: object) -> dict:
     }
 
 
-def _review(state: dict, value: ScopeRecord, observed: dict, creation: dict, approved_scope: bool) -> dict:
+def _review_digest(value: ScopeRecord) -> str:
     planned = {task_key(task) for task in value["plan"]["tasks"]}
     tasks = value["creation"]["tasks"]
-    digest = fingerprint(
+    return fingerprint(
         {
             "scope": {key: value.get(key) for key in ("plan", "setup", "path", "ethos_digest", "handoff_digest")},
             "tasks": {key: tasks.get(key) for key in sorted(planned)},
         }
     )
+
+
+def _review(state: dict, value: ScopeRecord, observed: dict, creation: dict, approved_scope: bool) -> dict:
+    planned = {task_key(task) for task in value["plan"]["tasks"]}
+    tasks = value["creation"]["tasks"]
+    digest = _review_digest(value)
     saved = value["review"]
     artifacts = saved["artifacts"]
     artifacts_current = bool(
@@ -668,17 +679,19 @@ def checkpoint_ready(state: dict) -> bool:
 
 
 def review_ready(state: dict) -> bool:
-    return checkpoint_ready({**state, "blockers": [item for item in state["blockers"] if item["phase"] != "expand"]})
+    from journey_state import DEFERRED
+
+    return checkpoint_ready(
+        {
+            **state,
+            "blockers": [item for item in state["blockers"] if item["phase"] != "expand" or item["id"] not in DEFERRED],
+        }
+    )
 
 
 def presentation_state(state: dict, progress: dict | None, *, answered_ethos_review: bool = False) -> dict:
     value = record(state)
-    if (
-        value is None
-        or progress is None
-        or not progress["context_current"]
-        or not (review_ready(state) if value.get("review") else checkpoint_ready(state))
-    ):
+    if value is None or progress is None or not progress["context_current"] or not checkpoint_ready(state):
         return state
     questions = {
         item["question"]
@@ -700,7 +713,7 @@ def presentation_state(state: dict, progress: dict | None, *, answered_ethos_rev
 
 def reconcile_question(repo, state: dict, *, answered_ethos_review: bool = False) -> None:
     value = record(state)
-    if value is None or not (review_ready(state) if value.get("review") else checkpoint_ready(state)):
+    if value is None or not checkpoint_ready(state):
         return
     state["pending_question"] = presentation_state(
         state, derive(state, observe(repo, state)), answered_ethos_review=answered_ethos_review
@@ -850,7 +863,7 @@ def transition(repo, previous: dict, updated: dict) -> None:
         assert progress is not None
         _review_transition(previous, updated, old, progress)
         question = progress["pending_question"]
-        ready = review_ready(updated) if after.get("review") else checkpoint_ready(updated)
+        ready = checkpoint_ready(updated)
         if question is not None and ready:
             if updated["pending_question"] != question:
                 if not checkpoint_ready(previous) and updated["pending_question"] is None:

@@ -417,3 +417,94 @@ def test_harbor_ignores_non_gym_row_metadata_when_rendering(modules, tmp_path):
     output = render(modules, save(modules, tmp_path, saved, value))
     assert "ROW_METADATA" not in output and output.count("Not applicable") == 2
     assert "Attempts per task" in output
+
+
+@pytest.mark.parametrize("run_pending", [False, True])
+def test_updated_task_review_replaces_stale_run_question_on_resume(modules, tmp_path, run_pending):
+    saved, value = authorized(modules, tmp_path)
+    if run_pending:
+        value["execution"]["pending"] = {"question": RUN_QUESTION, "source": "Unanswered run decision"}
+        saved = save(modules, tmp_path, saved, value)
+    evidence(tmp_path, ".eval-author/tasks/refund-1/verifier.py", "Reject duplicate refunds")
+    author(modules, tmp_path, value, 1)
+    saved = save(modules, tmp_path, saved, value)
+    value["review"]["artifacts"]["digest"] = bound(modules, tmp_path, saved, "review", "Refresh")["digest"]
+    question = "Approve the updated tasks?"
+    value["review"]["pending"] = {"question": question, "source": "Updated task review"}
+    saved = save(modules, tmp_path, saved, value)
+    assert progress(modules, tmp_path, saved)["pending_question"] == saved["pending_question"] == question
+    resumed = modules[0].initialize(tmp_path, journey="expand")
+    with pytest.raises(ValueError, match="Use expansion_review"):
+        modules[2].render({"stage": "resume", "state": resumed, "revision": resumed["revision"]})
+    output = render(modules, resumed)
+    assert output.count(question) == 1 and RUN_QUESTION not in output
+    assert "The updated tasks have passed their checks and need your approval" in output
+    assert "refund-1/README.md" in output and "refund-1-passed.json" in output
+
+
+@pytest.mark.parametrize("repairing", [False, True])
+def test_review_record_preserves_expand_blocker_recovery(modules, tmp_path, repairing):
+    saved, value = ready(modules, tmp_path)
+    if repairing:
+        saved = present_review(modules, tmp_path, saved, value)
+        value["review"]["decision"] = {
+            **bound(modules, tmp_path, saved, "review", "User requests corrections"),
+            "decision": "changes_requested",
+        }
+        value["review"]["pending"] = None
+        value["creation"]["pending"] = {"question": "Which duplicate refund should be repaired?", "source": "Repair"}
+        saved = save(modules, tmp_path, saved, value)
+    question = "Restore verifier access?" if repairing else None
+    blocked = modules[0].update(
+        tmp_path,
+        {
+            "blockers": [{"id": "verifier", "phase": "expand", "message": "Verifier dependency unavailable"}],
+            "pending_question": question,
+        },
+        expected_revision=saved["revision"],
+    )
+    resumed = modules[0].initialize(tmp_path, journey="expand")
+    assert resumed["pending_question"] == blocked["pending_question"] == question
+    output = modules[2].render(
+        {
+            "stage": "resume",
+            "state": resumed,
+            "revision": resumed["revision"],
+            "facts": {
+                "blockers": [
+                    {
+                        "id": "verifier",
+                        "step": "Task review",
+                        "reason": "Verifier dependency unavailable",
+                        "needed": "Restore access",
+                    }
+                ]
+            },
+        }
+    )
+    assert "Verifier dependency unavailable" in output and "Restore access" in output
+    if question:
+        assert question in output
+    restored = modules[0].update(
+        tmp_path, {"blockers": [], "pending_question": None}, expected_revision=resumed["revision"]
+    )
+    expected = value["creation"]["pending"]["question"] if repairing else REVIEW_QUESTION
+    assert restored["pending_question"] == expected
+
+
+@pytest.mark.parametrize("decision", ["approved", "declined"])
+def test_current_review_decision_does_not_request_reapproval_after_report_change(modules, tmp_path, decision):
+    saved, value = ready(modules, tmp_path)
+    saved = present_review(modules, tmp_path, saved, value)
+    value["review"]["decision"] = {
+        **bound(modules, tmp_path, saved, "review", "User task-review reply"),
+        "decision": decision,
+    }
+    value["review"]["pending"] = None
+    saved = save(modules, tmp_path, saved, value)
+    (tmp_path / ".eval-author/report.html").write_text("Updated report")
+    resumed = modules[0].initialize(tmp_path, journey="expand")
+    output = render(modules, resumed)
+    assert "The complete agreed set is not ready for approval" not in output
+    expected = "This task set is approved" if decision == "approved" else "You declined this task set"
+    assert expected in output

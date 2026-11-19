@@ -163,7 +163,7 @@ def _review(state: dict, progress: dict, observed: dict) -> str:
         parts.append(copy.REVIEW_UPDATED if review["ready"] else copy.REVIEW_STALE)
     elif review["ready"]:
         parts.append(copy.REVIEW_NEEDED)
-    if not review["ready"]:
+    if not review["ready"] and not (review["approved"] or review["decision"] == "declined"):
         parts.append(copy.REVIEW_PARTIAL)
     if progress["pending_question"] is not None:
         parts.append(literal(progress["pending_question"], "task review question"))

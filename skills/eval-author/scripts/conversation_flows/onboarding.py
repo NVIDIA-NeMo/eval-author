@@ -446,7 +446,7 @@ def render(payload: dict) -> str:
         if reviewing:
             checkpoint = "expansion_review"
         pending = expansion_state.pending(expansion)
-        ready = expansion_state.review_ready(state) if reviewing else expansion_state.checkpoint_ready(state)
+        ready = expansion_state.checkpoint_ready(state)
         if ready and (
             state["pending_question"] is None or pending and state["pending_question"] == pending["question"]
         ):
