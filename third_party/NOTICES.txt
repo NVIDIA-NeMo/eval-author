@@ -4165,12 +4165,12 @@ THE SOFTWARE.
 
 
 ================================================================================
-litellm==1.108.4
+litellm==1.110.0
 ================================================================================
 
-Source: https://files.pythonhosted.org/packages/2a/1e/ffa920bca1ee09bf8b8c089888f0ffd7b0653c8a5dd7ce95c19b633c8d5b/litellm-1.108.4.tar.gz
-SHA256: sha256:192974c6a17ef20ddbc3851f2151cdb0ad81eb8b67bf043cc90cea8714bbed83
-File: litellm-1.108.4/LICENSE
+Source: https://files.pythonhosted.org/packages/82/c4/7dce34b0598c5eb5af455e5200a97202644e077a65bd404439050cbb7a1a/litellm-1.110.0.tar.gz
+SHA256: sha256:6223f8385534dd544773e945284e2b4090d7f03393e3344fb3e5e57111076065
+File: litellm-1.110.0/LICENSE
 
 Portions of this software are licensed as follows:
 
@@ -4199,6 +4199,32 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
+
+Source: https://files.pythonhosted.org/packages/82/c4/7dce34b0598c5eb5af455e5200a97202644e077a65bd404439050cbb7a1a/litellm-1.110.0.tar.gz
+SHA256: sha256:6223f8385534dd544773e945284e2b4090d7f03393e3344fb3e5e57111076065
+File: litellm-1.110.0/litellm/litellm_core_utils/tokenizers/deepseek_tokenizer_LICENSE
+
+MIT License
+
+Copyright (c) 2023 DeepSeek
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
 
 ================================================================================
 markdown-it-py==4.2.0
@@ -39958,12 +39984,12 @@ limitations under the License.
 
 
 ================================================================================
-opentelemetry-api==1.45.1
+opentelemetry-api==1.45.2
 ================================================================================
 
-Source: https://files.pythonhosted.org/packages/1e/41/f7dcf80b81ee8e71c1a2b59f14208bc723edbd89ed027a73b175abf6348e/opentelemetry_api-1.45.1-py3-none-any.whl
-SHA256: sha256:b31553efa588ae44bc306f863c785c5333a9ecc091248c6ee68b4b6c87fdedfb
-File: opentelemetry_api-1.45.1.dist-info/licenses/LICENSE
+Source: https://files.pythonhosted.org/packages/a9/2d/610db864d7513158cebb8f36cc88e67e73bd6c7aa1905ef18d89e1281c81/opentelemetry_api-1.45.2-py3-none-any.whl
+SHA256: sha256:2cbd737377e710ee740d261c94e93fa0f08e6d037c18f17513cc0a2d94479a34
+File: opentelemetry_api-1.45.2.dist-info/licenses/LICENSE
 
                                  Apache License
                            Version 2.0, January 2004
@@ -41013,12 +41039,12 @@ File: opentelemetry_exporter_otlp_proto_http-1.45.1.dist-info/licenses/LICENSE
 
 
 ================================================================================
-opentelemetry-instrumentation==0.66b1
+opentelemetry-instrumentation==0.66b2
 ================================================================================
 
-Source: https://files.pythonhosted.org/packages/da/b2/d1413681ff43e13ac9860df27e1226d3199ab0b97b352ceea41abcc660a5/opentelemetry_instrumentation-0.66b1-py3-none-any.whl
-SHA256: sha256:4c4aa14dc9a24a02325a9d4c42c4d0208dbb1374c2b1b8fe6c9392d59f3e1008
-File: opentelemetry_instrumentation-0.66b1.dist-info/licenses/LICENSE
+Source: https://files.pythonhosted.org/packages/3b/41/014d40e2b08a5d9d9058ed4967ad992657c203ce0c292ded97364ee7b82a/opentelemetry_instrumentation-0.66b2-py3-none-any.whl
+SHA256: sha256:fa9ccfdab147a14af8107d19ef0a7b5015675273c5adced7a1fc38f28b42ec4c
+File: opentelemetry_instrumentation-0.66b2.dist-info/licenses/LICENSE
 
                                  Apache License
                            Version 2.0, January 2004
@@ -41435,12 +41461,12 @@ File: opentelemetry_proto-1.45.1.dist-info/licenses/LICENSE
 
 
 ================================================================================
-opentelemetry-sdk==1.45.1
+opentelemetry-sdk==1.45.2
 ================================================================================
 
-Source: https://files.pythonhosted.org/packages/95/3c/87c42b4bd6dd297536f04cd9383d212ac557ecd49f2cbdcd46da1c9ef5c8/opentelemetry_sdk-1.45.1-py3-none-any.whl
-SHA256: sha256:c604c11dc429810812348989115fa44bd558772a3d7442afc43d024f2c250ca4
-File: opentelemetry_sdk-1.45.1.dist-info/licenses/LICENSE
+Source: https://files.pythonhosted.org/packages/9f/a5/9a3b793ef48245f2336a16beb2324c2397dbb3f987cd68942f77cca06156/opentelemetry_sdk-1.45.2-py3-none-any.whl
+SHA256: sha256:ff974ea70ee4f1d51e2ec152db37c2b626c7bf82bb3f7d86114fd8704e7199c6
+File: opentelemetry_sdk-1.45.2.dist-info/licenses/LICENSE
 
                                  Apache License
                            Version 2.0, January 2004
@@ -41646,12 +41672,12 @@ File: opentelemetry_sdk-1.45.1.dist-info/licenses/LICENSE
 
 
 ================================================================================
-opentelemetry-semantic-conventions==0.66b1
+opentelemetry-semantic-conventions==0.66b2
 ================================================================================
 
-Source: https://files.pythonhosted.org/packages/bc/14/67f8aa798857f8cf686f515bf93d9bb877ce952ddc8efae0fa25b45ce0d6/opentelemetry_semantic_conventions-0.66b1-py3-none-any.whl
-SHA256: sha256:d4cddeb4315490b35213f55e2bdc9ac54bb1e4d318927475bed62b35545e581b
-File: opentelemetry_semantic_conventions-0.66b1.dist-info/licenses/LICENSE
+Source: https://files.pythonhosted.org/packages/67/bd/6bf33ed31521c565931c037e9e81bac47c1acb000e850c6e24220e2a0c00/opentelemetry_semantic_conventions-0.66b2-py3-none-any.whl
+SHA256: sha256:4cbe61e5f9275d57ab31708446e7938ef4291ebbe6a7fca6f7a629c5acae87d8
+File: opentelemetry_semantic_conventions-0.66b2.dist-info/licenses/LICENSE
 
                                  Apache License
                            Version 2.0, January 2004

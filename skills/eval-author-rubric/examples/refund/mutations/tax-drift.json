@@ -1,0 +1,12 @@
+{
+  "schema": "rubric-example-mutation-v1",
+  "id": "tax-drift",
+  "category": "state_drift",
+  "edits": [
+    {
+      "path": "environment/contract.json",
+      "old": "\"refund_tax\": true",
+      "new": "\"refund_tax\": false"
+    }
+  ]
+}

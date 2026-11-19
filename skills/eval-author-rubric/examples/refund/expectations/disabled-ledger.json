@@ -1,0 +1,34 @@
+{
+  "schema": "rubric-example-expectation-v1",
+  "id": "disabled-ledger",
+  "category": "runtime_configuration_defect",
+  "target_criteria": [
+    "provenance.solver-tool-access",
+    "provenance.runtime-route"
+  ],
+  "target_checks": [
+    "provenance.solver-tool-access.probe",
+    "provenance.runtime-route.deterministic-1"
+  ],
+  "intended_score": null,
+  "observed_score": null,
+  "status": "planned_expectation_not_measurement",
+  "finding": "The image entrypoint no longer starts the required ledger socket.",
+  "evidence_basis": {
+    "method": "local_source_or_control_inspection",
+    "limit": "Native startup and solver-role access have not run. Source inspection alone does not establish a provider failure."
+  },
+  "collateral_criteria": [
+    "provenance.evidence-revision-consistency"
+  ],
+  "unchanged_neighbors": [
+    "fixed_assessment_request",
+    "unmodified_scorer_source"
+  ],
+  "rerun_controls": [
+    "all_local_controls",
+    "ledger_controls",
+    "all_source_bound_native_controls"
+  ],
+  "repair": "Restore the base in a new directory and generate fresh evidence. Preserve the prior package."
+}
