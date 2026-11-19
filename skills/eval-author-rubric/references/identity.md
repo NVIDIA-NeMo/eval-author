@@ -268,8 +268,7 @@ grader checks for, is not detected.
 ## Construction authority references
 
 `authority` is `{"plan_artifact_id": <id>, "result_artifact_id": <optional id>}`.
-The plan has role `construction`; the optional selected native result has role
-`result`. Every artifact a reference cites must also be selected.
+The plan has role `construction`. The optional selected native result has role `result`. Every artifact a reference cites must also be selected.
 A whitespace-free reference is a locator when its path names a selected artifact
 or contains `/` or `.`; its path is relative to the measurement root. Each locator
 is resolved against the selected bytes: `path` names the artifact, `path#Heading`
@@ -300,23 +299,15 @@ don't count.
 The result also counts requirements by basis and status, scored checks, and
 mapped requirements. Full plan validation stays with `construction_contract.py`.
 A resolved reference shows that the cited content exists, not that it supports
-the requirement. A resolving requirement citation to an artifact with role
-`scorer` fails with `authority.reference_implementation`; implementation is not
-intended-requirement authority.
+the requirement.
 
-The result's `checks` rows resolve each plan check's `success.pointer` in the
-selected result. A present value is `observed`, including false, zero, or null.
-A missing pointer is `unobserved` and fails with `authority.check_unobserved`.
-Without a selected result, observations stay `unknown`. Selected result bytes
-must pass the same path and digest checks as other selected evidence. This does
-not compare the observed value with the expected value or authenticate native
-execution.
+A requirement citation that resolves to an artifact with role `scorer` fails with `authority.reference_implementation`. Implementation does not establish authority for the intended requirement.
 
-Requirement rows with `prose`, `unresolved`, or `unselected` status carry a
-`question` with `requirement_id`, `reference`, and `decision_needed`. Fixed copy
-lives in `rubric_authority.py`. See [W07 unresolved mappings](task-contract-authority.md#unresolved-mappings-for-w07)
-for agent crosswalk ambiguities and contradictions. Honest unknowns remain valid
-measurements, but do not become passing observations or resolved decisions.
+The result's `checks` rows resolve each plan check's `success.pointer` in the selected result. A present value is `observed`, including false, zero, or null. A missing pointer is `unobserved`. It fails with `authority.check_unobserved`. Without a selected result, observations stay `unknown`.
+
+Selected result bytes must pass the same path and digest checks as other selected evidence. These checks do not compare the observed value with the expected value. They do not authenticate native execution.
+
+Requirement rows with `prose`, `unresolved`, or `unselected` status carry a `question` with `requirement_id`, `reference`, and `decision_needed`. The fixed wording is in `rubric_authority.py`. See [W07 unresolved mappings](task-contract-authority.md#unresolved-mappings-for-w07) for agent crosswalk ambiguities and contradictions. Honest unknowns remain valid measurements. They do not establish passing observations or resolved decisions.
 
 ## Source-backed inventory assessment
 

@@ -112,7 +112,7 @@
       "id": "authority-resolved",
       "mutation": "authority-resolved",
       "cli_exit_code": 0,
-      "description": "Selected ETHOS heading and task pointer resolve; handcrafted result emits the check. No native execution.",
+      "description": "The selected ETHOS heading and task pointer resolve. A handcrafted result emits the check. This case does not execute a native task.",
       "measurement": "authority",
       "status": "pass",
       "codes": [],
@@ -136,7 +136,7 @@
       "id": "authority-broken-reference",
       "mutation": "authority-broken-reference",
       "cli_exit_code": 1,
-      "description": "Handcrafted missing ETHOS heading; resolved neighbor and emitted check remain unchanged.",
+      "description": "This handcrafted case cites a missing ETHOS heading. The neighboring reference still resolves, and the emitted check stays unchanged.",
       "measurement": "authority",
       "status": "fail",
       "codes": [
@@ -162,7 +162,7 @@
       "id": "authority-prose",
       "mutation": "authority-prose",
       "cli_exit_code": 1,
-      "description": "Handcrafted prose citation requires an owner decision; neighbor resolves.",
+      "description": "The prose citation in this handcrafted case needs an owner decision. The neighboring reference resolves.",
       "measurement": "authority",
       "status": "unknown",
       "codes": [
@@ -191,7 +191,7 @@
       "id": "authority-check-unobserved",
       "mutation": "authority-check-unobserved",
       "cli_exit_code": 1,
-      "description": "Handcrafted result lacks the scorer check pointer; authority references still resolve.",
+      "description": "The handcrafted result lacks the scorer check pointer. The authority references still resolve.",
       "measurement": "authority",
       "status": "fail",
       "codes": [
@@ -217,7 +217,7 @@
       "id": "authority-no-result",
       "mutation": "authority-no-result",
       "cli_exit_code": 1,
-      "description": "No result is selected; emission is unknown, not an execution failure or native runtime claim.",
+      "description": "No result is selected, so check emission is unknown. This case reports neither an execution failure nor a claim of native execution.",
       "measurement": "authority",
       "status": "unknown",
       "codes": [
@@ -243,7 +243,7 @@
       "id": "authority-unresolved",
       "mutation": "authority-unresolved",
       "cli_exit_code": 1,
-      "description": "Handcrafted unresolved authority requires a decision even though the cited file exists.",
+      "description": "The unresolved authority in this handcrafted case needs a decision even though the cited file exists.",
       "measurement": "authority",
       "status": "unknown",
       "codes": [
@@ -272,7 +272,7 @@
       "id": "authority-unselected",
       "mutation": "authority-unselected",
       "cli_exit_code": 1,
-      "description": "Handcrafted existing but unselected ETHOS citation requires a decision; neighbor resolves.",
+      "description": "This handcrafted case cites an existing ETHOS file that was not selected. The citation needs a decision. The neighboring reference resolves.",
       "measurement": "authority",
       "status": "unknown",
       "codes": [
@@ -301,7 +301,7 @@
       "id": "authority-owner-instruction",
       "mutation": "authority-owner-instruction",
       "cli_exit_code": 0,
-      "description": "Handcrafted reconstructed-task example reuses the checked-in reconstruction trace. Owner instruction resolves; not a real reconstruction or native run.",
+      "description": "This handcrafted reconstructed-task example reuses the checked-in reconstruction trace. The owner instruction resolves. The case performs neither a real reconstruction nor a native run.",
       "measurement": "authority",
       "status": "pass",
       "codes": [],
@@ -325,7 +325,7 @@
       "id": "authority-verifier-reference",
       "mutation": "authority-verifier-reference",
       "cli_exit_code": 1,
-      "description": "Handcrafted reconstructed-task example cites verifier implementation selected as scorer, not independent authority; owner instruction neighbor resolves.",
+      "description": "This handcrafted reconstructed-task example cites a verifier selected as scorer. The verifier is not independent authority. The neighboring owner instruction resolves.",
       "measurement": "authority",
       "status": "fail",
       "codes": [
@@ -351,7 +351,7 @@
       "id": "authority-refund",
       "mutation": "authority-refund",
       "cli_exit_code": 1,
-      "description": "W04 refund authority record and contract copied at repository-relative paths; nine references resolve. No result selected, no task/scorer execution, no native runtime claim.",
+      "description": "The W04 refund authority record and contract are copied to repository-relative paths. Nine references resolve. No result is selected. The case executes neither the task nor the scorer and makes no claim of native execution.",
       "measurement": "authority",
       "status": "unknown",
       "codes": [

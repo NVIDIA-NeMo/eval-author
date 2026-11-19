@@ -68,21 +68,13 @@ they are review notes, not a new file format.
 
 ### Unresolved mappings for W07
 
-Carry each authority measurement row with `prose`, `unresolved`, or `unselected`
-status into W07 with its emitted `question`: requirement ID, reference, and fixed
-`decision_needed` line. The copy lives in `rubric_authority.py`; do not rewrite it
-in the packet builder. These are valid unknowns, not broken references or approvals.
-Report agent crosswalk rows marked `ambiguous` or `contradicted` the same way:
-retain the requirement ID and cited reference, state the decision needed, and keep
-the ambiguity or contradiction visible until adjudicated. The authority resolver
-does not infer these semantic statuses from prose or overwrite a contradiction.
+Carry each authority measurement row with `prose`, `unresolved`, or `unselected` status into W07 with its emitted `question`. Retain the requirement ID, reference, and fixed `decision_needed` line. The fixed wording is in `rubric_authority.py`. Do not rewrite it in the packet builder. These rows are valid unknowns. They do not represent broken references or approvals.
 
-When a native result is selected, the authority measurement checks whether each
-`success.pointer` exists. An observed field shows that the scorer emitted an
-observation, not that its value is correct. Whether the requirement statement is
-itself observable remains an agent crosswalk or W07 decision. A resolving citation
-to a selected artifact with role `scorer` fails as implementation-as-authority;
-grading code cannot silently define the intended requirement.
+Report agent crosswalk rows marked `ambiguous` or `contradicted` the same way. Retain the requirement ID and cited reference. State the decision needed. Keep the ambiguity or contradiction visible until adjudicated. The authority resolver does not infer these semantic statuses from prose. It does not overwrite a contradiction.
+
+When a native result is selected, the authority measurement checks whether each `success.pointer` exists. An observed field shows that the scorer emitted an observation. It does not establish that the value is correct. Whether the requirement statement itself is observable remains an agent crosswalk or W07 decision.
+
+A citation that resolves to a selected artifact with role `scorer` fails as implementation-as-authority. Grading code cannot silently define the intended requirement.
 
 ## Scoring rules
 

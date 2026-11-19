@@ -3,32 +3,15 @@
 
 # Synthetic refund authority review
 
-**Human review: recorded.** Andrew adjudicated this synthetic crosswalk in the
-Hermes desktop conversation on 2026-11-19. These are example rules, not an authentic
-refund policy. This is an operator-recorded `human_review`, not independently
-authenticated reviewer evidence, independent corroboration, or a numeric rubric score. The scorer's `reviewed` arm is an
-implementation name, not evidence that a human reviewed these rules.
+**Human review: recorded.** Andrew adjudicated this synthetic crosswalk in the Hermes desktop conversation on 2026-11-19. These example rules are not an authentic refund policy. The operator-recorded `human_review` provides no independently authenticated reviewer evidence, independent corroboration, or numeric rubric score. The scorer's `reviewed` arm is an implementation name. It does not establish that a human reviewed these rules.
 
-[authority.json](authority.json) reuses only the existing construction plan's
-`requirements` and `checks` shapes. It is an authority-measurement fixture, not a
-full `nemo.eval_author.construction.v3` runtime plan: no provider, task environment,
-execution, or review bindings are invented. `candidate_index: null` means no
-bound trace candidate. `specification` identifies the checked-in synthetic
-specification; it does not authenticate it. Keep the existing
-`contract_authority: unassessed-synthetic-fixture-not-authenticated` declaration.
+[authority.json](authority.json) reuses only the existing construction plan's `requirements` and `checks` shapes. This authority-measurement fixture is not a full `nemo.eval_author.construction.v3` runtime plan. It invents no provider, task environment, execution, or review bindings. `candidate_index: null` means no bound trace candidate. `specification` identifies the checked-in synthetic specification without authenticating it. Keep the existing `contract_authority: unassessed-synthetic-fixture-not-authenticated` declaration.
 
 ## Requirement crosswalk
 
-All abbreviated `#/...` references below are relative to
-[`evals/scorer-controls/contract.json`](contract.json). For each row, the machine
-requirement authority is exactly
-`evals/scorer-controls/contract.json#/requirements/<requirement>`.
-The final column gives the **exact scorer check ID and its result pointer**.
-Expected-value citations are retained in each existing `statement` field; no
-new plan field or packet format is introduced. Each success assertion is numeric `equals: 1`, from
-`#/scoring/weights/<check-id>`, not a boolean or a human-review score. These are
-success conditions, not a claim that every candidate passes. A missing success
-signal is permitted by reviewed-arm acceptance when all mandatory checks pass.
+All abbreviated `#/...` references below are relative to [`evals/scorer-controls/contract.json`](contract.json). Each row's machine requirement authority is exactly `evals/scorer-controls/contract.json#/requirements/<requirement>`. The final column gives the exact scorer check ID and its result pointer. Each existing `statement` field retains its expected-value citations. There is no new plan field or packet format.
+
+Each success assertion is numeric `equals: 1`, from `#/scoring/weights/<check-id>`, not a boolean or a human-review score. These conditions do not imply that every candidate passes. Reviewed-arm acceptance permits a missing success signal when all mandatory checks pass.
 
 | Requirement | Rule / expected condition in the current scorer | Stated source and inputs | Scorer check / result pointer |
 |---|---|---|---|
@@ -42,20 +25,13 @@ signal is permitted by reviewed-arm acceptance when all mandatory checks pass.
 | `protected_state` | Protected state and historical refund/ledger prefixes remain identical after every event. Mutate-then-restore still fails. | `#/requirements/protected_state`; `#/sources/initial_state/protected`, `#/sources/initial_state/refunds`, `#/sources/initial_state/ledger` | `protected_state` / `/checks/protected_state` |
 | `fresh_effect` | Require at least one new refund, distinct IDs absent from history, and `run-current` on every new refund. No effects are allowed only for a declared zero remaining balance with the no-action flag enabled; the base flag is `false`. | `#/requirements/fresh_effect`; `#/request/run_id`, `#/sources/initial_state/refunds`; policy `#/sources/policy/allow_zero_balance_no_action`; amount inputs above | `fresh_effect` / `/checks/fresh_effect` |
 
-Implementation reference: [`refund_scorer.py`](refund_scorer.py), `CHECKS`,
-`_remaining_balance`, `_apply_events`, and `evaluate`. Order/ledger observations
-come from applied scripted events, not submitted final-state claims.
+Implementation reference: [`refund_scorer.py`](refund_scorer.py), `CHECKS`, `_remaining_balance`, `_apply_events`, and `evaluate`. Order/ledger observations come from applied scripted events, not submitted final-state claims.
 
-Reviewed-arm acceptance uses all eight mandatory checks; any mandatory failure
-zeros total credit under `#/scoring/total_policy`. Individual check credit remains
-visible. The completion-only baseline is deliberately weaker. Helper failures or
-missing ordering evidence are scorer errors, not ordinary failed-check results.
+Reviewed-arm acceptance requires all eight mandatory checks to pass. Any mandatory failure zeros total credit under `#/scoring/total_policy`. Individual check credit remains visible. The completion-only baseline is deliberately weaker. Helper failures or missing ordering evidence are scorer errors, not ordinary failed-check results.
 
 ## Recorded human adjudication
 
-Source: Andrew's direct answers to the three scoped review questions in this
-Hermes desktop conversation. Recorded by the assistant; no message ID, signature,
-or independent identity claim is fabricated.
+The assistant recorded Andrew's direct answers to the three scoped review questions in this Hermes desktop conversation. The record fabricates no message ID, signature, or independent identity claim.
 
 - **Amount:** “State positive amounts explicitly; keep scorer behavior.” The
   contract now states that every new refund amount is positive.
@@ -71,11 +47,7 @@ or independent identity claim is fabricated.
   this review and `authority.json` separately. The word `unassessed` in that
   historical label is not the status of this scoped human review.
 
-These decisions cover the nine mappings with the two stated amendments. They do
-not authenticate the synthetic policy, approve arbitrary future edits, establish
-native execution, or assign a canonical level-2 score. Human adjudication is a
-level-2 prerequisite; the complete criterion's remaining evidence rules still
-apply. Missing native observations stay unknown.
+These decisions cover the nine mappings with the two stated amendments. They do not authenticate the synthetic policy, approve arbitrary future edits, establish native execution, or assign a canonical level-2 score. Human adjudication is a level-2 prerequisite. The complete criterion's remaining evidence rules still apply. Missing native observations stay unknown.
 
 ### Reviewed source bindings
 
@@ -85,23 +57,10 @@ The recorded decisions apply to these exact amended sources (SHA-256):
 - `contract.json`: `9a0e58248dc99098795ad7bf72834bb5f2a75778ffb38f83d2a241f694b3b394`
 - `refund_scorer.py`: `579c0ed11b8c6d520c538a88057c545997a33660880699cfd1610b3d4672dd8b`
 
-The bindings identify the reviewed bytes, not authentic policy provenance.
-A changed requirement, check, source reference, or scorer needs a fresh comparison
-and any material semantic change needs renewed adjudication.
+The bindings identify the reviewed bytes, not authentic policy provenance. A changed requirement, check, source reference, or scorer needs a fresh comparison. Any material semantic change needs renewed adjudication.
 
 ## Policy coverage and validation boundary
 
-The current `#/sources/policy` contains five parameters: `refund_tax`,
-`refund_shipping`, `approval_threshold_cents`, `approvers`, and
-`allow_zero_balance_no_action`. These are cited where applicable. Rules for other
-expected conditions live in `#/requirements`, with identifiers under `#/request`,
-initial values under `#/sources/initial_state`, and credit under `#/scoring`.
-The crosswalk cites those actual sources rather than inventing policy fields or
-copying rule text into a second policy catalog.
+The current `#/sources/policy` contains five parameters: `refund_tax`, `refund_shipping`, `approval_threshold_cents`, `approvers`, and `allow_zero_balance_no_action`. The crosswalk cites them where applicable. Rules for other expected conditions live in `#/requirements`. Identifiers are under `#/request`, initial values under `#/sources/initial_state`, and credit under `#/scoring`. The crosswalk cites these sources without inventing policy fields or copying rules into a second policy catalog.
 
-The authority measurement resolves the nine selected requirement references.
-Full construction-plan validation is not applicable to this partial record: the
-runtime validator requires kebab-case IDs, whereas the scorer uses underscores.
-Exact scorer IDs are preserved. Pointer presence does not establish expected-value
-correctness, native execution, or human approval. The synthetic measurement panel
-keeps those observations separate from this recorded review.
+The authority measurement resolves the nine selected requirement references. Full construction-plan validation does not apply to this partial record. The runtime validator requires kebab-case IDs, but the scorer uses underscores. This record preserves exact scorer IDs. Pointer presence does not establish expected-value correctness, native execution, or human approval. The synthetic measurement panel keeps those observations separate from this recorded review.
