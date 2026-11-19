@@ -61,7 +61,7 @@ def test_two_task_creation_failure_repair_and_resume_match_fixtures(modules, tmp
     saved, value = begin(modules, tmp_path)
     opening = render(modules, saved)
     assert "The next steps are to reuse or prepare the test setup" in opening
-    assert "get your permission before running your agent" in opening
+    assert "your permission to run the evaluation" in opening
     assert not value["creation"]["tasks"]
     author(modules, tmp_path, value, 0)
     saved = save(modules, tmp_path, saved, value)

@@ -34,8 +34,8 @@ CREATION_PLAN = (
     "The next steps are to reuse or prepare the test setup, create the agreed tasks with their test data, "
     "instructions, and verifiers, and check that correct outcomes pass and relevant incorrect outcomes fail. "
     "I’ll repair problems in these new drafts and bring the tasks back for your review. "
-    "After you approve them, we’ll confirm the agent, model, cases, attempts, and limits "
-    "and get your permission before running your agent."
+    "After you approve the tasks, we’ll confirm which agent and model to evaluate, "
+    "the run settings, and your permission to run the evaluation."
 )
 
 CREATION_HEADING = "### Creation and validation"
@@ -62,8 +62,8 @@ CREATION_READY = (
 
 REVIEW_HEADING = "### Review the created tasks"
 REVIEW_READY = "The agreed tasks have been created and passed their task and verifier checks."
-REVIEW_ACTION = "Review the complete task set in the {report} or {markdown}."
-REVIEW_DETAILS = "Each task README describes its input, behavior, expected result, grading, and limitations."
+REVIEW_ACTION = "Review the complete task set in the {markdown}. You can also use the {report}."
+REVIEW_DETAILS = "Each task README describes its input, behavior, expected result, verifier, and limitations."
 REVIEW_ARTIFACTS_PENDING = "The task review reports need to be refreshed."
 REVIEW_TABLE = "| Task | Validation | Evidence |\n|---|---|---|"
 REVIEW_REPORT_LABEL = "HTML report’s Tasks view"
@@ -78,7 +78,7 @@ REVIEW_PARTIAL = (
     "You can also revise the agreed task plan."
 )
 REVIEW_NEEDED = (
-    "Review the tasks and how they are graded. If you approve them, I’ll show the agent and run settings "
+    "Review the tasks and their verifiers. If you approve them, I’ll show the agent and run settings "
     "for a separate run decision."
 )
 REVIEW_STALE = (
@@ -92,11 +92,16 @@ REVIEW_STATUS = {
     "changes_requested": "I’ll update the affected new drafts, repeat their checks, and bring the revised tasks back for your review.",
     "declined": "You declined this task set. The drafts and their evidence remain saved.",
 }
-EXECUTION_HEADING = "### Agent execution settings"
-EXECUTION_IDENTITY = "**Agent:** {agent}\n\n**Model:** {model}\n\n**Configuration:** {config}"
+EXECUTION_HEADING = "### Review the agent run plan"
+EXECUTION_PURPOSE = (
+    "The task and verifier checks have passed. Running your agent will test its performance on the approved tasks."
+)
+EXECUTION_IDENTITY = "Agent to test: **{agent}**, using **{model}**."
+EXECUTION_CONFIG = "**Run configuration:** {config}"
 EXECUTION_UNSELECTED = "Not selected"
-EXECUTION_TABLE = "| Task | Examples | Attempts | Dataset rows |\n|---|---|---|---|"
-EXECUTION_SETTINGS = "**Validation:** {validation}\n\n**Limits:** {limits}"
+EXECUTION_TABLE = "| Task | Examples | Attempts per {unit} | Dataset rows |\n|---|---|---|---|"
+EXECUTION_ATTEMPT_UNIT = {"gym": "example", "harbor": "task"}
+EXECUTION_SETTINGS = "**Checks:** {validation}\n\n**Run limits:** {limits}"
 EXECUTION_QUESTIONS = "**Open questions:** {questions}"
 EXECUTION_SAVED = "**Saved agent/model setting:** {agent_model}\n\n**Saved attempt setting:** {attempts}"
 EXECUTION_NO_QUESTIONS = "None"

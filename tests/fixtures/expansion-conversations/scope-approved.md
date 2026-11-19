@@ -23,4 +23,4 @@
 
 This task plan is agreed.
 
-The next steps are to reuse or prepare the test setup, create the agreed tasks with their test data, instructions, and verifiers, and check that correct outcomes pass and relevant incorrect outcomes fail. I’ll repair problems in these new drafts and bring the tasks back for your review. After you approve them, we’ll confirm the agent, model, cases, attempts, and limits and get your permission before running your agent.
+The next steps are to reuse or prepare the test setup, create the agreed tasks with their test data, instructions, and verifiers, and check that correct outcomes pass and relevant incorrect outcomes fail. I’ll repair problems in these new drafts and bring the tasks back for your review. After you approve the tasks, we’ll confirm which agent and model to evaluate, the run settings, and your permission to run the evaluation.

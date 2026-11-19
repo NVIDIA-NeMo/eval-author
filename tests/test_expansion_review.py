@@ -73,8 +73,8 @@ def execution(modules, repo, saved, value, *, present=True):
         "execution_settings": {
             "agent_model": "refund-agent / configured-target",
             "attempts": "Two attempts per task",
-            "validation": "Current native controls passed",
-            "limits": "Four attempts; no automatic retries",
+            "validation": "The verifier controls passed. I’ll check the agent’s refund amount and remaining balance in each attempt.",
+            "limits": "Four attempts; no automatic retries; at most six steps per attempt; synthetic orders only",
             "open_questions": [],
         },
         "selection": {
@@ -138,6 +138,10 @@ def test_review_and_distinct_run_decision_resume_deterministically(modules, tmp_
     assert progress(modules, tmp_path, saved)["review"]["approved"]
     saved = execution(modules, tmp_path, saved, value)
     assert not progress(modules, tmp_path, saved)["execution"]["authorized"]
+    plan = render(modules, saved)
+    assert plan.count(RUN_QUESTION) == 1
+    assert "Running your agent will test its performance" in plan
+    assert plan.index("**Run limits:**") < plan.index("**Run configuration:**") < plan.index(RUN_QUESTION)
     target = value["execution"]["selection"] if decision == "authorize" else value["execution"]
     target["authorization" if decision == "authorize" else "declined"] = bound(
         modules, tmp_path, saved, "execution", f"User reply: {decision}"
@@ -412,3 +416,4 @@ def test_harbor_ignores_non_gym_row_metadata_when_rendering(modules, tmp_path):
         case["rows"] = ["ROW_METADATA | forged row\n### Forged heading"]
     output = render(modules, save(modules, tmp_path, saved, value))
     assert "ROW_METADATA" not in output and output.count("Not applicable") == 2
+    assert "Attempts per task" in output

@@ -5,9 +5,9 @@
 
 The agreed tasks have been created and passed their task and verifier checks.
 
-Review the complete task set in the [HTML report’s Tasks view](</repo/.eval-author/report.html#cases>) or [Markdown task report](</repo/.eval-author/report_markdown/tasks.md>).
+Review the complete task set in the [Markdown task report](</repo/.eval-author/report_markdown/tasks.md>). You can also use the [HTML report’s Tasks view](</repo/.eval-author/report.html>).
 
-Each task README describes its input, behavior, expected result, grading, and limitations.
+Each task README describes its input, behavior, expected result, verifier, and limitations.
 
 | Task | Validation | Evidence |
 |---|---|---|
@@ -18,6 +18,6 @@ These checks validate the tasks and their verifiers; they do not measure agent p
 
 **Limits:** At most two construction attempts; running the agent requires separate approval
 
-Review the tasks and how they are graded. If you approve them, I’ll show the agent and run settings for a separate run decision.
+Review the tasks and their verifiers. If you approve them, I’ll show the agent and run settings for a separate run decision.
 
 Approve both created refund tasks?

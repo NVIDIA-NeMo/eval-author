@@ -85,8 +85,8 @@ def _progress(state: dict, progress: dict) -> str:
     return "\n\n".join(parts) + "\n"
 
 
-def _artifact(state: dict, path: str, label: str, *, fragment: str | None = None) -> str:
-    return link(state["repository"].rstrip("/") + "/" + path, label, fragment=fragment)
+def _artifact(state: dict, path: str, label: str) -> str:
+    return link(state["repository"].rstrip("/") + "/" + path, label)
 
 
 def _review(state: dict, progress: dict, observed: dict) -> str:
@@ -103,7 +103,7 @@ def _review(state: dict, progress: dict, observed: dict) -> str:
     if review["artifacts_current"]:
         parts.append(
             copy.REVIEW_ACTION.format(
-                report=_artifact(state, ".eval-author/report.html", copy.REVIEW_REPORT_LABEL, fragment="cases"),
+                report=_artifact(state, ".eval-author/report.html", copy.REVIEW_REPORT_LABEL),
                 markdown=_artifact(state, ".eval-author/report_markdown/tasks.md", copy.REVIEW_MARKDOWN_LABEL),
             )
         )
@@ -155,7 +155,8 @@ def _execution(state: dict, value: expansion_state.ScopeRecord, progress: dict, 
         raise ValueError("Approve the reviewed task set before presenting execution settings")
     settings = saved["execution_settings"]
     selection = saved["selection"]
-    parts = [copy.EXECUTION_HEADING, copy.REVIEW_APPROVED]
+    parts = [copy.EXECUTION_HEADING, copy.REVIEW_APPROVED, copy.EXECUTION_PURPOSE]
+    config_link = None
     if selection:
         config = selection["config"]
         config_link = literal(config["path"], "execution configuration")
@@ -165,11 +166,10 @@ def _execution(state: dict, value: expansion_state.ScopeRecord, progress: dict, 
             copy.EXECUTION_IDENTITY.format(
                 agent=literal(selection["agent"], "selected agent"),
                 model=literal(selection["model"], "selected model"),
-                config=config_link,
             )
         )
         cases = {case["task_id"]: case for case in selection["cases"]}
-        rows = [copy.EXECUTION_TABLE]
+        rows = [copy.EXECUTION_TABLE.format(unit=copy.EXECUTION_ATTEMPT_UNIT[value["setup"]])]
         for planned in value["plan"]["tasks"]:
             case = cases.get(expansion_state.task_key(planned))
             examples = (
@@ -200,6 +200,8 @@ def _execution(state: dict, value: expansion_state.ScopeRecord, progress: dict, 
             limits=literal(settings["limits"], "execution limits"),
         )
     )
+    if config_link is not None:
+        parts.append(copy.EXECUTION_CONFIG.format(config=config_link))
     questions = [item for item in settings["open_questions"] if item != progress["pending_question"]]
     if questions or progress["pending_question"] is None:
         parts.append(

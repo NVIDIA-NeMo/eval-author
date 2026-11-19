@@ -140,8 +140,10 @@ partial or blocked tasks. Reuse the current report's Tasks view and each task's
 [Input, Behavior under test, Expected result, and Verifier sections](../suite-readme.md#task-documentation);
 do not create another review report or change their formats. Refresh the existing
 HTML and Markdown reports before review and bind the refresh to the current
-derived `review.digest`. Passing controls establish verifier validity, not agent
-performance. Missing artifacts or required validation prevent approval, not an
+derived `review.digest`. Link the Markdown task report first and the HTML report
+second, without a fragment; Tasks is the default report view. Passing controls
+establish verifier validity, not agent performance. Missing artifacts or required
+validation prevent approval, not an
 honest display of unfinished work. Never substitute a ready subset for the
 agreed set without an explicit scope revision.
 
@@ -171,6 +173,14 @@ settings and obtain separate bounded permission. Save optional `execution` with
 [execution settings fields](first-eval.md#stages-and-review-boundaries).
 Set each selected case's `task_id` to `expansion_state.task_key(agreed_row)`,
 including every agreed task.
+Use the saved task scenarios and expected results to explain what the agent will
+do and what counts as success. Write `execution_settings.validation` in plain
+language, distinguishing completed task/verifier checks from remaining checks
+on actual agent performance. Keep completed checks in the past tense. In
+`limits`, retain the actual retry policy, step/time limits, and allowed or blocked
+actions when known; resolve missing limits that affect permission instead of
+inventing defaults. Keep schema/adapter diagnostics in the configuration evidence
+unless they affect the run decision. Configuration links follow the run plan.
 Keep `selection.authorization: {digest, source}` separate from task approval.
 Save actual delivery as `execution_settings_presented: {digest, source}` and an
 execution decline as `declined: {digest, source}`; these fields may be `null`.
@@ -189,6 +199,13 @@ permit the existing authoring owner to execute within that permission; they do
 not establish a run, results, acceptance, or journey completion.
 Normal state suppresses stale approval questions until their evidence is current;
 reopening scope clears later questions while retaining their decision history.
+
+Finish report refreshes and state reconciliation before the final renderer call.
+Send its returned Markdown as the entire final reply, preserving both report
+links, the run plan, and its actual pending question. Do not replace it with a
+hand-written recap or append configuration-check results after rendering. Follow
+the [shared delivery contract](../conversation-rendering.md) for every review and
+execution-settings response, including resume.
 
 ## Shared checkpoint contract
 
