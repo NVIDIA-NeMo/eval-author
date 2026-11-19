@@ -3,9 +3,11 @@
 
 # Running the determinism checks
 
-Use these tools to compare workflow decisions, verify retained evidence, and
-check reports against their sources. Run commands from the repository checkout.
-Developer tools in `tools/` are not included in skill-only installations.
+- Compare workflow decisions and check reports against their sources.
+- Start with the [fictional task scenario](#fictional-task-scenario) to read a full rubric report.
+- Use the [rubric mutation demo](#rubric-mutation-demo) to compare a base task with deliberate changes.
+
+Run commands from the repository checkout. Developer tools in `tools/` are not included in skill-only installations. For a short introduction and a sample rubric, read the [rubric demo Dev Note](dev-notes/posts/2026-11-19-reading-rubric-demo.md).
 
 | Check | What it verifies |
 | --- | --- |
@@ -32,9 +34,10 @@ that presentation guarantee does not establish deterministic workflow execution.
 
 ## Fictional task scenario
 
-The source-only package in `tools/rubric_task_scenario/` reproduces a fictional
-refund-task assessment and renders the full canonical per-check report. To compare
-the base with mutations, use the [rubric mutation demo](#rubric-mutation-demo).
+The [fictional task scenario](../tools/rubric_task_scenario/run.py) renders a full HTML and Markdown assessment with 23 canonical criterion rows. Its 19 task-level rows assess the refund task. Its 4 suite-level rows use the refund task and two companion task families. These are separate scopes, not an overall quality score. To compare the base with mutations, use the [rubric mutation demo](#rubric-mutation-demo).
+
+The rubric is experimental. Applying it to your own task requires [explicit opt-in](../skills/eval-author-rubric/SKILL.md#opt-in-gate). Running this fictional example does not approve another assessment or any model or native-runtime work.
+
 Use an already installed Python 3.12 or 3.13 on macOS or Linux (the local ledger
 uses `fcntl`). From the checkout root, choose a **new directory outside the
 checkout**, with an existing parent and no symlink ancestors:
@@ -88,6 +91,8 @@ manifest hashes may differ; byte-identical full output is not promised. Generate
 runtime metadata can identify the local machine: keep outputs private. Independent
 review of the packaged assessment remains separate from a successful command.
 
+Open `source/execution/report.html` in your browser first. Use `report.md` for text review and `assessment.json` for the complete structured rows. The [sample-report guide](results.md#rubric-demo-reports) explains the scores, evidence, and verification summary.
+
 Focused regressions, using the existing development environment:
 
 ```bash
@@ -100,18 +105,17 @@ stale-packet invalidation and bundled-source drift. They are not the full suite.
 
 ## Rubric mutation demo
 
-`tools/rubric_sim_demo/run_demo.py` scores the refund base and 21 mutations on all
-21 rubric rows. The base scores 3 on 20 rows. AUDIT-04-B is N/A because no exploit
-is confirmed. Every mutation ranks below the base: no row rises, and at least one
-row drops or becomes Unassessed.
+The [mutation demo](../tools/rubric_sim_demo/run_demo.py) compares the refund base and 21 mutations on all 23 rubric rows. It produces a comparison summary, not the full per-check HTML report above. Its base target is 3 on 18 task-level rows, with AUDIT-04-B N/A because no exploit is confirmed. The 4 suite-level rows need other tasks, so they stay Unassessed or N/A unless a mutation exposes a defect. The runner checks that every mutation ranks below the base. No row may rise, and at least one row must drop or become Unassessed. It does not combine the rows into an overall quality score.
+
+Use the existing [development environment](../DEVELOPMENT.md#environment-and-skill-layout), which includes Harbor, and choose a new private output directory. Keep `--offline` to replay recorded model responses without fresh model calls. A cache miss fails rather than contacting the model.
 
 ```bash
 .venv/bin/python tools/rubric_sim_demo/run_demo.py --output "$HOME/rubric-sim-1" --offline
 ```
 
-The command writes `summary.md`, `summary.json` and `runs.json`. `summary.md` starts
+The command writes `summary.md`, `summary.json` and `runs.json`. Open `summary.md` first. The [sample-report guide](results.md#rubric-demo-reports) explains what to compare. `summary.md` starts
 with one row per mutation: its intended change, target criterion, base and observed
-scores, the reason, and any collateral changes. The full 21-row matrix follows.
+scores, the reason, and any collateral changes. Task-level and suite-level tables follow.
 The command scores everything three times. It fails if the results differ, if the
 base misses its target, or if a mutation does not rank lower.
 
@@ -133,11 +137,12 @@ base misses its target, or if a mutation does not rank lower.
   independent reviewer, contract reviewer, adjudicator, trace labeler and exposure
   reviewer. Each session receives only the files that `agents.py` passes inline,
   and their hashes are recorded. Answers are cached in `agent_cache/`. `--offline`
-  replays the cache. Without `--offline`, a cache miss calls the model.
+  replays the cache. These are recorded model judgments, not fresh reviews or human approval. Without `--offline`, a cache miss calls the model. Removing that flag does not force fresh calls for cached inputs and requires separate model-use permission.
   `--no-agents` caps the independent rows at 2.
 - **Owner decisions:** `policy.json` is a simulated one-time owner declaration.
-  `heldout.freeze.json` freezes the agent-authored held-out attacks. AUDIT-05-S03
-  reaches 3 only when that frozen set reproduces every expected result.
+  `heldout.freeze.json` freezes the agent-authored held-out attacks. The freeze lets the
+  demo detect post-freeze tuning (AUDIT-05-S03 scores 0); otherwise AUDIT-05-S03 stays
+  Unassessed because it is suite-level.
 
 Mutation kinds:
 
@@ -149,17 +154,15 @@ Mutation kinds:
   stale-evidence.
 - Review mutations (2): no-independent-review and no-owner-review.
 
-Three base rows reach 3 under a demo reading that is weaker than the canonical anchor.
-Their reasons in `summary.md` say so:
+One base row reaches 3 under a demo reading that is weaker than its canonical anchor,
+and its reason in `summary.md` says so. **provenance.runtime-route:** Harbor
+validates the manifest and rejects an invalid one, but no clean environment setup or
+adapter run is performed.
 
-- **AUDIT-05-S03:** a frozen, agent-authored confirmation set reproduces every expected
-  result. Selection history and a retained-gain measurement are not established.
-- **CREATE-02:** cue-only controls earn nothing, but all cases use one task family.
-- **provenance.runtime-route:** Harbor validates the manifest and rejects an invalid one.
-  No clean environment setup or adapter run is performed.
-
-The [fictional task scenario](#fictional-task-scenario) covers these with companion task
-families, paired gains and explicit fictional premises.
+Suite-level rows ([task and suite levels](../skills/eval-author-rubric/references/leakage-and-credit.md#task-and-suite-levels))
+are assessed in the [fictional task scenario](#fictional-task-scenario), whose suite has
+two companion task families and a selection cohort. Ranking puts Unassessed above a
+demonstrated defect (0) and below any established score.
 
 `--no-agents` skips the independent agents. The base target is then 2 or 3 on every row,
 and the no-independent-review mutation is dropped because the base already equals it.
@@ -387,7 +390,7 @@ every applicable top anchor remains unfinished; native/model allowances are clos
 
 The consolidated runner assesses the supplied combined base once. It runs shared physical cases through `rubric_base_assessment.py`, then reassesses the exact original selection as the common repair. It accepts bases below 3, but does not call them qualified. Accepted operator decisions and explicit upper companions keep their original packets and native receipts.
 
-Canonical definitions generate 21 criteria, 70 checks and 84 numeric cells, plus 21 separate missing-evidence cells. The criteria comprise 11 provenance, 3 contract and 7 leakage entries. The seven leakage entries replace the four overlapping legacy Anticheat rows. `METHOD-J1` remains explicitly Unassessed because upstream has no definition. It contributes no numeric cell. `current-inventory.json` retains the exact definitions, checks, anchors and crosswalk.
+Canonical definitions generate 23 criteria (19 task-level, 4 suite-level), 76 checks and 92 numeric cells, plus 23 separate missing-evidence cells. Suite-level cells are read from the evidence a task report keeps for the suite, not from its task score. The criteria comprise 11 provenance, 3 contract and 9 leakage entries. The leakage entries replace the four overlapping legacy Anticheat rows. `METHOD-J1` remains explicitly Unassessed because upstream has no definition. It contributes no numeric cell. `current-inventory.json` retains the exact definitions, checks, anchors and crosswalk.
 
 `expected` retains the external original recipe. `current_expected` reconciles its targets without changing observed scores. `actual` comes from the ordinary report. AC-02 and AC-03 share AUDIT-03. AC-04 maps to ENV-03-S01. AC-01 contributes evidence to AUDIT-05-B, CREATE-02 and AUDIT-03's forbidden-answer-access control. Its numeric score has no equivalent in those three predicates, so it creates no automatic numeric target. Legacy rows and failed expectations remain historical evidence. They do not qualify current criteria.
 
@@ -667,7 +670,7 @@ PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -B tools/current_rubric_completion.py
   --output /absolute/new-private-coverage --defer-replay
 ```
 
-`summary.md` links all 21 criteria to observed numeric cells and exact missing-evidence controls. `coverage.json` derives observations from emitted scores, including collateral outcomes, without using expected targets as scores. `matrix.json` retains original target disagreements and repair links. `decision-crosswalk.json` compares the four exact current requests with prior consent. The separate `semantic-fairness-request.json` asks about the changed comparison only. Generation records no decisions.
+`summary.md` links all 23 criteria to observed numeric cells and exact missing-evidence controls. `coverage.json` derives observations from emitted scores, including collateral outcomes, without using expected targets as scores. `matrix.json` retains original target disagreements and repair links. `decision-crosswalk.json` compares the four exact current requests with prior consent. The separate `semantic-fairness-request.json` asks about the changed comparison only. Generation records no decisions.
 
 After genuine owner intake, refresh only reports containing the affected exact bindings:
 

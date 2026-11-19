@@ -49,7 +49,7 @@ tr.highlight td{background:#f6fbe9;transition:background .6s}tr.highlight td:fir
 <section id="cases" role="tabpanel" aria-labelledby="tab-cases"><div class="section-header"><h2>Tasks</h2><input id="search" type="search" aria-label="Search tasks" placeholder="Search tasks…"></div><div class="panel-intro"><p class="muted">Every task in the suite, grouped by status, with its behavior and verifier.</p><span class="agent-md muted">Agent markdown: <a href="report_markdown/tasks.md">tasks.md</a></span></div><div id="case-tables"></div><p id="no-cases" class="empty muted" hidden>No tasks match.</p></section>
 <section id="runs" role="tabpanel" aria-labelledby="tab-runs" hidden><h2>Runs</h2><div class="panel-intro"><p class="muted">One row per evaluation job. Rewards combine the scored trials within that job.</p><span class="agent-md muted">Agent markdown: <a href="report_markdown/runs.md">runs.md</a></span></div>
 <div class="card table-card"><table class="run-table"><thead><tr><th>Date / time</th><th>Job</th><th>Reward</th><th>Actions</th></tr></thead><tbody id="run-rows"></tbody></table></div><p id="no-runs" class="empty muted" hidden>No recorded evaluation jobs.</p>
-<details id="legacy-trials" class="legacy-trials" hidden><summary id="legacy-summary">Legacy trials</summary><p class="muted">Standalone trials are not evaluation jobs.</p><div class="card table-card"><table class="run-table"><thead><tr><th>Date / time</th><th>Trial</th><th>Reward</th><th>Actions</th></tr></thead><tbody id="legacy-rows"></tbody></table></div></details></section>
+<details id="legacy-trials" class="legacy-trials" hidden><summary id="legacy-summary">Individual attempts</summary><p class="muted">Standalone trials are not evaluation jobs.</p><div class="card table-card"><table class="run-table"><thead><tr><th>Date / time</th><th>Trial</th><th>Reward</th><th>Actions</th></tr></thead><tbody id="legacy-rows"></tbody></table></div></details></section>
 <section id="audit" role="tabpanel" aria-labelledby="tab-audit" hidden><h2>Audit</h2><div class="panel-intro"><p class="muted">The latest audit coverage report. Task names open their rows in Tasks, and run evidence opens Runs.</p><span class="agent-md muted">Agent markdown: <a id="audit-md" href="report_markdown/audits.md">audits.md</a></span></div><div id="audit-notices"></div><div id="audit-body" class="card" hidden></div><p id="no-audit" class="empty muted" hidden>No audit has been recorded for this suite yet. Ask Eval Author to audit your evals; the report appears here and in report_markdown/audits.md.</p></section>
 <section id="settings" role="tabpanel" aria-labelledby="tab-settings" hidden><h2>Harbor viewer settings</h2><form id="settings-form" class="card"><div class="settings-row"><div><label for="jobs-url">Jobs viewer URL</label><input id="jobs-url" type="url" required></div><div><label for="tasks-url">Task viewer URL</label><input id="tasks-url" type="url" required></div><button type="submit" class="action">Save settings</button></div><p id="settings-status" class="muted" role="status"></p></form></section>
 </main>
@@ -189,6 +189,7 @@ function drawCases(){
     const name=element('td');
     name.append(element('div',task.title||task.name,'case-name'));
     if(task.plan_task_id&&task.plan_task_id!==(task.title||task.name))name.append(element('p','Task ID: '+task.plan_task_id,'small muted'));
+    if(task.user_sim_scenario)name.append(element('p','Neutral scenario: '+task.user_sim_scenario.task_id,'small'));
     if(task.status==='unverified')name.append(element('span','Inventory unverified','status'));
     if(task.path)name.append(element('p',displayTaskPath(task.path),'small muted task-path'));name.title=task.issues.join('\n');
     const readiness=element('td',undefined,'task-readiness');
@@ -201,7 +202,10 @@ function drawCases(){
     // Fixed placement keeps the note from being clipped by the scrolling table card.
     const place=()=>{const box=badge.getBoundingClientRect();note.style.left=Math.max(12,Math.min(box.left,innerWidth-note.offsetWidth-12))+'px';const below=box.bottom+6;note.style.top=(below+note.offsetHeight>innerHeight-12?Math.max(12,box.top-note.offsetHeight-6):below)+'px';};
     readiness.addEventListener('mouseenter',place);badge.addEventListener('focus',place);
-    row.append(name,readiness,element('td',task.behavior||'Not documented'),element('td',task.expected_outcome||'Not documented'));
+    const behavior=element('td');
+    if(task.planned_interaction)behavior.append(element('strong',task.planned_interaction));
+    behavior.append(element('div',task.behavior||'Not documented'));
+    row.append(name,readiness,behavior,element('td',task.expected_outcome||'Not documented'));
     const action=element('td',undefined,'task-actions');
     if(task.status==='proposed')action.append(element('span','Not authored','small muted'));
     else if(task.provider==='harbor'&&task.status==='found')action.append(viewerAction('View task','tasks',parent(task.path),'task-definitions/'+encodeURIComponent(task.path.split('/').pop()),true,task));
@@ -243,7 +247,7 @@ function drawRuns(){
   const body=byId('run-rows');body.replaceChildren();byId('no-runs').hidden=data.runs.length>0;
   for(const run of data.runs)body.append(runRow(run));
   const legacy=byId('legacy-rows');legacy.replaceChildren();byId('legacy-trials').hidden=data.standalone_trials.length===0;
-  byId('legacy-summary').textContent='Legacy trials ('+data.standalone_trials.length+')';
+  byId('legacy-summary').textContent='Individual attempts ('+data.standalone_trials.length+')';
   for(const trial of data.standalone_trials)legacy.append(runRow(trial));
 }
 function drawAudit(){

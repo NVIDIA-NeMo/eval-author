@@ -171,7 +171,13 @@ jobs:
           PYTHONDONTWRITEBYTECODE: "1"
           EVAL_AUTHOR_NATIVE_APT_ROOT: ${{ runner.temp }}/native-apt
         # Keep module-scoped producer fixtures on one worker instead of rebuilding them after work stealing.
-        run: uv run --locked pytest -q -rs --durations=10 -n auto --dist loadfile --basetemp="$RUNNER_TEMP/pytest"
+        run: uv run --locked pytest -q -rs --durations=10 -n auto --dist loadfile --ignore=tests/test_rubric_showcase.py --basetemp="$RUNNER_TEMP/pytest"
+      # The showcase needs the runner to itself to finish its subprocess-heavy setup.
+      - name: Run rubric showcase without parallel contention
+        env:
+          PYTHONDONTWRITEBYTECODE: "1"
+        run: uv run --locked pytest -q -rs --durations=10 tests/test_rubric_showcase.py --basetemp="$RUNNER_TEMP/pytest-showcase"
+
   verifier-cheats:
     if: >-
       github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule' ||

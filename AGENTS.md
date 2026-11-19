@@ -42,6 +42,15 @@ Review every change for repeated content: instructions, setup steps, workflow li
 - Reuse expensive read-only setup and generated artifacts through appropriately scoped fixtures where isolation and artifact identity allow it. Parameterization alone does not eliminate repeated setup. Keep mutable cases isolated and retain independent executions when testing determinism, fresh-process behavior, or replay; copied output is not proof of a second run.
 - Measure setup and call durations before optimizing, then compare affected-test and full-suite wall time on comparable runs. Preserve behavioral coverage and report skips and unavailable runtimes separately from passes; do not claim a speedup by omitting cases, adding skips, or weakening assertions.
 
+
+## Research artifact compatibility
+
+This is a research project. Do not add speculative format versions, migration code,
+or backward-compatibility branches for reports and artifacts that can be regenerated.
+Validate the current format and change it directly when needed. Keep actual runtime
+requirements and evidence-integrity checks.
+
+
 ## Types and validation
 
 - Prefer explicit parameter and return types when writing or changing scripts and code.

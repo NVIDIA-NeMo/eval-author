@@ -56,15 +56,15 @@ candidate admission, environment preparation, construction and native qualificat
 This source mode does not require an audit gap and does not claim coverage closure.
 Skip the audit selector and gap-only scaffold/acceptance steps; use the selected
 provider's native task initialization and the handoff's qualification procedure.
+For an approved `user_sim` task, call [user-sim authoring](../eval-author-user-sim/SKILL.md) after native task initialization and environment proof, preserving its blockers and this flow's qualification rules.
 
 ## Purpose
 
-Read `eval-author` for the shared evidence standard and boundaries. Read
-`eval-author-audit` for measurement and aggregation. Use Step 1 for explicitly
-requested recommendations or additional planning across tools, capabilities,
-and failure cases. For proposal-only requests, stop after Step 1. Shared lifecycle decisions and
-pending work belong only in `.eval-author/.working/journey-state.json`; recommendations
-remain a user-facing deliverable and native evidence remains immutable.
+Apply the [simulation opt-in gate](../eval-author/references/coverage-planning.md#enable-experimental-user-simulation) before selecting interaction types, authoring scenarios, or executing simulation.
+Use `eval-author` for shared evidence rules and `eval-author-audit` for measurement and aggregation. Use Step 1 for explicitly requested recommendations or planning across tools, capabilities,
+and failure cases. Proposal-only requests stop after Step 1. Keep shared lifecycle decisions
+and pending work only in `.eval-author/.working/journey-state.json`.
+Recommendations remain user-facing and native evidence stays immutable.
 Reuse prior findings and answers. For guided audits and `scopes.expand.audit_handoff`, follow the
 [selected audit continuation](../eval-author/references/conversations/expansion.md#selected-audit-improvements)
 instead of requiring another proposal step. Recording findings alone does not
@@ -133,9 +133,9 @@ and the intended requirement-to-check mapping. Retain unresolved authority as an
 open design question; proposal-only work still stops here without scaffolding.
 
 Use the shared [Coverage planning](../eval-author/references/coverage-planning.md)
-procedure for source scope, priorities, and proposed example breadth. Reuse the
-audit's confirmed corpus and exclusions when inspecting evidence; a discovered
-path is not permission to include another corpus. Ask about an unresolved source
+procedure for source scope, breadth, and interaction types. Save `interaction_type`
+and the applicable fields defined there. Reuse the audit's confirmed corpus and
+exclusions when inspecting evidence. A discovered path is not permission to include another corpus. Ask about an unresolved source
 before searching or reading it. Proposal-only work can use the available reviewed
 findings without requiring new traces or a creation-scope checkpoint.
 
@@ -298,9 +298,8 @@ selected gap and instruction, then return to the shared coverage verification
 steps. Do not apply Harbor file layouts or Oracle CLI flags to NeMo Gym. For either
 provider, build the task's environment with
 [`eval-author-environment`](../eval-author-environment/SKILL.md) and pass its
-smoke task before writing the verifier, reusing the agent's existing proven
-environment kit when one exists, and
-derive expected values with an independent reference query over the kit's data.
+smoke task before writing the verifier. Reuse a proven kit and derive expected values
+with an independent reference query over its data.
 
 For **Harbor**, use the following native scaffold:
 
@@ -322,7 +321,6 @@ For either provider, record the scaffold as **Draft** using
 before refreshing the report.
 
 Then complete Harbor's generated files:
-
 - `environment/`: a copy of the agent's environment kit plus this task's own
   records, buildable on its own rather than `FROM` a local kit image, and never
   the solution.
@@ -331,6 +329,8 @@ Then complete Harbor's generated files:
 - `task.toml`: nonempty keywords, metadata, realistic timeouts and resources.
 - `README.md`: purpose, behavior under test, expected result, environment, verifier, layout, and persistent suite and
   individual-item run instructions.
+
+For each approved `user_sim` task, call [user-sim authoring](../eval-author-user-sim/SKILL.md) after preparing its environment records, smoke proof, and README Verifier section. Preserve its blockers and this flow's eligibility and native checks.
 
 For either provider, refresh `.eval-author/report.html` and the marked report
 section of `.eval-author/README.md` after authoring and after controls or

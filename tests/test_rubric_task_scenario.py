@@ -114,7 +114,12 @@ def test_cue_full_result_matches_owning_observation(scenario, family, cue_class,
     assert {k: v for k, v in changed.items() if k != "checks"} == {k: v for k, v in original.items() if k != "checks"}
     assert (arm["result"] if location == "observation" else observation["result"]) == original
     rows = assess(scenario, evidence)
-    for ident, indexes in (("CREATE-02", (1, 2, 3)), ("provenance.comparison-fairness", (2,)), ("AUDIT-05-S03", (2,))):
+    # Task rows read only the refund family; a companion-family contradiction moves only suite rows.
+    task_rows = (("CREATE-02", (1, 2, 3)), ("provenance.comparison-fairness", (2,)))
+    if family != "refund":
+        assert all(rows[ident]["score"] == 3 for ident, _ in task_rows)
+        task_rows = (("CREATE-02-SUITE", (2,)),)
+    for ident, indexes in (*task_rows, ("AUDIT-05-S03", (2,))):
         row = rows[ident]
         assert row["score"] is None, (family, cue_class, arm_name, location, ident)
         assert row["assessment_state"] == "NOT_ASSESSED"
@@ -191,10 +196,16 @@ def test_complete_output_has_canonical_inventory_and_no_empirical_claim(scenario
     definitions, _ = a.definitions()
     assert set(report["items"]) == set(definitions)
     assert report["empirical_qualification"] is False
-    assert sum(row["score"] == 3 for row in report["items"].values()) == 20
-    assert [ident for ident, row in report["items"].items() if row["assessment_state"] == "NOT_APPLICABLE"] == [
-        "AUDIT-04-B"
+    task = {k: r for k, r in report["items"].items() if r["level"] == "task"}
+    suite = {k: r for k, r in report["items"].items() if r["level"] == "suite"}
+    # The refund task is scored on its own; suite rows use the companion families and selection cohort.
+    assert len(task) == 19 and sum(r["score"] == 3 for r in task.values()) == 18
+    assert len(suite) == 4 and sum(r["score"] == 3 for r in suite.values()) == 3
+    assert [k for k, r in report["items"].items() if r["assessment_state"] == "NOT_APPLICABLE"] == [
+        "AUDIT-04-B",
+        "AUDIT-04-B-SUITE",
     ]
+    assert {r["subject_id"] for r in task.values()} == {"perfect-task/refund"}
     for ident, row in report["items"].items():
         assert row["canonical_anchors"] == definitions[ident]["scoring"]
         assert row["approval_refs"] == [] and row["target_score"] is None

@@ -1157,13 +1157,19 @@ def test_seed_datasets_are_bounded_and_have_negative_cases(live):
         "skills/eval-author-first-eval",
         "skills/eval-author-task-create",
         "skills/eval-author-environment",
+        "skills/eval-author-user-sim",
         "skills/eval-author-rubric",
         "team-skills/ethos/ethos-orchestrate",
         "team-skills/ethos/ethos-explore",
         "team-skills/ethos/ethos-write",
     ):
         skill = ROOT / path
-        expected_count = {"eval-author": 6, "eval-author-first-eval": 6, "eval-author-rubric": 9}.get(skill.name, 4)
+        expected_count = {
+            "eval-author": 6,
+            "eval-author-first-eval": 9,
+            "eval-author-task-create": 7,
+            "eval-author-rubric": 9,
+        }.get(skill.name, 4)
         assert live.dataset_cases(skill) == expected_count
         cases = json.loads((skill / "evals/evals.json").read_text())["evals"]
         expected_negative_count = 3 if skill.name == "eval-author-rubric" else 1

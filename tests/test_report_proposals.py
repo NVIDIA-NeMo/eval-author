@@ -13,6 +13,28 @@ from test_html_report import report, task, write
 modules = creation.modules
 
 
+def test_proposed_interaction_is_visible_without_claiming_execution(modules, tmp_path):
+    design = [
+        {
+            "id": "refund",
+            "example_ids": ["refund-1"],
+            "behavior": "Require approval before saving a refund.",
+            "interaction_type": "user_sim",
+            "state_requirements": "Keep the customer session.",
+            "conversation_scenario": "Request a refund, choose an offered option, and confirm.",
+        }
+    ]
+    creation.start(modules, tmp_path, examples=design)
+    data = report.refresh(tmp_path)
+    row = data["tasks"][0]
+    assert row["planned_interaction"] == "User Simulation"
+    assert row["status"] == "proposed"
+    assert data["plan_counts"]["executed"] == 0
+    markdown = (tmp_path / ".eval-author/report_markdown/tasks.md").read_text()
+    assert "| **User Simulation:** Require approval before saving a refund. |" in markdown
+    assert "task.planned_interaction" in (tmp_path / ".eval-author/report.html").read_text()
+
+
 @pytest.fixture
 def design():
     return [

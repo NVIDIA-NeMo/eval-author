@@ -51,17 +51,20 @@ def test_controls_are_partitioned_without_overlap():
     assert set(owned) == {row["id"] for row in controls}
 
 
-def test_base_scores_twenty_threes_and_one_trigger_na(base_evidence):
+def test_base_task_rows_reach_the_top_and_suite_rows_need_a_suite(base_evidence):
     base = _scores(base_evidence)
-    assert base.pop("AUDIT-04-B") == "N/A"
-    assert set(base.values()) == {3}
+    task = {c.criterion: base[c.criterion] for c in checks.CHECKS if c.level == "task"}
+    suite = {c.criterion: base[c.criterion] for c in checks.CHECKS if c.level == "suite"}
+    assert task.pop("AUDIT-04-B") == checks.NA
+    assert len(task) == 18 and set(task.values()) == {3}
+    assert len(suite) == 4 and set(suite.values()) <= {checks.U, checks.NA}
 
 
 @pytest.mark.parametrize(
     ("case", "target", "exact"),
     [
         # Real scorer exploit; held-out confirmation also stops corroborating, so AUDIT-05-S03 falls to 2.
-        ("approval-after-effect", "AUDIT-03", {"AUDIT-03", "AUDIT-04-B", "AUDIT-05-S03"}),
+        ("approval-after-effect", "AUDIT-03", {"AUDIT-03", "AUDIT-04-B", "AUDIT-04-B-SUITE"}),
         # Reworded text has no recipe to match: the contract reviewer must find the contradiction itself.
         ("contradictory-contract-reworded", "task-contract.clear-contract", None),
         ("style-advantage", "provenance.comparison-fairness", None),
@@ -98,13 +101,13 @@ def _disagreeing_confirmation(ev: dict[str, Any]) -> None:
             0,
             set(),
         ),
-        # A disagreeing confirmation set loses the top anchor; held-out results are shared evidence
-        # (checks.SHARED), so the other rows that read them drop too.
+        # Disagreeing held-out results cost AUDIT-03 its top anchor; they are shared evidence
+        # (checks.SHARED), so the other task rows that read them drop too.
         (
             _disagreeing_confirmation,
-            "AUDIT-05-S03",
+            "AUDIT-03",
             2,
-            {"AUDIT-03", "CREATE-02", "task-contract.clear-contract"},
+            {"CREATE-02", "task-contract.clear-contract"},
         ),
         # The socket service and the file route must agree for observed configuration.
         (lambda ev: ev["ledger"]["totals"].update(reference=0), "provenance.observed-configuration", 1, set()),
@@ -115,7 +118,7 @@ def _disagreeing_confirmation(ev: dict[str, Any]) -> None:
         "unpinned-image",
         "invalid-manifest",
         "stale-evidence",
-        "confirmation-disagrees",
+        "heldout-disagrees",
         "service-disagrees",
     ],
 )
@@ -129,12 +132,12 @@ def test_each_change_lowers_only_its_rows(base_evidence, change, row, score, als
 @pytest.mark.parametrize(
     ("change", "row"),
     [
-        (lambda ev: ev.update(heldout=None), "AUDIT-05-S03"),
+        (lambda ev: ev.update(controls=None), "AUDIT-03"),
         (lambda ev: ev.update(policy=None), "task-contract.scoring-authority"),
         (lambda ev: ev["ledger"].update(ran=False, reason="refused"), "provenance.observed-configuration"),
         (lambda ev: ev.update(harbor={"valid": None, "invalid_manifest_rejected": None}), "provenance.runtime-route"),
     ],
-    ids=["no-confirmation-set", "no-owner", "service-not-observed", "no-provider-validator"],
+    ids=["attack-panel-blocked", "no-owner", "service-not-observed", "no-provider-validator"],
 )
 def test_missing_evidence_is_unassessed_not_low(base_evidence, change, row):
     assert _scores(_with(base_evidence, change))[row] == checks.U

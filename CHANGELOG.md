@@ -47,6 +47,11 @@ preview: workflows, skills, and saved artifacts may change between releases.
 
 ### Changed
 
+- **Harbor minimum is now 0.24.0.** All Harbor-backed skills use the shared
+  runtime policy. Discovery and authoring reject older releases before loading
+  native validators. Translation accepts newer stable releases and rejects
+  target settings that stock ACP adapters ignore. User-sim preflight also checks
+  version conflicts when either agent is selected by import path.
 - **Generated reports are not audit evidence.** Content validation now refuses to
   bind `.eval-author/README.md`, `report.html`, `report_markdown/*`, or the legacy
   `audit-coverage-report.md` as a source, because publishing the audit rewrites

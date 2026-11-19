@@ -534,7 +534,7 @@ def integrate(output: Path, approved: Path, leakage_path: Path) -> dict[str, Any
         "",
         f"Fresh repair: {len(repaired['pairs'])} pairs / {len(arms)} arms plus {len(bad_arms)} separately executed defective counterpart arms. Two retained-affected and two new same-family order instances. All repaired published checks equal independent current-order checks; wrong answers are not assigned full credit.",
         "",
-        "[Current numeric matrix](matrix.json): 21 criteria / 70 checks / 84 numeric cells / 21 missing-evidence cells. Local seven-criterion lower-anchor coverage only; other current native/contract cells remain pending, not borrowed from legacy 18-row evidence.",
+        "[Current numeric matrix](matrix.json): 23 criteria / 76 checks / 92 numeric cells / 23 missing-evidence cells. Local seven-criterion lower-anchor coverage only; other current native/contract cells remain pending, not borrowed from legacy 18-row evidence.",
         "",
         "## Local lower-anchor matrix",
         "",

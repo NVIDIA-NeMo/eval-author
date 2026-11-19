@@ -145,7 +145,7 @@ def prerequisite_table(journey: str, facts: dict, *, state: dict | None = None, 
             raise ValueError("Row links must be a list")
         for item in links:
             item = mapping(item, "row link", {"label", "target"})
-            finding += "<br>" + link(item.get("target"), text(item.get("label"), "link label"))
+            finding += " " + link(item.get("target"), text(item.get("label"), "link label"))
         lines.append(f"| {label} | {status} | {finding} |")
     return "\n".join(lines)
 
