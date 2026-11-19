@@ -414,8 +414,8 @@ def test_demo_reports_canonical_outcomes_through_actual_cli(rubric_panel):
     }
     cases = {row["id"]: row for row in report["assessments"]}
     assert cases.keys() == expected.keys()
-    assert report["counts"] == {"cases": 14, "assessments": len(expected), "evidence_cases": 13}
-    assert len(report["evidence_cases"]) == 13
+    assert report["counts"] == {"cases": 14, "assessments": len(expected), "evidence_cases": 20}
+    assert len(report["evidence_cases"]) == 20
     assert {case["id"] for case in report["evidence_cases"]} == {
         "sourced-equal",
         "sourced-different",
@@ -430,6 +430,13 @@ def test_demo_reports_canonical_outcomes_through_actual_cli(rubric_panel):
         "authority-resolved",
         "authority-broken-reference",
         "authority-prose",
+        "authority-check-unobserved",
+        "authority-no-result",
+        "authority-unresolved",
+        "authority-unselected",
+        "authority-owner-instruction",
+        "authority-verifier-reference",
+        "authority-refund",
     }
     assert all(case["matches_expectations"] for case in report["evidence_cases"])
     canonical = json.loads(

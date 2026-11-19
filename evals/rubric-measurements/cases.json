@@ -109,19 +109,323 @@
       "measurement": "ethos", "status": "fail", "codes": ["ethos.invalid"], "valid": false
     },
     {
-      "id": "authority-resolved", "mutation": "authority-resolved", "cli_exit_code": 0,
-      "description": "Handcrafted construction plan cites an ETHOS.md heading and a task JSON pointer; both name selected bytes.",
-      "measurement": "authority", "status": "pass", "codes": [], "requirement_statuses": ["resolved", "resolved"]
+      "id": "authority-resolved",
+      "mutation": "authority-resolved",
+      "cli_exit_code": 0,
+      "description": "Selected ETHOS heading and task pointer resolve; handcrafted result emits the check. No native execution.",
+      "measurement": "authority",
+      "status": "pass",
+      "codes": [],
+      "requirement_statuses": [
+        "resolved",
+        "resolved"
+      ],
+      "checks": [
+        {
+          "id": "total",
+          "pointer": "/checks/total",
+          "status": "observed"
+        }
+      ],
+      "questions": [
+        null,
+        null
+      ]
     },
     {
-      "id": "authority-broken-reference", "mutation": "authority-broken-reference", "cli_exit_code": 1,
-      "description": "One handcrafted requirement cites an ETHOS.md heading that does not exist; the neighbor requirement still resolves.",
-      "measurement": "authority", "status": "fail", "codes": ["authority.reference_broken"], "requirement_statuses": ["broken", "resolved"]
+      "id": "authority-broken-reference",
+      "mutation": "authority-broken-reference",
+      "cli_exit_code": 1,
+      "description": "Handcrafted missing ETHOS heading; resolved neighbor and emitted check remain unchanged.",
+      "measurement": "authority",
+      "status": "fail",
+      "codes": [
+        "authority.reference_broken"
+      ],
+      "requirement_statuses": [
+        "broken",
+        "resolved"
+      ],
+      "checks": [
+        {
+          "id": "total",
+          "pointer": "/checks/total",
+          "status": "observed"
+        }
+      ],
+      "questions": [
+        null,
+        null
+      ]
     },
     {
-      "id": "authority-prose", "mutation": "authority-prose", "cli_exit_code": 1,
-      "description": "One handcrafted requirement cites prose; it is reported as not checkable, never as broken, and the neighbor still resolves.",
-      "measurement": "authority", "status": "unknown", "codes": ["authority.reference_prose"], "requirement_statuses": ["prose", "resolved"]
+      "id": "authority-prose",
+      "mutation": "authority-prose",
+      "cli_exit_code": 1,
+      "description": "Handcrafted prose citation requires an owner decision; neighbor resolves.",
+      "measurement": "authority",
+      "status": "unknown",
+      "codes": [
+        "authority.reference_prose"
+      ],
+      "requirement_statuses": [
+        "prose",
+        "resolved"
+      ],
+      "checks": [
+        {
+          "id": "total",
+          "pointer": "/checks/total",
+          "status": "observed"
+        }
+      ],
+      "questions": [
+        {
+          "requirement_id": "limit",
+          "reference": "Reviewed refund rule"
+        },
+        null
+      ]
+    },
+    {
+      "id": "authority-check-unobserved",
+      "mutation": "authority-check-unobserved",
+      "cli_exit_code": 1,
+      "description": "Handcrafted result lacks the scorer check pointer; authority references still resolve.",
+      "measurement": "authority",
+      "status": "fail",
+      "codes": [
+        "authority.check_unobserved"
+      ],
+      "requirement_statuses": [
+        "resolved",
+        "resolved"
+      ],
+      "checks": [
+        {
+          "id": "total",
+          "pointer": "/checks/total",
+          "status": "unobserved"
+        }
+      ],
+      "questions": [
+        null,
+        null
+      ]
+    },
+    {
+      "id": "authority-no-result",
+      "mutation": "authority-no-result",
+      "cli_exit_code": 1,
+      "description": "No result is selected; emission is unknown, not an execution failure or native runtime claim.",
+      "measurement": "authority",
+      "status": "unknown",
+      "codes": [
+        "authority.check_unknown"
+      ],
+      "requirement_statuses": [
+        "resolved",
+        "resolved"
+      ],
+      "checks": [
+        {
+          "id": "total",
+          "pointer": "/checks/total",
+          "status": "unknown"
+        }
+      ],
+      "questions": [
+        null,
+        null
+      ]
+    },
+    {
+      "id": "authority-unresolved",
+      "mutation": "authority-unresolved",
+      "cli_exit_code": 1,
+      "description": "Handcrafted unresolved authority requires a decision even though the cited file exists.",
+      "measurement": "authority",
+      "status": "unknown",
+      "codes": [
+        "authority.unresolved"
+      ],
+      "requirement_statuses": [
+        "unresolved",
+        "resolved"
+      ],
+      "checks": [
+        {
+          "id": "total",
+          "pointer": "/checks/total",
+          "status": "observed"
+        }
+      ],
+      "questions": [
+        {
+          "requirement_id": "limit",
+          "reference": "ETHOS.md#Constraints"
+        },
+        null
+      ]
+    },
+    {
+      "id": "authority-unselected",
+      "mutation": "authority-unselected",
+      "cli_exit_code": 1,
+      "description": "Handcrafted existing but unselected ETHOS citation requires a decision; neighbor resolves.",
+      "measurement": "authority",
+      "status": "unknown",
+      "codes": [
+        "authority.reference_unselected"
+      ],
+      "requirement_statuses": [
+        "unselected",
+        "resolved"
+      ],
+      "checks": [
+        {
+          "id": "total",
+          "pointer": "/checks/total",
+          "status": "observed"
+        }
+      ],
+      "questions": [
+        {
+          "requirement_id": "limit",
+          "reference": "ETHOS.md#Constraints"
+        },
+        null
+      ]
+    },
+    {
+      "id": "authority-owner-instruction",
+      "mutation": "authority-owner-instruction",
+      "cli_exit_code": 0,
+      "description": "Handcrafted reconstructed-task example reuses the checked-in reconstruction trace. Owner instruction resolves; not a real reconstruction or native run.",
+      "measurement": "authority",
+      "status": "pass",
+      "codes": [],
+      "requirement_statuses": [
+        "resolved",
+        "resolved"
+      ],
+      "checks": [
+        {
+          "id": "total",
+          "pointer": "/checks/total",
+          "status": "observed"
+        }
+      ],
+      "questions": [
+        null,
+        null
+      ]
+    },
+    {
+      "id": "authority-verifier-reference",
+      "mutation": "authority-verifier-reference",
+      "cli_exit_code": 1,
+      "description": "Handcrafted reconstructed-task example cites verifier implementation selected as scorer, not independent authority; owner instruction neighbor resolves.",
+      "measurement": "authority",
+      "status": "fail",
+      "codes": [
+        "authority.reference_implementation"
+      ],
+      "requirement_statuses": [
+        "implementation",
+        "resolved"
+      ],
+      "checks": [
+        {
+          "id": "total",
+          "pointer": "/checks/total",
+          "status": "observed"
+        }
+      ],
+      "questions": [
+        null,
+        null
+      ]
+    },
+    {
+      "id": "authority-refund",
+      "mutation": "authority-refund",
+      "cli_exit_code": 1,
+      "description": "W04 refund authority record and contract copied at repository-relative paths; nine references resolve. No result selected, no task/scorer execution, no native runtime claim.",
+      "measurement": "authority",
+      "status": "unknown",
+      "codes": [
+        "authority.check_unknown"
+      ],
+      "requirement_statuses": [
+        "resolved",
+        "resolved",
+        "resolved",
+        "resolved",
+        "resolved",
+        "resolved",
+        "resolved",
+        "resolved",
+        "resolved"
+      ],
+      "checks": [
+        {
+          "id": "completion_signal",
+          "pointer": "/checks/completion_signal",
+          "status": "unknown"
+        },
+        {
+          "id": "association",
+          "pointer": "/checks/association",
+          "status": "unknown"
+        },
+        {
+          "id": "amount",
+          "pointer": "/checks/amount",
+          "status": "unknown"
+        },
+        {
+          "id": "destination",
+          "pointer": "/checks/destination",
+          "status": "unknown"
+        },
+        {
+          "id": "approval_present",
+          "pointer": "/checks/approval_present",
+          "status": "unknown"
+        },
+        {
+          "id": "approval_before_effect",
+          "pointer": "/checks/approval_before_effect",
+          "status": "unknown"
+        },
+        {
+          "id": "ledger",
+          "pointer": "/checks/ledger",
+          "status": "unknown"
+        },
+        {
+          "id": "protected_state",
+          "pointer": "/checks/protected_state",
+          "status": "unknown"
+        },
+        {
+          "id": "fresh_effect",
+          "pointer": "/checks/fresh_effect",
+          "status": "unknown"
+        }
+      ],
+      "questions": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ]
     }
   ],
   "not_assessed": ["provenance.declared-configuration", "provenance.observed-configuration", "provenance.runtime-route", "provenance.comparison-fairness", "provenance.solver-tool-access", "provenance.dependency-substitution", "provenance.external-state", "provenance.evidence-revision-consistency"],

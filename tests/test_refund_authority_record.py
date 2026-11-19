@@ -72,7 +72,9 @@ def test_reviewed_contract_clarifications_preserve_all_control_outcomes():
     )
     cases = json.loads((FIXTURES / "cases.json").read_text())["cases"]
     for case in cases:
+        amended_case = scorer.contract_for_case(amended, case)
+        original_case = scorer.contract_for_case(original, case)
         for arm in ("baseline", "reviewed"):
-            assert scorer.evaluate(amended, case["candidate"], arm) == scorer.evaluate(
-                original, case["candidate"], arm
-            ), (case["id"], arm)
+            observed = scorer.evaluate(amended_case, case["candidate"], arm)
+            assert observed == case["expected"][arm], (case["id"], arm)
+            assert observed == scorer.evaluate(original_case, case["candidate"], arm), (case["id"], arm)

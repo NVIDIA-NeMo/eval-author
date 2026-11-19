@@ -267,8 +267,9 @@ grader checks for, is not detected.
 
 ## Construction authority references
 
-`authority` is `{"plan_artifact_id": <id>}` naming one selected construction plan
-with role `construction`. Every artifact a reference cites must also be selected.
+`authority` is `{"plan_artifact_id": <id>, "result_artifact_id": <optional id>}`.
+The plan has role `construction`; the optional selected native result has role
+`result`. Every artifact a reference cites must also be selected.
 A whitespace-free reference is a locator when its path names a selected artifact
 or contains `/` or `.`; its path is relative to the measurement root. Each locator
 is resolved against the selected bytes: `path` names the artifact, `path#Heading`
@@ -287,13 +288,35 @@ don't count.
 | `authority.unresolved` | unknown | The requirement's basis is `unresolved`. |
 | `authority.requirement_unmapped` | unknown | No check maps the requirement; proposal plans may allow this. |
 | `authority.check_dangling` | fail | A check cites an undeclared requirement. |
+| `authority.reference_implementation` | fail | The authority locator resolves to a selected scorer artifact. |
+| `authority.check_unobserved` | fail | The selected result lacks a check's success pointer. |
+| `authority.check_unknown` | unknown | No result is selected, available, or usable, or the partial plan omits success. |
+| `authority.check_pointer_invalid` | fail | A selected-result check declares an invalid JSON pointer. |
+| `authority.result_malformed` | fail | The selected result is not valid JSON. |
+| `authority.result_changed`, `authority.result_invalid`, `authority.result_unreadable` | fail, fail, unknown | The same source checks apply to the selected result. |
 | `authority.plan_malformed` | fail | The plan lacks the requirement and check shape this measurement reads. |
 | `authority.plan_changed`, `authority.plan_invalid`, `authority.plan_unreadable` | fail, fail, unknown | The same as the `reference_` codes, for the plan itself. |
 
 The result also counts requirements by basis and status, scored checks, and
 mapped requirements. Full plan validation stays with `construction_contract.py`.
 A resolved reference shows that the cited content exists, not that it supports
-the requirement.
+the requirement. A resolving requirement citation to an artifact with role
+`scorer` fails with `authority.reference_implementation`; implementation is not
+intended-requirement authority.
+
+The result's `checks` rows resolve each plan check's `success.pointer` in the
+selected result. A present value is `observed`, including false, zero, or null.
+A missing pointer is `unobserved` and fails with `authority.check_unobserved`.
+Without a selected result, observations stay `unknown`. Selected result bytes
+must pass the same path and digest checks as other selected evidence. This does
+not compare the observed value with the expected value or authenticate native
+execution.
+
+Requirement rows with `prose`, `unresolved`, or `unselected` status carry a
+`question` with `requirement_id`, `reference`, and `decision_needed`. Fixed copy
+lives in `rubric_authority.py`. See [W07 unresolved mappings](task-contract-authority.md#unresolved-mappings-for-w07)
+for agent crosswalk ambiguities and contradictions. Honest unknowns remain valid
+measurements, but do not become passing observations or resolved decisions.
 
 ## Source-backed inventory assessment
 

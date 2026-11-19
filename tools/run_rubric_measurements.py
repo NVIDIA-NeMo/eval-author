@@ -18,6 +18,7 @@ sys.path.insert(0, str(ROOT / "skills/eval-author/scripts"))
 from eval_author_shared.task_evidence import digest, loads  # noqa: E402
 from first_eval_state import fingerprint  # noqa: E402
 from measure import measure  # noqa: E402
+from rubric_authority import AUTHORITY_DECISION_NEEDED  # noqa: E402
 
 
 def fixture(root, mutation):
@@ -186,12 +187,19 @@ def ethos_selection(root, selection, mutation):
 
 def authority_selection(root, selection, mutation):
     """Select a handcrafted construction plan whose second requirement is an unaffected neighbor."""
+    if mutation == "authority-refund":
+        for name, role in (("authority", "construction"), ("contract", "task")):
+            relative = f"evals/scorer-controls/{name}.json"
+            selected_file(root, selection, "refund-" + name, role, (ROOT / relative).read_bytes(), relative)
+        selection["authority"] = {"plan_artifact_id": "refund-authority"}
+        return
     selected_file(root, selection, "ethos-document", "ethos", ETHOS_DOCUMENT, "ETHOS.md")
     first = {
-        "authority-resolved": "ETHOS.md#Constraints",
         "authority-broken-reference": "ETHOS.md#Refund limits",
         "authority-prose": "Reviewed refund rule",
-    }[mutation]
+    }.get(mutation, "ETHOS.md#Constraints")
+    if mutation == "authority-unselected":
+        selection["artifacts"] = [row for row in selection["artifacts"] if row["id"] != "ethos-document"]
     plan = {
         "requirements": [
             {
@@ -205,10 +213,46 @@ def authority_selection(root, selection, mutation):
                 "authority": {"basis": "specification", "reference": "task.json#/task_id"},
             },
         ],
-        "checks": [{"id": "total", "requirements": ["limit", "task"]}],
+        "checks": [
+            {"id": "total", "requirements": ["limit", "task"], "success": {"pointer": "/checks/total", "equals": 1}}
+        ],
     }
+    if mutation in {"authority-owner-instruction", "authority-verifier-reference"}:
+        trace = (ROOT / "evals/rubric-measurements/reconstruction.trace.jsonl").read_bytes()
+        selected_file(root, selection, "reconstruction-source", "trace", trace, "reconstructed/source.trace.jsonl")
+        content = loads(trace)["root_spans"][0]["turns"][0]["content"]
+        owner = selected_file(
+            root, selection, "owner-instruction", "task", content.encode(), "reconstructed/owner-instruction.json"
+        )
+        verifier = selected_file(
+            root,
+            selection,
+            "reconstructed-verifier",
+            "scorer",
+            b"# Handcrafted reconstruction example; never executed.\nexpected_balance = 17\n",
+            "reconstructed/verifier.py",
+        )
+        plan["requirements"][0]["authority"]["reference"] = (
+            verifier["path"] + "#L2" if mutation == "authority-verifier-reference" else owner["path"] + "#/balance"
+        )
+        plan["requirements"][1]["authority"]["reference"] = owner["path"] + "#/currency"
+    if mutation == "authority-unresolved":
+        plan["requirements"][0]["authority"]["basis"] = "unresolved"
     selected_file(root, selection, "construction", "construction", plan)
     selection["authority"] = {"plan_artifact_id": "construction"}
+    if mutation != "authority-no-result":
+        selected_file(
+            root,
+            selection,
+            "authority-result",
+            "result",
+            {
+                "checks": {} if mutation == "authority-check-unobserved" else {"total": 1},
+                "synthetic": True,
+                "executed": False,
+            },
+        )
+        selection["authority"]["result_artifact_id"] = "authority-result"
 
 
 def evidence_fixture(root, mutation):
@@ -333,7 +377,16 @@ def ethos_or_authority_matches(observation, case):
         return False
     if case["measurement"] == "ethos":
         return observation.get("valid") == case["valid"]
-    return [row["status"] for row in observation.get("requirements", [])] == case["requirement_statuses"]
+    requirements = observation.get("requirements", [])
+    questions = [
+        {**question, "decision_needed": AUTHORITY_DECISION_NEEDED[state]} if question is not None else None
+        for state, question in zip(case["requirement_statuses"], case["questions"], strict=True)
+    ]
+    return (
+        [row["status"] for row in requirements] == case["requirement_statuses"]
+        and observation.get("checks") == case["checks"]
+        and [row.get("question") for row in requirements] == questions
+    )
 
 
 def canonical_checks(report, definitions, expected=None):
@@ -831,7 +884,7 @@ def run_panel():
         with tempfile.TemporaryDirectory(prefix="rubric-assessment-") as directory:
             root = Path(directory).resolve()
             selection = evidence_fixture(root, case["mutation"]) if is_evidence else fixture(root, case["mutation"])
-            before = {path.name: digest(path) for path in root.iterdir()}
+            before = package_inputs(root)
             request = root / "selection.json"
             request.write_text(json.dumps(selection, sort_keys=True, allow_nan=False))
             code, report, error = package_cli(
@@ -856,7 +909,7 @@ def run_panel():
             matches = (
                 code == case["cli_exit_code"]
                 and not error
-                and before == {path.name: digest(path) for path in root.iterdir() if path != request}
+                and before == {path: value for path, value in package_inputs(root).items() if path != request.name}
                 and canonical_checks(report, definitions, expected_checks)
                 and set(observed_items) == set(expected_items)
                 and all(

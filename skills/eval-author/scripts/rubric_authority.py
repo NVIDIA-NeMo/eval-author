@@ -15,6 +15,11 @@ from eval_author_shared.task_evidence import loads
 from rubric_identity import diagnostic, finish, local_file, read_selected, resolve_pointer, text
 
 BASES = {"specification", "user_decision", "independent_reference", "unresolved"}
+AUTHORITY_DECISION_NEEDED = {
+    "prose": "Decision needed: replace the prose reference with a checkable authority locator.",
+    "unresolved": "Decision needed: identify the authority that establishes this requirement.",
+    "unselected": "Decision needed: select the cited authority artifact or correct the reference.",
+}
 # A locator is a whitespace-free path, optionally followed by `#fragment`.
 LOCATOR = re.compile(r"(?P<path>[^\s#]+)(?:#(?P<fragment>\S.*))?")
 LINES = re.compile(r"L([1-9][0-9]*)(?:-L([1-9][0-9]*))?")
@@ -23,6 +28,7 @@ ATX = re.compile(r" {0,3}#{1,6}(?:[ \t]+(.*?))?(?:[ \t]+#+)?[ \t]*")
 SETEXT = re.compile(r" {0,3}(?:=+|-+)[ \t]*")
 STATUS = {
     "resolved": None,
+    "implementation": ("authority.reference_implementation", "fail"),
     "prose": ("authority.reference_prose", "unknown"),
     "unresolved": ("authority.unresolved", "unknown"),
     "unselected": ("authority.reference_unselected", "unknown"),
@@ -142,7 +148,10 @@ class _Sources:
 
     def __init__(self, root, artifacts):
         self.root = root
-        self.records = {row["path"]: row for row in artifacts if isinstance(row, dict) and text(row.get("path"))}
+        records = [row for row in artifacts if isinstance(row, dict) and text(row.get("path"))]
+        self.records = {row["path"]: row for row in records}
+        if len(self.records) != len(records):
+            raise ValueError("invalid authority selection")
         self.cache = {}
 
     def data(self, path):
@@ -211,17 +220,33 @@ def check_authority(root, artifacts, selected):
     """
     if (
         not isinstance(selected, dict)
-        or set(selected) != {"plan_artifact_id"}
+        or "plan_artifact_id" not in selected
+        or set(selected) - {"plan_artifact_id", "result_artifact_id"}
         or not text(selected["plan_artifact_id"])
+        or "result_artifact_id" in selected
+        and not text(selected["result_artifact_id"])
     ):
         raise ValueError("invalid authority selection")
     ident = selected["plan_artifact_id"]
     matches = [row for row in artifacts if isinstance(row, dict) and row.get("id") == ident]
     if len(matches) != 1 or matches[0].get("role") != "construction" or not text(matches[0].get("path")):
         raise ValueError("invalid authority selection")
+    result_ident = selected.get("result_artifact_id")
+    result_matches = [row for row in artifacts if isinstance(row, dict) and row.get("id") == result_ident]
+    if result_ident is not None and (
+        len(result_matches) != 1 or result_matches[0].get("role") != "result" or not text(result_matches[0].get("path"))
+    ):
+        raise ValueError("invalid authority selection")
     root = Path(root).resolve()
     sources = _Sources(root, artifacts)
-    result = {"plan_artifact_id": ident, "requirements": [], "counts": None}
+    result = {
+        "plan_artifact_id": ident,
+        "result_artifact_id": result_ident,
+        "check_observation_scope": "emission_only",
+        "requirements": [],
+        "checks": [],
+        "counts": None,
+    }
     path = matches[0]["path"]
     status = sources.status(path, None)
     found = STATUS[status]
@@ -235,6 +260,38 @@ def check_authority(root, artifacts, selected):
     diagnostics = [
         diagnostic("authority.check_dangling", row["id"]) for row in checks if not set(row["requirements"]) <= declared
     ]
+    result_data, result_ready = None, False
+    if result_ident is not None:
+        result_path = result_matches[0]["path"]
+        found = STATUS[sources.status(result_path, None)]
+        if found:
+            diagnostics.append(diagnostic(found[0].replace("reference", "result"), result_ident, found[1]))
+        else:
+            try:
+                result_data = loads(sources.data(result_path)[0])
+                result_ready = True
+            except (ValueError, RecursionError):
+                diagnostics.append(diagnostic("authority.result_malformed", result_ident))
+    for check in checks:
+        success = check.get("success")
+        pointer = success.get("pointer") if isinstance(success, dict) else None
+        state = "unknown"
+        invalid = False
+        if result_ident is not None and "success" in check:
+            try:
+                _, observed = resolve_pointer(result_data, pointer)
+                if result_ready:
+                    state = "observed" if observed else "unobserved"
+            except ValueError:
+                invalid = True
+                diagnostics.append(diagnostic("authority.check_pointer_invalid", check["id"]))
+        result["checks"].append(
+            {"id": check["id"], "pointer": pointer if isinstance(pointer, str) else None, "status": state}
+        )
+        if state != "observed" and not invalid:
+            diagnostics.append(
+                diagnostic("authority.check_" + state, check["id"], "fail" if state == "unobserved" else "unknown")
+            )
     for row in requirements:
         basis, reference = row["authority"]["basis"], row["authority"]["reference"]
         locator = _locator(reference, sources.records)
@@ -244,10 +301,18 @@ def check_authority(root, artifacts, selected):
             state = "prose"
         else:
             state = sources.status(*locator)
+            if state == "resolved" and sources.records[locator[0]].get("role") == "scorer":
+                state = "implementation"
         mapped = [check["id"] for check in checks if row["id"] in check["requirements"]]
         result["requirements"].append(
             {"id": row["id"], "basis": basis, "reference": reference, "status": state, "checks": mapped}
         )
+        if state in {"prose", "unresolved", "unselected"}:
+            result["requirements"][-1]["question"] = {
+                "requirement_id": row["id"],
+                "reference": reference,
+                "decision_needed": AUTHORITY_DECISION_NEEDED[state],
+            }
         found = STATUS[state]
         if found:
             diagnostics.append(diagnostic(found[0], row["id"], found[1]))

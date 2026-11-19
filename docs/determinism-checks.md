@@ -763,7 +763,7 @@ uv run --locked python tools/run_rubric_measurements.py
 ```
 
 The default output is `rubric-mutation-panel-v4` JSON. It contains 14 raw-measurement
-regressions, five canonical score variants, and 13 source configuration, freshness,
+regressions, five canonical score variants, and 20 source configuration, freshness,
 Ethos, and authority-reference variants in `evidence_cases`. Both
 assessment panels invoke the actual measurement CLI without mocking helper outputs.
 Each includes
@@ -921,6 +921,17 @@ selection naming the plan and run from the repository root. A reference written
 as `path`, `path#Heading`, `path#L3-L5`, or `path#/json/pointer` must name
 selected content. A path that doesn't exist or a heading that isn't in the file
 fails. Prose references are reported as not checkable rather than broken.
+An optional `result_artifact_id` selects a native result (role `result`): each
+construction check's `success.pointer` is `observed` when present and fails with
+`authority.check_unobserved` when absent. No selected result means unknown.
+Presence includes false, zero, and null; it does not establish that an expected
+value is correct. A resolving authority citation to a `scorer` artifact fails
+with `authority.reference_implementation`.
+
+Unresolved, prose, and unselected requirement rows include a W07 question with
+the requirement ID, reference, and decision needed. Unknowns remain valid input,
+not resolved authority. Agent crosswalk ambiguities and contradictions also need
+review; neither pointer presence nor link resolution answers them.
 
 Keep selections and output private because they can contain local evidence locations.
 
@@ -1102,7 +1113,15 @@ The refund panel compares a deliberately weak completion-only scorer with a
 reviewed-rule scorer. Both scorers receive the same scripted events and task
 inputs. The contract and expected credit vectors live in `evals/scorer-controls/`.
 These synthetic contract examples are neither authenticated task-owner approvals
-nor canonical rubric scores.
+nor canonical rubric scores. The [authority record](../evals/scorer-controls/authority.json)
+maps all nine checks to stated requirements and expected-value sources. Its
+[source-bound human review](../evals/scorer-controls/authority-review.md) records
+Andrew's adjudication of the synthetic mappings, including positive refund
+amounts and an optional asserted success signal. W04 links both files alongside
+its unchanged synthetic/not-authenticated label. The rubric measurement panel
+resolves the record's references; without a selected native result its check
+observations remain unknown. The review does not authenticate the example rules
+or automatically assign level 2.
 
 Run the fixture-only panel and replay its retained inputs:
 
