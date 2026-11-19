@@ -34,6 +34,15 @@ def modules(monkeypatch):
     )
 
 
+def resume_payload(modules, repo, saved):
+    return {
+        "stage": "resume",
+        "state": saved,
+        "revision": saved["revision"],
+        "facts": {"expansion_observations": modules[1].observe(repo, saved)},
+    }
+
+
 def save_scope(modules, repo, saved, value):
     return modules[0].update(
         repo,
@@ -79,7 +88,7 @@ def test_scope_checkpoint_survives_resume_without_replacing_existing_context(mod
     assert progress["context_current"]
     assert not progress["complete"]
     assert expansion.record(resumed)["plan"] == PLAN
-    output = modules[2].render({"stage": "resume", "state": resumed, "revision": resumed["revision"]})
+    output = modules[2].render(resume_payload(modules, tmp_path, resumed))
     assert QUESTION in output
     if path == "recorded_interaction":
         assert resumed["ethos"]["confirmed_digest"] is None
@@ -106,7 +115,7 @@ def test_saved_decision_resumes_at_its_checkpoint_without_completing_the_journey
     assert expansion.record(resumed) == expansion.record(saved)
     assert not progress["complete"]
     assert resumed["journey_status"].get("expand") != "complete"
-    output = modules[2].render({"stage": "resume", "state": resumed, "revision": resumed["revision"]})
+    output = modules[2].render(resume_payload(modules, tmp_path, resumed))
     if kind == "revise":
         assert value["pending"]["question"] in output
     else:
@@ -115,7 +124,7 @@ def test_saved_decision_resumes_at_its_checkpoint_without_completing_the_journey
         question = "Which fixture account should the task use?"
         saved = state.update(tmp_path, {"pending_question": question}, expected_revision=resumed["revision"])
         assert state.initialize(tmp_path, journey="expand")["pending_question"] == question
-        output = modules[2].render({"stage": "resume", "state": saved, "revision": saved["revision"]})
+        output = modules[2].render(resume_payload(modules, tmp_path, saved))
         assert question in output and QUESTION not in output
 
 
@@ -138,22 +147,128 @@ def test_answered_scope_question_must_be_cleared_or_replaced(modules, tmp_path, 
 
 
 @pytest.mark.parametrize("path", ["starter_suite", "recorded_interaction"])
-@pytest.mark.parametrize("blocker_id", ["environment", "services", "data", "model_credentials"])
-def test_scope_planning_defers_execution_blockers(modules, tmp_path, path, blocker_id):
+@pytest.mark.parametrize(
+    "blocker_id", ["environment", "services", "data", "model_credentials", "fixture_access", "legacy-review"]
+)
+@pytest.mark.parametrize("started", [False, True])
+def test_scope_planning_respects_current_and_deferred_blockers(modules, tmp_path, path, blocker_id, started):
     state, expansion, _ = modules
     saved = start(modules, tmp_path, path)
     blocked = state.update(
         tmp_path,
-        {"blockers": [{"id": blocker_id, "phase": "expand", "message": "Needed before execution"}]},
+        {
+            "blockers": [{"id": blocker_id, "phase": "expand", "message": "Needed before execution"}],
+            "journey_status": {"expand": "in_progress" if started else "pending"},
+        },
         expected_revision=saved["revision"],
     )
-    assert expansion.checkpoint_ready(blocked)
+    ready = not started and blocker_id in {"environment", "services", "data", "model_credentials"}
+    assert expansion.checkpoint_ready(blocked) == ready
+    recovery = copy.deepcopy(blocked)
+    recovery["pending_question"] = None
+    expansion.reconcile_question(tmp_path, recovery)
+    assert recovery["pending_question"] == (QUESTION if ready else None)
     value = copy.deepcopy(expansion.record(blocked))
     value["decision"] = {"kind": "approved", "source": "User approves planning only"}
     value["pending"] = None
-    approved = save_scope(modules, tmp_path, blocked, value)
-    assert approved["scopes"]["expand"]["confirmed"]
-    assert approved["blockers"] == blocked["blockers"]
+    if ready:
+        approved = save_scope(modules, tmp_path, blocked, value)
+        assert approved["scopes"]["expand"]["confirmed"]
+        assert approved["blockers"] == blocked["blockers"]
+    else:
+        before = state.state_path(tmp_path).read_bytes()
+        with pytest.raises(ValueError, match="shared prerequisites"):
+            save_scope(modules, tmp_path, blocked, value)
+        assert state.state_path(tmp_path).read_bytes() == before
+
+
+@pytest.mark.parametrize("path", ["starter_suite", "recorded_interaction"])
+@pytest.mark.parametrize("phase", ["setup", "ethos", "expand"])
+def test_blocked_scope_resume_suppresses_scope_question_but_keeps_recovery(modules, tmp_path, path, phase):
+    state, expansion, renderer = modules
+    saved = start(modules, tmp_path, path)
+    blocked = state.update(
+        tmp_path,
+        {"blockers": [{"id": "fixture_access", "phase": phase, "message": "No fixture access"}]},
+        expected_revision=saved["revision"],
+    )
+    assert not expansion.checkpoint_ready(blocked)
+    facts = {"id": "fixture_access", "step": "Restore access", "reason": "No fixture access", "needed": "Grant access"}
+    for question in (QUESTION, "Can you restore fixture access?"):
+        if question != QUESTION:
+            blocked = state.update(tmp_path, {"pending_question": question}, expected_revision=blocked["revision"])
+        payload = resume_payload(modules, tmp_path, blocked)
+        payload["facts"]["blockers"] = [facts]
+        snapshot = copy.deepcopy(payload)
+        before = state.state_path(tmp_path).read_bytes()
+        output = renderer.render(payload)
+        assert "No fixture access" in output
+        assert QUESTION not in output
+        if question != QUESTION:
+            assert question in output
+        assert payload == snapshot
+        assert state.state_path(tmp_path).read_bytes() == before
+
+
+@pytest.mark.parametrize("approved", [False, True])
+@pytest.mark.parametrize("change", ["handoff", "provider", "ethos", "needs_review"])
+def test_scope_resume_rejects_stale_context_until_a_review_question_is_saved(modules, tmp_path, approved, change):
+    state, expansion, renderer = modules
+    saved = start(modules, tmp_path, "audit_tool_gap")
+    if approved:
+        value = copy.deepcopy(expansion.record(saved))
+        value["decision"] = {"kind": "approved", "source": "User approves"}
+        value["pending"] = None
+        saved = save_scope(modules, tmp_path, saved, value)
+    if change == "provider":
+        state.initialize(tmp_path, setup="harbor")
+        saved = setup_ready(state, tmp_path, journey="expand", setup="harbor")
+    elif change == "ethos":
+        (tmp_path / "ETHOS.md").write_text("# Changed confirmed intent\n")
+        saved = state.confirm_ethos(
+            tmp_path,
+            reviewed_digest=state.ethos_digest(tmp_path),
+            source="User confirms revised intent",
+            validation="Parser passed",
+        )
+        saved = state.update(
+            tmp_path, {"pending_question": None if approved else QUESTION}, expected_revision=saved["revision"]
+        )
+    else:
+        if change == "handoff":
+            saved["scopes"]["expand"]["audit_handoff"]["recommendation_ids"] = ["R2"]
+        else:
+            saved["scopes"]["expand"]["needs_review"] = True
+        state.save(tmp_path, saved)
+        saved = state.load_state(tmp_path)
+    assert expansion.checkpoint_ready(saved)
+    payload = resume_payload(modules, tmp_path, saved)
+    before = state.state_path(tmp_path).read_bytes()
+    with pytest.raises(ValueError, match="context changed"):
+        renderer.render(payload)
+    assert state.state_path(tmp_path).read_bytes() == before
+    question = "Review the changed planning context?"
+    saved = state.update(tmp_path, {"pending_question": question}, expected_revision=saved["revision"])
+    output = renderer.render(resume_payload(modules, tmp_path, saved))
+    assert question in output and QUESTION not in output
+
+
+@pytest.mark.parametrize("observations", [None, "old_revision", "wrong_repository", "changed_ethos"])
+def test_scope_resume_requires_current_observations(modules, tmp_path, observations):
+    _, _, renderer = modules
+    saved = start(modules, tmp_path)
+    payload = resume_payload(modules, tmp_path, saved)
+    observed = payload["facts"]["expansion_observations"]
+    if observations is None:
+        payload["facts"] = {}
+    elif observations == "old_revision":
+        observed["revision"] -= 1
+    elif observations == "wrong_repository":
+        observed["repository"] += "-other"
+    else:
+        observed["ethos_digest"] = "a" * 64
+    with pytest.raises(ValueError, match="observations|context changed"):
+        renderer.render(payload)
 
 
 def test_plan_revision_requires_a_new_decision(modules, tmp_path):

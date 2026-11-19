@@ -165,7 +165,9 @@ def recommendations(facts: dict) -> str | None:
 
 
 def blocker_section(state: dict, facts: dict, *, confirmed: bool, state_only: bool = False) -> str | None:
-    active = journey_state.active_blockers(state, state_only=state_only)
+    active = journey_state.active_blockers(
+        state, state_only=state_only, ethos_optional=not state_only and expansion_state.trace_scope(state)
+    )
     explanations = facts.get("blockers", [])
     if not isinstance(explanations, list):
         raise ValueError("Blockers must be a list")
@@ -266,6 +268,13 @@ def next_steps(state: dict, facts: dict, stage: str, *, audit: dict | None = Non
     paragraphs = [shared.NEXT_STEPS, checklist(journey, state, audit=audit)]
     expansion = expansion_state.record(state) if journey == "expand" else None
     if expansion is not None and expansion["schema_version"] == 2 and expansion_state.checkpoint_ready(state):
+        scope_progress = expansion_state.derive(state, facts.get("expansion_observations"))
+        assert scope_progress is not None
+        scope_question = expansion["pending"]["question"] if expansion["pending"] else None
+        if (not scope_progress["context_current"] or state["scopes"]["expand"].get("needs_review")) and (
+            not state["pending_question"] or state["pending_question"] == scope_question
+        ):
+            raise ValueError("Expansion context changed; save a context-review question before resuming")
         if question:
             paragraphs.append(literal(question, "pending question"))
         return "\n\n".join(paragraphs)
@@ -425,6 +434,8 @@ def render(payload: dict) -> str:
     fact_keys = {"rows", "recommendations", "blockers"}
     if not state_only:
         fact_keys |= {"ethos", "question", "draft"}
+        if state["journey"] == "expand":
+            fact_keys.add("expansion_observations")
     if state["journey"] == "audit" and stage in {"resume", "results", "confirmed"}:
         fact_keys.add("audit_observations")
     facts = mapping(payload.get("facts", {}), "facts", fact_keys)
@@ -437,15 +448,23 @@ def render(payload: dict) -> str:
     ):
         raise ValueError("Use audit_resume for saved audit checkpoints after shared onboarding is complete")
     expansion = expansion_state.record(state) if state["journey"] == "expand" else None
-    if expansion is not None and expansion["schema_version"] == 1 and not state_only:
+    if (
+        expansion is not None
+        and not state_only
+        and (expansion["schema_version"] == 1 or not expansion_state.checkpoint_ready(state))
+    ):
         checkpoint = "expansion_continue"
-        if expansion_state.checkpoint_ready(state) and (
-            expansion["pending"] is not None or state["pending_question"] is None
+        if (
+            expansion["schema_version"] == 1
+            and expansion_state.checkpoint_ready(state)
+            and (expansion["pending"] is not None or state["pending_question"] is None)
         ):
             raise ValueError(f"Use {checkpoint} for saved expansion checkpoints after shared onboarding is complete")
         if expansion["pending"] is not None:
             question = literal(expansion["pending"]["question"], "expansion question")
             if facts.get("question") is not None and literal(facts["question"], "question") == question:
+                if expansion["schema_version"] == 2:
+                    raise ValueError("Resolve shared prerequisites before rendering the scope question")
                 raise ValueError(f"Use {checkpoint} for the saved expansion question after shared recovery")
             if (
                 state["pending_question"] is not None

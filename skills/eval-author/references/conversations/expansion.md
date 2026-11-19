@@ -89,6 +89,9 @@ There is no additional construction approval or command. Once its question is
 answered, this checkpoint leaves later authoring questions with their owner.
 Use the registered `resume` stage to show its checklist and saved question;
 `expansion_continue` remains specific to the unresolved entry decision.
+For scope resumption, pass fresh `expansion_state.observe` results in
+`facts.expansion_observations`. Stale bindings require a saved context-review
+question; shared blockers suppress the retained scope question until recovery.
 Preserve shared prerequisite/Ethos recovery and the existing context bindings.
 Do not save a parallel checklist, introduce another state file, or register
 future-stage placeholders. Reuse shared formatting and labels.

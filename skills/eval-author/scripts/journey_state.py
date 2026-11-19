@@ -610,9 +610,9 @@ def _unused_audit_traces(state: dict, blocker: dict) -> bool:
     return audit_state.traces_unused(state) and blocker["id"] == "data" and blocker["phase"] in {"setup", "audit"}
 
 
-def active_blockers(state: dict, *, state_only: bool = False) -> list[dict]:
+def active_blockers(state: dict, *, state_only: bool = False, ethos_optional: bool = False) -> list[dict]:
     """Present dependencies at the action they block, retaining all saved evidence."""
-    shared_done = all(row["complete"] for row in checklist(state, state_only=state_only)[:2])
+    shared_done = all(row["complete"] for row in checklist(state, state_only=state_only)[: 1 if ethos_optional else 2])
     started = state["journey_status"].get(state["journey"]) in {"in_progress", "complete"}
     later_requirements = {"environment", "services", "data", *DEFERRED}
     return [

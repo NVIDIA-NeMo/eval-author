@@ -251,16 +251,25 @@ def entry_ready(state: dict) -> bool:
     )
 
 
+def trace_scope(state: dict) -> bool:
+    value = record(state)
+    return (
+        state["journey"] == "expand"
+        and value is not None
+        and value["schema_version"] == 2
+        and value["path"] == "recorded_interaction"
+    )
+
+
 def checkpoint_ready(state: dict) -> bool:
     from journey_state import active_blockers, checklist
 
-    value = record(state)
-    if value is None or value["schema_version"] == 1 or value["path"] != "recorded_interaction":
+    if not trace_scope(state):
         return entry_ready(state)
     return (
         state["journey"] == "expand"
         and checklist(state)[0]["complete"]
-        and not active_blockers(state)
+        and not active_blockers(state, ethos_optional=True)
         and state["ethos"]["stage"] not in ("review", "interview", "draft", "write")
         and not state["ethos"]["remaining_questions"]
     )
@@ -273,6 +282,8 @@ def reconcile_question(repo, state: dict, *, answered_ethos_review: bool = False
         or not value["pending"]
         or (state["pending_question"] is not None and not answered_ethos_review)
         or not checkpoint_ready(state)
+        or value["schema_version"] == 2
+        and state["scopes"]["expand"].get("needs_review")
     ):
         return
     progress = derive(state, observe(repo, state))
@@ -312,7 +323,12 @@ def transition(repo, previous: dict, updated: dict) -> None:
             current = progress["context_current"]
             scope["confirmed"] = bool(current and after["decision"] and after["decision"]["kind"] == "approved")
             scope["needs_review"] = not current
-        if after["pending"] is not None and progress["context_current"] and checkpoint_ready(updated):
+        if (
+            after["pending"] is not None
+            and progress["context_current"]
+            and not updated["scopes"]["expand"].get("needs_review")
+            and checkpoint_ready(updated)
+        ):
             if updated["pending_question"] != after["pending"]["question"]:
                 if not checkpoint_ready(previous) and updated["pending_question"] is None:
                     reconcile_question(repo, updated)
