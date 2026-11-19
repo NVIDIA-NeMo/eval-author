@@ -300,6 +300,46 @@ Changed settings invalidate it. Before any rerun, clear it and retain earlier
 results as history; new results need a new user review. Do not reuse a pre-run
 decision's source or save this review together with initial run authorization.
 
+## Completion choices
+
+After the user has explicitly accepted the current results for every task in the
+agreed plan, reload normal state and use `expansion_completion`. Its
+`expansion_observations.acceptance` comes from the existing task-lifecycle checks;
+missing, changed, or unaccepted tasks and a missing or stale `results_review`
+prevent this checkpoint. Keep the plan,
+run selection, and acceptance evidence unchanged while asking what to do next.
+
+Always offer an audit of the updated suite or finishing. Include other audit
+improvements only when the originating report has supported, unselected work:
+inspect its current validated recommendations, exclude all already-selected
+items and those with recorded follow-through, and check each remaining item's
+eligibility through the existing authoring workflow. A `new_task` label alone
+does not establish support: the audit-gap generator still requires an actionable
+measured tool gap. Do not offer arbitrary existing-task or verifier repairs,
+manual-design recommendations, or work whose eligibility is unknown. This is a
+filter of existing recommendations, not a second recommendation pass.
+
+Supply `facts.remaining_improvements` as an ordered mapping of the verified
+remaining recommendation IDs to their scenario labels, or `{}` when none are
+eligible (including direct entry without an audit). The caller owns report
+validation, source freshness, and support checks under the shared rendering
+contract. If the originating report is stale or unavailable, omit its
+recommendations and preserve that limitation with the retained audit context.
+Save the corresponding completion question from
+[the templates](../../scripts/conversation_flows/expansion_templates.py) in
+`execution.pending` and top-level `pending_question`, with its actual source,
+before rendering. Deliver the complete response unchanged and wait for the
+user's choice; start no audit, additional construction, or agent run automatically.
+
+On a reply, clear the answered pending question through the existing
+revision-checked update. Finishing records `journey_status.expand: complete`
+only while all agreed tasks remain accepted. An audit choice uses the existing
+[return-to-audit route](../shared-prerequisites.md#return-to-an-audit), preserving
+the task and run evidence. Selecting another recommendation uses the existing
+reviewed audit next-action handoff and scope checkpoint; do not extend the
+current agreed task set silently. A follow-up audit must reassess findings and
+coverage from current evidence; passing task runs alone do not prove improvement.
+
 ## Shared checkpoint contract
 
 Extend this flow at real decision boundaries using the following ownership and

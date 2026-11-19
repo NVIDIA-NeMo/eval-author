@@ -129,6 +129,18 @@ EXECUTION_STALE = (
     "I’ll show the complete settings for your permission before running your agent."
 )
 
+COMPLETION_HEADING = "### Choose what to do next"
+COMPLETION_ACCEPTED = "All tasks in your agreed plan are accepted."
+COMPLETION_AUDIT = (
+    "An audit of the updated suite can check whether the findings were addressed and coverage improved. "
+    "Passing task runs alone do not establish that."
+)
+COMPLETION_REMAINING = "| Other supported audit improvement | Task |\n|---|---|"
+COMPLETION_QUESTION = "Would you like to audit the updated suite, or finish here?"
+COMPLETION_WITH_IMPROVEMENTS = (
+    "Would you like to work on one of these improvements, audit the updated suite, or finish here?"
+)
+
 
 def options_prompt() -> str:
     choices = "\n".join(f"- {option}" for option in OPTIONS)

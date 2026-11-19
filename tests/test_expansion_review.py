@@ -23,8 +23,8 @@ def bound(modules, repo, saved, checkpoint, source):
     return {"digest": current["digest" if checkpoint == "review" else "selection_digest"], "source": source}
 
 
-def ready(modules, repo, statuses=("passed", "passed"), *, setup="gym"):
-    saved, value = begin(modules, repo)
+def ready(modules, repo, statuses=("passed", "passed"), *, setup="gym", path="starter_suite"):
+    saved, value = begin(modules, repo, path)
     if setup == "harbor":
         setup_ready(modules[0], repo, journey="expand", setup=setup)
         saved = ethos_ready(modules[0], repo)
@@ -110,8 +110,8 @@ def execution(modules, repo, saved, value, *, present=True):
     return saved
 
 
-def authorized(modules, repo, *, setup="gym"):
-    saved, value = ready(modules, repo, setup=setup)
+def authorized(modules, repo, *, setup="gym", path="starter_suite"):
+    saved, value = ready(modules, repo, setup=setup, path=path)
     saved = approve(modules, repo, present_review(modules, repo, saved, value), value)
     saved = execution(modules, repo, saved, value)
     value["execution"]["selection"]["authorization"] = bound(

@@ -324,6 +324,12 @@ the agent requires separate permission. Returning preserves applicable answers;
 task or validation changes reopen affected review, while changed execution
 settings reopen run permission without repeating unchanged validation.
 
+After you accept every task in the agreed plan, Eval Author offers an audit of
+the updated suite or finishing. It offers other audit recommendations only when
+they were not already selected and a supported authoring workflow can implement
+them. Your choice is required before more work starts. Passing task runs alone
+do not establish improved audit coverage; a follow-up audit checks that evidence.
+
 ### What Eval Author can create or improve
 
 | Work | Current support |

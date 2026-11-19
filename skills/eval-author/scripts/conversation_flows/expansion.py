@@ -3,6 +3,7 @@
 
 """Render expansion entry, planning, and creation checkpoints."""
 
+import re
 from typing import Literal, TypedDict, cast
 
 import conversation_templates as shared
@@ -21,6 +22,7 @@ STAGES = {
     "expansion_progress",
     "expansion_review",
     "expansion_results",
+    "expansion_completion",
 }
 PREVIEWS: set[str] = set()
 
@@ -349,6 +351,37 @@ def _results(state: dict, progress: dict, facts: dict) -> str:
     return "\n\n".join(parts) + "\n"
 
 
+def _completion(state: dict, progress: dict, facts: dict) -> str:
+    _checkpoint(state, progress, reviewing=True)
+    if not progress["complete"]:
+        raise ValueError("Accept every agreed task's current results before offering completion choices")
+    remaining = facts.get("remaining_improvements")
+    if not isinstance(remaining, dict) or len(remaining) > 1000:
+        raise ValueError("Supply the inspected remaining supported improvements, or an empty object")
+    handoff = state["scopes"]["expand"].get("audit_handoff")
+    selected = handoff["recommendation_ids"] if handoff else []
+    if remaining and not handoff:
+        raise ValueError("Remaining audit improvements require an originating audit handoff")
+    if any(not isinstance(key, str) or not re.fullmatch(r"R[1-9][0-9]*", key) or key in selected for key in remaining):
+        raise ValueError("Offer only supported, unselected recommendations from the originating audit")
+    question = copy.COMPLETION_WITH_IMPROVEMENTS if remaining else copy.COMPLETION_QUESTION
+    if progress["pending_question"] != question:
+        raise ValueError("Save the actual completion question before offering its choices")
+    parts = [copy.COMPLETION_HEADING, copy.COMPLETION_ACCEPTED]
+    if remaining:
+        parts.append(
+            "\n".join(
+                [copy.COMPLETION_REMAINING]
+                + [
+                    f"| {key} | {literal(label, 'remaining improvement', table=True)} |"
+                    for key, label in remaining.items()
+                ]
+            )
+        )
+    parts.extend([copy.COMPLETION_AUDIT, question])
+    return "\n\n".join(parts) + "\n"
+
+
 def render(payload: dict) -> str:
     state = payload.get("state")
     if not isinstance(state, dict):
@@ -373,16 +406,17 @@ def render(payload: dict) -> str:
             else "expansion_scope"
         )
         raise ValueError(f"Use {checkpoint} for the saved expansion checkpoint")
-    facts = mapping(
-        payload.get("facts", {}),
-        "expansion facts",
-        {"expansion_observations", "attempts"}
-        if payload["stage"] == "expansion_results"
-        else {"expansion_observations"},
-    )
+    allowed = {"expansion_observations"}
+    if payload["stage"] == "expansion_results":
+        allowed.add("attempts")
+    elif payload["stage"] == "expansion_completion":
+        allowed.add("remaining_improvements")
+    facts = mapping(payload.get("facts", {}), "expansion facts", allowed)
     progress = expansion_state.derive(state, facts.get("expansion_observations"))
     if progress is None:
         raise ValueError("Save a structured expansion lifecycle before continuation")
+    if payload["stage"] == "expansion_completion":
+        return _completion(state, progress, facts)
     if payload["stage"] == "expansion_results":
         return _results(state, progress, facts)
     if payload["stage"] == "expansion_review":
