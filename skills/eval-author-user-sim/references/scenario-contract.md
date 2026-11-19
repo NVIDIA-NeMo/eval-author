@@ -37,20 +37,8 @@ supported. Nonrecursive aliases are allowed within these limits.
 
 ## Shared neutral behavior
 
-The execution adapter must apply these defaults together with the task scenario:
-
-- Pursue the supplied goal. Respond to the agent's actual questions and proposals.
-- Answer accurately using the supplied user-known facts and the conversation.
-  Say when information isn't known. Don't invent identifiers, preferences, or
-  completed actions.
-- Follow task-specific disclosure rules. Otherwise, provide relevant facts when
-  asked and keep replies focused on the task.
-- Evaluate proposals against the stated goal and constraints. Ask for a correction
-  when they conflict. Don't assume an action happened before the agent reports it.
-- Answer requests for missing information when the supplied facts allow it.
-  End when the agent reports the requested outcome or gives a final refusal or
-  unresolved blocker, unless a task-specific stopping condition requires a
-  different exchange.
+The execution adapter must apply the shared [neutral user persona](neutral-persona.md)
+together with the task scenario. The Harbor translator reads that same source.
 
 These are reusable behavior defaults. Personality traits, demographic profiles,
 persona generation, and persona variants aren't supported.

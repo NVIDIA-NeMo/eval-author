@@ -67,10 +67,10 @@ defer run-only settings and blockers during independent authoring and review.
 
 ## 7. Connect the agent
 
-A User-sim task also needs scenario-to-Harbor translation and an interactive
-runner. Scenario authoring alone does not supply either. Retain the User-sim
-design and report that execution blocker instead of treating its YAML as a native
-job configuration or executing it as a single-turn task.
+A User-sim task uses the shared [Harbor translator](../../eval-author/references/harbor-user-simulation.md)
+to prepare native simulator inputs. It also needs a verified interactive runner.
+Retain the User-sim design and report unmet runtime requirements instead of
+treating scenario YAML as a native job configuration or running a single-turn substitute.
 
 Establish a supported Harbor integration for the actual repository agent from
 its entry point, installed adapter code, registry, and CLI help. If the adapter
