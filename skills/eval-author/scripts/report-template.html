@@ -91,7 +91,7 @@ byId('settings-form').addEventListener('submit',event=>{event.preventDefault();t
 const dialog=byId('viewer-help');byId('close-help').addEventListener('click',()=>dialog.close());byId('configure-viewer').addEventListener('click',()=>{dialog.close();activate(byId('tab-settings'),true);});
 function shellQuote(value){return "'"+value.replace(/'/g,"'\\''")+"'";}
 // Probe only the configured endpoint, on click. Never scan local ports.
-function viewerFailure(kind,message){return Object.assign(new Error(message),{kind});}
+function viewerFailure(kind,message,cause){return Object.assign(new Error(message),{kind,cause});}
 async function viewerJSON(base,path,signal){
   const response=await fetch(base+path,{signal,mode:'cors',credentials:'omit',cache:'no-store'});
   if(response.status===404)throw viewerFailure('missing','The viewer is running, but this item is not in its catalog.');
@@ -123,7 +123,7 @@ async function checkViewer(base,mode,route,record){
     }
   }catch(error){
     if(error.kind)throw error;
-    throw viewerFailure('unreachable','Could not reach '+base+'. The viewer may be stopped, or the browser may be blocking the connection.');
+    throw viewerFailure('unreachable','Could not reach '+base+'. The viewer may be stopped, or the browser may be blocking the connection.',error);
   }finally{clearTimeout(timer);}
 }
 let retryViewer=null;
@@ -146,7 +146,11 @@ function viewerAction(label,mode,root,route,available=true,record={}){
     if(!route||!available){showViewerHelp(viewerFailure('unverified','This record is unverified or lacks a native viewer route. Review its saved artifacts before opening Harbor.'),mode,root,base,route,null);return;}
     button.disabled=true;button.textContent='Checking…';button.setAttribute('aria-busy','true');
     try{await checkViewer(base,mode,route,record);location.assign(base+'/'+route);}
-    catch(error){showViewerHelp(error,mode,root,base,route,openViewer);}
+    catch(error){
+      // Harbor omits CORS grants by default; native navigation does not require them.
+      if(error.kind==='unreachable'&&error.cause instanceof TypeError&&new URL(base).origin!==location.origin)location.assign(base+'/'+route);
+      else showViewerHelp(error,mode,root,base,route,openViewer);
+    }
     finally{button.disabled=false;button.textContent=label;button.removeAttribute('aria-busy');}
   }
   button.addEventListener('click',openViewer);return button;

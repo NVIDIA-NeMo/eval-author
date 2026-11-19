@@ -1422,7 +1422,10 @@ def test_removed_evidence_requires_incomplete_inventory_to_be_retained(tmp_path,
         ("different-job", "different"),
         ("non-harbor", "response"),
         ("server-error", "response"),
-        ("blocked", "unreachable"),
+        ("blocked", "ok"),
+        ("blocked-job", "ok"),
+        ("blocked-trial", "ok"),
+        ("blocked-same-origin", "unreachable"),
         ("timeout", "unreachable"),
     ],
 )
@@ -1431,23 +1434,36 @@ def test_viewer_checks_mode_item_and_identity_before_navigation(scenario, expect
     if not node:
         pytest.skip("Node is needed to exercise the browser's viewer check")
     source = (SCRIPTS / "report-template.html").read_text()
-    helper = source[source.index("function viewerFailure(") : source.index("let retryViewer=null;")]
+    helper = source[source.index("function viewerFailure(") : source.index("const readmeDialog=")]
     program = r"""
 const assert=require('node:assert/strict');
 const vm=require('node:vm');
 const input=JSON.parse(require('node:fs').readFileSync(0,'utf8'));
 const scenario=input.scenario;
-const jobs=['job','trial','different-job'].includes(scenario);
+const jobs=['job','trial','different-job','blocked-job','blocked-trial'].includes(scenario);
 const mode=jobs?'jobs':'tasks';
 const record=jobs?{id:'native-id',path:'.eval-author/jobs/example'}:{path:'.eval-author/tasks/example'};
-const route=jobs?'jobs/example'+(scenario==='trial'?'/trials/attempt':''):'task-definitions/example';
+const route=jobs?'jobs/example'+(scenario.endsWith('trial')?'/trials/attempt':''):'task-definitions/example';
 const calls=[];
-const context={AbortController,clearTimeout,setTimeout:(fn,ms)=>{
+class Element{
+  constructor(){this.listeners={};this.attrs={};}
+  addEventListener(type,listener){this.listeners[type]=listener;}
+  setAttribute(key,value){this.attrs[key]=value;}
+  removeAttribute(key){delete this.attrs[key];}
+  showModal(){this.open=true;}
+}
+const ids={};const byId=id=>ids[id]||(ids[id]=new Element());
+let destination=null;
+const base='http://localhost:8082';
+const context={AbortController,TypeError,URL,byId,dialog:byId('viewer-help'),element:()=>new Element(),
+  settings:{tasksURL:base,jobsURL:base},shellQuote:value=>value,
+  location:{origin:scenario==='blocked-same-origin'?base:'null',assign:url=>{destination=url;}},
+  clearTimeout,setTimeout:(fn,ms)=>{
   assert.equal(ms,3000);return setTimeout(fn,scenario==='timeout'?10:ms);
 },fetch:async(url,options)=>{
   calls.push(url);assert.equal(options.credentials,'omit');assert.equal(options.mode,'cors');
   assert.equal(options.cache,'no-store');
-  if(scenario==='blocked')throw new TypeError('Browser blocked request');
+  if(scenario.startsWith('blocked'))throw new TypeError('Browser blocked request');
   if(scenario==='timeout')return new Promise((_,reject)=>options.signal.addEventListener('abort',()=>reject(new Error('aborted'))));
   const config=url.endsWith('/api/config');
   const status=scenario==='server-error'?500:(!config&&scenario==='missing'?404:200);
@@ -1460,11 +1476,22 @@ const context={AbortController,clearTimeout,setTimeout:(fn,ms)=>{
 }};
 vm.createContext(context);vm.runInContext(input.helper,context);
 (async()=>{
-  let actual='ok';try{await context.checkViewer('http://localhost:8082',mode,route,record);}catch(error){actual=error.kind;}
-  assert.equal(actual,input.expected);
+  const button=context.viewerAction('Open viewer',mode,'.eval-author/tasks',route,true,record);
+  await button.listeners.click();
+  if(input.expected==='ok'){
+    assert.equal(destination,base+'/'+route);
+    assert(!ids['viewer-help'].open);
+  }else{
+    assert.equal(destination,null);
+    assert.equal(ids['viewer-help'].open,true);
+    const titles={missing:'Item not found in viewer',mode:'Different viewer mode',different:'Different evaluation source',
+      response:'Viewer check failed',unreachable:'Could not reach Harbor viewer'};
+    assert.equal(ids['viewer-help-title'].textContent,titles[input.expected]);
+  }
+  assert.equal(button.disabled,false);assert(!('aria-busy' in button.attrs));
   assert.equal(calls[0],'http://localhost:8082/api/config');
   if(scenario==='trial')assert.equal(calls[1],'http://localhost:8082/api/jobs/example/trials/attempt');
-  if(['blocked','timeout','wrong-mode','non-harbor','server-error'].includes(scenario))assert.equal(calls.length,1);
+  if(scenario.startsWith('blocked')||['timeout','wrong-mode','non-harbor','server-error'].includes(scenario))assert.equal(calls.length,1);
 })().catch(error=>{console.error(error);process.exitCode=1;});
 """
     result = subprocess.run(
