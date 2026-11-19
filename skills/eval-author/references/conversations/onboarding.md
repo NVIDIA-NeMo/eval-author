@@ -281,6 +281,19 @@ These facts are unavailable to other journeys or state-only stages. Pending audi
 questions never replace unresolved prerequisite or Ethos questions, and rendering
 does not persist its question projection or inspect artifact files.
 
+### Expansion observations
+
+For journey `expand` with `scopes.expand.lifecycle`, render `results`, `ethos`,
+`confirmed`, and `resume` from `journey_state.py show` without `--state-only`.
+Forward that snapshot's `expansion_observations` as
+`facts.expansion_observations`, alongside its `state` and matching `revision`.
+This also applies during shared prerequisite, Ethos, or blocker recovery after
+results acceptance, even when the retained results review is stale. The renderer
+uses these observations to select the saved expansion checkpoint before applying
+shared recovery; observations do not bypass that recovery or grant approval.
+Do not supply derived completion flags. Omit these facts from the state-only
+`prerequisite_results` stage, which does not route expansion checkpoints.
+
 Known continuation prompts from earlier wording remain readable. For fresh
 creation without a structured saved design or source choice, they render as the
 combined source checkpoint instead of an extra readiness gate; other cases keep

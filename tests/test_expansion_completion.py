@@ -220,3 +220,50 @@ def test_results_review_resume_requires_current_observations(modules, tmp_path, 
     observed["revision"] -= 1
     with pytest.raises(ValueError, match="current repository and revision"):
         modules[2].render(payload)
+
+
+@pytest.mark.parametrize("finished", [False, True])
+@pytest.mark.parametrize(
+    ("recovery", "stage"),
+    [("ethos", stage) for stage in ("results", "ethos", "resume")]
+    + [("setup", stage) for stage in ("results", "ethos", "confirmed", "resume")],
+)
+def test_shared_recovery_forwards_observations_after_results_acceptance(modules, tmp_path, finished, recovery, stage):
+    state, expansion, renderer = modules
+    saved, value = accepted(modules, tmp_path)
+    saved, _, _ = render(modules, tmp_path, saved, value)
+    if finished:
+        value["execution"]["pending"] = None
+        saved = save(modules, tmp_path, saved, value)
+        saved = state.update(tmp_path, {"journey_status": {"expand": "complete"}}, expected_revision=saved["revision"])
+    if recovery == "ethos":
+        (tmp_path / "ETHOS.md").write_text("# Changed intended behavior\n")
+    else:
+        saved = state.update(
+            tmp_path,
+            {
+                "prerequisites": {"runtime": {"status": "missing", "source": "Runtime probe failed"}},
+                "blockers": [{"id": "runtime", "phase": "setup", "message": "Runtime unavailable"}],
+                "pending_question": "Restore the runtime.",
+            },
+            expected_revision=saved["revision"],
+        )
+    saved = state.initialize(tmp_path, journey="expand")
+    snapshot = state.view(saved)
+    assert expansion.record(saved)["execution"]["results_review"] is not None
+    facts = {
+        "expansion_observations": snapshot["expansion_observations"],
+        "ethos": {"status": "existing", "link": str(tmp_path / "ETHOS.md"), "summary": "Changed intended behavior"},
+    }
+    if recovery == "setup":
+        facts["blockers"] = [
+            {"id": "runtime", "step": "Setup", "reason": "Runtime unavailable", "needed": "Restore the runtime"}
+        ]
+    before = state.state_path(tmp_path).read_bytes()
+    output = renderer.render(
+        {"stage": stage, "state": snapshot["state"], "revision": saved["revision"], "facts": facts}
+    )
+    assert ("ETHOS.md" if recovery == "ethos" else "Restore the runtime") in output
+    assert "Choose what to do next" not in output
+    assert "Expansion complete" not in output
+    assert state.state_path(tmp_path).read_bytes() == before
