@@ -147,7 +147,22 @@ def test_actual_policy_submission_and_native_command(tmp_path):
         "-S",
         "-B",
     ]
-    assert "authority" not in " ".join(argv)
+    assert argv == [
+        sys.executable,
+        "-I",
+        "-S",
+        "-B",
+        str(SKILL / "current_rubric_finish_controls.py"),
+        "policy",
+        "first-template",
+        "interval-reservation",
+        "--input",
+        str(path),
+        "--trace",
+        str(trace),
+        "--candidate",
+        str(candidate),
+    ]
 
 
 def test_custody_pre_freeze_never_opens_file_and_consumes_failed_open(tmp_path, monkeypatch):

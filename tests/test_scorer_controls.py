@@ -380,6 +380,8 @@ def native_shaped_evidence(output, monkeypatch):
     # Reuse native parser fixtures without leaking their sys.path changes.
     with monkeypatch.context() as scoped:
         scoped.setattr(sys, "path", sys.path[:])
+        # Importing the staged verifier must not mutate its sealed inventory.
+        scoped.setattr(sys, "dont_write_bytecode", True)
         path = ROOT / "tests/test_scorer_native.py"
         spec = importlib.util.spec_from_file_location("demo_native_test_helpers", path)
         assert spec and spec.loader
@@ -390,7 +392,10 @@ def native_shaped_evidence(output, monkeypatch):
 
 def test_native_demo_cli_retains_both_scores_and_replays_without_launch(tmp_path, monkeypatch):
     output = tmp_path / "native"
+    monkeypatch.setattr(sys, "dont_write_bytecode", False)
     native_shaped_evidence(output, monkeypatch)
+    assert sys.dont_write_bytecode is False
+    assert not list((output / "panel").rglob("*.pyc"))
     original = {path.relative_to(output): path.read_bytes() for path in output.rglob("*") if path.is_file()}
     command = [sys.executable, str(ROOT / "tools/run_scorer_controls.py")]
     result = subprocess.run(command + ["--native-evidence", str(output)], capture_output=True, text=True, timeout=90)
