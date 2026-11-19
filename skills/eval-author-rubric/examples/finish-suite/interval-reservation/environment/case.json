@@ -1,0 +1,29 @@
+{
+  "id": "interval-development-01",
+  "occupied": [
+    [
+      0,
+      3
+    ],
+    [
+      7,
+      10
+    ]
+  ],
+  "options": [
+    {
+      "id": "a",
+      "interval": [
+        2,
+        5
+      ]
+    },
+    {
+      "id": "z",
+      "interval": [
+        3,
+        7
+      ]
+    }
+  ]
+}

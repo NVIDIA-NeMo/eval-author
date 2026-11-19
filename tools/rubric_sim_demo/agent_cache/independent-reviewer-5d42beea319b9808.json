@@ -1,0 +1,44 @@
+{
+ "output": {
+  "copy_sources": [
+   "contract.json",
+   "ledger.py",
+   "server.py"
+  ],
+  "copy_sources_all_exist": true,
+  "environment_non_stdlib_imports": [],
+  "image_pinned_by_digest": false,
+  "network_modes": {
+   "agent": "no-network",
+   "environment": "no-network",
+   "verifier": "no-network"
+  },
+  "selected_grader": "reviewed",
+  "verifier_local_imports": [
+   "refund_scorer"
+  ]
+ },
+ "provenance": {
+  "cache_key": "5d42beea319b9808c90ddee4b1d02a71739257af4a821b34254c3c7024973329",
+  "cost_usd": 0.034319010000000004,
+  "input_names": [
+   "environment/Dockerfile",
+   "environment/ledger.py",
+   "environment/server.py",
+   "file-listing.txt",
+   "task.toml",
+   "tests/verify.py"
+  ],
+  "input_sha256": {
+   "environment/Dockerfile": "8691c1e88ca7e434575d53856164db9372bbb4e36a16b6155eb0a83f6d945cf6",
+   "environment/ledger.py": "3c9d47009fdd0d271dbace33e6fd83ba07f2ee0aa8fac684338a63bc7c3ca328",
+   "environment/server.py": "d582413bb6c92f39def8af635b824c58961c063daa35b50aaa89184e5b9dbfe1",
+   "file-listing.txt": "51819c810964672472a404daa97c19bd34d4bcc2f52767fb17c0f6b1e8f93c7f",
+   "task.toml": "f4e23390259f603ad17550f9846332512b8407270c77dade3cbf42cf529748f2",
+   "tests/verify.py": "90b76367679cd3d80e530c3fafcfaa7078960d14b9318d1bed5daae00c090b32"
+  },
+  "model": "claude-sonnet-5-5",
+  "restrictions": "no tools, no MCP, no settings, no session persistence, empty cwd",
+  "role": "independent-reviewer"
+ }
+}

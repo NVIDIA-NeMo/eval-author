@@ -1,0 +1,22 @@
+{
+  "id": "release-development-01",
+  "states": {
+    "build": "passed",
+    "audit": "revoked"
+  },
+  "options": [
+    {
+      "id": "a",
+      "requires": [
+        "build",
+        "audit"
+      ]
+    },
+    {
+      "id": "z",
+      "requires": [
+        "build"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,21 @@
+{
+ "output": {
+  "contains_sensitive": false,
+  "findings": []
+ },
+ "provenance": {
+  "cache_key": "bb96bb977793c5f50a00fd68c5dbe8a9c7b9be9014150811848921b8c40db23e",
+  "cost_usd": 0.015720100000000004,
+  "input_names": [
+   "trace-0.txt",
+   "trace-1.txt"
+  ],
+  "input_sha256": {
+   "trace-0.txt": "4e2db170f04443cdb14461bcf3f6e226f654796174b598ef4ec0facec7580ef2",
+   "trace-1.txt": "d27453905bba463b21bbccd98bf571a429740b17657b24ecc3ec51b701468c0f"
+  },
+  "model": "claude-sonnet-5-5",
+  "restrictions": "no tools, no MCP, no settings, no session persistence, empty cwd",
+  "role": "trace-labeler"
+ }
+}

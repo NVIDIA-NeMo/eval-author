@@ -61,6 +61,46 @@ sessions. A user may continue that same assessment explicitly; do not infer a ne
 assessment from retained files. Respect withdrawal immediately. Opt-in to assessment
 is separate from execution or write permission, which remains governed below.
 
+## Fictional simulation authoring mode
+
+When the user asks to modify this skill or build/repeat a fictional rubric example,
+that is authoring, not an empirical assessment of a real task. In this explicit
+mode, authors may supply invented independent reviewers, custody, histories and
+owner dispositions. Do not require real reviewer recruitment, accounts, signatures
+or empirical approval intake merely to author these fixtures. Actual code execution
+and writes still require the user's applicable permission; this mode grants no
+model, network or native-runtime permission.
+
+Use unchanged canonical definitions and criterion-specific predicates. Keep typed
+fictional dispositions, scope, conditions, contradictions and bindings distinct from
+executed measurements. Rejected, missing or contradictory premises must not earn
+their claimed anchor; affirmative fiction cannot override failed measurements.
+Expected scores belong outside assessor inputs. Do not assign 0/1/2 from a universal
+check-count ladder when their criterion-specific predicates are not implemented.
+Report task credit/control verdicts separately from rubric scores, and account for
+N/A separately within the full selected catalog and applicable denominator.
+
+The repository checkout has two supported examples, described in
+`docs/determinism-checks.md`. These repository-only tools are not shipped in
+skill-only installations.
+
+- `tools/rubric_task_scenario/run.py` renders the full canonical report for one
+  fictional base. Its scope is `FICTIONAL_WORLD_CANONICAL_ASSESSMENT-v1` with
+  `empirical_qualification=false`. It is not an empirical receipt or an owner-store event.
+- `tools/rubric_sim_demo/run_demo.py` scores the same base and its task, evidence and
+  review mutations. Each row has one owning check in `checks.py`. Independent review
+  comes from restricted-input agents. Owner decisions come from a simulated `policy.json`.
+
+Use the demo to show that mutations rank below the base. Use the scenario for the
+per-check canonical report.
+
+The opt-in gate and empirical evidence/approval protections below remain unchanged
+for actual task assessment. Never feed fictional dispositions into that path or
+remove their scope label to promote the result. Independent review of authored
+fixtures may be a fictional premise or a restricted-input agent whose input set is
+recorded. Neither is human approval. Real publication review is a separate
+engineering decision, not an invented rubric prerequisite.
+
 ## Purpose
 
 Read `eval-author` for the shared evidence standard and boundaries. Select only
@@ -83,6 +123,14 @@ the area or criterion IDs explicitly requested by the user:
   its `task-contract.*` criteria. Selecting this area selects neither of
   the others, and selecting another area does not select it.
 
+An explicit request for "all populated areas" selects every populated criterion.
+For the mutable all-populated simulation, use the seven leakage canonical rows
+instead of four overlapping AC scoring rows: 21 criteria and 70 checks, not 25
+criteria. Preserve the AC evidence-floor guidance and original rows in evidence
+history. Never map AC-01's score to exposure disclosure, cue resistance or
+forbidden credit. METHOD-J1 stays Unassessed until its definition exists.
+Do not ask another area-selection question for that request. A supplied task
+package resolves the subject unless its path or evidence scope is ambiguous.
 If the named-rubric request leaves the area ambiguous, clarify the scope once
 before inspecting artifacts. Do not apply unselected areas. An explicit request
 for several areas selects each named area; selecting particular IDs does not select their whole area.
@@ -158,6 +206,249 @@ recorder, state the gap and proposed next check. Do not invent a passing receipt
 For anti-cheat, pair attacks with reference, realistic incorrect-answer, and valid-alternative
 controls. Preserve legitimate inaction and partial-credit semantics.
 
+### Selected Harbor example
+
+Keep the rubric definitions and assessment prompt fixed across cases. Change only
+the selected package and its evidence scope. Keep mutation recipes and expected
+findings outside the assessment context. Do not read the fixture helper, mutation
+catalog, private manifest, or prior findings to guide an assessment.
+
+For an all-populated review, inspect the supplied `assessment/` directory. Use
+this bundled command for the supported source checks. Replace the absolute paths
+with the selected input and authorized private output locations:
+
+```bash
+python scripts/rubric_table.py --root /absolute/path/to/assessment \
+  --task task/task.toml --output /absolute/path/to/new-private-review
+python scripts/rubric_table.py --root /absolute/path/to/assessment \
+  --verify-existing /absolute/path/to/new-private-review
+```
+
+Run these commands from this skill's directory. The helper builds the source
+selection, calls `measure.py`, and renders all populated criteria. It does not
+execute task code, run native controls, or consume human decisions. Its bounded
+Harbor source and declared-configuration checks do not qualify a highest-anchor base. Other rows
+remain Unassessed when no supported consumer supplies evidence. Do not fill them
+with synthetic scores or treat a missing consumer as a completed assessment.
+
+For a complete all-populated base assessment, use `scripts/rubric_base_assessment.py`
+once instead of rendering each native panel separately. Supply the selected
+`--root`, `--task`, a new private `--output`, and each admitted `--bundle` and
+trusted `--registry`. With bounded Docker approval, pass `--approve-local-native`
+to collect missing attack, boundary, runtime-observation and read-boundary scopes.
+Treat public scoring rules and socket state as intentional inputs. Report observed
+verifier-source readability separately from confirmed leaks. The access panel
+uses agent source review and native UID 65534 controls, not independent held-out
+corroboration. Do not promote the corresponding canonical criterion without its own additional evidence. Pass
+`--docker-plugins` on Docker Desktop. The entrypoint also prepares the NOP
+configuration companion, renders the 21 current canonical rows plus an explicit
+undefined METHOD-J1 notice, and replays the result. Existing native consumers run
+before current-scope reconciliation; retain their observations and original
+legacy rows without transferring old scores or decisions. The current leakage
+adapter reuses upstream source measurements and owning admitted controls.
+
+For an existing source-review selection, pass `--selection PATH` instead of
+`--task` and `--bundle`. Do not rebuild its configuration or Audit companion just
+to render it. Supply `--source-review-operator-store PATH` and
+`--source-review-operator-trust localhost-assessment-operator-v1` explicitly for
+local operator acceptance, on both generation and replay. The CLI never takes
+approval from selected JSON and never records a new decision during reuse.
+No SSH key or external service is required. Optional host session and signed
+routes use `--source-review-session-store` and `--source-review-signed-store`.
+
+Prepare review attachments and selections within this skill. Before first
+qualification, disclose the exact packet, four source alternatives, reviewer
+identity, prior exposure and unresolved differences. With explicit localhost
+operator trust, call `rubric_source_reviews.qualify_selected` with the trusted
+`operator_decision` callback. It must return the actual observed scoped answer
+and retention consent, never text inferred from selected evidence. Configure its
+operator store separately through `EVAL_AUTHOR_SOURCE_REVIEW_OPERATOR_STORE` and
+`EVAL_AUTHOR_SOURCE_REVIEW_OPERATOR_TRUST` at that trusted API boundary. Do not
+invent authenticated actor, session or message IDs. Reuse an already accepted
+record without another callback or human review.
+
+Keep the callback, store and configuration outside solver tools and mounts.
+Same-user arbitrary host code can alter local state; file modes are not isolation.
+Preserve session/signature admission when required by the host. On an explicit
+revocation request, call `revoke_operator_decision` with the exact packet bytes,
+read back the marker, and preserve the original record. Replay the old report to
+confirm rejection, then generate a new report without its prior qualification.
+Never revoke during an ordinary assessment. Keep declined decisions and dissent.
+
+Show the current main report, not only measurement JSON. Accepted source checks
+must not repeat historical pending-owner requests. Keep their original packet
+text labeled historical. Acceptance covers those four source checks only; retain
+unassessed fairness, contract and native-independent gaps without asking the user
+to repeat a settled source-method decision.
+
+For Audit bindings, add `--audit-inspect`. With explicit approval to change
+private copies, use `--approve-audit-exercise` instead. This runs fixed scorer,
+timeout and recorded-runtime changes, checks stale-credit rejection and unchanged
+neighbors, then verifies fresh original-source counterparts. It launches no native
+or model runs. Score 3 covers change-injection and lineage, not regrading a changed
+evaluation. Do not transfer native credit to the changed observations. Keep
+fairness Unassessed and ask the retained scoped owner question without inferring
+human judgment. The full manifest appears once in `report/audit.json`.
+
+Use `--verify-existing OUTPUT/report` with the same root, exact interpreter and
+registries to replay without collecting. Audit replay rebuilds fixed probes in
+fresh temporary copies and compares all retained data. It never executes retained
+code. Set `TMPDIR` to a private scratch directory. Exit 1 with verified replay means the
+assessment remains incomplete. Do not treat it as failed report integrity.
+Keep every source scope, error and current contradiction. The zero-balance
+inaction control is an explicit companion, not the unchanged base contract.
+Do not replace stale panels or manufacture owner decisions to complete a row.
+The helper never runs a model. Ask only for missing execution permission or
+required semantic decisions, not manual selection-packet assembly.
+
+The ordinary table calls `scripts/rubric_refund_contract_evidence.py` for the
+fully admitted refund source family. Keep its local defect observations separate
+from native controls and human adjudication. Unsupported selections receive no
+inferred semantic zero. Clean controls do not justify a positive score. Compare
+mutation expectations only outside the assessment selection.
+
+For the unchanged checked-in refund base, an approved local Oracle/NOP pair uses
+`scripts/rubric_native_collect.py`. Keep `EVAL_AUTHOR_NATIVE_REGISTRY` at an
+explicit private path outside the evidence bundle. From this skill's directory:
+
+```bash
+python -B scripts/rubric_native_collect.py --approve-local-native \
+  --output /absolute/private/new-native-pair
+python -B scripts/rubric_example_native.py --root /absolute/private \
+  --task new-native-pair/task/task.toml --bundle new-native-pair \
+  --output-selection /absolute/private/new-native-selection.json
+python -B scripts/rubric_table.py --root /absolute/private \
+  --selection /absolute/private/new-native-selection.json \
+  --output /absolute/private/new-native-review
+python -B scripts/rubric_table.py --root /absolute/private \
+  --verify-existing /absolute/private/new-native-review
+```
+
+Use Harbor 0.24.0 in the same Python environment for every command. Preflight
+requires local Docker, Compose and Buildx. On Docker Desktop, add
+`--docker-plugins /Applications/Docker.app/Contents/Resources/cli-plugins` to
+collection. The helper links only those plugins into its private HOME. Name
+Docker image resolution separately from no-network task phases in the approval.
+The recorder caps each of the two attempts at 420 seconds. No models run.
+
+To inspect runtime import resolution, add `--runtime-observation` to collection.
+This selects one NOP trial instead of the pair. A separate isolated probe runs
+in the same image after verification. It records interpreter settings, import
+origins and solver access to those files. Select the resulting bundle through
+`rubric_example_native.py`, then use `--agent nop` for its configuration companion.
+Do not describe the probe as a trace of the scoring process. Independent review
+and grading correctness require separate evidence.
+
+Do not collect a mutation through this base-only path. Select a supplied task
+only when its complete bytes and modes match the checked-in base. The selector
+can instead use the fresh bundle's source copy, as above. The local registry is
+host-user trust, not independent authentication. Do not import somebody else's
+registry or reseal an index. A byte-preserving relocated bundle needs the original
+local registry and unchanged current producer/runtime sources. Use the same exact
+Python executable invocation for replay.
+
+Report Oracle/NOP rewards as task credit, with full attempt accounting. This pair
+adds partial runtime evidence and no new criterion score. Leave access, reset,
+forged-output, human and independent checks absent. Keep the historical panel's
+nine completed trials and one infrastructure error separate. Never execute
+retained Python. Preserve failed or interrupted bundles and do not claim forced
+host-process termination proves Docker cleanup.
+
+For a declared Oracle or NOP configuration, add the sourced configuration companion
+before rendering. Use a new output directory under the selected root:
+
+```bash
+python -B scripts/rubric_example_assessment.py --root /absolute/private \
+  --selection /absolute/private/new-native-selection.json --agent oracle \
+  --output /absolute/private/new-configuration
+python -B scripts/rubric_table.py --root /absolute/private \
+  --selection /absolute/private/new-configuration/selection.json \
+  --output /absolute/private/new-configured-review
+```
+
+The companion reads the supported collector command, agent implementation and
+Harbor defaults. It describes declared settings, not observed runtime agreement.
+Use `--agent nop` for NOP. `--agent model` keeps missing model settings explicit
+and cannot establish complete configuration. Independent review remains separate.
+
+Use `--selection` instead of `--task` for an existing supported evidence selection.
+Prepare that selection yourself from the authorized evidence. The user should not
+assemble measurement packets or call unrelated skills. Keep measured rows intact
+when reporting additional agent review. Do not insert agent judgments into the
+helper's verified files.
+
+Obtain one bounded approval for needed execution when possible. Name the runtime,
+controls, private output, network use, and budget. Native execution and live model
+use need their own approval. Do not infer approval from the fixed assessment prompt.
+Request owner adjudication only for the unresolved rows that require it. A model
+review does not supply human authority or independence.
+
+Record each question and manual action in separate private review notes when
+saving is authorized. Classify it as permission, task intent, required adjudication,
+recovery, or avoidable orchestration. Retain original turns and tool results for
+usability review. A helper invocation does not prove a fresh-session walkthrough.
+
+On interruption, preserve partial output. Recheck a completed bundle with
+`--verify-existing`. If verification fails or output is incomplete, use a new
+output directory. Do not reseal old evidence after a source change. Fixture repair
+is a separate authorized action outside the assessment session.
+
+### Retained current base and mutation completion
+
+For an explicitly continued all-populated demonstration with retained evidence,
+use the bundled `current_rubric_completion.py --reuse-current` entrypoint from
+this skill directory. Keep expected targets outside assessment inputs. Supply the
+current `--matrix`, original `--source-freeze`, explicit
+`--source-review-operator-store`, `--source-review-operator-trust
+localhost-assessment-operator-v1`, trusted `--registry`, and a new `--output`
+inside the original base root. Set `PYTHONDONTWRITEBYTECODE=1` and `TMPDIR` to an
+existing private nonsymlink scratch directory; use the exact collection Python.
+This command never replays; run the final deduplicated replay as a separate gate.
+
+This command checks matrix lineage, selected bytes, canonical definitions, frozen
+native/CREATE-02 identities, native mutation admission and stored decisions. It
+runs the ordinary combined base once and requires every measurement and row to
+remain equal. It then reuses unchanged reports and rebuilds the coverage table;
+it does not repeat the full affected-report batch, collect native/model evidence,
+record answers, or execute commands saved in the matrix.
+
+For the reviewed finite upper/native follow-up, add
+`--reviewed-companions finite-upper-v1 --qualification-root PATH --upper-root PATH
+--native-followup-root PATH`. This is an explicit executable-plugin trust choice,
+not a selection artifact. The loader accepts only checked-in exact implementation
+hashes, validates through the owning consumers and rereads qualification/revocation
+before projection. It generates the exact copied-population report and retains
+new-family/native reports separately. It never promotes the original base from
+those populations. The historical companion remains path-bound: require its
+original checkout, population and store paths; do not relocate, patch constants or
+reseal it. An unknown companion requires review, not an arbitrary script flag.
+
+The implementation is at the skill root because adding files to the frozen
+`scripts/` or `references/` trees would invalidate native follow-up evidence.
+`tools/current_rubric_completion.py` is only a checkout compatibility wrapper.
+Ask for missing paths/trust once; do not ask the user to assemble private Python
+scripts or repeat retained owner decisions. Missing or stale evidence fails closed.
+Changed decisions use the existing `--refresh-decisions` route, then this reuse
+route; fresh native collection requires separate permission and owning collectors.
+Report `manual_interventions` only for this invocation after prerequisites, not as
+proof of fresh-user usability. Keep historic setup and owner interventions separate.
+
+Present `summary.md`, `coverage.json`, `matrix.json`, `verification.json` and
+`reuse-inputs.json`. Preserve source dissent, all lower and missing-evidence rows,
+shared-withholding caveats, task difficulty, and per-population base/repair links.
+Do not call retained reuse fresh execution or a full replay. The original base's
+remaining qualification and undefined METHOD-J1 are not closed by this command.
+
+For completed native suite viability, use `--original-finish --suite-native-root PATH`
+with the same explicit matrix/freeze/store/trust/registry prerequisites and a new
+private output. Keep its independently bound `suite-native.json` outside the
+unchanged source selection. Require full original report equality, actual raw
+Trial/hash/reward admission, and exact family/task/image/adapter identities. Label
+it full Harbor Trial through the declared provider adapter, never stock-path,
+independent or held-out evidence. No score or consent transfers from viability;
+the closed execution budget stays closed. Preserve prior failed outputs and use
+the linked companion rather than increasing the report reader cap.
+
 ### 4. Present the scoped assessment
 
 For each selected criterion, report its ID, applicability, score or
@@ -165,17 +456,26 @@ explicit unassessed status, evidence strength, measurement, evidence references,
 limitation, and next action.
 Use that criterion's scoring rules. Do not transfer anti-cheat evidence floors to
 artifact, configuration, and provenance or task contract criteria.
-Lead with confirmed defects and what results cannot be trusted, then incomplete
-checks. Keep instructions, claims,
-and measured facts separate. Use short, direct explanations with source IDs;
-put revision identities in evidence details, not headline prose.
+Lead with one results table grouped by workflow and criterion. Keep expected
+outcomes, observed rubric scores, task credit, control counts, evidence strength,
+human actions, and next steps separate. Name confirmed defects and blocked checks
+in the table. Put full source identities and traces in the evidence details.
+Keep instructions, claims, and measured facts separate.
+
+For each Unassessed row, state whether a check did not run, evidence is insufficient,
+a prerequisite blocked it, or the selected scope cannot cover it. Require a
+specific task-contract reason for Not applicable. Do not use that status to avoid
+a populated criterion in the example's qualification run.
 
 Default to the response only. If asked to persist, use private review notes under
 `.eval-author/.working/` and reference existing receipts instead of copying them
 or introducing another authoritative evidence ledger. Do not write an Audit
 report, `report-content.json`, `coverage.json`, or audit state. Do not insert rubric
-scores into an existing report schema. A future integration must use the owning
-renderer and its validated content contract, not free-form report patches.
+scores into an existing report schema. The explicitly authorized retained
+base/mutation completion above writes its own derived `coverage.json`, not Audit
+coverage or state; that exception does not authorize changing an existing report.
+Other future integrations must use the owning renderer and its validated content
+contract, not free-form report patches.
 
 Keep raw answers, credentials, source traces, exploit payloads, and private paths
 out of shareable summaries and solver-readable task documentation. Use content-free

@@ -1,0 +1,12 @@
+{
+  "schema": "rubric-example-mutation-v1",
+  "id": "completion-only",
+  "category": "task_or_scorer_defect",
+  "edits": [
+    {
+      "path": "tests/verify.py",
+      "old": "GRADER = \"reviewed\"",
+      "new": "GRADER = \"baseline\""
+    }
+  ]
+}
