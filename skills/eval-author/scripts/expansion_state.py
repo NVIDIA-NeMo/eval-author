@@ -156,6 +156,16 @@ def pending(value: EntryRecord | ScopeRecord) -> PendingDecision | None:
     return None
 
 
+def results_pending(state: dict) -> bool:
+    value = record(state)
+    if value is None or value["schema_version"] != 2 or not value.get("execution") or not value.get("review"):
+        return False
+    execution = value["execution"]
+    authorization = (execution["selection"] or {}).get("authorization")
+    digest = _execution_digest(state, value, _review_digest(value))
+    return bool(execution["pending"] and authorization and authorization["digest"] == digest)
+
+
 def record(state: dict) -> EntryRecord | ScopeRecord | None:
     scope = state["scopes"].get("expand", {})
     return cast(EntryRecord | ScopeRecord | None, scope.get("lifecycle")) if isinstance(scope, dict) else None
@@ -499,15 +509,22 @@ def _creation(value: ScopeRecord, observed: object) -> dict:
     }
 
 
+def _review_digest(value: ScopeRecord) -> str:
+    return fingerprint(
+        {
+            "scope": {key: value.get(key) for key in ("plan", "setup", "path", "ethos_digest", "handoff_digest")},
+            "tasks": {
+                key: value["creation"]["tasks"].get(key)
+                for key in sorted(task_key(task) for task in value["plan"]["tasks"])
+            },
+        }
+    )
+
+
 def _review(state: dict, value: ScopeRecord, observed: dict, creation: dict, approved_scope: bool) -> dict:
     planned = {task_key(task) for task in value["plan"]["tasks"]}
     tasks = value["creation"]["tasks"]
-    digest = fingerprint(
-        {
-            "scope": {key: value.get(key) for key in ("plan", "setup", "path", "ethos_digest", "handoff_digest")},
-            "tasks": {key: tasks.get(key) for key in sorted(planned)},
-        }
-    )
+    digest = _review_digest(value)
     saved = value["review"]
     artifacts = saved["artifacts"]
     artifacts_current = bool(
@@ -539,13 +556,12 @@ def _review(state: dict, value: ScopeRecord, observed: dict, creation: dict, app
     }
 
 
-def _execution(state: dict, value: ScopeRecord, observed: dict, review: dict) -> dict:
-    saved = value["execution"]
-    selection = saved["selection"]
-    settings = saved["execution_settings"]
-    digest = fingerprint(
+def _execution_digest(state: dict, value: ScopeRecord, review_digest: str) -> str:
+    selection = value["execution"]["selection"]
+    settings = value["execution"]["execution_settings"]
+    return fingerprint(
         {
-            "review": review["digest"],
+            "review": review_digest,
             "agent": state["agent"],
             "settings": settings,
             "selection": {key: item for key, item in selection.items() if key != "authorization"}
@@ -553,6 +569,13 @@ def _execution(state: dict, value: ScopeRecord, observed: dict, review: dict) ->
             else None,
         }
     )
+
+
+def _execution(state: dict, value: ScopeRecord, observed: dict, review: dict) -> dict:
+    saved = value["execution"]
+    selection = saved["selection"]
+    settings = saved["execution_settings"]
+    digest = _execution_digest(state, value, review["digest"])
     selected = {case["task_id"] for case in selection["cases"]} if selection else set()
     current = bool(
         review["approved"]
@@ -775,16 +798,28 @@ def _review_transition(previous: dict, updated: dict, old: dict | None, now: dic
     authorization = (execution["selection"] or {}).get("authorization")
     previous_authorization = (prior.get("selection") or {}).get("authorization")
     results_review = execution.get("results_review")
+    if results_review and (
+        authorization != previous_authorization
+        or old
+        and old["execution"]
+        and old["execution"]["selection_digest"] != now["execution"]["selection_digest"]
+    ):
+        raise ValueError(
+            "Clear the prior results review before changing execution settings, selection, or authorization"
+        )
     if results_review and results_review != prior.get("results_review"):
         if not (
             old
             and old["execution"]
             and old["execution"]["authorized"]
+            and prior.get("pending")
+            and execution["pending"] is None
             and now["execution"]["results_reviewed"]
             and old["execution"]["selection_digest"] == now["execution"]["selection_digest"]
             and results_review["source"]
             not in {
                 (authorization or {}).get("source"),
+                (prior.get("pending") or {}).get("source"),
                 (review["decision"] or {}).get("source"),
                 (after.get("decision") or {}).get("source"),
                 (presentation or {}).get("source"),

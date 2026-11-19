@@ -134,6 +134,8 @@ def _artifact(state: dict, path: str, label: str) -> str:
 
 def _review(state: dict, progress: dict, observed: dict) -> str:
     value = _checkpoint(state, progress, reviewing=True)
+    if expansion_state.results_pending(state):
+        raise ValueError("Use expansion_results for the saved post-run results review")
     review = progress.get("review")
     if review is None or progress["stage"] not in {"task_review", "execution"}:
         raise ValueError("Save the generated-task review checkpoint first")
@@ -366,7 +368,9 @@ def render(payload: dict) -> str:
     value = expansion_state.record(state)
     if payload["stage"] == "expansion_continue" and value is not None and value["schema_version"] == 2:
         checkpoint = (
-            "expansion_review"
+            "expansion_results"
+            if expansion_state.results_pending(state)
+            else "expansion_review"
             if value.get("review") is not None
             else "expansion_progress"
             if value.get("creation") is not None
@@ -387,6 +391,8 @@ def render(payload: dict) -> str:
         return _results(state, progress, facts)
     if payload["stage"] == "expansion_review":
         return _review(state, progress, facts["expansion_observations"])
+    if value is not None and expansion_state.results_pending(state):
+        raise ValueError("Use expansion_results for the saved post-run results review")
     if progress["stage"] in {"task_review", "execution"}:
         raise ValueError("Use expansion_review for saved task review and execution settings")
     if payload["stage"] == "expansion_progress":

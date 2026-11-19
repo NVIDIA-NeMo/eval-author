@@ -444,7 +444,7 @@ def render(payload: dict) -> str:
             checkpoint = "expansion_progress"
         reviewing = checkpoint == "expansion_progress" and expansion.get("review") is not None
         if reviewing:
-            checkpoint = "expansion_review"
+            checkpoint = "expansion_results" if expansion_state.results_pending(state) else "expansion_review"
         pending = expansion_state.pending(expansion)
         ready = expansion_state.review_ready(state) if reviewing else expansion_state.checkpoint_ready(state)
         if ready and (
