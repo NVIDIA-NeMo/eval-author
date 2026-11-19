@@ -252,15 +252,14 @@ def entry_ready(state: dict) -> bool:
 
 
 def checkpoint_ready(state: dict) -> bool:
+    from journey_state import checklist
+
     value = record(state)
     if value is None or value["schema_version"] == 1 or value["path"] != "recorded_interaction":
         return entry_ready(state)
     return (
         state["journey"] == "expand"
-        and all(
-            state["prerequisites"].get(key, {}).get("status") in ("verified", "confirmed")
-            for key in ("python", "runtime")
-        )
+        and checklist(state)[0]["complete"]
         and not any(row["phase"] in ("setup", "ethos", "expand") for row in state["blockers"])
         and state["ethos"]["stage"] not in ("review", "interview", "draft", "write")
         and not state["ethos"]["remaining_questions"]
@@ -287,20 +286,26 @@ def transition(repo, previous: dict, updated: dict) -> None:
         raise ValueError("Retain structured expansion progress when updating its scope")
     if after is None:
         return
+    if updated["journey_status"].get("expand") == "complete":
+        raise ValueError("An unresolved expansion entry decision cannot establish completion")
     if after["schema_version"] == 2:
         if before is not None and before["schema_version"] == 2:
             fields = ("plan", "path", "setup", "ethos_digest", "handoff_digest")
             if any(before[key] != after[key] for key in fields) and after["decision"] is not None:
                 if after["decision"] == before["decision"]:
                     raise ValueError("Record the user's decision on the changed scope, or leave it unresolved")
+        progress = derive(updated, observe(repo, updated))
+        assert progress is not None
         if before != after:
+            if not checkpoint_ready(updated):
+                raise ValueError("Expansion scope requires its journey and shared prerequisites")
+            if not progress["context_current"]:
+                raise ValueError("Bind the expansion scope to the current provider, intent, and handoff")
             scope = updated["scopes"]["expand"]
-            progress = derive(updated, observe(repo, updated))
-            assert progress is not None
             current = progress["context_current"]
             scope["confirmed"] = bool(current and after["decision"] and after["decision"]["kind"] == "approved")
             scope["needs_review"] = not current
-        if after["pending"] is not None and checkpoint_ready(updated):
+        if after["pending"] is not None and progress["context_current"] and checkpoint_ready(updated):
             if updated["pending_question"] != after["pending"]["question"]:
                 if not checkpoint_ready(previous) and updated["pending_question"] is None:
                     reconcile_question(repo, updated)
@@ -325,5 +330,3 @@ def transition(repo, previous: dict, updated: dict) -> None:
             reconcile_question(repo, updated)
         else:
             raise ValueError("Retain the unresolved expansion question until its lifecycle decision changes")
-    if updated["journey_status"].get("expand") == "complete":
-        raise ValueError("An unresolved expansion entry decision cannot establish completion")

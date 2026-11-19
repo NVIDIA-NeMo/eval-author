@@ -176,16 +176,17 @@ def test_incomplete_plan_is_saveable_but_cannot_be_approved(modules, tmp_path):
     assert state.state_path(tmp_path).read_bytes() == before
 
 
-def test_scope_question_returns_after_shared_prerequisite_recovery(modules, tmp_path):
+@pytest.mark.parametrize("path", ["starter_suite", "recorded_interaction"])
+@pytest.mark.parametrize("prerequisite", ["runtime", "code_access", "file_writes", "command_execution", "skills"])
+def test_scope_question_returns_after_shared_prerequisite_recovery(modules, tmp_path, path, prerequisite):
     state, expansion, _ = modules
-    saved = start(modules, tmp_path)
+    saved = start(modules, tmp_path, path)
     original = copy.deepcopy(expansion.record(saved))
     recovery_question = "Restore the missing evaluation runtime."
     blocked = state.update(
         tmp_path,
         {
-            "prerequisites": {"runtime": {"status": "missing", "source": "Runtime probe failed"}},
-            "blockers": [{"id": "runtime", "phase": "setup", "message": "Runtime unavailable"}],
+            "prerequisites": {prerequisite: {"status": "missing", "source": "Prerequisite probe failed"}},
             "pending_question": recovery_question,
         },
         expected_revision=saved["revision"],
@@ -195,14 +196,60 @@ def test_scope_question_returns_after_shared_prerequisite_recovery(modules, tmp_
     repaired = state.update(
         tmp_path,
         {
-            "prerequisites": {"runtime": {"status": "verified", "source": "Runtime probe passed"}},
-            "blockers": [],
+            "prerequisites": {prerequisite: {"status": "verified", "source": "Prerequisite probe passed"}},
             "pending_question": None,
         },
         expected_revision=blocked["revision"],
     )
     assert repaired["pending_question"] == QUESTION
     assert expansion.record(repaired) == original
+
+
+@pytest.mark.parametrize("approved", [False, True])
+def test_scope_cannot_establish_journey_completion(modules, tmp_path, approved):
+    state, expansion, _ = modules
+    saved = start(modules, tmp_path)
+    if approved:
+        value = copy.deepcopy(expansion.record(saved))
+        value["decision"] = {"kind": "approved", "source": "User approves"}
+        value["pending"] = None
+        saved = save_scope(modules, tmp_path, saved, value)
+    before = state.state_path(tmp_path).read_bytes()
+    with pytest.raises(ValueError, match="cannot establish completion"):
+        state.update(tmp_path, {"journey_status": {"expand": "complete"}}, expected_revision=saved["revision"])
+    assert state.state_path(tmp_path).read_bytes() == before
+
+
+@pytest.mark.parametrize("path", ["starter_suite", "recorded_interaction"])
+@pytest.mark.parametrize("change", ["blocked", "stale"])
+def test_scope_changes_require_ready_current_context(modules, tmp_path, path, change):
+    state, expansion, _ = modules
+    saved = start(modules, tmp_path, path)
+    value = copy.deepcopy(expansion.record(saved))
+    value["decision"] = {"kind": "approved", "source": "User approves"}
+    value["pending"] = None
+    patch = {"scopes": {"expand": {"lifecycle": value}}, "pending_question": None}
+    if change == "blocked":
+        patch["prerequisites"] = {"runtime": {"status": "missing", "source": "Runtime probe failed"}}
+    else:
+        value["handoff_digest"] = "a" * 64
+    before = state.state_path(tmp_path).read_bytes()
+    with pytest.raises(ValueError, match="shared prerequisites|current provider"):
+        state.update(tmp_path, patch, expected_revision=saved["revision"])
+    assert state.state_path(tmp_path).read_bytes() == before
+
+
+def test_stale_scope_allows_a_context_review_question(modules, tmp_path):
+    state, expansion, _ = modules
+    saved = start(modules, tmp_path, "audit_tool_gap")
+    value = copy.deepcopy(expansion.record(saved))
+    saved["scopes"]["expand"]["audit_handoff"]["recommendation_ids"] = ["R2"]
+    state.save(tmp_path, saved)
+    question = "Review the changed audit selection?"
+    updated = state.update(tmp_path, {"pending_question": question}, expected_revision=saved["revision"])
+    assert updated["pending_question"] == question
+    assert expansion.record(updated) == value
+    assert not expansion.derive(updated, expansion.observe(tmp_path, updated))["context_current"]
 
 
 def test_scope_update_requires_current_revision_without_writes(modules, tmp_path):
