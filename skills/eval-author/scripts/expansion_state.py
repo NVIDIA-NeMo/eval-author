@@ -694,7 +694,12 @@ def review_ready(state: dict) -> bool:
 
 def presentation_state(state: dict, progress: dict | None, *, answered_ethos_review: bool = False) -> dict:
     value = record(state)
-    if value is None or progress is None or not progress["context_current"] or not checkpoint_ready(state):
+    if (
+        value is None
+        or progress is None
+        or not progress["context_current"]
+        or not (review_ready(state) if value.get("review") else checkpoint_ready(state))
+    ):
         return state
     questions = {
         item["question"]
@@ -716,7 +721,7 @@ def presentation_state(state: dict, progress: dict | None, *, answered_ethos_rev
 
 def reconcile_question(repo, state: dict, *, answered_ethos_review: bool = False) -> None:
     value = record(state)
-    if value is None or not checkpoint_ready(state):
+    if value is None or not (review_ready(state) if value.get("review") else checkpoint_ready(state)):
         return
     state["pending_question"] = presentation_state(
         state, derive(state, observe(repo, state)), answered_ethos_review=answered_ethos_review
@@ -866,7 +871,8 @@ def transition(repo, previous: dict, updated: dict) -> None:
         assert progress is not None
         _review_transition(previous, updated, old, progress)
         question = progress["pending_question"]
-        if question is not None and checkpoint_ready(updated):
+        ready = review_ready(updated) if after.get("review") else checkpoint_ready(updated)
+        if question is not None and ready:
             if updated["pending_question"] != question:
                 if not checkpoint_ready(previous) and updated["pending_question"] is None:
                     reconcile_question(repo, updated)
