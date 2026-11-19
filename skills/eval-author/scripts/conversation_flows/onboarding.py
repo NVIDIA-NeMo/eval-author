@@ -436,7 +436,7 @@ def render(payload: dict) -> str:
     expansion = expansion_state.record(state) if state["journey"] == "expand" else None
     if expansion is not None and not state_only:
         checkpoint = expansion_state.resume_stage(state, facts.get("expansion_observations"))
-        reviewing = checkpoint in {"expansion_review", "expansion_completion"}
+        reviewing = checkpoint in {"expansion_review", "expansion_results", "expansion_completion"}
         pending = expansion_state.pending(expansion)
         ready = expansion_state.review_ready(state) if reviewing else expansion_state.checkpoint_ready(state)
         if ready and (

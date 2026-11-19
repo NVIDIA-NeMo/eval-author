@@ -293,11 +293,18 @@ the decision without changing finalized task content.
 
 After the user accepts the results for the complete agreed set, save
 `execution.results_review` as `{digest, source}`: use the current derived
-`execution.selection_digest` and the actual post-run reply. This optional field
+`execution.selection_digest` and the actual post-run reply, clearing the answered
+`execution.pending` and top-level `pending_question` in the same save. This optional field
 binds the final review to the authorized tasks, agent, and settings; it does not
 replace individual task acceptance or the owning workflow's technical checks.
-Changed settings invalidate it. Before any rerun, clear it and retain earlier
-results as history; new results need a new user review. Do not reuse a pre-run
+Clear it when changing tasks, scope, settings, selection, or authorization; the
+same save may clear the obsolete review and its pending question during repair.
+Before asking permission for any rerun, clear both `results_review` and
+`selection.authorization`, then save the new permission question in
+`execution.pending`. Reuse the current settings display when unchanged; render
+`expansion_review`, wait for the actual permission reply, and bind the new
+authorization before execution. Retain earlier results as history; new results
+need a new user review. Do not reuse a pre-run
 decision's source or save this review together with initial run authorization.
 
 ## Completion choices

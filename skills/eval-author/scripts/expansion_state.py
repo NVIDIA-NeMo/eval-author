@@ -8,6 +8,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Literal, NotRequired, TypedDict, cast
 
@@ -154,6 +155,18 @@ def pending(value: EntryRecord | ScopeRecord) -> PendingDecision | None:
                 return value["execution"]["pending"]
             return review["pending"]
     return None
+
+
+def results_pending(progress: dict | None) -> bool:
+    if progress is None:
+        return False
+    execution = progress.get("execution")
+    return bool(
+        execution
+        and execution["authorized"]
+        and not execution["results_reviewed"]
+        and progress["pending_question"] is not None
+    )
 
 
 def record(state: dict) -> EntryRecord | ScopeRecord | None:
@@ -507,15 +520,22 @@ def _creation(value: ScopeRecord, observed: object) -> dict:
     }
 
 
+def _review_digest(value: ScopeRecord) -> str:
+    return fingerprint(
+        {
+            "scope": {key: value.get(key) for key in ("plan", "setup", "path", "ethos_digest", "handoff_digest")},
+            "tasks": {
+                key: value["creation"]["tasks"].get(key)
+                for key in sorted(task_key(task) for task in value["plan"]["tasks"])
+            },
+        }
+    )
+
+
 def _review(state: dict, value: ScopeRecord, observed: dict, creation: dict, approved_scope: bool) -> dict:
     planned = {task_key(task) for task in value["plan"]["tasks"]}
     tasks = value["creation"]["tasks"]
-    digest = fingerprint(
-        {
-            "scope": {key: value.get(key) for key in ("plan", "setup", "path", "ethos_digest", "handoff_digest")},
-            "tasks": {key: tasks.get(key) for key in sorted(planned)},
-        }
-    )
+    digest = _review_digest(value)
     saved = value["review"]
     artifacts = saved["artifacts"]
     artifacts_current = bool(
@@ -547,13 +567,12 @@ def _review(state: dict, value: ScopeRecord, observed: dict, creation: dict, app
     }
 
 
-def _execution(state: dict, value: ScopeRecord, observed: dict, review: dict) -> dict:
-    saved = value["execution"]
-    selection = saved["selection"]
-    settings = saved["execution_settings"]
-    digest = fingerprint(
+def _execution_digest(state: dict, value: ScopeRecord, review_digest: str) -> str:
+    selection = value["execution"]["selection"]
+    settings = value["execution"]["execution_settings"]
+    return fingerprint(
         {
-            "review": review["digest"],
+            "review": review_digest,
             "agent": state["agent"],
             "settings": settings,
             "selection": {key: item for key, item in selection.items() if key != "authorization"}
@@ -561,6 +580,13 @@ def _execution(state: dict, value: ScopeRecord, observed: dict, review: dict) ->
             else None,
         }
     )
+
+
+def _execution(state: dict, value: ScopeRecord, observed: dict, review: dict) -> dict:
+    saved = value["execution"]
+    selection = saved["selection"]
+    settings = saved["execution_settings"]
+    digest = _execution_digest(state, value, review["digest"])
     selected = {case["task_id"] for case in selection["cases"]} if selection else set()
     current = bool(
         review["approved"]
@@ -694,6 +720,8 @@ def resume_stage(state: dict, observed: object = None) -> str:
         or value.get("creation") is None
     ):
         return "expansion_scope"
+    if results_pending(progress):
+        return "expansion_results"
     if value.get("review") is not None:
         return "expansion_review"
     return "expansion_progress"
@@ -766,6 +794,13 @@ def reconcile_question(repo, state: dict, *, answered_ethos_review: bool = False
     )["pending_question"]
 
 
+def _only_clears(previous: Mapping[str, object], updated: Mapping[str, object] | None, fields: tuple[str, ...]) -> bool:
+    return updated is not None and all(
+        previous.get(key) == updated.get(key) or key in fields and updated.get(key) is None
+        for key in previous.keys() | updated.keys()
+    )
+
+
 def _review_transition(previous: dict, updated: dict, old: dict | None, now: dict) -> None:
     before = dict(record(previous) or {})
     after = record(updated)
@@ -773,8 +808,10 @@ def _review_transition(previous: dict, updated: dict, old: dict | None, now: dic
     for key in ("review", "execution"):
         if key in before and key not in after:
             raise ValueError("Retain saved task review and execution decisions when revising scope")
-        clearing_question = key in before and after.get(key) == {**before[key], "pending": None}
-        if key in after and after.get(key) != before.get(key) and not now["scope_approved"] and not clearing_question:
+        clearing_decisions = key in before and _only_clears(
+            before[key], after.get(key), ("pending", "results_review") if key == "execution" else ("pending",)
+        )
+        if key in after and after.get(key) != before.get(key) and not now["scope_approved"] and not clearing_decisions:
             raise ValueError("Agree the current scope before updating task review or execution settings")
     review = after.get("review")
     if review:
@@ -810,7 +847,7 @@ def _review_transition(previous: dict, updated: dict, old: dict | None, now: dic
         return
     assert review is not None
     prior = before.get("execution") or {}
-    if execution != prior and execution != {**prior, "pending": None} and not now["review"]["approved"]:
+    if not _only_clears(prior, execution, ("pending", "results_review")) and not now["review"]["approved"]:
         raise ValueError("Approve the current generated tasks before updating execution settings")
     presentation = execution["execution_settings_presented"]
     if presentation and presentation != prior.get("execution_settings_presented"):
@@ -825,16 +862,28 @@ def _review_transition(previous: dict, updated: dict, old: dict | None, now: dic
     authorization = (execution["selection"] or {}).get("authorization")
     previous_authorization = (prior.get("selection") or {}).get("authorization")
     results_review = execution.get("results_review")
+    if results_review and (
+        authorization != previous_authorization
+        or old
+        and old["execution"]
+        and old["execution"]["selection_digest"] != now["execution"]["selection_digest"]
+    ):
+        raise ValueError(
+            "Clear the prior results review when changing tasks, scope, settings, selection, or authorization"
+        )
     if results_review and results_review != prior.get("results_review"):
         if not (
             old
             and old["execution"]
             and old["execution"]["authorized"]
+            and prior.get("pending")
+            and execution["pending"] is None
             and now["execution"]["results_reviewed"]
             and old["execution"]["selection_digest"] == now["execution"]["selection_digest"]
             and results_review["source"]
             not in {
                 (authorization or {}).get("source"),
+                (prior.get("pending") or {}).get("source"),
                 (review["decision"] or {}).get("source"),
                 (after.get("decision") or {}).get("source"),
                 (presentation or {}).get("source"),

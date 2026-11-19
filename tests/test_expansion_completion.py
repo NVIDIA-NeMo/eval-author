@@ -12,7 +12,11 @@ from test_first_eval_state import evidence
 
 
 def accepted(modules, repo, *, path="starter_suite"):
+    from conversation_flows.expansion_templates import RESULTS_QUESTION
+
     saved, value = authorized(modules, repo, path=path)
+    value["execution"]["pending"] = {"question": RESULTS_QUESTION, "source": "Review the observed run results"}
+    saved = save(modules, repo, saved, value)
     for key, task in value["creation"]["tasks"].items():
         result = evidence(repo, f".eval-author/.working/results-{key}.json", '{"score": 1}')
         saved = modules[0].record_task(
@@ -22,6 +26,7 @@ def accepted(modules, repo, *, path="starter_suite"):
             source="User accepts this task after reviewing results",
             evidence=[result["path"]],
         )
+    value["execution"]["pending"] = None
     value["execution"]["results_review"] = bound(
         modules, repo, saved, "execution", "User accepts the complete current result set"
     )
@@ -98,6 +103,7 @@ def test_incomplete_or_changed_work_cannot_offer_completion_or_mark_complete(mod
         saved["agent"] = "different-agent"
         modules[0].save(tmp_path, saved)
     elif change == "settings":
+        value["execution"]["results_review"] = None
         value["execution"]["selection"]["cases"][0]["attempts"] = 3
         saved = save(modules, tmp_path, saved, value)
         value["execution"]["execution_settings_presented"] = bound(
@@ -112,6 +118,7 @@ def test_incomplete_or_changed_work_cannot_offer_completion_or_mark_complete(mod
         value["execution"]["results_review"] = None
         saved = save(modules, tmp_path, saved, value)
     else:
+        value["execution"]["results_review"] = None
         value["plan"]["tasks"].append(copy.deepcopy(value["plan"]["tasks"][0]) | {"task": "Another task"})
         value["decision"] = None
         saved = save(modules, tmp_path, saved, value)

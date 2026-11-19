@@ -493,9 +493,9 @@ control rewards, both real-agent rewards, both run/trace paths, and the verify J
 For journey `expand`, follow [results review and task acceptance](../eval-author/references/conversations/expansion.md#results-review-and-task-acceptance)
 for the attempt table and explicit post-run user decision before recording
 **Accepted** through [Task status](../eval-author/references/shared-prerequisites.md#task-status).
+In other journeys, record **Accepted** through Task status when `accepted` is `true` and the recheck passes.
 Otherwise keep **Draft**. If either repeat misses the tool, revise and rerun both attempts within the authorized scope.
-After acceptance, follow
-[Keep task paths stable](../eval-author/SKILL.md#keep-task-paths-stable)
+After acceptance, follow [Keep task paths stable](../eval-author/SKILL.md#keep-task-paths-stable)
 when adding the task to the runnable suite. Acceptance changes status and explicit
 suite membership at the existing task path; it does not copy or move the task.
 Finish and link the suite's review and rerun guide at handoff, including when

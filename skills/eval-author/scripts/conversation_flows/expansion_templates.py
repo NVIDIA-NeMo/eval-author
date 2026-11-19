@@ -163,4 +163,8 @@ RESULTS_REVIEW = (
     "Review the outputs and verifier explanations. Passing checks does not accept a task; "
     "final acceptance requires your approval of these results. You can give feedback or request changes."
 )
+RESULTS_REVIEWED = (
+    "You’ve reviewed the results for this run. Individual task acceptance still requires "
+    "the owning workflow’s current checks."
+)
 RESULTS_QUESTION = "Which tasks do you approve, or what would you like to change?"
