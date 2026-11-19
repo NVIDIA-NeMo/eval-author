@@ -67,6 +67,8 @@ def source_manifest():
             "dispositions.py",
         )
     ]
+    paths += [ROOT / "base_adapter.py"]
+    paths += [p for p in (ROOT / "harbor-input").rglob("*") if p.is_file()]
     paths += [
         p
         for p in (ROOT / "prior-package").rglob("*")
@@ -1179,7 +1181,7 @@ def assess(evidence, premises, binding_valid=True):
                 }
             ]
         rows[ident] = row
-    return {
+    report = {
         "schema": "FICTIONAL_WORLD_CANONICAL_ASSESSMENT-v1",
         "notice": NOTICE,
         "empirical_qualification": False,
@@ -1197,6 +1199,11 @@ def assess(evidence, premises, binding_valid=True):
         },
         "assessment_adapter": "Separate fictional predicate assessment, not empirical ordinary assessment CLI. Canonical checks and top-anchor text unchanged.",
     }
+    if "harbor" in evidence:
+        adapter = types.ModuleType("base_adapter")
+        exec(compile((ROOT / "base_adapter.py").read_bytes(), str(ROOT / "base_adapter.py"), "exec"), adapter.__dict__)
+        report = adapter.apply(report, evidence, premises, source_manifest(), _dispositions.accepted, binding_valid)
+    return report
 
 
 def gather(out):
@@ -1217,6 +1224,8 @@ def gather(out):
         "cue_register": "cue-register.json",
         "revision": "revision-tests.json",
     }
+    if (out / "harbor.json").exists():
+        mapping.update(harbor="harbor.json", containment="containment.json")
     return {k: read(out / v) for k, v in mapping.items()}
 
 
@@ -1362,6 +1371,14 @@ def render(report, out):
     exec(compile(selected, "<unchanged ordinary renderer functions>", "exec"), namespace)
     cell, structured = namespace["cell"], namespace["structured"]
     defs, _ = definitions()
+    credit = "Actual local controls; see measurements"
+    if report.get("native_harbor_run"):
+        controls = report["measurements"]["actual_retained_harbor"]["controls"]
+        oracle, nop = controls["oracle"], controls["nop"]
+        credit = (
+            f"Harbor Oracle {oracle['reward_text']} ({oracle['checks']['total_credit']}/{oracle['checks']['max_credit']}); "
+            f"NOP {nop['reward_text']} ({nop['checks']['total_credit']}/{nop['checks']['max_credit']})"
+        )
     lines = [
         "# Fictional-world canonical assessment",
         "",
@@ -1386,7 +1403,7 @@ def render(report, out):
             "one refund task",
             "Not supplied",
             score,
-            "Actual local controls; see measurements",
+            credit,
             str(dict(outcomes)),
             f"Mixed measurement/premise. [Evidence {i}](#evidence-{i})",
             "SUPPLIED FICTIONAL PREMISES; no real approval",

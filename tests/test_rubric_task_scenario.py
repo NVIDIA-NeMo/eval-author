@@ -214,6 +214,220 @@ def test_complete_output_has_canonical_inventory_and_no_empirical_claim(scenario
     assert verification["historical_integrity_claimed"] is False
 
 
+@pytest.fixture(scope="module")
+def harbor_scenario(tmp_path_factory):
+    location = os.environ.get("EVAL_AUTHOR_TEST_NATIVE_PAIR")
+    if not location:
+        pytest.skip("set EVAL_AUTHOR_TEST_NATIVE_PAIR to the approved retained pair")
+    output = tmp_path_factory.mktemp("harbor-scenario").resolve() / "run"
+    proc = subprocess.run(
+        [
+            sys.executable,
+            "-I",
+            "-S",
+            "-B",
+            str(PACKAGE / "run.py"),
+            "--output",
+            str(output),
+            "--harbor-bundle",
+            location,
+            "--native-registry",
+            os.environ["EVAL_AUTHOR_NATIVE_REGISTRY"],
+            "--harbor-python",
+            os.environ["EVAL_AUTHOR_TEST_HARBOR_PYTHON"],
+        ],
+        capture_output=True,
+        text=True,
+        timeout=240,
+    )
+    assert proc.returncode == 0, proc.stderr + (
+        (output / "execution.log").read_text() if (output / "execution.log").exists() else ""
+    )
+    assessor = load(output / "source/assess.py")
+    return (
+        assessor,
+        assessor.gather(output / "source/execution"),
+        assessor.read(output / "source/scenario-premises.json"),
+        output,
+    )
+
+
+def test_harbor_base_all_frozen_anchors_and_actual_credit(harbor_scenario):
+    a, evidence, _, output = harbor_scenario
+    report = a.read(output / "source/execution/assessment.json")["report"]
+    assert len(report["items"]) == 23
+    assert all(r["score"] == 3 and r["status"] == "ASSESSED" for r in report["items"].values())
+    assert report["native_harbor_run"] is True and report["empirical_qualification"] is False
+    assert evidence["harbor"]["controls"]["oracle"]["checks"]["total_credit"] == 9
+    assert evidence["harbor"]["controls"]["nop"]["checks"]["total_credit"] == 0
+    assert len(evidence["harbor"]["task"]) == 11
+    assert evidence["containment"]["attribution"] == "SUPPLIED_FICTIONAL_HISTORY_WITH_LOCAL_REGRESSIONS"
+    definitions, _ = a.definitions()
+    for surface in ("report.md", "report.html"):
+        text = (output / "source/execution" / surface).read_text()
+        assert "Harbor Oracle 1.0 (9/9); NOP 0.0 (0/9)" in text
+        assert "Local controls are supplemental" in text
+    assert all(r["canonical_anchors"] == definitions[k]["scoring"] for k, r in report["items"].items())
+
+
+@pytest.mark.parametrize("family", ["refund", "interval-reservation"])
+def test_harbor_history_does_not_displace_current_exploits(harbor_scenario, family):
+    evidence = copy.deepcopy(harbor_scenario[1])
+    name = "early-exit-inert-copy" if family == "refund" else "development-1-fixed-template"
+    observation = next(o for o in evidence["observations"] if o["id"] == name)
+    observation.setdefault("oracle", copy.deepcopy(observation["result"]))
+    result = observation["result"]
+    result.update(accepted=True, total_credit=result["max_credit"], raw_credit=result["max_credit"])
+    result["checks"] = dict.fromkeys(result["checks"], 1)
+    observation["oracle_match"] = False
+    if family == "refund":
+        observation["reward"] = 1.0
+    assert result["health"] == "ok" and observation["oracle"]["total_credit"] == 0
+    rows = assess(harbor_scenario, evidence)
+    affected = ["AUDIT-04-B-SUITE"]
+    if family == "refund":
+        assert rows["AUDIT-03"]["score"] is None
+        affected.append("AUDIT-04-B")
+    else:
+        assert rows["AUDIT-04-B"]["score"] == 3
+    for ident in affected:
+        row = rows[ident]
+        assert row["score"] is None
+        assert row["top_anchor_predicate"]["satisfied"] is False
+        assert name in " ".join(row["findings"] + row["remaining_gaps"])
+        for check in row["check_results"]:
+            assert check["outcome"] == "FAIL"
+            assert check["actual_measurement_predicate"] is False
+            assert name in check["interpretation"]
+            assert any(ref["path"] == "observations.json" for ref in check["evidence_refs"])
+
+
+@pytest.mark.parametrize(
+    "fault",
+    [
+        "native-check",
+        "native-config",
+        "native-task-mode",
+        "native-receipt",
+        "history-subject",
+        "history-candidate",
+        "history-case",
+        "history-revision",
+        "history-rule",
+        "history-credit",
+        "cross-family-replay",
+        "cross-family-observation",
+        "missing-known-role",
+        "duplicate-replay",
+        "quarantine",
+        "regression-check",
+        "missing-retained",
+        "rejected-review",
+        "wrong-subject",
+    ],
+)
+def test_harbor_base_rejects_bound_counterevidence(harbor_scenario, fault):
+    a, original, template, _ = harbor_scenario
+    evidence, premises = copy.deepcopy(original), copy.deepcopy(template)
+    if fault == "native-check":
+        evidence["harbor"]["controls"]["oracle"]["checks"]["checks"]["amount"] = 0
+    elif fault == "native-config":
+        evidence["harbor"]["controls"]["oracle"]["config"]["trial_name"] = "nop"
+    elif fault == "native-task-mode":
+        evidence["harbor"]["task"]["tests/test.sh"]["mode"] = 493
+    elif fault == "native-receipt":
+        evidence["harbor"]["controls"]["oracle"]["receipt"]["command"] = []
+    elif fault == "history-subject":
+        evidence["containment"]["affected"][0]["subject"] = "another-task"
+    elif fault == "history-candidate":
+        evidence["containment"]["affected"][0]["historical_observation"]["candidate"]["success"] = False
+    elif fault == "history-case":
+        evidence["containment"]["affected"][0]["historical_observation"]["case_sha256"] = "0" * 64
+    elif fault == "history-revision":
+        evidence["containment"]["affected"][0]["affected_revision"]["id"] = "another-revision"
+    elif fault == "history-rule":
+        evidence["containment"]["affected"][0]["affected_revision"]["rule"] = "all mandatory checks required"
+    elif fault == "history-credit":
+        evidence["containment"]["affected"][0]["historical_observation"]["published_credit"] = 8
+    elif fault == "cross-family-replay":
+        evidence["containment"]["regressions"][0]["affected_id"] = evidence["containment"]["affected"][1]["id"]
+    elif fault == "cross-family-observation":
+        evidence["containment"]["regressions"][0]["family"] = "interval-reservation"
+    elif fault == "missing-known-role":
+        evidence["containment"]["regressions"][0].update(
+            attack_role="independent-attack", independence="SUPPLIED_FICTIONAL_A_AUTHORSHIP"
+        )
+    elif fault == "duplicate-replay":
+        evidence["containment"]["regressions"].append(copy.deepcopy(evidence["containment"]["regressions"][0]))
+    elif fault == "quarantine":
+        evidence["containment"]["affected"][0]["accepted_for_use"] = True
+    elif fault == "regression-check":
+        evidence["containment"]["regressions"][0]["result"]["checks"]["amount"] = 1
+    elif fault == "missing-retained":
+        evidence["containment"]["regressions"] = [
+            r for r in evidence["containment"]["regressions"] if r["cohort"] != "retained-affected"
+        ]
+    elif fault == "rejected-review":
+        premises["reviews"]["containment"]["disposition"] = "REJECTED"
+    else:
+        premises["reviews"]["harbor_base"]["scope"]["subject"] = "another-task"
+    bound = a._dispositions.bind_templates(premises, evidence, a.source_manifest())
+    rows = a.assess(evidence, bound)["items"]
+    assert rows["AUDIT-04-B"]["score"] is None
+    assert rows["AUDIT-04-B-SUITE"]["score"] is None
+    if fault.startswith("native-") or fault == "wrong-subject":
+        assert all(r["score"] is None for r in rows.values())
+    else:
+        assert all(r["score"] == 3 for k, r in rows.items() if k not in ("AUDIT-04-B", "AUDIT-04-B-SUITE"))
+
+
+def test_harbor_base_adapter_consumes_receipts_and_containment(scenario):
+    adapter_path = PACKAGE / "sources/base_adapter.py"
+    assert adapter_path.is_file(), "base-only Harbor adapter is missing"
+    adapter = load(adapter_path)
+    baseline = scenario[1]
+    sources = scenario[0].source_manifest()
+    packet = adapter.containment_packet(baseline, sources)
+    assert packet["attribution"] == "SUPPLIED_FICTIONAL_HISTORY_WITH_LOCAL_REGRESSIONS"
+    assert adapter.containment_checks(packet, baseline, sources, suite=False) == (True, True, True)
+    assert adapter.containment_checks(packet, baseline, sources, suite=True) == (True, True, True)
+    changed = copy.deepcopy(packet)
+    changed["affected"][0]["disposition"] = "accepted-uncontained"
+    assert not all(adapter.containment_checks(changed, baseline, sources, suite=False))
+    changed = copy.deepcopy(packet)
+    changed["regressions"][0]["result"]["checks"]["amount"] = (
+        1 - changed["regressions"][0]["result"]["checks"]["amount"]
+    )
+    assert not all(adapter.containment_checks(changed, baseline, sources, suite=False))
+    changed = copy.deepcopy(packet)
+    changed["regressions"] = [r for r in changed["regressions"] if r["cohort"] != "retained-affected"]
+    assert not all(adapter.containment_checks(changed, baseline, sources, suite=True))
+
+
+def test_harbor_input_requires_owning_validation(tmp_path):
+    runner = load(PACKAGE / "run.py")
+    assert callable(getattr(runner, "capture_harbor", None)), "base adapter must validate actual Harbor receipts"
+    with pytest.raises((ValueError, subprocess.CalledProcessError)):
+        runner.capture_harbor(tmp_path, tmp_path / "registry", Path(sys.executable))
+
+
+def test_materialized_refund_preserves_all_source_bytes_and_modes(tmp_path):
+    runner = load(PACKAGE / "run.py")
+    source = runner.materialize(tmp_path / "materialized")
+    original = ROOT / "skills/eval-author-rubric/examples/refund/base"
+    copied = source / "prior-package/perfect-task/refund"
+    expected = {
+        str(p.relative_to(original)): (p.read_bytes(), p.stat().st_mode & 0o777)
+        for p in original.rglob("*")
+        if p.is_file()
+    }
+    actual = {
+        str(p.relative_to(copied)): (p.read_bytes(), p.stat().st_mode & 0o777) for p in copied.rglob("*") if p.is_file()
+    }
+    assert len(expected) == 11
+    assert actual == expected
+
+
 def test_source_change_rejected_before_output(tmp_path, monkeypatch):
     runner = load(PACKAGE / "run.py")
     fake = tmp_path / "package"

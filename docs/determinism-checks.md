@@ -46,6 +46,18 @@ checkout**, with an existing parent and no symlink ancestors:
 python3 -I -S -B tools/rubric_task_scenario/run.py --output "$HOME/rubric-task-scenario-1"
 ```
 
+Optional base-only Harbor assessment consumes an already approved Oracle/NOP bundle through its unchanged owning admission and validator. Supply the original external registry and exact recorded Harbor interpreter. This does not launch native trials:
+
+```bash
+python3 -I -S -B tools/rubric_task_scenario/run.py \
+  --output "$HOME/rubric-harbor-base-1" \
+  --harbor-bundle /path/to/approved/native-pair \
+  --native-registry /path/to/owning/registry \
+  --harbor-python /path/to/recorded/harbor/bin/python3
+```
+
+The adapter preserves all eleven refund task files and their modes. It retains original task, configuration, result and verifier receipt bytes under `source/harbor-input/`. `source/execution/harbor.json` distinguishes actual retained native credit from supplemental local controls. `containment.json` supplies fictional affected revisions, quarantined results and already-completed repair lineage, then binds known-mechanism and independent-attack recipes to current local regression vectors across retained and new family instances. Historical credit, repair authorization, independent actors and additional runtime observations are fictional premises, not newly measured Harbor facts. This route can assess both containment anchors without changing the rubric or running a repair stage. Without the optional inputs, the existing local-only scenario remains separate and retains its trigger-based containment N/A.
+
 This single command verifies the source map, materializes its exact allowlisted
 sources under `source/`, executes fresh local task and custody controls, instantiates
 explicit fictional review dispositions, assesses unchanged canonical definitions,
@@ -58,8 +70,8 @@ to repeat. A failed run retains its partial output and diagnostic log.
 The package reuses byte-identical repository rubric definitions, renderer and refund
 task sources. `source-map.json` records each source, its current and original hash,
 and the packaging adaptations. Bundled source identity is checked before and after
-execution; this is **not** the original host's historical-integrity check. Historical
-runs, failed attempts, personal runtime manifests and approval records are not bundled.
+execution; this is **not** the original host's historical-integrity check. Historical runs, failed attempts and approval records are not bundled by default.
+The optional Harbor route copies only its validated retained input inventory and keeps original receipts unchanged.
 A source-map mismatch requires review of changed sources, not automatic repinning.
 
 Actual measurements include task credit, full per-check outcomes, deliberate invalid

@@ -59,6 +59,13 @@ def main():
             else "postcollection retrospective assessment; source data present in collector output",
         },
     )
+    if (ROOT / "harbor-input").is_dir():
+        base = load("base_adapter")
+        a.save(
+            out / "containment.json",
+            base.containment_packet({"observations": a.read(out / "observations.json")}, manifest),
+        )
+        a.save(out / "harbor.json", base.native_packet(ROOT, manifest))
     a.supplement(out, manifest)
     files = {str(p.relative_to(out)): a.sha(p.read_bytes()) for p in sorted(out.rglob("*")) if p.is_file()}
     a.save(out / "evidence-manifest.json", {"files": files, "root": str(out), "empirical_admission": False})

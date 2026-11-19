@@ -663,7 +663,7 @@ def test_showcase_surfaces_authority_and_ethos_without_new_scores(showcase_outpu
         "authority-refund",
     }
     page = (showcase_output / "index.html").read_text()
-    assert '<h3 id="authority">W03 authority observations</h3>' in page
+    assert '<h3 id="authority">Authority observations</h3>' in page
     for case in retained["evidence_cases"]:
         if case["id"] not in authority:
             continue

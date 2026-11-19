@@ -1,7 +1,7 @@
 {
   "schema": "FICTIONAL_WORLD_PREMISES_ONLY-v1",
   "world": "refund-one-task-fiction-v1",
-  "notice": "SUPPLIED SIMULATION PREMISES. Invented actors, independence, histories, policy dispositions and OS enforcement are fiction, not actual approvals or measured facts. They are usable ONLY inside this fictional-world assessment. Actual builder exposure is unrestricted. No real independent review, Harbor run or OS isolation was performed.",
+  "notice": "SUPPLIED SIMULATION PREMISES. Actors, independence, historical containment/prior repair, additional runtime observations, policy dispositions and OS enforcement are fiction. Actual builder exposure is unrestricted. Actual Harbor evidence, when selected, is limited to separately validated retained Oracle/NOP receipts; local controls and fictional runtime/suite extensions remain separately attributed.",
   "actors": {
     "A": {
       "role": "challenge author",
@@ -497,6 +497,38 @@
       },
       "contradictions": [],
       "rationale": "All material source, public intent, cases, canonical definitions, premises, oracle and runtime identities bind results. Any change invalidates reuse; no stale score transfer. Public contract requirements are the scoped intent authority, not a separately supplied ETHOS document. Exact unchanged reuse is allowed; source, contract-intent, scenario and canonical change injections must reject. Historical receipts and failures remain unchanged."
+    },
+    "harbor_base": {
+      "kind": "SUPPLIED_FICTIONAL_DISPOSITION",
+      "disposition": "ACCEPTED_WITHIN_FICTION",
+      "scope": {
+        "world": "refund-one-task-fiction-v1",
+        "subject": "perfect-task/refund",
+        "provider": "harbor-docker-with-fictional-companions",
+        "empirical": false
+      },
+      "conditions": {
+        "exact_harbor_subject_and_separate_fictional_extensions_qualified": true,
+        "no_material_contradiction": true
+      },
+      "contradictions": [],
+      "rationale": "Fictional V and O review the same eleven-file Harbor refund task and exact native Oracle/NOP configs, results and verifier vectors. Oracle/NOP establishes execution only. Within this invented world V independently reconstructs Docker image, service startup, solver permissions, verifier upload/dispatch, dependencies, timeout/resource defaults and read/write surfaces from this bound task and retained configs. V stipulates independent clean setup, negative manifest controls and unchanged full-check repeat on that native configuration; these additional native observations are supplied fiction, not locally measured. Supplemental local-ledger controls exercise the same task-owned ledger and scorer semantics, not Docker access or image isolation. Fictional V accepts them for semantic boundaries, attack recipes, cue sensitivity and finite suite comparisons only. Runtime isolation, access denial, independent operators and cross-family deployment remain explicit simulated premises. No local route is promoted into actual Harbor evidence."
+    },
+    "containment": {
+      "kind": "SUPPLIED_FICTIONAL_DISPOSITION",
+      "disposition": "ACCEPTED_WITHIN_FICTION",
+      "scope": {
+        "world": "refund-one-task-fiction-v1",
+        "subject": "perfect-task/refund",
+        "provider": "harbor-docker-with-fictional-companions",
+        "empirical": false
+      },
+      "conditions": {
+        "affected_quarantine_prior_repair_and_independent_regressions_reconciled": true,
+        "no_material_contradiction": true
+      },
+      "contradictions": [],
+      "rationale": "Fictional O quarantines every completion-only-v0 accepted result for the three declared families and forbids its use. Before this assessment O authorized mandatory gating on each retained affected task and new family instances. These prior revisions, approvals and completed repairs are invented lineage, not a new repair operation. V reconciles the complete affected/result inventory with exact bound current task sources, unchanged current regression vectors, known-mechanism retained cases and independently authored A attacks on retained and new cases. Every mandatory-work failure now has zero credit while valid reference work remains accepted. V discloses finite local semantic coverage, no new native repair/cross-family trial and no empirical independent author; all actual disagreements override this premise."
     }
   }
 }

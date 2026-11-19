@@ -10,21 +10,21 @@
     },
     "assess.py": {
       "source": "tools/rubric_task_scenario/sources/assess.py",
-      "sha256": "d5c51026bb4ae936a181df06459bf930fab8e79e77956435583036d1aba21a25",
+      "sha256": "368d94282b611917b24c3cb05a9d80b946df8418a7d940f1505316607666a2aa",
       "origin_sha256": "f1502303a50bd86950a8c57d8b5b2afa4676a2bba5a76df9f4073006ec379070",
       "adaptation": "packaging headers/formatting and scoped changes; see adaptations",
       "executable": false
     },
     "run.py": {
       "source": "tools/rubric_task_scenario/sources/run.py",
-      "sha256": "e757a23bdc2cbeb284b9917db8549082b7211d3682061c0b741376a813ab3949",
+      "sha256": "760babe2c0703d28e117a165b92efee088a34a627d0e0f9c6f5ef39550585850",
       "origin_sha256": "3d8c041d4b93c8824a14a4cfd4355dc40a308ea5f211602250fdb2795b4aa4b9",
       "adaptation": "packaging headers/formatting and scoped changes; see adaptations",
       "executable": false
     },
     "scenario-premises.json": {
       "source": "tools/rubric_task_scenario/sources/scenario-premises.json",
-      "sha256": "1385dd01413676e29999485691d09463898430291b1e8bc8818a79dfd53fb917",
+      "sha256": "3c42748b5577d56fd6339e213cfab7ee747773495712ba232261fe58f1d2f221",
       "origin_sha256": "f2530862dd1b27db721d0bbebb9be6755770cb51d19bdf8646959ff9ea5ecaf0",
       "adaptation": "packaging headers/formatting and scoped changes; see adaptations",
       "executable": false
@@ -76,77 +76,88 @@
       "sha256": "ad5c684e2575351513c8e0781a640ff9d84e26032554fd823f01de5ca30c0585",
       "origin_sha256": "ad5c684e2575351513c8e0781a640ff9d84e26032554fd823f01de5ca30c0585",
       "adaptation": "byte-identical repository reuse",
-      "executable": false
+      "executable": false,
+      "mode": 420
     },
     "prior-package/perfect-task/refund/task.toml": {
       "source": "skills/eval-author-rubric/examples/refund/base/task.toml",
       "sha256": "f4e23390259f603ad17550f9846332512b8407270c77dade3cbf42cf529748f2",
       "origin_sha256": "f4e23390259f603ad17550f9846332512b8407270c77dade3cbf42cf529748f2",
       "adaptation": "byte-identical repository reuse",
-      "executable": false
+      "executable": false,
+      "mode": 420
     },
     "prior-package/perfect-task/refund/tests/refund_scorer.py": {
       "source": "skills/eval-author-rubric/examples/refund/base/tests/refund_scorer.py",
       "sha256": "cc431683961c3d5d284d53495849c0d167af993f488846be428c8ed021fcc087",
       "origin_sha256": "cc431683961c3d5d284d53495849c0d167af993f488846be428c8ed021fcc087",
       "adaptation": "byte-identical repository reuse",
-      "executable": false
+      "executable": false,
+      "mode": 420
     },
     "prior-package/perfect-task/refund/tests/verify.py": {
       "source": "skills/eval-author-rubric/examples/refund/base/tests/verify.py",
       "sha256": "90b76367679cd3d80e530c3fafcfaa7078960d14b9318d1bed5daae00c090b32",
       "origin_sha256": "90b76367679cd3d80e530c3fafcfaa7078960d14b9318d1bed5daae00c090b32",
       "adaptation": "byte-identical repository reuse",
-      "executable": false
+      "executable": false,
+      "mode": 420
     },
     "prior-package/perfect-task/refund/tests/test.sh": {
       "source": "skills/eval-author-rubric/examples/refund/base/tests/test.sh",
       "sha256": "286103299f50c0d307a706bbbc1bcdc367e048794f48547721734a27a970db89",
       "origin_sha256": "286103299f50c0d307a706bbbc1bcdc367e048794f48547721734a27a970db89",
       "adaptation": "byte-identical repository reuse",
-      "executable": true
+      "executable": false,
+      "mode": 420
     },
     "prior-package/perfect-task/refund/solution/solve.sh": {
       "source": "skills/eval-author-rubric/examples/refund/base/solution/solve.sh",
       "sha256": "0238b73ee678940fd50c1ac3cdbedb6b87d3b5c657c745c71dcec426c8e88a53",
       "origin_sha256": "0238b73ee678940fd50c1ac3cdbedb6b87d3b5c657c745c71dcec426c8e88a53",
       "adaptation": "byte-identical repository reuse",
-      "executable": true
+      "executable": false,
+      "mode": 420
     },
     "prior-package/perfect-task/refund/solution/reference.py": {
       "source": "skills/eval-author-rubric/examples/refund/base/solution/reference.py",
       "sha256": "3fc1d744e193b80cbe03aa4d61ec13d6a9f40f7d5f059aebae2c8de2f130c05e",
       "origin_sha256": "3fc1d744e193b80cbe03aa4d61ec13d6a9f40f7d5f059aebae2c8de2f130c05e",
       "adaptation": "byte-identical repository reuse",
-      "executable": false
+      "executable": false,
+      "mode": 420
     },
     "prior-package/perfect-task/refund/environment/server.py": {
       "source": "skills/eval-author-rubric/examples/refund/base/environment/server.py",
       "sha256": "d582413bb6c92f39def8af635b824c58961c063daa35b50aaa89184e5b9dbfe1",
       "origin_sha256": "d582413bb6c92f39def8af635b824c58961c063daa35b50aaa89184e5b9dbfe1",
       "adaptation": "byte-identical repository reuse",
-      "executable": false
+      "executable": false,
+      "mode": 420
     },
     "prior-package/perfect-task/refund/environment/Dockerfile": {
       "source": "skills/eval-author-rubric/examples/refund/base/environment/Dockerfile",
       "sha256": "a647f4061302173fad1b889e9044978f7a4b607177b30b5d5ba62984f8d86413",
       "origin_sha256": "a647f4061302173fad1b889e9044978f7a4b607177b30b5d5ba62984f8d86413",
       "adaptation": "byte-identical repository reuse",
-      "executable": false
+      "executable": false,
+      "mode": 420
     },
     "prior-package/perfect-task/refund/environment/ledger.py": {
       "source": "skills/eval-author-rubric/examples/refund/base/environment/ledger.py",
       "sha256": "3c9d47009fdd0d271dbace33e6fd83ba07f2ee0aa8fac684338a63bc7c3ca328",
       "origin_sha256": "3c9d47009fdd0d271dbace33e6fd83ba07f2ee0aa8fac684338a63bc7c3ca328",
       "adaptation": "byte-identical repository reuse",
-      "executable": false
+      "executable": false,
+      "mode": 420
     },
     "prior-package/perfect-task/refund/environment/contract.json": {
       "source": "skills/eval-author-rubric/examples/refund/base/environment/contract.json",
       "sha256": "1b1c9ee7c58bfa2dec18c8a39cd87389901ab3f77f08c5f269e8d4b38c05d3cb",
       "origin_sha256": "1b1c9ee7c58bfa2dec18c8a39cd87389901ab3f77f08c5f269e8d4b38c05d3cb",
       "adaptation": "byte-identical repository reuse",
-      "executable": false
+      "executable": false,
+      "mode": 420
     },
     "prior-package/perfect-task/companions/interval-reservation/instruction.md": {
       "source": "tools/rubric_task_scenario/sources/prior-package/perfect-task/companions/interval-reservation/instruction.md",
@@ -285,8 +296,15 @@
       "source": "tools/rubric_task_scenario/sources/dispositions.py",
       "origin_sha256": null,
       "adaptation": "packaging headers/formatting and scoped changes; see adaptations",
-      "sha256": "0963abf5d6a9b2303bafbd19427a4306b2a2fcd5d0c73cbde660b0f702c4a520",
+      "sha256": "010dcfa92845f4d353baa14d7658a6679a0a9f3f36dd5068d32e2dae4f801635",
       "executable": false
+    },
+    "base_adapter.py": {
+      "source": "tools/rubric_task_scenario/sources/base_adapter.py",
+      "origin_sha256": null,
+      "adaptation": "Base-only adapter; separately attributed native receipts and fictional containment history.",
+      "executable": false,
+      "sha256": "3de1f96521750733b577e5ea95f125135d4c26328edf4a0f59bd3b90c1042d01"
     }
   },
   "adaptations": {
@@ -296,6 +314,7 @@
     "custody": "Source-only simulation controllers; header/formatting changes repinned to bundled vendor bytes, original pins retained only via origin hashes. No real authority admission.",
     "canonical_renderer_task": "Reuse byte-identical repository canonical definitions, ordinary renderer and refund sources; only separately modified companion fixtures copied.",
     "format": "Repository header tooling and ruff formatting/import cleanup; explicit annotations and local variable names for configured checks.",
-    "premises": "Invented review rationale retained with explicit acceptance/conditions/scope/contradictions. Runtime binding is mechanical fictional instantiation, not a real review, approval or semantic interpretation of prose."
+    "premises": "Invented review rationale retained with explicit acceptance/conditions/scope/contradictions. Runtime binding is mechanical fictional instantiation, not a real review, approval or semantic interpretation of prose.",
+    "harbor_base": "Optional actual retained Harbor input validated by unchanged owning registry/consumer before copying exact raw receipts; task bytes and modes identical. Fictional prior containment/repair lineage reconciles supplemental local regressions without new repair execution."
   }
 }

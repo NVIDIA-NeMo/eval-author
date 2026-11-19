@@ -1158,7 +1158,7 @@ h1{{font-size:30px;line-height:1.2}}h2{{margin-top:36px;font-size:22px}}a{{color
 <h3>Selected-source evidence diagnostics</h3>
 <p>The identity panel includes {esc(summary["identity"]["counts"]["evidence_cases"])} evidence cases. Authority locators resolve selected content, fail for a broken reference, or stay unknown for prose. An unaffected neighbor remains resolved. Resolving a locator does not establish semantic correctness or authenticated owner approval. These checks add no canonical score.</p>
 <div class="scroll"><table><thead><tr><th>Case</th><th>Measurement</th><th>Status</th><th>Observed detail</th><th>Diagnostics</th></tr></thead><tbody>{evidence_rows}</tbody></table></div>
-<h3 id="authority">W03 authority observations</h3>
+<h3 id="authority">Authority observations</h3>
 <p>{len(authority_cases)} authority cases use the retained <a href="identity/panel.json">identity observations</a>. Check observations establish emission only. The selected results are synthetic inputs, not executed scorer results. Resolving a reference does not establish authenticated owner approval or semantic correctness.</p>
 <p>The refund case resolves its contract references but selects no result artifact. Its checks remain unknown. Compare the <a href="scorer/inputs/contract.json">retained refund contract</a> and the separate <a href="scorer/rubric-reviewed.json">reviewed refund scorer evidence</a>. Those local controls do not supply a result to the authority case.</p>
 {authority_html}

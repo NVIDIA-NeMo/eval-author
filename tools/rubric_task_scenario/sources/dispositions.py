@@ -55,6 +55,8 @@ CONDITIONS = {
     "state": "mutable_state_drift_and_fresh_answers_independently_reviewed",
     "revision": "current_bound_revision_and_invalidation_scope_reviewed",
     "alternative": "local_ledger_source_route_only_no_native_equivalence",
+    "harbor_base": "exact_harbor_subject_and_separate_fictional_extensions_qualified",
+    "containment": "affected_quarantine_prior_repair_and_independent_regressions_reconciled",
 }
 SCOPE: FictionalScope = {
     "world": "refund-one-task-fiction-v1",
@@ -88,7 +90,12 @@ def accepted(record: Any, key: str, evidence: dict, sources: dict) -> bool:
         and record["kind"] == "SUPPLIED_FICTIONAL_DISPOSITION"
         and record["disposition"] == "ACCEPTED_WITHIN_FICTION"
         and type(record["scope"]) is dict
-        and digest(record["scope"]) == digest(SCOPE)
+        and digest(record["scope"])
+        == digest(
+            {**SCOPE, "provider": "harbor-docker-with-fictional-companions"}
+            if key in ("harbor_base", "containment")
+            else SCOPE
+        )
         and digest(record["conditions"]) == digest({CONDITIONS[key]: True, "no_material_contradiction": True})
         and record["contradictions"] == []
         and isinstance(record["rationale"], str)
