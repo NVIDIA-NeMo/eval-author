@@ -324,6 +324,73 @@ def showcase_module():
     return module
 
 
+@pytest.mark.parametrize("invalid_root", [None, "primary", "fresh"])
+def test_main_validates_both_collections_once_before_success(tmp_path, monkeypatch, capsys, invalid_root):
+    module = showcase_module()
+    output = tmp_path / "output"
+    fresh = output / "fresh-replay"
+    invalid = {"primary": output, "fresh": fresh}.get(invalid_root)
+    events = []
+
+    def summarize(root: Path) -> dict:
+        panel = module.read(root / "scorer/panel.json")
+        return {key: panel[key] for key in ("scorer", "integrity")}
+
+    def collect(root: Path) -> dict:
+        events.append(("collect", root))
+        (root / "scorer").mkdir()
+        (root / "scorer/panel.json").write_text(
+            json.dumps(
+                {
+                    "valid": root != invalid,
+                    "scorer": {"replay_equal": True},
+                    "integrity": {"fresh_replay_equal": True},
+                }
+            )
+        )
+        return summarize(root)
+
+    def validate(root: Path) -> None:
+        events.append(("validate", root))
+        if not module.read(root / "scorer/panel.json")["valid"]:
+            raise ValueError("injected invalid report")
+
+    # Keep main, compare_runs, hashes and verify_existing real; fake panel boundaries.
+    monkeypatch.setattr(module, "collect", collect)
+    monkeypatch.setattr(module, "validate_reports", validate)
+    monkeypatch.setattr(module, "summarize_reports", summarize)
+    monkeypatch.setattr(module, "semantic_projection", summarize)
+    monkeypatch.setattr(module, "render", lambda summary, panel: "<html>showcase</html>")
+
+    if invalid_root is None:
+        assert module.main(["--output", str(output)]) == 0
+        captured = capsys.readouterr()
+        assert captured.out == f"{output / 'index.html'}\n"
+        assert captured.err == ""
+    else:
+        with pytest.raises(SystemExit) as exc:
+            module.main(["--output", str(output)])
+        assert exc.value.code == 2
+        captured = capsys.readouterr()
+        assert captured.out == ""
+        assert "injected invalid report" in captured.err
+        assert f"partial evidence retained at {output}" in captured.err
+
+    expected = [("collect", output), ("collect", fresh), ("validate", output)]
+    if invalid_root != "primary":
+        expected.append(("validate", fresh))
+    assert events == expected
+    for root in (output, fresh):
+        assert (root / "scorer/panel.json").is_file()
+        assert module.read(root / "semantic-result.json") == {
+            "scorer": {"replay_equal": True},
+            "integrity": {"fresh_replay_equal": True},
+        }
+    assert (output / "showcase-hashes.json").is_file()
+    assert (output / "showcase.json").is_file()
+    assert (output / "index.html").read_text() == "<html>showcase</html>"
+
+
 # Pairwise, not the full product: every value and validator branch is covered once each (CI time).
 @pytest.mark.parametrize(
     "case,mutation",

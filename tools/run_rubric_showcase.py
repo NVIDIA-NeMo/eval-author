@@ -919,11 +919,9 @@ def main(argv=None):
         output.mkdir(mode=0o700, parents=True, exist_ok=False)
         created = True
         summary = collect(output)
-        validate_reports(output)
         fresh = output / "fresh-replay"
         fresh.mkdir(mode=0o700)
         collect(fresh)
-        validate_reports(fresh)
         summary["determinism"] = compare_runs(output)
         if not summary["scorer"]["replay_equal"] or not summary["integrity"]["fresh_replay_equal"]:
             raise ValueError("demo replay mismatch")

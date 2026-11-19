@@ -14,6 +14,9 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from rubric_demo_common import artifact_record  # noqa: E402
+
 ROOT = Path(__file__).resolve().parents[1]
 CLI = ROOT / "skills/eval-author-rubric/scripts/measure.py"
 EXPECTATIONS = ROOT / "evals/rubric-measurements/provenance.json"
@@ -110,18 +113,14 @@ def build_selection(root, mutation):
         path.parent.mkdir(parents=True, exist_ok=True)
         if value is not None:
             write_json(path, value)
-        digest = sha(path)
-        records[ident] = {
-            "id": ident,
-            "role": role,
-            "path": path.relative_to(root).as_posix(),
-            "digest": digest,
-            "revision": revision,
-            "access": "available",
-            "selection_origin": "explicit",
-            "source": "handcrafted:rubric-provenance-selection",
-            "evidence": [{"path": path.relative_to(root).as_posix(), "digest": digest}],
-        }
+        records[ident] = artifact_record(
+            root,
+            ident,
+            path.relative_to(root).as_posix(),
+            role,
+            revision=revision,
+            source="handcrafted:rubric-provenance-selection",
+        )
         return records[ident]
 
     config: dict[str, Any] = {

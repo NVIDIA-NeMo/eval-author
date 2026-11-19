@@ -1200,16 +1200,20 @@ The human reviewer confirmed that this fixture accurately represents the recorde
         assert code == 0, result
 
 
-def _ready_static_environment(task_dir: Path) -> None:
-    """Create the real task, candidate, construction and reproducibility, without proof jobs."""
-    _ready_environment(task_dir, setup_only=True)
+def _ready_static_environment(task_dir: Path, *, mode: str = "separate") -> None:
+    """Create the static contract without proof jobs; shared mode is intentionally invalid."""
+    _ready_environment(task_dir, mode=mode, setup_only=True)
     if not (task_dir / "candidate.json").exists():
         _candidate(task_dir)
     _construction(task_dir)
-    _record_reproducibility(task_dir)
+    if mode == "separate":
+        _record_reproducibility(task_dir)
 
 
-def test_ready_static_environment_creates_no_proof_jobs(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+@pytest.mark.parametrize("mode", ["separate", "shared"])
+def test_ready_static_environment_creates_no_proof_jobs(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, mode: str
+) -> None:
     task_dir, _ = _workspace(tmp_path)
     calls = {"record-run-inputs": 0, "qualification": 0}
     original_run = _run
@@ -1226,7 +1230,7 @@ def test_ready_static_environment_creates_no_proof_jobs(tmp_path: Path, monkeypa
 
     monkeypatch.setitem(globals(), "_run", counted_run)
     monkeypatch.setitem(globals(), "_qualification_receipt", counted_receipt)
-    _ready_static_environment(task_dir)
+    _ready_static_environment(task_dir, mode=mode)
 
     assert calls == {"record-run-inputs": 0, "qualification": 0}
     assert not (task_dir / "private/jobs").exists()
@@ -1234,10 +1238,15 @@ def test_ready_static_environment_creates_no_proof_jobs(tmp_path: Path, monkeypa
     assert (task_dir / "candidate.json").is_file()
     assert (task_dir / _TRACE_ENVIRONMENT.construction.PATH).is_file()
     assert (task_dir / "task/tests/qualification-probes.json").is_file()
-    report = json.loads((task_dir / "reproducibility.json").read_text(encoding="utf-8"))
-    assert report["file_count"] == 9
-    assert report["portability"]["state"] == "image_pinned_recipe"
-    assert report == _TRACE_ENVIRONMENT._derive_reproducibility(task_dir)
+    if mode == "shared":
+        assert not (task_dir / "reproducibility.json").exists()
+        assert not (task_dir / "task/tests/Dockerfile").exists()
+        assert 'environment_mode = "shared"' in (task_dir / "task/task.toml").read_text(encoding="utf-8")
+    else:
+        report = json.loads((task_dir / "reproducibility.json").read_text(encoding="utf-8"))
+        assert report["file_count"] == 9
+        assert report["portability"]["state"] == "image_pinned_recipe"
+        assert report == _TRACE_ENVIRONMENT._derive_reproducibility(task_dir)
 
 
 def test_init_creates_private_gitignored_workspace(tmp_path: Path) -> None:
@@ -1982,8 +1991,7 @@ def test_reproducibility_records_complete_task_tree_and_portability(tmp_path: Pa
 
 def test_reproducibility_digest_covers_executable_bits(tmp_path: Path) -> None:
     task_dir, _ = _workspace(tmp_path)
-    _candidate(task_dir)
-    _ready_environment(task_dir, record_validation=False)
+    _ready_static_environment(task_dir)
     _review_privacy(task_dir)
     solve = task_dir / "task" / "solution" / "solve.sh"
     solve.chmod(solve.stat().st_mode | stat.S_IXUSR)
@@ -2014,8 +2022,7 @@ def test_reproducibility_retains_failed_contamination_evidence(tmp_path: Path) -
 
 def test_candidate_requires_no_network_agent_environment(tmp_path: Path) -> None:
     task_dir, _ = _workspace(tmp_path)
-    _candidate(task_dir)
-    _ready_environment(task_dir, record_validation=False)
+    _ready_static_environment(task_dir)
     task_toml = task_dir / "task" / "task.toml"
     task_toml.write_text(
         task_toml.read_text(encoding="utf-8").replace(
@@ -2267,8 +2274,7 @@ def test_prepare_handles_non_string_metadata_type(
 
 def test_shared_verifier_is_rejected(tmp_path: Path) -> None:
     task_dir, _ = _workspace(tmp_path)
-    _candidate(task_dir)
-    _ready_environment(task_dir, mode="shared", record_validation=False)
+    _ready_static_environment(task_dir, mode="shared")
     _review_privacy(task_dir, reviewer_kind="human")
 
     code, result = _run("finalize", "--task-dir", str(task_dir), "--status", "candidate", "--human-reviewed")
@@ -2279,8 +2285,7 @@ def test_shared_verifier_is_rejected(tmp_path: Path) -> None:
 
 def test_candidate_requires_explicit_verifier_environment_mode(tmp_path: Path) -> None:
     task_dir, _ = _workspace(tmp_path)
-    _candidate(task_dir)
-    _ready_environment(task_dir, record_validation=False)
+    _ready_static_environment(task_dir)
     task_toml = task_dir / "task" / "task.toml"
     task_toml.write_text(
         task_toml.read_text(encoding="utf-8").replace('environment_mode = "separate"\n', ""),
@@ -2296,8 +2301,7 @@ def test_candidate_requires_explicit_verifier_environment_mode(tmp_path: Path) -
 
 def test_candidate_requires_explicit_verifier_environment(tmp_path: Path) -> None:
     task_dir, _ = _workspace(tmp_path)
-    _candidate(task_dir)
-    _ready_environment(task_dir, record_validation=False)
+    _ready_static_environment(task_dir)
     task_toml = task_dir / "task" / "task.toml"
     task_toml.write_text(
         task_toml.read_text(encoding="utf-8").replace(
@@ -2316,8 +2320,7 @@ def test_candidate_requires_explicit_verifier_environment(tmp_path: Path) -> Non
 
 def test_verifier_environment_must_be_no_network(tmp_path: Path) -> None:
     task_dir, _ = _workspace(tmp_path)
-    _candidate(task_dir)
-    _ready_environment(task_dir, record_validation=False)
+    _ready_static_environment(task_dir)
     task_toml = task_dir / "task" / "task.toml"
     task_toml.write_text(
         task_toml.read_text(encoding="utf-8").replace(
@@ -2336,8 +2339,7 @@ def test_verifier_environment_must_be_no_network(tmp_path: Path) -> None:
 
 def test_separate_verifier_can_inherit_image_without_tests_dockerfile(tmp_path: Path) -> None:
     task_dir, _ = _workspace(tmp_path)
-    _candidate(task_dir)
-    _ready_environment(task_dir, record_validation=False)
+    _ready_static_environment(task_dir)
     (task_dir / "task" / "tests" / "Dockerfile").unlink()
     _record_reproducibility(task_dir)
     _review_privacy(task_dir)
@@ -2352,8 +2354,7 @@ def test_separate_verifier_can_inherit_image_without_tests_dockerfile(tmp_path: 
 
 def test_step_verifier_cannot_override_separate_mode(tmp_path: Path) -> None:
     task_dir, _ = _workspace(tmp_path)
-    _candidate(task_dir)
-    _ready_environment(task_dir, record_validation=False)
+    _ready_static_environment(task_dir)
     task_toml = task_dir / "task" / "task.toml"
     task_toml.write_text(
         task_toml.read_text(encoding="utf-8")
@@ -2370,8 +2371,7 @@ def test_step_verifier_cannot_override_separate_mode(tmp_path: Path) -> None:
 
 def test_step_verifier_environment_must_be_no_network(tmp_path: Path) -> None:
     task_dir, _ = _workspace(tmp_path)
-    _candidate(task_dir)
-    _ready_environment(task_dir, record_validation=False)
+    _ready_static_environment(task_dir)
     task_toml = task_dir / "task" / "task.toml"
     task_toml.write_text(
         task_toml.read_text(encoding="utf-8")
@@ -2388,8 +2388,7 @@ def test_step_verifier_environment_must_be_no_network(tmp_path: Path) -> None:
 
 def test_step_can_define_a_separate_no_network_verifier_environment(tmp_path: Path) -> None:
     task_dir, _ = _workspace(tmp_path)
-    _candidate(task_dir)
-    _ready_environment(task_dir, record_validation=False)
+    _ready_static_environment(task_dir)
     task_toml = task_dir / "task" / "task.toml"
     task_toml.write_text(
         task_toml.read_text(encoding="utf-8")

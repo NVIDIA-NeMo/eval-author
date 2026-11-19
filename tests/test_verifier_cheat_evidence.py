@@ -10,6 +10,7 @@ import subprocess
 import sys
 from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import Mock
 
 import pytest
 
@@ -136,6 +137,19 @@ def test_complete_panel_counts_paired_semantics(tmp_path):
     assert report["errors"] == []
 
 
+def test_native_check_delegates_loaded_envelope(tmp_path, monkeypatch):
+    module = unit_evidence(tmp_path)
+    spies = {
+        name: Mock(wraps=getattr(module, name)) for name in ("completed_job", "completed_trial", "completed_phases")
+    }
+    for name, spy in spies.items():
+        monkeypatch.setattr(module, name, spy)
+    assert module.native_check(tmp_path / "jobs/sound--reference", "sound--reference")["status"] == "passed"
+    for spy in spies.values():
+        spy.assert_called_once()
+        assert isinstance(spy.call_args.args[0], dict)
+
+
 def test_control_inventory_and_rewards():
     module = collector()
     controls = {"reference", "early-exit", "fake-success", "hidden-case-read", "hang", "boolean-output"}
@@ -150,6 +164,28 @@ def test_control_inventory_and_rewards():
     assert {path.stem for path in (ROOT / "evals/verifier-cheats/controls").glob("*.py")} == controls
 
 
+@pytest.mark.parametrize(
+    "field,value,error",
+    [
+        ("task_name", "foreign", "wrong trial identity"),
+        ("trial_name", "foreign", "wrong trial identity"),
+        ("exception_info", {}, "failed or unfinished native trial"),
+        ("finished_at", "", "failed or unfinished native trial"),
+        ("agent_execution", {"started_at": "", "finished_at": "done"}, "missing agent_execution timing"),
+        ("verifier", {"started_at": "start", "finished_at": None}, "missing verifier timing"),
+    ],
+)
+def test_completed_trial_envelope_errors_remain_specific(tmp_path, field, value, error):
+    module = unit_evidence(tmp_path)
+    path = tmp_path / "jobs/sound--reference/normalizer__unit/result.json"
+    trial = json.loads(path.read_text())
+    trial[field] = value
+    write_json(path, trial)
+    report = module.summarize(tmp_path, 0)
+    assert report["status"] == "incomplete"
+    assert report["errors"] == [f"sound--reference: {error}"]
+
+
 @pytest.mark.parametrize("field,value", [("tests_readable", True), ("tests_writable", True)])
 def test_readable_or_writable_hidden_cases_cannot_pass(tmp_path, field, value):
     module = unit_evidence(tmp_path)
@@ -160,12 +196,27 @@ def test_readable_or_writable_hidden_cases_cannot_pass(tmp_path, field, value):
     assert module.summarize(tmp_path, 0)["status"] == "incomplete"
 
 
-@pytest.mark.parametrize("count", [0, 2, True])
-def test_incorrect_native_counts_cannot_pass(tmp_path, count):
+@pytest.mark.parametrize(
+    "field,count",
+    [
+        (field, count)
+        for field, expected in (
+            ("n_total_trials", 1),
+            ("n_completed_trials", 1),
+            ("n_errored_trials", 0),
+            ("n_pending_trials", 0),
+            ("n_running_trials", 0),
+            ("n_cancelled_trials", 0),
+            ("n_retries", 0),
+        )
+        for count in (1 - expected, 2, True, False, 0.0, 1.0, "1", None)
+    ],
+)
+def test_incorrect_native_counts_cannot_pass(tmp_path, field, count):
     module = unit_evidence(tmp_path)
     path = tmp_path / "jobs/sound--reference/result.json"
     data = json.loads(path.read_text())
-    data["n_total_trials"] = count
+    (data if field == "n_total_trials" else data["stats"])[field] = count
     write_json(path, data)
     assert module.summarize(tmp_path, exit_code=0)["status"] == "incomplete"
 

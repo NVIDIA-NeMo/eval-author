@@ -3,11 +3,34 @@
 
 # Read your results
 
-Eval Author saves reports and evaluation artifacts in the repository you are
-working on. Start with the report for your requested workflow, and read its
-limitations before deciding what to change.
+- Start with the report for your requested workflow.
+- Read its evidence and limitations before deciding what to change.
+- Use the [rubric demo reports](#rubric-demo-reports) to learn the experimental rubric's output without assessing your own task.
+
+Eval Author normally saves reports and evaluation artifacts in the repository you are working on. The rubric demos below write to a private output directory that you choose.
 
 ## Experimental rubric artifacts
+
+### Rubric demo reports
+
+The demos cover 23 defined criteria across 19 task-level and 4 suite-level rows. Task rows assess one task. Suite rows need other tasks or selection history and never contribute to a single task's score. METHOD-J1 has no canonical definition and is outside this defined-row count. Neither demo certifies overall evaluation quality. Applying the experimental rubric to your own task requires [explicit opt-in](../skills/eval-author-rubric/SKILL.md#opt-in-gate).
+
+| Demo | Open first | Supporting files | Scope |
+| --- | --- | --- | --- |
+| [Refund task assessment](determinism-checks.md#fictional-task-scenario) | `source/execution/report.html` | `report.md`, `assessment.json`, and `FINAL-VERIFICATION.json` in the same directory | Full criterion and check report for the refund task and its companion suite, with supplied example review records. |
+| [Rubric mutation demo](determinism-checks.md#rubric-mutation-demo) | `summary.md` | `summary.json` and `runs.json` in the chosen output directory | Base and mutation comparison with separate task-level and suite-level tables. No full per-check HTML report. |
+
+In the assessment, start with the observed rubric score and reason. Open the matching evidence details to see the checks and their scope. Task credit records what the refund controls earned. It is separate from the rubric score. The source title "Fictional-world canonical assessment" identifies the example's supplied review and approval records. The rubric definitions are unchanged.
+
+Read `FINAL-VERIFICATION.json` for the observed row counts, citation checks, and reassessment result. `canonical_rows` includes N/A rows. `applicable_rows` excludes them. `top_anchor_rows` counts rows scored 3. These are coverage counts for this scenario, not a quality percentage. A successful run validates local measurements and their bindings while `empirical_qualification` remains false.
+
+In the mutation summary, compare the intended change with the observed score and reason. Check collateral changes before attributing a result to one criterion. `summary.json` records `base_ok`, `consistent_across_runs`, and `every_mutation_lower`. These are checks of this finite demo. A row marked `U` is Unassessed because evidence is missing, unrun, or blocked. It is not a measured zero. N/A requires an applicability reason.
+
+The mutation demo's `provenance.runtime-route` score of 3 uses a weaker reading than the canonical anchor. It validates a Harbor manifest and an invalid-manifest control, but performs no clean environment setup or adapter run. Keep that limit with any shared result. Offline runs replay cached model judgments while rerunning local controls. They do not obtain fresh model reviews.
+
+Use the linked command sections above for setup and execution. Keep generated runtime metadata private and review screenshots before sharing them.
+
+### Artifact identifiers
 
 Rubric selections use `rubric_scope` for source-backed inventories. Package demo
 observations use `retained_credit`, `retained_credit_controls`, and `coverage` to
@@ -498,8 +521,8 @@ Open `.eval-author/report.html` in a browser. It is a single offline file with
 four tabs:
 
 - **Tasks** lists every task with its status, the behavior it tests, its expected
-  outcome, and its verifier. A summary above the table counts **Proposed**,
-  **Draft**, **Accepted**, and **Unknown** tasks. Open a task's README, or its
+  outcome, and its verifier, with **Draft** tasks first. A summary above the table
+  counts **Proposed**, **Draft**, **Accepted**, and **Unknown** tasks. Open a task's README, or its
   Harbor task viewer where available.
 - **Runs** lists each evaluation job with its role, completion, and combined reward.
 - **Audit** shows the latest [audit coverage report](#coverage-audits). Task names
@@ -534,7 +557,7 @@ counts appear separately; an incomplete job's score is labeled partial. Missing
 rewards do not become zeroes. Without a documented reward range, the numeric
 total appears without a graph. Native scores without a documented pass rule
 are not labeled passed or failed. Standalone controls and other individual trials
-remain accessible in the separate Legacy trials section and are not combined
+remain accessible in the separate Individual attempts section and are not combined
 into inferred jobs.
 
 Markdown tables use inline labels and text separators, so they render in

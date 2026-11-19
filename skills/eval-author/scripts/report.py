@@ -465,8 +465,9 @@ def nested_checkout(repo: Path, path: Path) -> bool:
     return False
 
 
-def task_sort(task: dict) -> tuple[bool, str, str, str]:
+def task_sort(task: dict) -> tuple[bool, bool, str, str, str]:
     return (
+        task.get("readiness") != "draft",
         task["status"] != "proposed",
         PurePosixPath(task["path"]).parent.as_posix() if task["path"] else "",
         task["display_id"],
@@ -1343,7 +1344,7 @@ def render_runs_markdown(data: dict) -> str:
     if not data["runs"]:
         lines.append("No recorded evaluation jobs.")
     if data["standalone_trials"]:
-        lines.extend(["", "## Legacy trials", "", "Standalone trials are not evaluation jobs.", ""])
+        lines.extend(["", "## Individual attempts", "", "Standalone trials are not evaluation jobs.", ""])
         lines.extend(markdown_runs(data["standalone_trials"], "Trial"))
     return "\n".join(lines).rstrip() + "\n"
 
@@ -1409,8 +1410,8 @@ def render_readme_section() -> str:
         "[Open report.html](report.html) in a browser. It is one offline file: it needs no server, and it "
         "contacts nothing until you open a Harbor viewer link. It has four tabs.",
         "",
-        "- **Tasks** lists every test case, proposed tasks first. Each row shows what the task tests, the result "
-        "it expects, and how its verifier grades it. The status badge tracks review: **Proposed** tasks are "
+        "- **Tasks** lists every test case, draft tasks first, then proposed tasks. Each row shows what the task "
+        "tests, the result it expects, and how its verifier grades it. The status badge tracks review: **Proposed** tasks are "
         "designed but not yet built, **Draft** tasks are built and waiting for your acceptance (or changed after "
         "it), and **Accepted** tasks are approved by you for that exact revision. Hover over or focus a badge to "
         "read why. **Task README** opens the full case documentation, and **View task** opens it in Harbor's task "
@@ -1726,7 +1727,7 @@ def refresh(
                 (standalone_trials, "standalone_trials", runs_complete),
             ]:
                 if not complete:
-                    label = "Legacy trials" if key == "standalone_trials" else key.capitalize()
+                    label = "Individual attempts" if key == "standalone_trials" else key.capitalize()
                     warnings.append(f"{label} inventory is incomplete; retained entries may be unverified.")
                 current = {r["path"] for r in records}
                 roots = metadata["task_roots" if key == "tasks" else "jobs_roots"]

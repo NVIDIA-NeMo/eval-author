@@ -386,17 +386,7 @@ def native_check(output, cases):
     job = output / "jobs/refund-panel"
     require({p.name for p in (output / "jobs").iterdir()} == {"refund-panel"}, "unexpected jobs")
     aggregate = read(job / "result.json")
-    require(type(aggregate["n_total_trials"]) is int and aggregate["n_total_trials"] == 1, "wrong trial count")
-    for key, value in {
-        "n_completed_trials": 1,
-        "n_errored_trials": 0,
-        "n_pending_trials": 0,
-        "n_running_trials": 0,
-        "n_cancelled_trials": 0,
-        "n_retries": 0,
-    }.items():
-        require(type(aggregate["stats"][key]) is int and aggregate["stats"][key] == value, "wrong job counts")
-    require(bool(aggregate["finished_at"]), "unfinished job")
+    common.completed_job(aggregate, errors=("wrong trial count", "wrong job counts", "unfinished job"))
     paths = list(job.glob("*/result.json"))
     require(len(paths) == 1, "missing or duplicate trial")
     trial_dir = paths[0].parent
@@ -417,14 +407,12 @@ def native_check(output, cases):
         ),
         "aggregate evidence disagreement",
     )
-    require(trial["task_name"] == "refund" and trial["trial_name"] == trial_dir.name, "wrong trial identity")
-    require(trial["exception_info"] is None and bool(trial["finished_at"]), "unfinished trial")
+    common.completed_trial(trial, "refund", trial_dir.name, errors=("wrong trial identity", "unfinished trial"))
     require(
         trial["agent_info"]["name"] == "refund-scorer-control" and trial["agent_info"]["model_info"] is None,
         "unexpected agent",
     )
-    for phase in ("agent_execution", "verifier"):
-        require(bool(trial[phase]["started_at"]) and bool(trial[phase]["finished_at"]), "unfinished phase")
+    common.completed_phases(trial, error="unfinished phase")
     rewards = trial["verifier_result"]["rewards"]
     require(
         set(rewards) == {"reward"} and type(rewards["reward"]) in (int, float) and rewards["reward"] == 1,
