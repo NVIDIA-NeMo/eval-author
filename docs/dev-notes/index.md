@@ -12,9 +12,6 @@ Engineering notes on what we're building, testing, and learning in Eval Author.
 
 ## Posts
 
-- **November 19, 2026:** [Reading the experimental rubric demo](posts/2026-11-19-reading-rubric-demo.md)
-  - A fictional task report, a canonical rubric excerpt, and a separate mutation comparison.
-
 - **October 15, 2026:** [Introducing Eval Author](posts/2026-10-08-introducing-eval-author.md)
   — Helping developers build the evaluations that make agents work.
 

@@ -28,7 +28,7 @@ In the mutation summary, compare the intended change with the observed score and
 
 The mutation demo's `provenance.runtime-route` score of 3 uses a weaker reading than the canonical anchor. It validates a Harbor manifest and an invalid-manifest control, but performs no clean environment setup or adapter run. Keep that limit with any shared result. Offline runs replay cached model judgments while rerunning local controls. They do not obtain fresh model reviews.
 
-For a small canonical rubric excerpt and an explanation of the two demos, read the [rubric demo Dev Note](dev-notes/posts/2026-11-19-reading-rubric-demo.md). Use the linked command sections above for setup and execution. Keep generated runtime metadata private and review screenshots before sharing them.
+Use the linked command sections above for setup and execution. Keep generated runtime metadata private and review screenshots before sharing them.
 
 ### Artifact identifiers
 

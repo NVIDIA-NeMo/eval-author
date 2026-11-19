@@ -7,7 +7,7 @@
 - Start with the [fictional task scenario](#fictional-task-scenario) to read a full rubric report.
 - Use the [rubric mutation demo](#rubric-mutation-demo) to compare a base task with deliberate changes.
 
-Run commands from the repository checkout. Developer tools in `tools/` are not included in skill-only installations. For a short introduction and a sample rubric, read the [rubric demo Dev Note](dev-notes/posts/2026-11-19-reading-rubric-demo.md).
+Run commands from the repository checkout. Developer tools in `tools/` are not included in skill-only installations.
 
 | Check | What it verifies |
 | --- | --- |
