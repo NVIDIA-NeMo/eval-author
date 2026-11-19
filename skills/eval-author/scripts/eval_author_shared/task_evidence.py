@@ -28,6 +28,8 @@ from working_paths import atomic_write_json
 from . import construction
 from . import workspace_contract as _workspace
 
+CONTROL_AGENT_ALIASES = {"harbor.agents.nop:NopAgent": "nop", "harbor.agents.oracle:OracleAgent": "oracle"}
+
 SCHEMA = "nemo.eval_author.task_evidence.v1"
 MANIFEST_SCHEMA = "nemo.eval_author.task_evidence.v2"
 REPAIR_STATE_SCHEMA = "nemo.eval_author.repair_state.v1"
@@ -964,8 +966,7 @@ def _agent_identity(config: Any) -> str:
     identity = import_path or name
     if not identity:
         raise _workspace.ContractError("Harbor result must explicitly identify its agent")
-    aliases = {"harbor.agents.nop:NopAgent": "nop", "harbor.agents.oracle:OracleAgent": "oracle"}
-    return aliases.get(identity, identity)
+    return CONTROL_AGENT_ALIASES.get(identity, identity)
 
 
 def _proof_control(task_dir: Path, agent: str, source: Path, rationale: str, *, arm: str) -> dict[str, Any]:

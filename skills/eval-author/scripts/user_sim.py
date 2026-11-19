@@ -9,7 +9,7 @@ import argparse
 import json
 import math
 import sys
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, fields
 from pathlib import Path
 from typing import Literal, TypeAlias, cast
 
@@ -20,19 +20,8 @@ MAX_SCENARIO_BYTES = 256 * 1024
 MAX_DEPTH = 64
 MAX_VALUES = 10000
 JSONValue: TypeAlias = str | int | float | bool | None | list["JSONValue"] | dict[str, "JSONValue"]
-FIELDS = frozenset(
-    {
-        "schema_version",
-        "task_id",
-        "goal",
-        "start_prompt",
-        "user_type",
-        "user_facts",
-        "disclosure_rules",
-        "stopping_conditions",
-        "conversation_prompt",
-    }
-)
+SCHEMA_VERSION: Literal[1] = 1
+NEUTRAL_USER_TYPE: Literal["neutral"] = "neutral"
 
 
 class UserSimError(ValueError):
@@ -45,7 +34,7 @@ class UserSimScenario:
     task_id: str
     goal: str
     start_prompt: str
-    user_type: Literal["neutral"] = "neutral"
+    user_type: Literal["neutral"] = NEUTRAL_USER_TYPE
     user_facts: dict[str, JSONValue] = field(default_factory=dict)
     disclosure_rules: tuple[str, ...] = ()
     stopping_conditions: tuple[str, ...] = ()
@@ -58,6 +47,9 @@ class UserSimScenario:
         if self.conversation_prompt is None:
             result.pop("conversation_prompt")
         return result
+
+
+FIELDS = frozenset(item.name for item in fields(UserSimScenario))
 
 
 class _ScenarioLoader(yaml.SafeLoader):
@@ -100,7 +92,13 @@ def _json_value(value: object, budget: _FactBudget, depth: int = 0) -> JSONValue
     budget.values += 1
     if depth > MAX_DEPTH or budget.values > MAX_VALUES:
         raise UserSimError("user_facts exceeds the nesting or value limit")
-    if value is None or type(value) in {str, int, bool}:
+    if type(value) is int:
+        try:
+            str(value)
+        except ValueError as error:
+            raise UserSimError("user_facts integers must be JSON-serializable") from error
+        return value
+    if value is None or type(value) in {str, bool}:
         return cast(JSONValue, value)
     if type(value) is float:
         if not math.isfinite(value):
@@ -139,9 +137,9 @@ def validate_scenario(value: object) -> UserSimScenario:
         raise UserSimError("Scenario must be a mapping")
     if any(not isinstance(key, str) or key not in FIELDS for key in value):
         raise UserSimError("Scenario contains an unsupported top-level field")
-    if type(value.get("schema_version")) is not int or value["schema_version"] != 1:
+    if type(value.get("schema_version")) is not int or value["schema_version"] != SCHEMA_VERSION:
         raise UserSimError("schema_version must be the integer 1")
-    if value.get("user_type", "neutral") != "neutral":
+    if value.get("user_type", NEUTRAL_USER_TYPE) != NEUTRAL_USER_TYPE:
         raise UserSimError("user_type must be neutral")
     facts = value.get("user_facts", {})
     if not isinstance(facts, dict):
@@ -149,7 +147,7 @@ def validate_scenario(value: object) -> UserSimScenario:
     checked_facts = _json_value(facts, _FactBudget())
     assert isinstance(checked_facts, dict)
     return UserSimScenario(
-        schema_version=1,
+        schema_version=SCHEMA_VERSION,
         task_id=_text(value.get("task_id"), "task_id"),
         goal=_text(value.get("goal"), "goal"),
         start_prompt=_text(value.get("start_prompt"), "start_prompt"),
@@ -175,7 +173,7 @@ def load_scenario(path: Path) -> UserSimScenario:
         value = yaml.load(text, Loader=_ScenarioLoader)
     except UserSimError:
         raise
-    except (yaml.YAMLError, ValueError, OverflowError, KeyError, AttributeError, TypeError) as error:
+    except (yaml.YAMLError, ValueError, OverflowError, KeyError, AttributeError, TypeError, IndexError) as error:
         mark = getattr(error, "problem_mark", None)
         location = f" at line {mark.line + 1}, column {mark.column + 1}" if mark else ""
         raise UserSimError(f"Invalid or unsupported YAML{location}") from error

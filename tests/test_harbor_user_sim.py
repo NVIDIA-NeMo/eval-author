@@ -417,7 +417,7 @@ def test_older_harbor_version_is_explicit(
 ) -> None:
     scenario, config, output, _ = inputs
     monkeypatch.setattr("harbor_user_sim.version", lambda _: installed_version)
-    with pytest.raises(HarborTranslationError, match=r"0\.24\.0 or later"):
+    with pytest.raises(HarborTranslationError, match=r"requires harbor >=0\.24\.0"):
         translate(scenario, config, output)
 
 
@@ -435,7 +435,7 @@ def test_compatible_harbor_versions_translate(
 def test_invalid_harbor_version_is_explicit(inputs: tuple, monkeypatch: pytest.MonkeyPatch) -> None:
     scenario, config, output, _ = inputs
     monkeypatch.setattr("harbor_user_sim.version", lambda _: "invalid")
-    with pytest.raises(HarborTranslationError, match="Could not determine the installed Harbor version"):
+    with pytest.raises(HarborTranslationError, match="requires harbor"):
         translate(scenario, config, output)
     assert not output.exists()
 
@@ -471,3 +471,38 @@ def test_cli_has_safe_summary_and_sanitized_errors(inputs: tuple) -> None:
     assert malformed.returncode == 2
     assert not json.loads(malformed.stderr)["translated"]
     assert "DO_NOT_ECHO_YAML_SECRET" not in malformed.stdout + malformed.stderr
+
+
+@pytest.mark.parametrize("role", ["target", "simulator"])
+@pytest.mark.parametrize("field", ["name", "import_path"])
+@pytest.mark.parametrize("control", ["harbor.agents.nop:NopAgent", "harbor.agents.oracle:OracleAgent"])
+def test_control_aliases_are_rejected(inputs: tuple, role: str, field: str, control: str) -> None:
+    scenario, config, output, data = inputs
+    if role == "target":
+        data["agents"] = [{field: control}]
+    else:
+        data["user_agent"] = {field: control}
+    config.write_text(yaml.safe_dump(data))
+    with pytest.raises(HarborTranslationError, match="control"):
+        translate(scenario, config, output)
+    assert not output.exists()
+
+
+@pytest.mark.parametrize("which", ["scenario", "config"])
+@pytest.mark.parametrize("parent", [False, True])
+def test_selected_inputs_reject_symlink_aliases(inputs: tuple, which: str, parent: bool) -> None:
+    scenario, config, output, _ = inputs
+    source = scenario if which == "scenario" else config
+    alias = Path.cwd() / "alias"
+    alias.symlink_to(source.parent if parent else source, target_is_directory=parent)
+    selected = alias / source.name if parent else alias
+    with pytest.raises(HarborTranslationError, match="symlink"):
+        translate(selected if which == "scenario" else scenario, selected if which == "config" else config, output)
+    assert not output.exists()
+
+
+def test_control_alias_check_follows_native_name_precedence(inputs: tuple) -> None:
+    scenario, config, output, data = inputs
+    data["agents"][0]["import_path"] = "harbor.agents.oracle:OracleAgent"
+    config.write_text(yaml.safe_dump(data))
+    assert translate(scenario, config, output).run_config_path.is_file()

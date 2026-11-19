@@ -319,10 +319,8 @@ rejects mismatched draft, task-name, or proposal filenames.
 For either provider, record the scaffold as **Draft** using
 [Task status](../eval-author/references/shared-prerequisites.md#task-status)
 before refreshing the report.
-For an approved `user_sim` task, call [user-sim authoring](../eval-author-user-sim/SKILL.md) now. Preserve its provider/runtime blockers and this flow's eligibility and native checks.
 
 Then complete Harbor's generated files:
-
 - `environment/`: a copy of the agent's environment kit plus this task's own
   records, buildable on its own rather than `FROM` a local kit image, and never
   the solution.
@@ -331,6 +329,8 @@ Then complete Harbor's generated files:
 - `task.toml`: nonempty keywords, metadata, realistic timeouts and resources.
 - `README.md`: purpose, behavior under test, expected result, environment, verifier, layout, and persistent suite and
   individual-item run instructions.
+
+For each approved `user_sim` task, call [user-sim authoring](../eval-author-user-sim/SKILL.md) after preparing its environment records, smoke proof, and README Verifier section. Preserve its blockers and this flow's eligibility and native checks.
 
 For either provider, refresh `.eval-author/report.html` and the marked report
 section of `.eval-author/README.md` after authoring and after controls or
