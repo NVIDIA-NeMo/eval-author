@@ -6,7 +6,9 @@
 from __future__ import annotations
 
 import argparse
+import contextlib
 import copy
+import io
 import json
 import sys
 from collections.abc import Mapping
@@ -18,9 +20,10 @@ from typing import TYPE_CHECKING, Any
 
 import yaml
 from eval_author_shared.task_evidence import CONTROL_AGENT_ALIASES, digest
-from harbor_acp import validate_acpx_config_file
-from runtime_policy import require_supported
-from user_sim import UserSimError, UserSimScenario, load_scenario
+from harbor_acp import validate_acp_target_settings, validate_acpx_config_file
+from interaction_types import USER_SIM_SCENARIO_FILENAME
+from runtime_policy import RuntimePolicyError, require_supported
+from user_sim import UserSimError, load_scenario
 
 if TYPE_CHECKING:
     from harbor.models.job.config import JobConfig
@@ -206,7 +209,8 @@ def _snapshot_input(path: Path, snapshots: dict[str, str]) -> None:
     snapshots[key] = observed
 
 
-def _validate_task(native: JobConfig, scenario: UserSimScenario, output_dir: Path) -> None:
+def _validate_task(native: JobConfig, scenario_path: Path, output_dir: Path) -> None:
+    from harbor.agents.factory import AgentFactory
     from harbor.models.task.task import Task
 
     assert native.tasks[0].path is not None
@@ -220,15 +224,25 @@ def _validate_task(native: JobConfig, scenario: UserSimScenario, output_dir: Pat
     # Harbor 0.24.0 implicitly loads this file and bypasses the simulator.
     if task.paths.trajectory_path.exists() or task.paths.trajectory_path.is_symlink():
         raise HarborTranslationError("Task-provided trajectory.json is incompatible with user simulation")
-    if task.name != scenario.task_id:
-        raise HarborTranslationError("Scenario task_id does not match the selected native task")
+    if scenario_path != task_dir.resolve() / USER_SIM_SCENARIO_FILENAME:
+        raise HarborTranslationError("Use the user-sim.yaml inside the selected native task directory")
+    target = native.agents[0]
+    try:
+        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+            target_class = AgentFactory.get_agent_class_from_config(target)
+    except (Exception, SystemExit) as error:
+        raise HarborTranslationError("Could not load the selected target agent") from error
+    try:
+        validate_acp_target_settings(target, target_class, task_mcp_servers=bool(task.config.environment.mcp_servers))
+    except ValueError as error:
+        raise HarborTranslationError(str(error)) from error
 
 
 def translate(scenario_path: Path, config_path: Path, output_dir: Path) -> TranslationResult:
     """Preserve native path semantics relative to the calling working directory."""
     try:
         require_supported("harbor", "authoring", version("harbor"))
-    except ValueError as error:
+    except RuntimePolicyError as error:
         raise HarborTranslationError(str(error)) from error
     from harbor.models.job.config import JobConfig
     from harbor.models.trial.config import TrialConfig
@@ -246,8 +260,8 @@ def translate(scenario_path: Path, config_path: Path, output_dir: Path) -> Trans
     native = JobConfig.model_validate(data)
     # JobConfig does not check the trial's user-agent/load-trajectory exclusion.
     TrialConfig.model_validate({"task": native.tasks[0], "agent": native.agents[0], "user_agent": native.user_agent})
-    _validate_task(native, scenario, output_dir)
     external_inputs = _external_inputs(native)
+    _validate_task(native, scenario_path, output_dir)
     for path in external_inputs:
         _snapshot_input(path, snapshots)
     _validate_acpx_input(native)

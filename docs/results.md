@@ -537,10 +537,14 @@ are not labeled passed or failed. Standalone controls and other individual trial
 remain accessible in the separate Legacy trials section and are not combined
 into inferred jobs.
 
+Markdown tables use inline labels and text separators, so they render in
+terminal interfaces without HTML support.
+
 ## User-simulation scenarios
 
-For an approved Harbor **User-sim** task, Eval Author writes `user-sim.yaml` in
-the task directory. It describes the neutral user's goal, opening request, known
+For an approved Harbor **User-sim** task with
+[experimental user simulation enabled](first-evals.md#enable-experimental-user-simulation),
+Eval Author writes `user-sim.yaml` in the task directory. It describes the neutral user's goal, opening request, known
 facts, and any task-specific conversation rules. The task README links this file
 and explains which parts of the exchange the verifier checks.
 

@@ -130,3 +130,20 @@ def test_single_turn_plan_cannot_hide_malformed_optional_details(interaction_typ
                 "prerequisite_checks": "none",
             }
         )
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        None,
+        {},
+        True,
+        {"enabled": "false", "source": "user"},
+        {"enabled": 1, "source": "user"},
+        {"enabled": True, "source": " "},
+        {"enabled": True, "source": "x" * 4001},
+    ],
+)
+def test_simulation_opt_in_requires_an_explicit_boolean_and_user_source(interaction_types, value):
+    with pytest.raises(ValueError, match="User simulation"):
+        interaction_types.validate_user_simulation(value)

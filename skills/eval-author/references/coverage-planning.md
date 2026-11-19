@@ -46,8 +46,57 @@ evaluation runs are new evidence with their own run IDs; they do not silently
 enlarge or replace the source corpus. If corpus membership changes, update the
 agreement and identify affected plans, fixtures, and coverage claims for review.
 
+## Enable experimental user simulation
+
+User simulation is experimental and off by default for each suite. Treat
+“enable user simulation” and “enable experimental user simulation for this
+evaluation suite” as explicit opt-in. An explicit request to disable user
+simulation turns it off for that suite. Reuse the choice when resuming the same
+suite. Start a new suite with simulation off, unless the user enables it for
+that new suite. Installation, saved simulation files, task-design approval,
+and a general request for multi-turn coverage don't enable it.
+
+This is a scoped settings change, so it doesn't start onboarding, task creation,
+or a run. Use the active or explicitly named suite. If the suite is ambiguous,
+ask which suite the choice applies to. With a known repository but no suite yet,
+save the choice for its next authoring proposal. Preserve the active journey,
+pending question, existing approvals, and retained evidence.
+
+Read the saved metadata with `journey_state.py --repo <repo> --state-only show`.
+For an existing authoring scope, use its current revision for a state-only update:
+
+```json
+{"scopes": {"create": {"user_simulation": {"enabled": true, "source": "enable user simulation"}}}}
+```
+
+Use `create` for first-eval, including expansion routed to that flow, and
+`expand` for task-create. Retain the user's actual request in `source`. Use
+`enabled: false` for withdrawal. If state doesn't exist, initialize only the
+selected authoring journey with `--state-only init`, without probing prerequisites
+or inventing an agent or provider. Save through the existing revision-checked
+`--state-only update --input <patch.json> --expected-revision <revision>` command.
+The owning validator is `validate_user_simulation` in
+[`interaction_types.py`](../scripts/interaction_types.py). Missing metadata means off.
+
+While off, propose Single Turn or Scripted Multi-step when they can exercise the
+behavior. Keep behaviors requiring adaptive user replies as uncovered or blocked.
+Retain existing `user_sim` designs, scenarios, and results for inspection, with
+simulation authoring and execution blocked. Use `first_eval_simulation_disabled`
+for the saved first-eval suite's disabled status. Changing a task's type still
+requires design review. Don't silently turn an adaptive scenario into a script.
+
+With simulation enabled, normal design review, environment proof, integration
+checks, and execution authorization still apply. Before scenario authoring,
+translation, or execution, check the selected scope's saved choice. Direct helper
+invocation and native Harbor `user_agent` configuration don't establish opt-in.
+Discovery may inspect existing configurations and report their capabilities while
+authoring and execution stay off. Disabling preserves historical evidence and
+revokes first-eval run authorization. Re-enabling doesn't restore that authorization.
+Clear the saved choice when starting a different suite in the same scope.
+
 ## Choose the interaction type
 
+- Apply the [simulation opt-in gate](#enable-experimental-user-simulation) before selecting interaction types.
 - Choose an interaction type for each task before saving or reviewing its
   proposal. Save `interaction_type` alongside the request, expected behavior,
   and grading rule.

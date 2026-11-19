@@ -13,6 +13,7 @@ import conversation_templates as shared
 import first_eval_state
 import journey_state
 from conversation_formatting import checklist, json_context, link, literal, mapping, text
+from interaction_types import USER_SIM_SCENARIO_FILENAME
 
 from . import first_eval_templates as copy
 
@@ -37,6 +38,7 @@ STAGES = {
         "results",
         "resume",
         "blockers",
+        "simulation_disabled",
     )
 }
 CONTENT_FIELDS = {
@@ -130,7 +132,7 @@ def adapter_task(record: dict, task: dict) -> dict:
         if field in task:
             context[field] = task[field]
     if task.get("interaction_type") == "user_sim" and context["path"]:
-        context["expected_scenario_path"] = str(PurePosixPath(context["path"]) / "user-sim.yaml")
+        context["expected_scenario_path"] = str(PurePosixPath(context["path"]) / USER_SIM_SCENARIO_FILENAME)
     return context
 
 
@@ -230,7 +232,16 @@ def task_table(tasks: list[dict]) -> str:
         if task.get("interaction_type") is not None:
             label = interaction_type_label(task["interaction_type"])
             interaction = copy.INTERACTION_TYPE.format(label=label)
-        rows.append(f"| {interaction}**{task_id}** - {behavior} | {expected} | **{verifier_type}** {scoring} |")
+        scenario = ""
+        if task.get("user_sim_scenario") is not None:
+            identity = task["user_sim_scenario"]
+            scenario = copy.NEUTRAL_SCENARIO.format(
+                task_id=literal(identity["task_id"], "scenario task ID", table=True),
+                path=literal(identity["path"], "scenario path", table=True),
+            )
+        rows.append(
+            f"| {interaction}**{task_id}** - {behavior}{scenario} | {expected} | **{verifier_type}** {scoring} |"
+        )
     return "\n".join(rows)
 
 
@@ -239,16 +250,42 @@ def authored_rows(record: dict, facts: dict, observed: dict, task_ids: list[str]
     if not isinstance(supplied, list) or len(supplied) != len(task_ids):
         raise ValueError("Supply one current authored task row per reviewed task from the saved report snapshot")
     rows = []
+    planned = {task["id"]: task for task in record["plan"]["tasks"]}
     for task_id, row in zip(task_ids, supplied, strict=True):
         row = mapping(
             row,
             "authored task row",
-            {"task_id", "task_sha256", "behavior_tested", "expected_outcome", "verifier_type", "scoring_rule"},
+            {
+                "task_id",
+                "task_sha256",
+                "behavior_tested",
+                "expected_outcome",
+                "verifier_type",
+                "scoring_rule",
+                "interaction_type",
+                "user_sim_scenario",
+            },
         )
         if row.get("task_id") != task_id or row.get("task_sha256") != observed["tasks"].get(task_id):
             raise ValueError("Authored task rows must match the saved task order and fresh task digests")
         if row["task_sha256"] != record["tasks"][task_id]["sha256"]:
             raise ValueError("Authored task rows must describe current task files")
+        design = planned[task_id]
+        if row.get("interaction_type") != design.get("interaction_type"):
+            raise ValueError("Authored interaction types must match the saved design")
+        scenario = row.get("user_sim_scenario")
+        if design.get("interaction_type") == "user_sim":
+            scenario = mapping(scenario, "neutral scenario identity", {"task_id", "user_type", "path", "digest"})
+            if (
+                scenario.get("task_id") != task_id
+                or scenario.get("user_type") != "neutral"
+                or scenario.get("path") != record["tasks"][task_id]["path"] + "/" + USER_SIM_SCENARIO_FILENAME
+                or not scenario.get("digest")
+                or observed["files"].get(scenario["path"]) != scenario["digest"]
+            ):
+                raise ValueError("Authored user-sim rows require the current neutral scenario identity")
+        elif scenario is not None:
+            raise ValueError("Only User-sim tasks have a neutral scenario identity")
         rows.append(row)
     return rows
 
@@ -372,6 +409,15 @@ def execution_settings(record: dict) -> str:
         "; ".join(literal(item, "open question") for item in questions) or copy.NO_OPEN_QUESTIONS,
     )
     bullets = "\n".join(f"- **{label}:** {value}" for label, value in zip(copy.SETTINGS_LABELS, values, strict=True))
+    if first_eval_state.user_sim_tasks(record):
+        simulation = settings.get("user_sim")
+        if simulation is None:
+            bullets += "\n" + copy.SIMULATOR_SETTINGS_PENDING
+        else:
+            bullets += "\n" + copy.SIMULATOR_SETTINGS.format(
+                agent_model=literal(simulation["agent_model"], "simulator agent and model"),
+                limits=literal(simulation["conversation_limits"], "conversation limits"),
+            )
     return "\n\n".join([copy.SETTINGS_INTRO, bullets])
 
 
@@ -704,6 +750,22 @@ def results(record: dict, progress: dict, facts: dict, journey: str) -> str:
             quality=literal(facts.get("quality_failures"), "quality_failures"), **attempt_counts(progress, run)
         )
     )
+    design = next(task for task in record["plan"]["tasks"] if task["id"] == attempt["task_id"])
+    if design.get("interaction_type") is not None:
+        from interaction_types import interaction_type_label
+
+        parts.append(copy.RESULT_INTERACTION_TYPE.format(label=interaction_type_label(design["interaction_type"])))
+    if design.get("interaction_type") == "user_sim":
+        simulation = selected["user_sim"]
+        settings = first_eval_state.execution_settings(record)["user_sim"]
+        parts.append(
+            copy.RESULT_USER_SIM.format(
+                task_id=literal(simulation["task_id"], "scenario task ID"),
+                path=literal(simulation["scenario"]["path"], "scenario path"),
+                agent_model=literal(settings["agent_model"], "simulator agent and model"),
+                limits=literal(settings["conversation_limits"], "conversation limits"),
+            )
+        )
     parts.append(
         copy.ATTEMPT_REVIEW.format(
             run=literal(run["id"], "run id"),
@@ -835,6 +897,10 @@ def render(payload: dict) -> str:
         assert record is not None
         if stage == "resume":
             stage = progress["next_stage"]
+        if progress["user_simulation_blocked"] and stage != "results":
+            return copy.SIMULATION_DISABLED + "\n"
+        if stage == "simulation_disabled":
+            raise ValueError("The selected suite has no disabled simulation work")
         if stage == "proposal":
             if progress["scope_approved"]:
                 raise ValueError("Scope is already approved; resume the saved next stage")

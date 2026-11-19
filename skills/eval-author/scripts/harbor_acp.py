@@ -21,6 +21,7 @@ def validate_acp_target_settings(
     from harbor.agents.installed.codex import Codex
     from harbor.agents.installed.gemini_cli import GeminiCli
     from harbor.agents.installed.opencode import OpenCode
+    from harbor.utils.env import resolve_env_vars
 
     # Harbor 0.24 skips run() in ACP mode, including its prompt decorator and
     # these CLI/config hooks. Custom ACP implementations need their own proof.
@@ -50,10 +51,15 @@ def validate_acp_target_settings(
             or agent_class.acp_env is not stock_class.acp_env
         ):
             continue
+        try:
+            effective = agent_class.parse_options(target.kwargs, resolve_env_vars(target.env))
+        except ValueError as error:
+            raise ValueError("Could not validate the target's effective ACP options") from error
+        settings = effective.model_dump(exclude_unset=True) if effective is not None else target.kwargs
         ignored = [
-            f"kwargs.{key}"
+            f"options.{key}"
             for key in ("prompt_template_path", *options)
-            if target.kwargs.get(key) is not None and not (key == "disable_web_search" and target.kwargs[key] is False)
+            if settings.get(key) is not None and not (key == "disable_web_search" and settings[key] is False)
         ]
         if stock_class is ClaudeCode and (target.mcp_servers or target.kwargs.get("mcp_servers") or task_mcp_servers):
             ignored.append("mcp_servers")

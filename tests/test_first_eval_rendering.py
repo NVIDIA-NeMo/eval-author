@@ -104,6 +104,9 @@ def observations(record):
                 for ref in [record["selection"]["config"], *record["selection"].get("inputs", [])]
             }
         )
+        files.update(
+            {ref["path"]: ref["digest"] for ref in (record["selection"].get("bridge") or {}).get("evidence", [])}
+        )
     for run in record["runs"]:
         files.update({ref["path"]: ref["digest"] for ref in run["evidence"]})
         for attempt in run["attempts"]:
@@ -111,11 +114,17 @@ def observations(record):
     summary = (record["run_review"] or {}).get("summary")
     if summary:
         files[summary["path"]] = summary["digest"]
-    return {"tasks": {key: task["sha256"] for key, task in record["tasks"].items()}, "files": files}
+    simulation = (record["selection"] or {}).get("user_sim")
+    return {
+        "tasks": {key: task["sha256"] for key, task in record["tasks"].items()},
+        "files": files,
+        "directories": {simulation["working_directory"]: True} if simulation else {},
+    }
 
 
 def test_proposal_displays_selected_interaction_without_inferring_legacy_type(creation):
-    _, record, _, renderer, _ = creation
+    state, record, _, renderer, _ = creation
+    state["scopes"]["create"]["user_simulation"] = {"enabled": True, "source": "enable user simulation"}
     record["plan"]["tasks"][0].update(
         interaction_type="user_sim",
         state_requirements="Keep the same customer session.",
@@ -273,7 +282,10 @@ def selected(creation):
     }
     record["selection"] = {
         "config": {"path": ".eval-author/run.yaml", "digest": SHA},
-        "cases": [{"task_id": key, "example_ids": [key + "-example"], "attempts": 1} for key in record["tasks"]],
+        "cases": [
+            {"task_id": task["id"], "example_ids": task["example_ids"], "attempts": 1}
+            for task in record["plan"]["tasks"]
+        ],
         "agent": "support",
         "model": "configured-model",
         "source": "Explicit run selection",
@@ -2726,7 +2738,7 @@ def test_task_table_renders_without_html_support(creation, html_enabled, interac
     children = [child for token in tokens for child in token.children or []]
     displayed = " ".join(child.content for child in children if child.type == "text")
     assert sum(token.type == "td_open" for token in tokens) == 3
-    assert not any(child.type == "html_inline" for child in children)
+    assert not any(token.type in {"html_inline", "html_block"} for token in [*tokens, *children])
     assert "<br>" not in displayed
     assert interaction_type_label(interaction_type) + ":" in displayed
     assert "Import the document. Save it in the selected project." in displayed

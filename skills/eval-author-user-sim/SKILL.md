@@ -34,6 +34,9 @@ metadata:
 
 # Eval Author: user simulation
 
+Apply the shared [simulation opt-in gate](../eval-author/references/coverage-planning.md#enable-experimental-user-simulation)
+when selecting interaction types and before simulation authoring or execution.
+
 Use [eval-author](../eval-author/SKILL.md) for the shared standard. Consume the
 calling flow's context without repeating onboarding, Ethos confirmation, source
 selection, or design approval. The caller retains its progress updates, task

@@ -130,6 +130,15 @@ SUITE_REVIEW_STATUS = (
 SUITE_QUESTION = "Do these tasks look good? Approve the suite or tell me what to change before we choose how to run it."
 SETTINGS_INTRO = "Here are the settings for running the approved tasks."
 SETTINGS_LABELS = ("Attempts", "Validation", "User-specified limits", "Open questions")
+NEUTRAL_SCENARIO = " - Neutral scenario: {task_id} ({path})"
+SIMULATOR_SETTINGS_PENDING = (
+    "- **User simulation:** Neutral user. Simulator identity and conversation limits remain unresolved."
+)
+SIMULATOR_SETTINGS = "- **Simulated user:** Neutral, using {agent_model}\n- **Conversation limits:** {limits}"
+RESULT_INTERACTION_TYPE = "**Interaction type:** {label}."
+RESULT_USER_SIM = (
+    "**Neutral scenario:** {task_id} ({path}). **Simulator:** {agent_model}. **Conversation limits:** {limits}."
+)
 NO_OPEN_QUESTIONS = "None."
 CHECKS_PASSED = (
     "The verifiers have already passed their checks. I’ll reuse those saved results; "
@@ -307,3 +316,9 @@ LINK_LABELS = {
     "rerun": "saved run instructions",
     "task_rerun": "Task-specific run instructions",
 }
+
+
+SIMULATION_DISABLED = """User simulation is disabled for this suite. Saved tasks and results remain available.
+Say “enable user simulation” to make experimental simulation authoring and execution available,
+or revise the design to use Single Turn or Scripted Multi-step. Enabling simulation
+keeps the usual task review and execution authorization checks."""

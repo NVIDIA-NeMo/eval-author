@@ -305,6 +305,9 @@ Requirements depend on the operation. Use the
 [Harbor setup guide](../skills/eval-author/references/harbor-setup.md) when
 you need to create, validate, or run Harbor tasks.
 
+For Harbor-backed workflows, use the [current runtime requirements](../skills/eval-author/references/runtime-prerequisites.md).
+Check them before running discovery or authoring checks.
+
 | Operation | Requirements |
 | --- | --- |
 | Read repository docs or explicitly request case planning only | Your coding agent and repository access. No evaluation runtime is required for this scoped work. |

@@ -386,3 +386,38 @@ def test_preflight_cli_sanitizes_invalid_yaml(tmp_path: Path) -> None:
     assert result.returncode == 2
     assert json.loads(result.stderr)["preflight_passed"] is False
     assert "PRIVATE_CANARY" not in result.stdout + result.stderr
+
+
+@pytest.mark.parametrize("source", ["config", "host", "interpolated"])
+@pytest.mark.parametrize("override", [False, True])
+def test_effective_target_options_include_native_environment_fallbacks(
+    judge: Any, monkeypatch: pytest.MonkeyPatch, source: str, override: bool
+) -> None:
+    target: dict[str, Any] = {"name": "claude-code"}
+    if source == "host":
+        monkeypatch.setenv("CLAUDE_CODE_MAX_TURNS", "2")
+    elif source == "interpolated":
+        monkeypatch.setenv("PRIVATE_LIMIT", "2")
+        target["env"] = {"CLAUDE_CODE_MAX_TURNS": "${PRIVATE_LIMIT}"}
+    else:
+        target["env"] = {"CLAUDE_CODE_MAX_TURNS": "2"}
+    if override:
+        target["kwargs"] = {"max_turns": None}
+    outcome = judge.ValidationOutcome()
+    judge._check_agent(config(agents=[target]), outcome)
+    assert ("user-agent-settings" in failures(outcome)) is (not override)
+    assert "PRIVATE_LIMIT" not in str(outcome.checks)
+
+
+def test_preflight_result_serializes_existing_check_records(judge: Any) -> None:
+    helper = importlib.import_module("check_harbor_config")
+    entry = judge._check("agent", "pass", "Ready")
+    result = helper.PreflightResult(
+        preflight_passed=True,
+        working_directory="/repo",
+        config_path="/repo/run.yaml",
+        checks=[entry],
+        required_env_vars=[],
+    )
+    assert json.loads(result.model_dump_json())["checks"] == [entry.as_dict()]
+    assert result.runtime_verified is False

@@ -6,7 +6,9 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Final, Literal, TypedDict
+from typing import Final, Literal, TypedDict, cast
+
+USER_SIM_SCENARIO_FILENAME: Final = "user-sim.yaml"
 
 InteractionType = Literal["single_turn", "scripted_multi_step", "user_sim"]
 
@@ -62,3 +64,28 @@ def validate_interaction_plan(task: Mapping[str, object]) -> None:
             raise ValueError("prerequisite_checks must be a list of nonempty checks")
         if kind == SCRIPTED_MULTI_STEP and not checks:
             raise ValueError("Scripted multi-step tasks require checked prerequisites")
+
+
+class UserSimulationDecision(TypedDict):
+    enabled: bool
+    source: str
+
+
+def validate_user_simulation(value: object) -> UserSimulationDecision:
+    if (
+        not isinstance(value, dict)
+        or set(value) != {"enabled", "source"}
+        or type(value["enabled"]) is not bool
+        or not isinstance(value["source"], str)
+        or not value["source"].strip()
+        or len(value["source"]) > 4000
+    ):
+        raise ValueError("User simulation requires a boolean enabled choice and bounded user source")
+    return cast(UserSimulationDecision, value)
+
+
+def user_simulation_enabled(state: dict, journey: str = "create") -> bool:
+    scope = state["scopes"].get(journey, {})
+    if not isinstance(scope, dict) or "user_simulation" not in scope:
+        return False
+    return validate_user_simulation(scope["user_simulation"])["enabled"]
