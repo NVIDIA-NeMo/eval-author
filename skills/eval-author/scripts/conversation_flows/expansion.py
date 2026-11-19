@@ -28,7 +28,7 @@ def render(payload: dict) -> str:
         raise ValueError("State revision differs; reload before rendering expansion")
     value = expansion_state.record(state)
     if value is not None and value["schema_version"] == 2:
-        raise ValueError("Use expansion_scope for the saved planning checkpoint")
+        raise ValueError("Use resume for the saved planning checkpoint")
     facts = mapping(payload.get("facts", {}), "expansion facts", {"expansion_observations"})
     progress = expansion_state.derive(state, facts.get("expansion_observations"))
     if progress is None:

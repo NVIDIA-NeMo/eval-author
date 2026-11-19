@@ -252,7 +252,7 @@ def entry_ready(state: dict) -> bool:
 
 
 def checkpoint_ready(state: dict) -> bool:
-    from journey_state import checklist
+    from journey_state import active_blockers, checklist
 
     value = record(state)
     if value is None or value["schema_version"] == 1 or value["path"] != "recorded_interaction":
@@ -260,7 +260,7 @@ def checkpoint_ready(state: dict) -> bool:
     return (
         state["journey"] == "expand"
         and checklist(state)[0]["complete"]
-        and not any(row["phase"] in ("setup", "ethos", "expand") for row in state["blockers"])
+        and not active_blockers(state)
         and state["ethos"]["stage"] not in ("review", "interview", "draft", "write")
         and not state["ethos"]["remaining_questions"]
     )
@@ -301,6 +301,13 @@ def transition(repo, previous: dict, updated: dict) -> None:
                 raise ValueError("Expansion scope requires its journey and shared prerequisites")
             if not progress["context_current"]:
                 raise ValueError("Bind the expansion scope to the current provider, intent, and handoff")
+            if (
+                before is not None
+                and before["pending"] is not None
+                and after["pending"] is None
+                and updated["pending_question"] == before["pending"]["question"]
+            ):
+                raise ValueError("Clear or replace the answered scope question")
             scope = updated["scopes"]["expand"]
             current = progress["context_current"]
             scope["confirmed"] = bool(current and after["decision"] and after["decision"]["kind"] == "approved")

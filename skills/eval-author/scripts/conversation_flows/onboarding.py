@@ -264,6 +264,11 @@ def next_steps(state: dict, facts: dict, stage: str, *, audit: dict | None = Non
     if stage == "confirmed" and question not in confirmation_questions:
         raise ValueError("Clear the answered review question before presenting the confirmation pause")
     paragraphs = [shared.NEXT_STEPS, checklist(journey, state, audit=audit)]
+    expansion = expansion_state.record(state) if journey == "expand" else None
+    if expansion is not None and expansion["schema_version"] == 2 and expansion_state.checkpoint_ready(state):
+        if question:
+            paragraphs.append(literal(question, "pending question"))
+        return "\n\n".join(paragraphs)
     if confirmed:
         if state["ethos"]["remaining_questions"]:
             raise ValueError("Resolve the saved intent questions before presenting confirmed ETHOS.md")
@@ -432,8 +437,8 @@ def render(payload: dict) -> str:
     ):
         raise ValueError("Use audit_resume for saved audit checkpoints after shared onboarding is complete")
     expansion = expansion_state.record(state) if state["journey"] == "expand" else None
-    if expansion is not None and not state_only:
-        checkpoint = "expansion_scope" if expansion["schema_version"] == 2 else "expansion_continue"
+    if expansion is not None and expansion["schema_version"] == 1 and not state_only:
+        checkpoint = "expansion_continue"
         if expansion_state.checkpoint_ready(state) and (
             expansion["pending"] is not None or state["pending_question"] is None
         ):

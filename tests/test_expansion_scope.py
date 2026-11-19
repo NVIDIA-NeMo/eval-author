@@ -79,6 +79,8 @@ def test_scope_checkpoint_survives_resume_without_replacing_existing_context(mod
     assert progress["context_current"]
     assert not progress["complete"]
     assert expansion.record(resumed)["plan"] == PLAN
+    output = modules[2].render({"stage": "resume", "state": resumed, "revision": resumed["revision"]})
+    assert QUESTION in output
     if path == "recorded_interaction":
         assert resumed["ethos"]["confirmed_digest"] is None
         assert not resumed["scopes"]["expand"]["needs_review"]
@@ -104,12 +106,54 @@ def test_saved_decision_resumes_at_its_checkpoint_without_completing_the_journey
     assert expansion.record(resumed) == expansion.record(saved)
     assert not progress["complete"]
     assert resumed["journey_status"].get("expand") != "complete"
+    output = modules[2].render({"stage": "resume", "state": resumed, "revision": resumed["revision"]})
+    if kind == "revise":
+        assert value["pending"]["question"] in output
+    else:
+        assert QUESTION not in output
     if kind != "revise":
         question = "Which fixture account should the task use?"
         saved = state.update(tmp_path, {"pending_question": question}, expected_revision=resumed["revision"])
         assert state.initialize(tmp_path, journey="expand")["pending_question"] == question
         output = modules[2].render({"stage": "resume", "state": saved, "revision": saved["revision"]})
         assert question in output and QUESTION not in output
+
+
+@pytest.mark.parametrize("kind", ["approved", "declined"])
+@pytest.mark.parametrize("next_question", [None, "Which fixture account should the task use?"])
+def test_answered_scope_question_must_be_cleared_or_replaced(modules, tmp_path, kind, next_question):
+    state, expansion, _ = modules
+    saved = start(modules, tmp_path)
+    value = copy.deepcopy(expansion.record(saved))
+    value["decision"] = {"kind": kind, "source": f"User reply: {kind}"}
+    value["pending"] = None
+    patch = {"scopes": {"expand": {"lifecycle": value}}}
+    before = state.state_path(tmp_path).read_bytes()
+    with pytest.raises(ValueError, match="answered scope question"):
+        state.update(tmp_path, patch, expected_revision=saved["revision"])
+    assert state.state_path(tmp_path).read_bytes() == before
+    patch["pending_question"] = next_question
+    updated = state.update(tmp_path, patch, expected_revision=saved["revision"])
+    assert updated["pending_question"] == next_question
+
+
+@pytest.mark.parametrize("path", ["starter_suite", "recorded_interaction"])
+@pytest.mark.parametrize("blocker_id", ["environment", "services", "data", "model_credentials"])
+def test_scope_planning_defers_execution_blockers(modules, tmp_path, path, blocker_id):
+    state, expansion, _ = modules
+    saved = start(modules, tmp_path, path)
+    blocked = state.update(
+        tmp_path,
+        {"blockers": [{"id": blocker_id, "phase": "expand", "message": "Needed before execution"}]},
+        expected_revision=saved["revision"],
+    )
+    assert expansion.checkpoint_ready(blocked)
+    value = copy.deepcopy(expansion.record(blocked))
+    value["decision"] = {"kind": "approved", "source": "User approves planning only"}
+    value["pending"] = None
+    approved = save_scope(modules, tmp_path, blocked, value)
+    assert approved["scopes"]["expand"]["confirmed"]
+    assert approved["blockers"] == blocked["blockers"]
 
 
 def test_plan_revision_requires_a_new_decision(modules, tmp_path):

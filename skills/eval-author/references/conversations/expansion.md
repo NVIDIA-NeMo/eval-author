@@ -87,6 +87,8 @@ Task-create continues to own gap selection, authoring, native validation, and
 acceptance; starter expansion and trace mode retain their existing workflows.
 There is no additional construction approval or command. Once its question is
 answered, this checkpoint leaves later authoring questions with their owner.
+Use the registered `resume` stage to show its checklist and saved question;
+`expansion_continue` remains specific to the unresolved entry decision.
 Preserve shared prerequisite/Ethos recovery and the existing context bindings.
 Do not save a parallel checklist, introduce another state file, or register
 future-stage placeholders. Reuse shared formatting and labels.
