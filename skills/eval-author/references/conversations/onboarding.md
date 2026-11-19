@@ -274,8 +274,6 @@ Do not reuse observations from an earlier revision or replace them with derived
 readiness flags. Shared prerequisite or Ethos recovery can render without these
 observations while the scope checkpoint is not ready.
 
-The saved `recorded_interaction` scope uses `expansion_scope` directly with its
-existing scoped trace entry; it does not enter these full onboarding stages.
 An already-selected improvement path goes directly to its actual downstream
 decision after Ethos confirmation under the
 [shared handoff](../shared-prerequisites.md#pause-after-ethos-confirmation),

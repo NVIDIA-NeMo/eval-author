@@ -75,9 +75,6 @@ task's own NOP, Oracle, or verifier controls never prove the environment.
 ## Trace-backed tools and integrity
 
 For an admitted trace source, follow the [trace source handoff](../eval-author/references/trace-input.md).
-That handoff also owns pre-admission access preparation. For an active expansion,
-consume its [construction scope guard](../eval-author/references/conversations/expansion.md#present-and-record-the-decision)
-before generating mocks or task fixtures; reuse the caller's settled agreement.
 Preserve source-state provenance and reviewed real/mock/none decisions in the shared
 construction contract. The environment kit and its smoke handoff still precede
 task tests. Recorded replay covers only its declared interactions.

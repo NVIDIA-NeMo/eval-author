@@ -10,11 +10,6 @@ use the [Audit coverage report](../../eval-author-audit/references/coverage-repo
 A proposal is provisional until the user settles its open choices; it is not
 permission to generate or run evaluations.
 
-For Journey 3, the [expansion scope checkpoint](conversations/expansion.md#saved-entry-and-scope-records)
-owns the saved task table, exact selection, limits, and explicit construction
-decision. Apply this reference's source and breadth rules within that checkpoint;
-do not add a second scope approval or planning document.
-
 ## Select trace evidence before using it
 
 Traces are optional for first evals. The absence of evals does not establish the
@@ -283,6 +278,8 @@ changes to the specific remaining tradeoff; do not restart a preference intervie
 or imply that cost must take priority. This is the existing scope checkpoint,
 not another approval step after an agreed plan. Put the explanation and feedback
 invitation in the review reply, even when they also appear in the saved scope in journey state.
+For journey `expand`, use [the saved scope checkpoint](conversations/expansion.md#existing-scope-checkpoint)
+to render and retain this review and its actual answer.
 
 Wait for unresolved scope choices, incorporate feedback in the saved
 agreement, then generate the agreed cases. Before the first generation or

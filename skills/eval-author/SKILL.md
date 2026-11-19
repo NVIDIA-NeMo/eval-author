@@ -233,15 +233,9 @@ audit continuation above and the applicable authoring eligibility checks.
 If no supported authoring flow matches the supplied suite,
 save the pending handoff in shared state and explain the missing capability.
 An explicitly selected addition or proposal-only request keeps that scope.
-
-For supported construction, use the saved task table, limits, and explicit
-decision in the [expansion scope checkpoint](references/conversations/expansion.md#saved-entry-and-scope-records).
-Render `expansion_scope` for the actual unresolved decision, retaining selected
-audit improvements that must be deferred. Before dependent task authoring, use
-that checkpoint's read-only construction guard and pass the agreed selection to
-the existing workflow. Do not repeat an unchanged agreement or treat it as
-permission to run the agent. Recorded-interaction work keeps its scoped entry
-and privacy/admission gates.
+For supported task creation, use the owning flow's existing coverage-planning
+review through the [saved scope checkpoint](references/conversations/expansion.md#existing-scope-checkpoint).
+This adds no separate proposal, approval, or task-creation workflow.
 
 ### Downstream progress
 
