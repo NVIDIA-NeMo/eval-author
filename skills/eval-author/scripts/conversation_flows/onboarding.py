@@ -432,19 +432,22 @@ def render(payload: dict) -> str:
     ):
         raise ValueError("Use audit_resume for saved audit checkpoints after shared onboarding is complete")
     expansion = expansion_state.record(state) if state["journey"] == "expand" else None
-    if expansion is not None and expansion["schema_version"] == 2:
-        raise ValueError("Use expansion_scope to render structured expansion scopes")
     if expansion is not None and not state_only:
-        if expansion_state.entry_ready(state):
-            raise ValueError(
-                "Use expansion_continue for saved expansion checkpoints after shared onboarding is complete"
-            )
-        question = literal(expansion["pending"]["question"], "expansion question")
-        if facts.get("question") is not None and literal(facts["question"], "question") == question:
-            raise ValueError("Use expansion_continue for the saved expansion question after shared recovery")
-        if state["pending_question"] is not None and literal(state["pending_question"], "pending question") == question:
-            state = state.copy()
-            state["pending_question"] = None
+        checkpoint = "expansion_scope" if expansion["schema_version"] == 2 else "expansion_continue"
+        if expansion_state.checkpoint_ready(state) and (
+            expansion["pending"] is not None or state["pending_question"] is None
+        ):
+            raise ValueError(f"Use {checkpoint} for saved expansion checkpoints after shared onboarding is complete")
+        if expansion["pending"] is not None:
+            question = literal(expansion["pending"]["question"], "expansion question")
+            if facts.get("question") is not None and literal(facts["question"], "question") == question:
+                raise ValueError(f"Use {checkpoint} for the saved expansion question after shared recovery")
+            if (
+                state["pending_question"] is not None
+                and literal(state["pending_question"], "pending question") == question
+            ):
+                state = state.copy()
+                state["pending_question"] = None
     audit = None
     if "audit_observations" in facts:
         observed = facts["audit_observations"]

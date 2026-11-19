@@ -1232,11 +1232,6 @@ def main() -> int:
     task.add_argument("--status", required=True, choices=("draft", "accepted"))
     task.add_argument("--source", required=True, help="Decision provenance from the existing authoring flow")
     task.add_argument("--evidence", action="append", default=[], help="Repository-relative retained evidence file")
-    construction = commands.add_parser(
-        "check-expansion-scope", help="Check current scope agreement before task construction"
-    )
-    construction.add_argument("--task-id", required=True)
-    construction.add_argument("--expected-revision", type=int, required=True)
     commands.add_parser("import-legacy", help="Import old notes without assuming their approvals")
     args = parser.parse_args()
     try:
@@ -1267,17 +1262,6 @@ def main() -> int:
             )
         elif args.command == "record-task":
             state = record_task(repo, task=args.task, status=args.status, source=args.source, evidence=args.evidence)
-        elif args.command == "check-expansion-scope":
-            state = load_state(repo)
-            print(
-                json.dumps(
-                    expansion_state.construction_guard(
-                        repo, state, task_id=args.task_id, expected_revision=args.expected_revision
-                    ),
-                    indent=2,
-                )
-            )
-            return 0
         elif args.command == "import-legacy":
             state = import_legacy(repo)
         else:
