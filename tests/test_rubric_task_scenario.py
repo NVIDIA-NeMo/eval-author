@@ -114,7 +114,12 @@ def test_cue_full_result_matches_owning_observation(scenario, family, cue_class,
     assert {k: v for k, v in changed.items() if k != "checks"} == {k: v for k, v in original.items() if k != "checks"}
     assert (arm["result"] if location == "observation" else observation["result"]) == original
     rows = assess(scenario, evidence)
-    for ident, indexes in (("CREATE-02", (1, 2, 3)), ("provenance.comparison-fairness", (2,)), ("AUDIT-05-S03", (2,))):
+    # Task rows read only the refund family; a companion-family contradiction moves only suite rows.
+    task_rows = (("CREATE-02", (1, 2, 3)), ("provenance.comparison-fairness", (2,)))
+    if family != "refund":
+        assert all(rows[ident]["score"] == 3 for ident, _ in task_rows)
+        task_rows = (("CREATE-02-SUITE", (2,)),)
+    for ident, indexes in (*task_rows, ("AUDIT-05-S03", (2,))):
         row = rows[ident]
         assert row["score"] is None, (family, cue_class, arm_name, location, ident)
         assert row["assessment_state"] == "NOT_ASSESSED"

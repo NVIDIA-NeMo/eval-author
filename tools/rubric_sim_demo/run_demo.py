@@ -511,7 +511,9 @@ def collect(case: str, work: Path, *, use_agents: bool, offline: bool) -> dict:
     )
     if ev["agents_enabled"]:
         A = lambda role, inputs: agents.ask(role, inputs, offline=offline).output  # noqa: E731
-        listing = "\n".join(sorted(str(p.relative_to(task)) for p in task.rglob("*") if p.is_file()))
+        listing = "\n".join(
+            sorted(str(p.relative_to(task)) for p in task.rglob("*") if p.is_file() and "__pycache__" not in p.parts)
+        )
         env_src = {f"environment/{p.name}": p.read_text() for p in sorted((task / "environment").glob("*.py"))}
         ev["agents"]["independent-reviewer"] = A(
             "independent-reviewer",
