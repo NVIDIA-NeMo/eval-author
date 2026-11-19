@@ -22,6 +22,7 @@ from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from rubric_demo_common import ArtifactRecord, artifact_record, run_measure  # noqa: E402
+from rubric_demo_common import write_json as _write_json  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPTS = ROOT / "skills/eval-author-rubric/scripts"
@@ -373,7 +374,7 @@ VARIANTS = {"score-0": 0, "score-1": 1, "score-2": 2, "score-3": 3, "missing": N
 
 
 def write_json(path: Path, value: Any) -> None:
-    path.write_text(json.dumps(value, sort_keys=True, indent=2, allow_nan=False) + "\n", encoding="utf-8")
+    _write_json(path, value, sort_keys=True)
 
 
 def read_json(path: Path) -> Any:

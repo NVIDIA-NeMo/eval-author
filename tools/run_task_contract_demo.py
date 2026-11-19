@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Any, NotRequired, TypedDict
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from rubric_demo_common import ArtifactRecord, artifact_record, run_measure  # noqa: E402
+from rubric_demo_common import ArtifactRecord, artifact_record, run_measure, write_json  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 TASK = ROOT / "skills/eval-author-audit/evals/files/tasks/order-total"
@@ -113,10 +113,6 @@ class DemoPanel(TypedDict):
 
 def digest(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
-
-
-def write_json(path: Path, value: Any) -> None:
-    path.write_text(json.dumps(value, indent=2, allow_nan=False) + "\n", encoding="utf-8")
 
 
 def cite(output: Path, path: str, quote: str) -> Citation:

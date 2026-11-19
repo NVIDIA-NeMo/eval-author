@@ -332,11 +332,8 @@ def test_cli_sanitizes_output_serialization_failure(tmp_path, monkeypatch, capsy
     assert json.loads(output.out)["code"] == "selection.invalid"
 
 
-@pytest.mark.parametrize("contract", ["version", "order"])
-def test_panel_cli_preserves_canonical_report_contract(rubric_panel, contract):
-    if contract == "version":
-        assert rubric_panel["schema"] == "rubric-mutation-panel-v4"
-        return
+def test_panel_cli_preserves_canonical_report_contract(rubric_panel):
+    assert rubric_panel["schema"] == "rubric-mutation-panel-v4"
     definitions = json.loads((CLI.parent.parent / "references/artifact-configuration-provenance.json").read_text())
     expected = [item["id"] for item in definitions["items"]]
     for case in rubric_panel["assessments"] + rubric_panel["evidence_cases"]:

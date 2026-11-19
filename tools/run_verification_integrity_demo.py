@@ -19,6 +19,9 @@ import sys
 from copy import deepcopy
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from rubric_demo_common import artifact_record  # noqa: E402
+
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPTS = ROOT / "skills/eval-author/scripts"
 RUBRIC = ROOT / "skills/eval-author-rubric/scripts/measure.py"
@@ -117,19 +120,15 @@ def selection(root, manifest, pairs):
         for path in paths:
             ident = path.stem
             relative = path.relative_to(root).as_posix()
-            digest = sha(path)
             records.append(
-                {
-                    "id": ident,
-                    "role": role,
-                    "path": relative,
-                    "digest": digest,
-                    "revision": None,
-                    "access": "available",
-                    "selection_origin": "explicit",
-                    "source": "synthetic native fixture; real task_evidence producer",
-                    "evidence": [{"path": relative, "digest": digest}],
-                }
+                artifact_record(
+                    root,
+                    ident,
+                    relative,
+                    role,
+                    revision=None,
+                    source="synthetic native fixture; real task_evidence producer",
+                )
             )
             native[role + "_ids"].append(ident)
     path = root / "selection.json"
