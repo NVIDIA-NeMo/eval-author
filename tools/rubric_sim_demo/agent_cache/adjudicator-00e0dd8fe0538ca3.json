@@ -1,0 +1,22 @@
+{
+ "output": {
+  "correct_total_cents": 7100,
+  "reason": "Discounted merchandise is 10000 - 1000 = 9000. Policy refund_tax is false, so eligible tax is 0, and shipping is excluded. Prior refunds are 1900, so the remaining total is 9000 - 1900 = 7100 cents. The reference refunds 8000 cents, which is 900 too much because it appears to include the tax. That fails the mandatory amount check. The approval and ledger also use 8000, so they don't match the correct total of 7100 either. The other checks pass: association, destination, approval ordering, protected state and fresh refund ID. Because a mandatory check fails, the reference does not satisfy the contract.",
+  "reference_satisfies_contract": false
+ },
+ "provenance": {
+  "cache_key": "00e0dd8fe0538ca3fcbc094cccc41ab9584e84c4bd948e2811aa9b2d0789cd5e",
+  "cost_usd": 0.02528042,
+  "input_names": [
+   "contract.json",
+   "reference-candidate.json"
+  ],
+  "input_sha256": {
+   "contract.json": "6b1fd1ee2fa8c8294ee1575a5e44fc84f66a112b3417fb692e3d445a28fd3530",
+   "reference-candidate.json": "67d7cbe931aa8ecda230456b1d62954455208bd4062ffa669964e14a3016920a"
+  },
+  "model": "claude-sonnet-5-5",
+  "restrictions": "no tools, no MCP, no settings, no session persistence, empty cwd",
+  "role": "adjudicator"
+ }
+}

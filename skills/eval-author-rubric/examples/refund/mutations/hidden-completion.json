@@ -1,0 +1,12 @@
+{
+  "schema": "rubric-example-mutation-v1",
+  "id": "hidden-completion",
+  "category": "task_or_scorer_defect",
+  "edits": [
+    {
+      "path": "tests/refund_scorer.py",
+      "old": "mandatory = contract[\"scoring\"][\"mandatory\"]",
+      "new": "mandatory = list(contract[\"scoring\"][\"mandatory\"]) + [\"completion_signal\"]"
+    }
+  ]
+}

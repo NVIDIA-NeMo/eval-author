@@ -489,7 +489,9 @@ def _run_json_script(
 def _import_audit_measure(monkeypatch: pytest.MonkeyPatch) -> Any:
     """Import a fresh copy of measure.py so monkeypatches stay local to one test."""
     monkeypatch.syspath_prepend(str(_AUDIT_SPEC_DIR))
-    sys.modules.pop("measure", None)
+    # Record the prior top-level "measure" so teardown restores it; the rubric scripts own that name too.
+    monkeypatch.setitem(sys.modules, "measure", sys.modules.get("measure"))
+    del sys.modules["measure"]
     return importlib.import_module("measure")
 
 
