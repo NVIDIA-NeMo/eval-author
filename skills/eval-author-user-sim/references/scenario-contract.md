@@ -15,11 +15,11 @@ Use the selected runtime's Python with PyYAML installed. The command returns a
 JSON validity summary and exits with 0 on success or 2 for invalid input. It
 doesn't print user facts or execute either agent.
 
-## Version 1 fields
+## Fields
 
 | Field | Requirement | Meaning |
 |---|---|---|
-| `schema_version` | Required integer `1` | Format version. |
+| `schema_version` | Required integer `1` | Required format marker. |
 | `task_id` | Required nonempty string | The agreed task identifier. |
 | `goal` | Required nonempty string | What the user wants to accomplish. Reuse the task goal. |
 | `start_prompt` | Required nonempty string | The exact opening message the target agent receives. |
@@ -53,7 +53,7 @@ The execution adapter must apply these defaults together with the task scenario:
   different exchange.
 
 These are reusable behavior defaults. Personality traits, demographic profiles,
-persona generation, and persona variants aren't part of this version.
+persona generation, and persona variants aren't supported.
 
 ## Information boundaries and validation
 

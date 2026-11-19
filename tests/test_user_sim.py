@@ -225,3 +225,22 @@ def test_invalid_utf8_is_rejected(helper: ModuleType, tmp_path: Path) -> None:
     path.write_bytes(b"\xff")
     with pytest.raises(helper.UserSimError, match="UTF-8"):
         helper.load_scenario(path)
+
+
+@pytest.mark.parametrize("scalar", ['!!int ""', '!!float ""', "!!int _", "!!int"])
+def test_empty_numeric_yaml_returns_sanitized_failure(tmp_path: Path, scalar: str) -> None:
+    result = run_cli(scenario_file(tmp_path, f"user_facts:\n  private: {scalar}\n"))
+    assert result.returncode == 2
+    assert result.stdout == ""
+    assert json.loads(result.stderr)["valid"] is False
+    assert "Traceback" not in result.stderr
+
+
+def test_fact_integers_must_serialize_to_json(helper: ModuleType, tmp_path: Path) -> None:
+    scenario = helper.validate_scenario({**minimal(), "user_facts": {"value": 10**100}})
+    assert json.loads(json.dumps(scenario.to_dict()))["user_facts"]["value"] == 10**100
+    path = scenario_file(tmp_path, "user_facts: {value: 0x" + "f" * 20000 + "}\n")
+    result = run_cli(path)
+    assert result.returncode == 2
+    assert json.loads(result.stderr)["valid"] is False
+    assert "Traceback" not in result.stderr

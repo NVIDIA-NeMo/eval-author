@@ -129,5 +129,5 @@ by this subskill. Keep the missing user-sim runtime integration as an explicit
 execution blocker and use the caller's existing integration handoff. Do not
 pass `user-sim.yaml` to Harbor as a native job configuration, flatten the scenario
 into a single request, or claim that validated YAML or local controls demonstrate
-an actual-agent conversation. Return to the first-task checkpoint before authoring
-the rest of a first-eval suite.
+an actual-agent conversation. Return to the calling authoring stage. The first task still needs approval before
+remaining tasks are built, and each later user-sim task uses this same handoff.
