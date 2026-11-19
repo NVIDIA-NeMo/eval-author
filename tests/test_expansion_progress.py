@@ -284,6 +284,14 @@ def test_provider_round_trip_does_not_require_a_hidden_creation_question(modules
     assert expansion.record(saved)["creation"]["pending"] == value["creation"]["pending"]
     value = copy.deepcopy(expansion.record(saved))
     value["decision"] = {"kind": "approved", "source": "User reconfirms scope after provider recovery"}
+    before = state.state_path(tmp_path).read_bytes()
+    with pytest.raises(ValueError, match="^Save the actual unresolved creation question$"):
+        state.update(
+            tmp_path,
+            {"scopes": {"expand": {"lifecycle": value}}, "pending_question": None},
+            expected_revision=saved["revision"],
+        )
+    assert state.state_path(tmp_path).read_bytes() == before
     saved = save(modules, tmp_path, saved, value)
     assert saved["pending_question"] == value["creation"]["pending"]["question"]
     assert progress(modules, tmp_path, saved)["stage"] == "creation"
@@ -322,7 +330,7 @@ def test_shared_historical_draft_path_has_a_recoverable_scope_revision(modules, 
     both = copy.deepcopy(plan)
     both["tasks"].append(original)
     before = state.state_path(tmp_path).read_bytes()
-    with pytest.raises(ValueError, match="before revising scope, move the current draft"):
+    with pytest.raises(ValueError, match="^Each agreed task needs its own draft path$"):
         expansion.new_scope(saved, path=value["path"], plan=both, question=None, source="User wants both")
     assert state.state_path(tmp_path).read_bytes() == before
     moved = ".eval-author/tasks/revised-refund"
@@ -337,3 +345,15 @@ def test_shared_historical_draft_path_has_a_recoverable_scope_revision(modules, 
     statuses = [row["status"] for row in progress(modules, tmp_path, saved)["creation"]["rows"]]
     assert statuses == ["queued", "draft", "missing"]
     assert not progress(modules, tmp_path, saved)["creation"]["ready_for_review"]
+
+
+def test_duplicate_draft_during_creation_requests_a_distinct_path(modules, tmp_path):
+    state, expansion, _ = modules
+    saved, value = begin(modules, tmp_path)
+    task = author(modules, tmp_path, value, 0)
+    saved = save(modules, tmp_path, saved, value)
+    value["creation"]["tasks"][expansion.task_key(value["plan"]["tasks"][1])] = copy.deepcopy(task)
+    before = state.state_path(tmp_path).read_bytes()
+    with pytest.raises(ValueError, match="^Each agreed task needs its own draft path$"):
+        save(modules, tmp_path, saved, value)
+    assert state.state_path(tmp_path).read_bytes() == before

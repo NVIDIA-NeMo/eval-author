@@ -88,7 +88,9 @@ limits and exclusions in `limits`.
 Reload normal state and render `expansion_scope` with its exact revision and
 `facts.expansion_observations`. Record the user's actual answer as lifecycle
 `decision: {kind, source}`: `approved`, `declined`, or `revise`. Approval or decline
-clears both pending questions; revision retains the actual next scope question.
+clears lifecycle `pending`; revision retains the actual next scope question.
+Set top-level `pending_question` to the question from derived progress. Re-approval
+restores any unresolved `creation.pending` question there; decline clears it.
 Reuse a prior applicable answer rather than asking again to populate this record.
 Changes to the plan require the user's decision on those changes.
 
@@ -130,7 +132,8 @@ outcome, bound to the task revision, following [task validation](../task-validat
 Obtain task `sha256` values from `journey_state.task_digest(repo, task_path)`
 and evidence `digest` values from SHA-256 of the retained files’ actual bytes.
 For failed or blocked validation, use a short user-facing failure or blocker
-reason in `source`; the renderer displays it as the explanation beneath the table.
+reason in `source`. When no task is active, the renderer displays these reasons
+beneath the table. While a task is active, its `detail` appears there instead.
 A scaffold, filename, saved boolean, or intended repair does not establish a
 passing result. The progress observer checks task and evidence freshness; the
 existing workflow owns native validation, without a second receipt validator.
