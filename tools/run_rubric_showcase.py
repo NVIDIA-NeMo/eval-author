@@ -13,6 +13,7 @@ import subprocess
 import sys
 import tempfile
 from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -39,16 +40,37 @@ def run(output, name, script, *args):
 
 def collect(output):
     (output / "identity").mkdir(mode=0o700)
-    identity = json.loads(run(output, "identity", "run_rubric_measurements.py", "--format", "json"))
-    (output / "identity/panel.json").write_text(json.dumps(identity, indent=2, allow_nan=False) + "\n")
-    run(output, "provenance", "run_rubric_provenance_demo.py", "--run-dir", output / "provenance")
-    run(output, "task-contract", "run_task_contract_demo.py", "--output", output / "task-contract")
-    run(
-        output, "integrity", "run_verification_integrity_demo.py", "--format", "json", "--run-dir", output / "integrity"
+
+    def identity() -> None:
+        panel = json.loads(run(output, "identity", "run_rubric_measurements.py", "--format", "json"))
+        (output / "identity/panel.json").write_text(json.dumps(panel, indent=2, allow_nan=False) + "\n")
+
+    def scorer() -> None:
+        run(output, "scorer", "run_scorer_controls.py", "--rubric", "--output", output / "scorer")
+        run(output, "scorer-replay", "run_scorer_controls.py", "--rubric", "--verify-existing", output / "scorer")
+
+    # The demos write disjoint outputs; only the scorer replay depends on the scorer run.
+    jobs = (
+        identity,
+        lambda: run(output, "provenance", "run_rubric_provenance_demo.py", "--run-dir", output / "provenance"),
+        lambda: run(output, "task-contract", "run_task_contract_demo.py", "--output", output / "task-contract"),
+        lambda: run(
+            output,
+            "integrity",
+            "run_verification_integrity_demo.py",
+            "--format",
+            "json",
+            "--run-dir",
+            output / "integrity",
+        ),
+        scorer,
+        lambda: run(
+            output, "criterion-scoring", "run_criterion_scoring_demo.py", "--output", output / "criterion-scoring"
+        ),
     )
-    run(output, "scorer", "run_scorer_controls.py", "--rubric", "--output", output / "scorer")
-    run(output, "scorer-replay", "run_scorer_controls.py", "--rubric", "--verify-existing", output / "scorer")
-    run(output, "criterion-scoring", "run_criterion_scoring_demo.py", "--output", output / "criterion-scoring")
+    with ThreadPoolExecutor(max_workers=len(jobs)) as pool:
+        for future in [pool.submit(job) for job in jobs]:
+            future.result()
     return summarize_reports(output)
 
 
@@ -682,16 +704,21 @@ def render(summary, panel):
     def esc(value):
         return html.escape(str(value), quote=True)
 
+    def display_text(value: str) -> str:
+        for number in range(1, 5):
+            value = value.replace(f"AC-0{number}", f"Anticheat-0{number}")
+        return esc(value)
+
     def score(value):
         return "Unassessed" if value is None else esc(value)
 
     labels = {row["id"]: row["title"] for row in summary["criterion_inventory"]}
 
     def label(ident: str) -> str:
-        return esc(labels[ident])
+        return display_text(labels[ident])
 
     def criterion(ident: str) -> str:
-        return f"{label(ident)}<br><code>{esc(ident)}</code>"
+        return f"{label(ident)}<br><code>{display_text(ident)}</code>"
 
     scorer = summary["scorer"]
     compare = "".join(
@@ -750,7 +777,7 @@ def render(summary, panel):
     authenticity_rows = "".join(
         f"<tr><td>{esc(arm)}</td><td>{score(row['criterion']['score'])}</td>"
         f"<td>{esc(row['criterion']['evidence_strength'] or 'Unassessed')}</td>"
-        f'<td><a href="{esc(row["evidence"])}">Emitted AC-03</a></td></tr>'
+        f'<td><a href="{esc(row["evidence"])}">Emitted Anticheat-03</a></td></tr>'
         for arm, row in summary["receipt_authenticity"].items()
     )
     contract_rows = "".join(
@@ -780,7 +807,7 @@ def render(summary, panel):
         for item in summary["criterion_inventory"]
     )
     production_gaps = ", ".join(label(ident) for ident in summary["production_gaps"])
-    gaps = "".join(f"<li>{esc(gap)}</li>" for gap in scorer["reviewed"]["remaining_gaps"])
+    gaps = "".join(f"<li>{display_text(gap)}</li>" for gap in scorer["reviewed"]["remaining_gaps"])
     return f"""<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Rubric demo: scorer quality and evidence integrity</title>
 <style>
@@ -790,14 +817,14 @@ h1{{font-size:30px;line-height:1.2}}h2{{margin-top:36px;font-size:22px}}a{{color
 <p class="muted">Experimental rubric · local paired demonstration</p>
 <h1>The reviewed scorer rejects shortcuts. Integrity checks find unsupported claims.</h1>
 <p>The fixture demo runs the same frozen refund controls through two scorers. The integrity demo passes synthetic native results to the real receipt producer and rubric CLI. This run starts no Docker containers or models.</p>
-<h2>1. Canonical rubric: AC-02</h2>
+<h2>1. Canonical rubric: Anticheat-02</h2>
 <p>The completion-only baseline awards credit that the task forbids. The reviewed scorer accepts valid solutions and checks the required effects. Task-credit totals use each arm's own scale, separate from the canonical rubric score.</p>
-<div class="scroll"><table><thead><tr><th>Scorer</th><th>AC-02</th><th>False accepts / healthy invalid</th><th>False rejects / healthy valid</th><th>Operational errors</th><th>Evidence</th></tr></thead><tbody>{compare}</tbody></table></div>
+<div class="scroll"><table><thead><tr><th>Scorer</th><th>Anticheat-02</th><th>False accepts / healthy invalid</th><th>False rejects / healthy valid</th><th>Operational errors</th><th>Evidence</th></tr></thead><tbody>{compare}</tbody></table></div>
 <p>{esc(scorer["matched_controls"])}/{esc(scorer["attempted_controls"])} control outcomes match the frozen expectations. The reviewed scorer accepts {esc(scorer["reviewed"]["alternatives_accepted"])}/{esc(scorer["reviewed"]["alternatives_total"])} declared valid alternatives. The baseline has {esc(scorer["baseline"]["health_errors"])} operational errors. The reviewed arm has {esc(scorer["reviewed"]["health_errors"])}. These errors do not count as semantic rejections. Each control's frozen acceptance expectation for the reviewed arm determines its valid/invalid denominator. They include valid alternatives, permitted inaction, partial credit and the negative approval boundary. Operational cases remain separate. Same-input scorer replay: {esc(scorer["replay_equal"])}.</p>
 <details><summary>Inspect all paired controls and task credit</summary><div class="scroll"><table><thead><tr><th>Control</th><th>Role</th><th>Baseline credit</th><th>Reviewed credit</th><th>Expected comparison</th></tr></thead><tbody>{cases}</tbody></table></div></details>
-<h3>Receipt authenticity: AC-03</h3>
-<p>The baseline accepts a solver-authored success claim. The actual local control emits AC-03 = 0/E2. The reviewed arm remains Unassessed. AC-02 and AC-03 share the refund-solver-authored-success finding. They describe the same exploit, not two independent exploits. Rejecting this one shortcut does not prove a complete receipt trust boundary.</p>
-<table><thead><tr><th>Arm</th><th>AC-03</th><th>Evidence strength</th><th>Evidence</th></tr></thead><tbody>{authenticity_rows}</tbody></table>
+<h3>Receipt authenticity: Anticheat-03</h3>
+<p>The baseline accepts a solver-authored success claim. The actual local control emits Anticheat-03 = 0/E2. The reviewed arm remains Unassessed. Anticheat-02 and Anticheat-03 share the refund-solver-authored-success finding. They describe the same exploit, not two independent exploits. Rejecting this one shortcut does not prove a complete receipt trust boundary.</p>
+<table><thead><tr><th>Arm</th><th>Anticheat-03</th><th>Evidence strength</th><th>Evidence</th></tr></thead><tbody>{authenticity_rows}</tbody></table>
 <h2>2. Integrity group: receipt_consistency</h2>
 <p>The deterministic receipt-consistency check emits these separate 0–3 group scores (<code>provenance.evidence-revision-consistency.deterministic-1</code>). They do not score the whole Evidence revision consistency criterion. Required verification remains Unassessed because native freshness is unknown.</p>
 <div class="scroll"><table><thead><tr><th>Case</th><th>Expected group</th><th>Observed group</th><th>Pass / fail / unknown / excluded</th><th>Canonical evidence revision consistency</th><th>Evidence</th></tr></thead><tbody>{anchors}</tbody></table></div>

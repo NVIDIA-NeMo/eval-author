@@ -1,0 +1,29 @@
+{
+ "output": {
+  "answer_exposed": true,
+  "where": [
+   "surface:instruction.md"
+  ]
+ },
+ "provenance": {
+  "cache_key": "b270f074ca0cd9313848514e686c28aef8c509e5c81c82833521a5ccfedb9f8c",
+  "cost_usd": 0.03544266000000001,
+  "input_names": [
+   "private-answer.txt",
+   "surface:/app/contract.json",
+   "surface:/app/ledger.py",
+   "surface:/app/server.py",
+   "surface:instruction.md"
+  ],
+  "input_sha256": {
+   "private-answer.txt": "9e4feaa9b1c0c7ce01effa7f8c8d53d2f660370dd41306d8de6214e10db5cd97",
+   "surface:/app/contract.json": "1b1c9ee7c58bfa2dec18c8a39cd87389901ab3f77f08c5f269e8d4b38c05d3cb",
+   "surface:/app/ledger.py": "3c9d47009fdd0d271dbace33e6fd83ba07f2ee0aa8fac684338a63bc7c3ca328",
+   "surface:/app/server.py": "d582413bb6c92f39def8af635b824c58961c063daa35b50aaa89184e5b9dbfe1",
+   "surface:instruction.md": "623dff2a0a90448fcc0981e88363b4f55be550b930bd4a233117c2630903a137"
+  },
+  "model": "claude-sonnet-5-5",
+  "restrictions": "no tools, no MCP, no settings, no session persistence, empty cwd",
+  "role": "exposure-reviewer"
+ }
+}

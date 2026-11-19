@@ -1,0 +1,6 @@
+{
+ "file": "heldout_attacks.json",
+ "sha256": "f378df3022641eccbcdbe1833aa5359a0b902cfe2448e4fe4626a607cfd8cbb6",
+ "frozen_before_results": true,
+ "rule": "controls.json is the development panel; heldout_attacks.json is untouched confirmation and may not change after any result is observed"
+}

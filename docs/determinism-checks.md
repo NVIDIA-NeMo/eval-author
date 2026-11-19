@@ -9,6 +9,8 @@ Developer tools in `tools/` are not included in skill-only installations.
 
 | Check | What it verifies |
 | --- | --- |
+| [Local replication](#prepare-and-validate-the-additive-suite-locally) | Credential-free suite preparation and reconstruction, separate from native collection. |
+| [Future comparison](#future-automated-comparison) | Existing comparison interfaces and the remaining study/integration gaps. |
 | [Workflow scope](#workflow-scope) | Reviewed actions, writes and handoffs match a request contract. |
 | [Discovery comparisons](#discovery-comparisons) | Repeated discovery reports agree under frozen inputs. |
 | [Rubric identity measurements](#rubric-identity-measurements) | Handcrafted mutations produce exact scoped identity diagnostics and scores. |
@@ -27,6 +29,659 @@ trajectories or free-form prose. The
 [conversation renderer](../skills/eval-author/scripts/conversation_renderer.py)
 separately requires byte-identical messages for identical rendering inputs;
 that presentation guarantee does not establish deterministic workflow execution.
+
+## Fictional task scenario
+
+The source-only package in `tools/rubric_task_scenario/` reproduces a fictional
+refund-task assessment and renders the full canonical per-check report. To compare
+the base with mutations, use the [rubric mutation demo](#rubric-mutation-demo).
+Use an already installed Python 3.12 or 3.13 on macOS or Linux (the local ledger
+uses `fcntl`). From the checkout root, choose a **new directory outside the
+checkout**, with an existing parent and no symlink ancestors:
+
+```bash
+python3 -I -S -B tools/rubric_task_scenario/run.py --output "$HOME/rubric-task-scenario-1"
+```
+
+This single command verifies the source map, materializes its exact allowlisted
+sources under `source/`, executes fresh local task and custody controls, instantiates
+explicit fictional review dispositions, assesses unchanged canonical definitions,
+and writes `source/execution/report.md`, `report.html`, `assessment.json` and
+`FINAL-VERIFICATION.json`. It prints freshly observed row/status/control counts,
+not a predetermined score target. `execution.log` and all generated evidence remain
+in the private output directory. Existing output is rejected; use a new directory
+to repeat. A failed run retains its partial output and diagnostic log.
+
+The package reuses byte-identical repository rubric definitions, renderer and refund
+task sources. `source-map.json` records each source, its current and original hash,
+and the packaging adaptations. Bundled source identity is checked before and after
+execution; this is **not** the original host's historical-integrity check. Historical
+runs, failed attempts, personal runtime manifests and approval records are not bundled.
+A source-map mismatch requires review of changed sources, not automatic repinning.
+
+Actual measurements include task credit, full per-check outcomes, deliberate invalid
+input, reset/order/parallel controls, source drift checks, and finite paired gains.
+Style-only controls change JSON whitespace in consumed policy inputs and candidate
+representations while preserving parsed semantics and other cues; they do not test
+language-model style sensitivity. The checker compares semantic outcomes separately
+from the file scorer's deliberately changed candidate-byte digest.
+
+**Fiction is not evidence of real-world qualification.** Reviewer identities,
+independence, untouched history, owner dispositions and OS enforcement are supplied
+story premises. Their structured acceptance, scope, conditions, contradictions and
+source/evidence bindings are validated; rationale prose is retained for review, not
+semantically adjudicated by this deterministic adapter. Each criterion has its own
+top-anchor predicate. This finite package supports those predicates and justified
+N/A only; failures remain Unassessed rather than receiving a generic 0/1/2 based
+on check counts. Task-control accepted/rejected/error outcomes remain separate
+from rubric scores. N/A rows stay in the total catalog and are excluded only from
+the applicable top-anchor denominator. Binding the fictional
+premises to a fresh run creates no real approval. Affirmative fiction cannot override
+the implemented measurement gates. This is a separate fictional assessment adapter,
+not the ordinary empirical assessment CLI or an empirical operator-store admission.
+No network, models, credentials, Docker, installs or account changes are used.
+
+Repeats establish this finite local workflow's reproducibility, not broad rubric
+qualification, blinded review, arbitrary-program isolation, model performance or
+native Harbor compatibility. Timestamps, runtime origins, output paths and resulting
+manifest hashes may differ; byte-identical full output is not promised. Generated
+runtime metadata can identify the local machine: keep outputs private. Independent
+review of the packaged assessment remains separate from a successful command.
+
+Focused regressions, using the existing development environment:
+
+```bash
+PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -B -m pytest -q tests/test_rubric_task_scenario.py
+```
+
+These tests exercise consumed style isolation, rejected/contradictory/out-of-scope
+fictional dispositions, parallel outcome/state mismatches, unauthorized trace use,
+stale-packet invalidation and bundled-source drift. They are not the full suite.
+
+## Rubric mutation demo
+
+`tools/rubric_sim_demo/run_demo.py` scores the refund base and 21 mutations on all
+21 rubric rows. The base scores 3 on 20 rows. AUDIT-04-B is N/A because no exploit
+is confirmed. Every mutation ranks below the base: no row rises, and at least one
+row drops or becomes Unassessed.
+
+```bash
+.venv/bin/python tools/rubric_sim_demo/run_demo.py --output "$HOME/rubric-sim-1" --offline
+```
+
+The command writes `summary.md`, `summary.json` and `runs.json`. `summary.md` starts
+with one row per mutation: its intended change, target criterion, base and observed
+scores, the reason, and any collateral changes. The full 21-row matrix follows.
+The command scores everything three times. It fails if the results differ, if the
+base misses its target, or if a mutation does not rank lower.
+
+- **Real execution:** the refund scorer, the socket ledger and the Harbor task parser
+  run locally. No Docker or network access is needed.
+- **One check per row:** `checks.py` names one tool for each criterion. The 22 declared
+  refund controls are split so each feeds one row. Some evidence is shared on purpose:
+  held-out results, the reference control, the independent reviewer and the socket
+  service run. `SHARED` in `checks.py` lists which rows read each one. Only a row's own
+  tool can give a 0.
+- **Missing evidence is `U` (Unassessed), not a low score.** A withheld, unrun or
+  blocked input leaves the row Unassessed. `U` ranks below an established score, but
+  the report keeps it apart from a measured drop.
+- **Scores come from observations, not recipes.** For example, a reworded
+  contradiction scores the same as the original wording, because the contract
+  reviewer has to find the contradiction in the text.
+- **Independent review:** restricted `claude -p` sessions with no tools, no MCP
+  servers and no settings. They are the blind solver, held-out attack author,
+  independent reviewer, contract reviewer, adjudicator, trace labeler and exposure
+  reviewer. Each session receives only the files that `agents.py` passes inline,
+  and their hashes are recorded. Answers are cached in `agent_cache/`. `--offline`
+  replays the cache. Without `--offline`, a cache miss calls the model.
+  `--no-agents` caps the independent rows at 2.
+- **Owner decisions:** `policy.json` is a simulated one-time owner declaration.
+  `heldout.freeze.json` freezes the agent-authored held-out attacks. AUDIT-05-S03
+  reaches 3 only when that frozen set reproduces every expected result.
+
+Mutation kinds:
+
+- Task mutations (15): the 7 recipes in `examples/refund/mutations/`, plus
+  trace-secret, answer-exposure, unpinned-image, invalid-manifest,
+  contradictory-contract, its reworded variant, ambiguous-contract and
+  style-advantage.
+- Evidence mutations (4): withhold-reference, withhold-heldout, heldout-tuned and
+  stale-evidence.
+- Review mutations (2): no-independent-review and no-owner-review.
+
+Three base rows reach 3 under a demo reading that is weaker than the canonical anchor.
+Their reasons in `summary.md` say so:
+
+- **AUDIT-05-S03:** a frozen, agent-authored confirmation set reproduces every expected
+  result. Selection history and a retained-gain measurement are not established.
+- **CREATE-02:** cue-only controls earn nothing, but all cases use one task family.
+- **provenance.runtime-route:** Harbor validates the manifest and rejects an invalid one.
+  No clean environment setup or adapter run is performed.
+
+The [fictional task scenario](#fictional-task-scenario) covers these with companion task
+families, paired gains and explicit fictional premises.
+
+`--no-agents` skips the independent agents. The base target is then 2 or 3 on every row,
+and the no-independent-review mutation is dropped because the base already equals it.
+The Harbor check uses the running interpreter. Without Harbor installed,
+runtime-route is Unassessed, so the base misses its target and the command exits 1.
+
+The agents and the policy file are not human approval. The demo does not qualify the rubric.
+
+## One-skill Harbor assessment
+
+The experimental skill can inspect a selected Harbor package and produce a private
+Markdown table. The source adapter is bounded. This path does not yet qualify the
+base at 3 for every populated criterion or prove the expanded demonstration complete.
+Native controls, required human decisions, independent evidence, and the usability
+comparison remain separate acceptance work.
+
+### Prepare a case outside the assessment session
+
+Use Python 3.12 or 3.13 and the checkout's locked development environment;
+see [development setup](../DEVELOPMENT.md#environment-and-skill-layout).
+For a new installation, `uv sync --locked` installs that environment and may use
+network access. **Do not sync an evidence-bound existing environment just to replay
+it.** The commands below reuse its Python directly: no installation, credentials,
+Docker or model is needed. Skill-only copies need the sibling `eval-author` and
+other selected consumers; they do not include the checkout's tests or `tools/`.
+
+From the checkout root, choose a new private run directory outside the checkout.
+Use a real directory with no symlink ancestors, including for `TMPDIR` (macOS
+`/tmp` is commonly an alias). Do not use frozen evidence as scratch.
+
+```bash
+PYTHON="$PWD/.venv/bin/python"
+PRIVATE="$HOME/.cache/eval-author-review/replication-1"
+umask 077
+mkdir -p "$PRIVATE"
+mkdir "$PRIVATE/tmp"
+export PYTHONDONTWRITEBYTECODE=1
+export TMPDIR="$PRIVATE/tmp"
+"$PYTHON" -B skills/eval-author-rubric/scripts/example_fixtures.py \
+  materialize --output "$PRIVATE/case-1"
+"$PYTHON" -B skills/eval-author-rubric/scripts/example_fixtures.py \
+  verify --input "$PRIVATE/case-1"
+```
+
+Both commands should exit 0. Materialization copies task sources; verification
+checks their identity, not native execution or rubric qualification. Keep the
+same `PYTHON`, `PRIVATE` and `TMPDIR` for the following source-only commands.
+`-B` prevents bytecode writes, not reads of existing bytecode; never delete or
+regenerate frozen caches to make an admission check pass.
+
+Choose a new case directory each time. For a mutation, the preparer uses
+`materialize --mutation <catalog-id>` with another new directory. Keep the recipe,
+private manifest, and expected findings outside the assessment session. Supply only
+`case-1/assessment/` as the selected package. Directory separation does not enforce
+an access boundary. Use your assistant's file-access controls when a blind review
+needs that boundary.
+
+The helper writes the same request to `assessment/request.md` for every case.
+In a fresh session, select the package and send this unchanged request:
+
+> Apply eval-author-rubric to the supplied Harbor example. Assess all populated areas. Run the approved local checks and produce the results table. Ask only for permissions or decisions that you cannot infer from the selected evidence.
+
+Give any execution or output-write approval separately. An all-populated request
+needs no second question about which rubric areas to assess. The skill handles
+source selection and its measurement helpers. You do not need to build JSON packets.
+
+### Run the credential-free native pair
+
+With local Docker approval, the bundled collector runs the checked-in refund base
+with Harbor's Oracle and NOP agents. It uses Harbor 0.24.0 from the locked Python
+environment, a private HOME, no-network task phases, and a 420-second recorder cap
+per attempt. It forwards no inference credentials or host Docker configuration.
+Docker, Compose, Buildx and the task's pinned base image must be available locally.
+Image preparation can use Docker's normal image resolution. This command does not
+claim an offline image-installation test.
+
+Choose a new output directory. Keep the registry outside that directory and retain
+it for later verification. On Docker Desktop, pass the installed plugin directory
+as shown. On Linux, omit that flag if Compose and Buildx are installed system-wide.
+The collector changes no global Docker configuration and performs no prune.
+
+```bash
+export PYTHONDONTWRITEBYTECODE=1
+export EVAL_AUTHOR_NATIVE_REGISTRY="$HOME/.cache/eval-author-review/native-registry"
+uv run --locked python -B skills/eval-author-rubric/scripts/rubric_native_collect.py \
+  --approve-local-native \
+  --docker-plugins /Applications/Docker.app/Contents/Resources/cli-plugins \
+  --output "$HOME/.cache/eval-author-review/native-pair-1"
+uv run --locked python -B skills/eval-author-rubric/scripts/rubric_example_native.py \
+  --root "$HOME/.cache/eval-author-review" \
+  --task native-pair-1/task/task.toml --bundle native-pair-1 \
+  --output-selection "$HOME/.cache/eval-author-review/native-selection-1.json"
+uv run --locked python -B skills/eval-author-rubric/scripts/rubric_table.py \
+  --root "$HOME/.cache/eval-author-review" \
+  --selection "$HOME/.cache/eval-author-review/native-selection-1.json" \
+  --output "$HOME/.cache/eval-author-review/native-review-1"
+uv run --locked python -B skills/eval-author-rubric/scripts/rubric_table.py \
+  --root "$HOME/.cache/eval-author-review" \
+  --verify-existing "$HOME/.cache/eval-author-review/native-review-1"
+```
+
+Use the same interpreter invocation for collection and consumption. The command
+identity includes its exact executable path. The collector prints attempt counts
+and task rewards. Expected task rewards are Oracle 1 and NOP 0. These are not
+rubric scores. Both attempts, including infrastructure failures, remain in the
+recorder ledger. The table retains partial native evidence without assigning a
+new criterion score. Table generation and replay can therefore return 1.
+
+The local registry admits only indexes written after current collector validation.
+Replay checks current task and producer sources, raw Harbor results, recorder
+receipts, attempt membership, full verifier checks and reward files. A copied
+summary or a self-resealed index cannot establish admission. This registry trusts
+the local host user and installed Harbor runtime. It does not authenticate a
+remote producer or protect against that user editing the registry.
+
+A byte-preserving copy of the bundle can be consumed from another directory on
+the same trusted installation. Keep file modes and the original index unchanged.
+Run the selector with the copied bundle and its copied `task/task.toml`, then write
+a new table. Raw receipts keep their original paths. Replay maps only the exact
+registered bundle prefix. It never imports retained Python. Changes to producer,
+shared helper, installed Harbor or task sources require a new collection.
+
+This pair covers no access-boundary, predecessor/reset, forged-output, independent
+or human-review controls. Highest-anchor qualification remains unfinished. The
+historical ten-attempt panel remains separate: nine completed trials and one
+infrastructure error. A new pair does not supersede or erase that failure.
+Preserve interrupted output. The recorder timeout does not prove Docker teardown
+after forced host-process termination.
+
+### Inspect and verify the report
+
+The source-only command is also available directly. It runs no task code, container,
+or model. The output directory must be new and outside the selected task directory:
+
+```bash
+"$PYTHON" -B skills/eval-author-rubric/scripts/rubric_table.py \
+  --root "$PRIVATE/case-1/assessment" \
+  --task task/task.toml --output "$PRIVATE/review-1"
+"$PYTHON" -B skills/eval-author-rubric/scripts/rubric_table.py \
+  --root "$PRIVATE/case-1/assessment" \
+  --verify-existing "$PRIVATE/review-1"
+```
+
+Exit 1 is expected when criteria remain Unassessed or raw measurements need review.
+It is distinct from exit 2, which rejects invalid input or changed evidence.
+Exit 0 does not certify task quality. See [rubric table results](results.md#rubric-table-results)
+for the fields and verification limits.
+
+A completed source inspection is not an all-control run. The report retains
+missing evidence instead of assigning zero. Compare the saved observations with
+the frozen expectation catalog only after the assessment, in a separate session.
+The current table does not import that catalog or decide whether its targets matched.
+
+If a run stops, preserve its output. Verify a completed bundle before reuse.
+For incomplete or invalid output, use a new report directory. After an authorized
+repair, generate fresh evidence. Never rewrite a failed bundle as a passing run.
+For a fixture restore, the preparer can use:
+
+```bash
+"$PYTHON" -B skills/eval-author-rubric/scripts/example_fixtures.py \
+  restore --input "$PRIVATE/case-1" --output "$PRIVATE/case-restored"
+```
+
+To review usability, retain original turns and tool results privately. Count
+permission, task-intent, adjudication, recovery, and avoidable orchestration actions
+separately. A with/without-rubric study still needs agreed repetitions, budget,
+held-out cases, and acceptance thresholds. A successful helper command does not
+establish that study's benefit or a user walkthrough without author assistance.
+
+### Prepare and validate the additive suite locally
+
+With the same setup, run the checked-in preparer, not a historical private driver:
+
+```bash
+"$PYTHON" -B skills/eval-author-rubric/current_rubric_finish_native.py \
+  prepare --output "$PRIVATE/suite-1"
+"$PYTHON" -B skills/eval-author-rubric/current_rubric_finish_native.py \
+  validate --output "$PRIVATE/suite-1"
+```
+
+Both commands exit 0 and report `native_execution: false`,
+`development_observations: 18`, and `proposed_episodes: 8`. Despite the filename,
+this CLI has only `prepare` and `validate` modes. It launches no Harbor Trial,
+Docker process, model or network request. It executes trusted checked-in local
+policies and scorers; it is not a source-only inspection.
+
+Open `preregistration.json`, `manifest.json` and `tasks/`. Preparation writes two
+Harbor task copies (interval reservation and dependency release), evaluates three
+policies on six exposed development inputs including refund, and records the
+max-correct/fixed-tie-order selection. Validation recomputes those observations
+from current trusted source and checks task bytes and executable bits. It does
+not execute Python from the retained task copies. Existing preparation outputs
+are rejected; binding mismatches raise an exception and return nonzero. Preserve
+the failure and prepare a new directory rather than resealing the old manifest.
+
+The manifest is not a native result: `rubric_scores` and `authorization` stay null,
+episodes stay `not_run`, and confirmation awaits independent custody with zero
+openings. Proposed credits are expectations, not observed rewards. These exposed
+inputs cannot become held-out evidence by copying them or starting a new session.
+Fresh native collection needs separately approved images, provider, resource and
+lifecycle limits, actual solver permissions and exact-result admission. The
+closed eight-Trial viability allowance is not renewed by preparation.
+
+At checkpoint `6e03653`, fresh private-directory preparation/validation returned
+0/0 using existing Python 3.13.14 without installation. Refund materialization and
+identity verification returned 0/0; its source-only table and retained verification
+returned 1/1 with identical Markdown. Three focused preparation regressions passed.
+This is local replication of those commands, not a new native run, full matrix
+replay, independent review, or a fresh-user end-to-end study.
+
+## Current-base numeric mutation matrix
+
+**Latest retained assessment at checkpoint `6e03653`:** the original Harbor base
+has 12 criteria at 3, seven at 2, CREATE-02 Unassessed, and AUDIT-04-B conditionally
+NOT_APPLICABLE. The latter is neither zero nor 3. The private
+`suite-native-integration-current/ordinary-final/REPORT.md` and `verification.json`
+are the reference, with pending gates in that run's parent `REMAINING.md`.
+They are not shipped with a clone. This guide's historical matrix counts below
+do not describe that newer original-base assessment.
+
+The separately admitted suite completed eight full Harbor Trials through its
+declared provider adapter. In each family, valid/wrong/partial/missing task credits
+were 3/0/2/0 out of 3. These are not rubric scores or held-out results. The goal of
+every applicable top anchor remains unfinished; native/model allowances are closed.
+
+The consolidated runner assesses the supplied combined base once. It runs shared physical cases through `rubric_base_assessment.py`, then reassesses the exact original selection as the common repair. It accepts bases below 3, but does not call them qualified. Accepted operator decisions and explicit upper companions keep their original packets and native receipts.
+
+Canonical definitions generate 21 criteria, 70 checks and 84 numeric cells, plus 21 separate missing-evidence cells. The criteria comprise 11 provenance, 3 contract and 7 leakage entries. The seven leakage entries replace the four overlapping legacy Anticheat rows. `METHOD-J1` remains explicitly Unassessed because upstream has no definition. It contributes no numeric cell. `current-inventory.json` retains the exact definitions, checks, anchors and crosswalk.
+
+`expected` retains the external original recipe. `current_expected` reconciles its targets without changing observed scores. `actual` comes from the ordinary report. AC-02 and AC-03 share AUDIT-03. AC-04 maps to ENV-03-S01. AC-01 contributes evidence to AUDIT-05-B, CREATE-02 and AUDIT-03's forbidden-answer-access control. Its numeric score has no equivalent in those three predicates, so it creates no automatic numeric target. Legacy rows and failed expectations remain historical evidence. They do not qualify current criteria.
+
+The main `summary.md` joins base, case, criterion, expected, actual, reason and repair. `matrix.json` retains collateral changes, unchanged neighbors and physical case identities. Missing evidence is never converted to zero or counted as numeric coverage.
+
+### Run
+
+Finish source changes and header generation before freezing identities. Refresh affected native evidence and scoped reviews only when their bound sources change. The full-generation command below is a historical example, not the retained-current reuse path. For an already admitted current matrix, use [one-command retained reuse](#reuse-current-qualified-evidence-in-one-command) rather than regenerating the full batch. Never reseal original receipts.
+
+From the repository root, choose a **new** scratch output directory:
+
+```sh
+PYTHONDONTWRITEBYTECODE=1 TMPDIR=/Users/asutermorris/.hermes/cache/scratch \
+.venv/bin/python -B skills/eval-author-rubric/scripts/rubric_mutation_runner.py \
+  --base-report /Users/asutermorris/.hermes/cache/scratch/upper-combined-ordinary-04/report/assessment.json \
+  --output /Users/asutermorris/.hermes/cache/scratch/consolidated-numeric-matrix-fresh \
+  --native-numeric-bundle /Users/asutermorris/.hermes/cache/scratch/native-numeric-mutations-04 \
+  --native-numeric-registry /Users/asutermorris/.local/state/eval-author/native \
+  --registry /Users/asutermorris/.local/state/eval-author/native \
+  --source-review-operator-store /Users/asutermorris/.hermes/cache/scratch/operator-source-qualification-01/operator-store \
+  --source-review-operator-trust localhost-assessment-operator-v1 \
+  --upper-environment-bundle /Users/asutermorris/.hermes/cache/scratch/upper-environment-native-03 \
+  --upper-anticheat-bundle /Users/asutermorris/.hermes/cache/scratch/upper-anticheat-contract/native-05 \
+  --upper-anticheat-registry /Users/asutermorris/.hermes/cache/scratch/upper-anticheat-contract/registry
+```
+
+For read-only current verification, replace `--base-report ... --output ...` with `--verify-matrix /absolute/output/matrix.json`. Omit the native-numeric generation flags and preserve every base trust, registry and companion flag. Replay runs once per distinct report, not per numeric cell. You can also replay an individual report with its owning recorded command.
+
+The runner creates six leakage source controls: inventory, private copy, answer filename, duplicate split, prompt reuse and withheld source inventory. Each of the seven leakage criteria also has bounded local base, 0/1/2, missing-input, operational-failure and repair arms. These are synthetic fixtures executed by the current local Ledger/scorer, not native or model observations. The owning ordinary consumer decides their actual scores. Owner and agent decisions are never simulated by generation.
+
+`criterion_baseline` and `criterion_repair` identify each control's actual paired reports. Rows and attempts retain their `base_report` and `repair_report`. These links do not substitute the unrelated combined-base repair. `evidence_control_kind=operational_failure` retains the error in its own track and contributes neither missing-evidence nor numeric coverage. Source observations with preexisting unknowns do not count as deliberate missing-input controls. Shared native controls and each scorer arm's credit scale remain in owning reports.
+
+The runner calls the ordinary assessment and validates native mutations through their owning registry and validator. It never collects new native trials. Supply current admitted native evidence after the final source freeze. A separate `-base` output retains complete base-run evidence. Add `--defer-replay` to `--base-report` or `--extend-matrix` generation to retain observations, `owner-requests.json` and an explicitly deferred verification status. Defaults still replay. The combined base-plus-extension command replays its base reports only in the final extension pass, not twice. See [bounded owner-request collection](results.md#bounded-leakage-observations-and-owner-requests) for collection before exact decisions.
+
+For a same-definition current matrix, `--extend-matrix /absolute/current/matrix.json` reuses case reports and exact repairs with ordinary verification. This mode rejects a historical 18-row matrix. Create a fresh current matrix first. `--native-numeric-reports` can reuse current emitted reports only after owning admission and ordinary replay. Neither mode trusts an extension summary's selected score. See [upper companions](results.md#upper-companions-beside-accepted-source-reviews) for the original selection and explicit trust boundary.
+
+### Historical verified deliverable before the merged scope
+
+`/Users/asutermorris/.hermes/cache/scratch/consolidated-numeric-matrix-03/summary.md` and `matrix.json` retain the pre-merge result: 72 numeric cells, 50 transitions, 18 base cells and four deferred upper cells; all 54 lower cells had report/repair links. Its base was 14 scores of 3 and four scores of 2. Its verification covered 43 distinct reports and 39 physical mutations, including 14 exact task repairs. These counts remain historical only. The durable restoration snapshot is `/Users/asutermorris/src/rubric-guided-runs/pr211-numeric-checkpoint`; do not rewrite its records or label them validation of the merged source.
+
+The earlier semantic task/subject cells (contradictory, ambiguous and disputed contracts, hidden authority, revision and comparison variants) were removed. They scored mutants by recognising exact recipe bytes and returning preset scores, so their matrix cells held by construction. Equivalent mutations are scored by observation in the [rubric mutation demo](#rubric-mutation-demo).
+
+### Evidence limits
+
+- Scope controls retain entire admitted native panels. Explicit partial observations describe only a proper subset; they do not erase failed controls or alter receipt bytes.
+- Inventory controls compare sourced claims with selected active entrypoints and configuration identities. Wrong scorer and material contradictory agent identity are not missing-evidence controls.
+- Provider-incompatibility zero comes from the installed Harbor `TaskConfig` validator, not an invented native execution.
+- Reachable shortcut zeros reconstruct a finite, full-closure admitted source variant and exercise the current guarded Ledger plus scorer on bounded data. Native probes remain unrun for this static-evidence route.
+- Source mutants are fresh copies. Changed task bytes cannot inherit frozen native/review authority. Each exact byte/mode repair is retained separately. The common full-base repair restores the original task and selection. It does not regrade a mutant natively.
+- Legacy base scores do not transfer to the canonical leakage criteria. The runner launches no models or native trials. Refresh affected native panels and obtain any required exact-scope decisions before final execution.
+- `hidden-completion` does not prove a hidden requirement when verifier source is allowed authority. Its expected zero remains an explicit mismatch rather than relabeling the ordinary Unassessed result.
+
+### Original-base upper prerequisites
+
+These are current qualification gates or explicit closed/conditional dispositions
+for the original base, not requests to repeat retained decisions. Separate
+qualified populations do not discharge the remaining original-base gates.
+
+| Original-base criterion | Remaining evidence |
+|---|---|
+| AUDIT-03 | Independently authored held-out attacks on actual applicable routes; bounded original class/credit disposition is retained |
+| AUDIT-04-B | Conditional N/A for the accepted empty original affected inventory; revisit only if an original mechanism is confirmed. Separate affected cohorts still need their own containment and repair evidence |
+| AUDIT-05-B | Independent provenance corroboration; bounded retrospective exposure/sensitivity and scoped alternative are retained, not blind provenance |
+| AUDIT-05-S03 | Independent confirmation and feedback-boundary review of an actual retained gain; current history is exploratory-only with explicit unrecoverable gaps |
+| TRACE-04-A | Independent labels and exact-release audit; original restricted local-use disposition is retained, not public-release consent |
+| ENV-03-S01 | Independently authored parallel, delayed-effect and held-out ordering corroboration; bounded serial surface disposition is retained, with no fictional cross-container queue obligation |
+| CREATE-02 | Original-base current confound/method qualification and independently authored families; accepted separate stale-template zero stays separate |
+| provenance.evidence-revision-consistency | No remaining original-base anchor gap in the latest retained assessment; admitted deterministic change-injection closure is retained |
+| task-contract.discoverable-requirements | Blind discovery for this selection |
+| task-contract.scoring-authority | Independent full-contract corroboration |
+| METHOD-J1 | Upstream canonical judge trust-boundary definition; outside numeric denominator |
+
+The expanded implementation does not claim all 84 cells have results. Current completed counts come only from the final emitted matrix. Missing human, native, independent and adapter prerequisites remain separate from execution failures.
+
+### Reuse current qualified evidence in one command
+
+Use the existing exact Python environment; no installation, credentials, Docker
+launch or model invocation is needed for this retained path. Supply the original
+private evidence root, current matrix, freeze, operator store and registry. All
+must remain at their admitted paths. The assistant handles selections and helper
+calls after explicit experimental-rubric opt-in; users need no private scripts.
+
+From the checkout root (or use `current_rubric_completion.py` from the installed
+skill directory), set the variables to your retained paths:
+
+```sh
+export PYTHONDONTWRITEBYTECODE=1
+export TMPDIR=/absolute/private/nonsymlink-scratch
+PYTHON=/absolute/original/environment/bin/python
+BASE_ROOT=/absolute/original-base-root
+MATRIX=/absolute/current-qualified/matrix.json
+FREEZE=/absolute/original-base-root/source-freeze.json
+STORE=/absolute/original-operator-store
+REGISTRY=/absolute/original-native-registry
+QUALIFICATION=/absolute/upper-qualified-current
+UPPER=/absolute/upper-execution-current
+FOLLOWUP=/absolute/native-closure-current
+
+"$PYTHON" -B skills/eval-author-rubric/current_rubric_completion.py \
+  --reuse-current --matrix "$MATRIX" --source-freeze "$FREEZE" \
+  --source-review-operator-store "$STORE" \
+  --source-review-operator-trust localhost-assessment-operator-v1 \
+  --registry "$REGISTRY" --reviewed-companions finite-upper-v1 \
+  --qualification-root "$QUALIFICATION" --upper-root "$UPPER" \
+  --native-followup-root "$FOLLOWUP" \
+  --output "$BASE_ROOT/new-current-review" --defer-replay
+```
+
+`TMPDIR` must already exist and have no symlink ancestors. The output must be new
+and inside the original base root. The command validates current selections and
+matrix lineage, native mutation admission, all frozen producer identities and
+CREATE-02 identity. It regenerates **one** ordinary base report and requires exact
+measurement/row equality before reusing the remaining reports. It reconstructs
+coverage from emitted scores and generates the exact copied-population report;
+it does not repeat the full binding-affected report batch.
+
+The explicit `finite-upper-v1` option permits only the reviewed companion bytes
+and fixed functions, never a script or command supplied by retained evidence.
+Owning validation and final receipt/revocation readback still apply. Existing
+new-family/native reports have separately reviewed exact identities; their hashes
+alone are not admission. Neither population supplies original-base credit or its
+repair. The alias follow-up preserves the failed prediction: alias rejection in
+both scorer arms is not a confirmed exploit or demonstrated repair benefit.
+
+The new entrypoint ships at the skill root to leave frozen `scripts/` and
+`references/` inventories unchanged. `tools/current_rubric_completion.py` delegates
+to it for existing checkout commands. Omit the companion option and all three
+companion roots only when the input matrix has no separate supporting reports.
+Do not run the old private integration script.
+
+Open `summary.md`; `coverage.json` retains all numeric and missing-evidence cells,
+`matrix.json` retains original disagreements and pairings, `verification.json`
+records owning validation and manual intervention count, and `reuse-inputs.json`
+records the files reused. Exit 0 means this bounded orchestration completed, not
+that the base is perfect or final replay passed. A validation exception is failure;
+retain any partial output and choose a new directory after resolving the cause.
+
+The historical reuse milestone had 75/84 observed numeric cells, 63/63 lower cells
+and 21/21 missing-evidence drops; some drops shared broad withholding. Its original
+Harbor base had 11 scores of 3, three of 2, three of 1 and four Unassessed.
+These are not the latest original-base scores or a freshly rebuilt current matrix.
+No aggregate merit score is computed. Task difficulty and legitimate model
+failures remain intact. Zero interventions means zero new questions, manual packet
+assembly or recovery **during this command after inputs are supplied**; it excludes
+historical setup/qualification and is not a fresh-user study.
+
+Remaining external prerequisites are the unchanged path-bound evidence/runtime,
+explicit local operator trust and nonrevoked records. Porting the historical
+companions to another checkout requires a reviewed configurable replacement and
+new binding validation, not rewriting accepted packets. Original-base upper
+qualification still needs the applicable independent, held-out, confirmation and
+scoped-method evidence listed above; original Audit closure and conditional
+containment N/A must not be reopened from historical gap text. METHOD-J1 needs an
+upstream definition. Final deduplicated retained replay, full tests and any live
+refresh remain separate authorized gates. This command launches none of them.
+
+### Attach completed full-Trial suite viability
+
+For the retained two-family viability packet, use the original inputs defined
+above, not the newly prepared `suite-1`. Only run this after their owner has made
+the complete private closure available and authorized retained admission:
+
+```bash
+SUITE_NATIVE=/absolute/suite-native-recovery-current/native-run
+"$PYTHON" -B skills/eval-author-rubric/current_rubric_completion.py \
+  --original-finish --suite-native-root "$SUITE_NATIVE" \
+  --matrix "$MATRIX" --source-freeze "$FREEZE" \
+  --source-review-operator-store "$STORE" \
+  --source-review-operator-trust localhost-assessment-operator-v1 \
+  --registry "$REGISTRY" --output "$PRIVATE/original-review-1" --defer-replay
+```
+
+Repeat `--registry` for every required original registry. `--original-finish` is
+separate from `--reuse-current`, `--refresh-decisions` and `--reviewed-companions`;
+do not combine them. This completion CLI never replays; replay is a separate final
+gate, and `--defer-replay` is accepted but has no effect. This finite path needs
+the original containment source-equivalence package and byte-pinned historical
+orchestration snapshots beside the private integration output. It is path-bound,
+not a portable collector or a renewed launch authorization.
+
+Open `REPORT.md`, `suite-native.json`, and `report/results.md`. The ordinary JSON
+links the separately validated companion to stay within the existing reader cap.
+Admission checks frozen sources, all raw Trial files, typed Harbor configurations,
+exact task/family/image/adapter identities and reconstructed per-check rewards.
+Every original row and measurement must match the latest containment-admitted
+report. Existing lower examples and their pairings are not regenerated or relinked.
+The result is **full Harbor Trial through the declared provider adapter**, not the
+stock provider path, independent review, held-out evidence, or an awarded anchor.
+`verification.json` separates N/A from Unassessed; no native/model runs, owner
+intake or full retained replay occur. The closed viability budget does not renew.
+
+### Retained-report boundaries and fresh-user blockers
+
+| Route | What it actually does | What it needs |
+|---|---|---|
+| `current_rubric_finish_native.py prepare/validate` | New local preparation or deterministic reconstruction of that preparation | Checked-in templates, refund sources and policies; no private historical evidence |
+| `rubric_table.py --verify-existing` | Reassesses saved selection and compares JSON, Markdown and HTML | Original selected sources, current definitions, owning validators and applicable trust context |
+| `current_rubric_completion.py --reuse-current` | Rebuilds one base report, validates retained matrix lineage and derives coverage | Exact original environment, freeze, reports, registries, decisions and any reviewed companions |
+| `--original-finish --suite-native-root` | Regenerates original assessment with separately admitted full-Trial viability | The above plus byte-pinned private original scope/history, Audit closure, suite and source-equivalence packages |
+
+The last two routes are **not fresh collection or full retained replay**. Reading
+a saved report is also not replay. The generic table verifier does not install
+the original-finish overlay or its source-equivalence context; invoking it alone
+on the latest overlaid report is not a supported substitute. This completion CLI
+has no `--verify-existing` mode for that aggregate. Retain its explicit
+`retained_replay: not_run` and `full_matrix_replay: not_run` until an owning,
+separately authorized replay has checked the complete context.
+
+A clone cannot reproduce the latest private assessment by substituting paths:
+raw native receipts, registries, owner records, original scope/history, historical
+Audit outputs, source-equivalence Python and orchestration snapshots are not
+published. `current_rubric_finish.py` derives fixed sibling `rubric-guided-runs`
+locations; its suite validator also binds the original prepared suite and exact
+adapter/runtime identities. Some private records contain absolute paths and pin
+the resolved interpreter. Root flags do not make these closures relocatable.
+The ordinary native-pair relocation support above does not extend to this matrix.
+The local preparer is usable without those packets; historical admission is not
+a fully portable fresh-user workflow.
+
+Preserve inputs, modes, failures and source bindings. Do not patch pins, rewrite
+accepted packets, delete caches, copy approvals to changed subjects or execute
+an arbitrary evidence-selected helper. Local operator trust is explicit and
+same-user mutable, not independently authenticated authority. Required judgments
+must be genuine, scoped, retained with consent, and nonrevoked. Independent
+contract/provenance/labeling work, blind discovery and held-out attack/cue/reset
+controls remain separate gates; fresh execution requires renewed approval.
+
+### Future automated comparison
+
+The repository has useful comparison components, not a finished automated
+with/without-rubric authoring experiment:
+
+| Existing interface | Supported comparison | Limit |
+|---|---|---|
+| Suite `validate` | Full reconstructed local development/selection manifest and task identities | Exposed deterministic controls, not held-out gain or native behavior |
+| Table `--verify-existing`; mutation runner `--verify-matrix` | Source-bound report equality; owning case/base/repair verification | Use the owning matrix, not derived coverage; preserve overlays and trust context |
+| Completion `coverage.json` / `matrix.json` | Observed canonical cells, expected/actual disagreements, collateral changes and pairings | No general cross-run comparator, automatic approval or aggregate merit score |
+| [Discovery comparisons](#discovery-comparisons) | Frozen-input decision equality or explicit mutation sensitivity | Discovery schema only; does not launch discovery or accept rubric tables |
+| [Workflow scope](#workflow-scope) and [host accounting](#host-capture-and-accounting) | Reviewed actions/attempt accounting against a fixed contract | Native capture plus human semantic labeling required; not rubric-benefit attribution |
+| [Live anti-cheat comparison](#live-anti-cheat-experiment) | Binding-compatible retained aggregate series | Solver/verifier experiment, not authoring benefit; no new live run implied |
+
+For a future study, freeze the subject population, canonical definitions, prompts,
+policy/model/runtime identities, selected evidence, repetitions and acceptance
+thresholds before matched fresh-session with/without-rubric arms. Keep expected
+targets outside assessor input. Compare task credit on each scorer's own scale,
+canonical score **and applicability state**, every check, operational errors,
+missing evidence, collateral effects, and original base/repair links separately.
+Retain raw artifacts and exact source identities; normalize only explicitly
+reviewed incidental fields, never generic paths or unknown values. Count human
+permission, task-intent, adjudication, recovery and avoidable orchestration actions
+from original turns, not from a successful helper's exit code. Repeated exposed
+fixtures do not create independent observations, blindness or held-out evidence.
+
+The next narrow implementation is a bundled, read-only prerequisite inventory
+and explicit configuration for the reviewed private companion closure, followed
+by an owning replay mode for the overlaid original report. It must report each
+missing/stale input and reject changed source, interpreter and revocation bindings
+without importing arbitrary retained code. After that, a versioned comparison
+projection can consume independently validated reports and preserve the fields
+above. A matched-run capture/analysis driver, independent custody/opening guards
+and a measured fresh-user walkthrough are still missing; these are proposed
+work, not commands supported by the current completion CLI.
+
+### Initial assembly and changed-decision refresh
+
+After ordinary matrix generation, the same bundled completion entrypoint adds the separately accepted CREATE-02 subject through its ordinary consumer. It rechecks native mutation admission and the retained CREATE-02 source closure. It keeps criterion-specific bases and repairs separate from the full base. It launches no native trials or models.
+
+The goal is a real Harbor task with the highest supported rubric anchors. Task validity, native executability and model performance are separate. Scripted valid controls establish feasibility, not a guarantee that every model solves the task. Preserve difficult cases and legitimate solver failures. Do not simplify the task, weaken grading or expose answers to raise rubric scores. A separate direct-Docker panel does not establish full Harbor acceptance.
+
+```sh
+PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -B tools/current_rubric_completion.py \
+  --matrix /absolute/current-matrix/matrix.json \
+  --create02-matrix /absolute/create02-integration/matrix.json \
+  --source-report /absolute/current-base/report/assessment.json \
+  --intake /absolute/parallel-source-intake \
+  --request-deltas /absolute/changed-exact-requests/request-deltas.json \
+  --output /absolute/new-private-coverage --defer-replay
+```
+
+`summary.md` links all 21 criteria to observed numeric cells and exact missing-evidence controls. `coverage.json` derives observations from emitted scores, including collateral outcomes, without using expected targets as scores. `matrix.json` retains original target disagreements and repair links. `decision-crosswalk.json` compares the four exact current requests with prior consent. The separate `semantic-fairness-request.json` asks about the changed comparison only. Generation records no decisions.
+
+After genuine owner intake, refresh only reports containing the affected exact bindings:
+
+```sh
+PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -B tools/current_rubric_completion.py \
+  --matrix /absolute/current-coverage/matrix.json \
+  --refresh-decisions /absolute/owner-intake/readbacks.json \
+  --output /absolute/new-private-postdecision --defer-replay
+```
+
+The readbacks must match existing nonrevoked operator events; this command never records answers. It regenerates affected ordinary reports, including their paired bases and repairs, preserves all other reports, and derives every cell from emitted scores. A missing-evidence drop may share a broad withholding control; it is not proof of independently isolated removal for each criterion. Separately qualified subjects remain distinct from original-base qualification and have no inherited base or repair.
+
+Add `--upper-evidence-root /absolute/upper-execution-current` to link the separate new-family packet and its remaining gates. The report checks its request artifact hashes but transfers no scores or approvals. Retained replay and full tests remain deferred. Replay the owning matrix and separately declared CREATE-02 reports in the final deduplicated batch. Do not pass the derived coverage matrix to the older matrix verifier.
+
 
 ## Overall rubric showcase
 
@@ -51,8 +706,8 @@ Missing evidence stays unassessed. The page lists the controls needed for strong
 AC-02 scores and the saved-envelope acceptance/recovery path that is not yet shown.
 It does not turn partial acceptance claims into complete workflow acceptance.
 
-The criterion-rule panel exercises 0, 1, 2, 3 and missing-evidence cases for all
-18 populated criteria. The separate `criterion_demonstration` field labels these
+The criterion-rule panel exercises 0, 1, 2, 3 and missing-evidence cases for the
+18 legacy criteria. It does not establish coverage of the current leakage definitions. The separate `criterion_demonstration` field labels these
 as synthetic examples, not measured task scores. The real fixture panels emit
 `provenance.task-artifact-access`, `provenance.grading-path`,
 `provenance.grading-dependency-access`, AC-02, AC-03's forged-success defect and

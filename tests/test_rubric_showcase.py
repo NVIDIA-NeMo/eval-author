@@ -3,27 +3,38 @@
 
 import json
 import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
 from typing import Any, cast
 
 import pytest
+from filelock import FileLock
 
 ROOT = Path(__file__).resolve().parents[1]
 
 
-@pytest.fixture(scope="module")
-def showcase_output(tmp_path_factory):
-    output = tmp_path_factory.mktemp("showcase") / "output"
-    result = subprocess.run(
-        [sys.executable, str(ROOT / "tools/run_rubric_showcase.py"), "--output", str(output)],
-        capture_output=True,
-        text=True,
-        timeout=180,
-        env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"},
-    )
-    assert result.returncode == 0, result.stderr
+@pytest.fixture(scope="session")
+def showcase_output(tmp_path_factory, worker_id):
+    # Build the read-only showcase once per session and share it across xdist workers;
+    # tests that tamper with it copy it first.
+    base = tmp_path_factory.getbasetemp()
+    shared = (base if worker_id == "master" else base.parent) / "shared-showcase"
+    output = shared / "output"
+    with FileLock(str(shared) + ".lock"):
+        if not (shared / "complete").is_file():
+            shutil.rmtree(shared, ignore_errors=True)
+            shared.mkdir()
+            result = subprocess.run(
+                [sys.executable, str(ROOT / "tools/run_rubric_showcase.py"), "--output", str(output)],
+                capture_output=True,
+                text=True,
+                timeout=900,
+                env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"},
+            )
+            assert result.returncode == 0, result.stderr
+            (shared / "complete").touch()
     return output
 
 
@@ -48,6 +59,33 @@ def test_showcase_includes_separate_all18_rule_demo(showcase_output):
     assert "Synthetic scoring-rule coverage" in page
     assert "synthetic numbers do not qualify" in page
     assert "criterion-scoring/run-a/missing/measure-report.json" in page
+
+
+def test_showcase_displays_anticheat_without_renaming_evidence(showcase_output):
+    from html.parser import HTMLParser
+
+    class VisibleText(HTMLParser):
+        def __init__(self):
+            super().__init__()
+            self.parts = []
+
+        def handle_data(self, data):
+            self.parts.append(data)
+
+    module = showcase_module()
+    summary = module.read(showcase_output / "showcase.json")
+    panel = module.read(showcase_output / "scorer/panel.json")
+    before = json.dumps([summary, panel], sort_keys=True)
+    page = module.render(summary, panel)
+    parser = VisibleText()
+    parser.feed(page)
+    text = " ".join(parser.parts)
+    for number in range(1, 5):
+        assert f"Anticheat-0{number}" in text
+        assert f"AC-0{number}" not in text
+        assert f"AC-0{number}" in summary["criterion_demonstration"]["results"]["missing"]
+    assert "scorer/rubric-baseline.json" in page
+    assert json.dumps([summary, panel], sort_keys=True) == before
 
 
 def test_showcase_repeats_every_area_in_fresh_root(showcase_output):
@@ -247,7 +285,8 @@ def test_showcase_cli_reads_emitted_scores_and_keeps_boundaries(showcase_output)
         canonical.update({row["id"]: row for row in document["items"]})
     for row in summary["criterion_inventory"]:
         assert row["title"] in page
-        assert row["id"] in page
+        display_id = row["id"].replace("AC-", "Anticheat-") if row["id"].startswith("AC-") else row["id"]
+        assert display_id in page
         if row["id"] in canonical:
             assert row["title"] == canonical[row["id"]]["title"]
             assert row["source"] == canonical[row["id"]]["source"]
