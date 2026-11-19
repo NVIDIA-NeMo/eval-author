@@ -36,7 +36,7 @@ def locator(monkeypatch, tmp_path):
     return module
 
 
-def runtime(root: Path, *, version="0.20.0", cli_version=None, provider="harbor") -> tuple[Path, Path]:
+def runtime(root: Path, *, version="0.24.0", cli_version=None, provider="harbor") -> tuple[Path, Path]:
     subprocess.run([PYTHON, "-m", "venv", "--without-pip", str(root)], check=True, capture_output=True)
     python = root / "bin/python"
     result = subprocess.run(
@@ -135,7 +135,7 @@ def test_capabilities_are_flow_specific(locator, tmp_path):
     assert any("Absent" in item["reason"] for item in report["candidates"])
 
 
-@pytest.mark.parametrize("version,cli_version", [("0.19.0", None), ("0.20.0rc1", None), ("0.20.0", "0.23.0")])
+@pytest.mark.parametrize("version,cli_version", [("0.23.0", None), ("0.24.0rc1", None), ("0.24.0", "0.25.0")])
 def test_reject_old_prerelease_and_mismatched_cli(locator, tmp_path, version, cli_version):
     runtime(tmp_path / ".venv", version=version, cli_version=cli_version)
     report = locator.locate(tmp_path, providers=("harbor",))
@@ -147,10 +147,18 @@ def test_reject_old_prerelease_and_mismatched_cli(locator, tmp_path, version, cl
 
 def test_project_constraint_applies_to_explicit_runtime(locator, tmp_path):
     python, _ = runtime(tmp_path / ".venv")
-    (tmp_path / "pyproject.toml").write_text('[project]\ndependencies = ["harbor>=0.23.0"]\n')
+    (tmp_path / "pyproject.toml").write_text('[project]\ndependencies = ["harbor>=0.25.0"]\n')
     report = locator.locate(tmp_path, explicit={"harbor": {"python": str(python)}}, providers=("harbor",))
     assert selected(report) is None
     assert report["candidates"][0]["status"] == "incompatible"
+
+
+@pytest.mark.parametrize("flow", ["discovery", "authoring"])
+@pytest.mark.parametrize("installed,accepted", [("0.23.0", False), ("0.24.0", True), ("0.25.0", True)])
+def test_harbor_minimum_applies_to_each_flow(locator, tmp_path, flow, installed, accepted):
+    runtime(tmp_path / ".venv", version=installed)
+    report = locator.locate(tmp_path, flow=flow, providers=("harbor",))
+    assert (selected(report) is not None) == accepted
 
 
 @pytest.mark.parametrize(
@@ -397,7 +405,7 @@ def test_timeout_uncertainty_respects_priority(locator, unknown_priority, best_p
         "status": "compatible",
         "priority": best_priority,
         "prefix": "/venv",
-        "version": "0.20.0",
+        "version": "0.24.0",
     }
     assert bool(locator.select([candidate], "harbor", [unknown_priority])["selected"]) is can_select
 
@@ -449,7 +457,7 @@ def test_provider_budget_does_not_starve_other_provider(locator, tmp_path, monke
     def inspect(candidate, flow, deadline, policy):
         seen.append((candidate["provider"], deadline - now[0]))
         now[0] += 400 if candidate["provider"] == "harbor" else 1
-        return {**candidate, "status": "compatible", "prefix": candidate["provider"], "version": "0.20.0"}
+        return {**candidate, "status": "compatible", "prefix": candidate["provider"], "version": "0.24.0"}
 
     monkeypatch.setattr(locator, "inspect", inspect)
     report = locator.locate(tmp_path)
