@@ -107,7 +107,13 @@ FINDING_KINDS = {
 }
 LIMITS_HEADING = "**Evidence limits**"
 RECOMMENDATIONS_HEADING = "**Recommended next actions**"
-NEXT_OFFER = "You can finish here or choose a recommended next action."
+RECOMMENDATION_SUPPORT = {
+    "supported": "Supported in Eval Author",
+    "separate_work": "Requires separate work",
+    "unknown": "Support not yet confirmed",
+}
+NEXT_OFFER = "You can finish here."
+SUPPORTED_NEXT_OFFER = "Would you like Eval Author to work on the {actions}, or finish here?"
 REVIEW_ACCEPTED = "The audit findings are recorded."
 MISSING_RECOMMENDATION_SELECTION = "The saved improvement decision does not identify specific report recommendations. Resolve that selection before continuing."
 AUDIT_COMPLETE = "The audit is complete for the reviewed scope."

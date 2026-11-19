@@ -3,6 +3,7 @@
 
 import copy
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -347,3 +348,91 @@ def test_native_continuation_requires_unambiguous_session(host, events):
     other = {key: "different" if value == "same" else value for key, value in events[0].items()}
     with pytest.raises(ValueError, match="session"):
         matrix.native_session(host, b"\n".join(encoded(e) for e in [*events, other]))
+
+
+@pytest.mark.parametrize(
+    "variation,expected",
+    [
+        ("exact", None),
+        ("terminal-newlines", None),
+        ("lost-limit", "differs"),
+        ("rewritten", "differs"),
+        ("extra-heading", "differs"),
+        ("matching-commentary", "differs"),
+        ("failed", "successful output"),
+        ("empty", "successful output"),
+        ("missing", "missing or ambiguous"),
+        ("lookalike", "missing or ambiguous"),
+        ("later-inspection", None),
+        ("superseded", "differs"),
+        ("after-final", "must follow"),
+        ("wrong-turn", "different native turn"),
+        ("multiple-turns", "one complete native turn"),
+        ("unfinished", "did not complete"),
+    ],
+)
+def test_rendered_reply_is_checked_against_native_final(variation, expected):
+    from capture_workflow import rendered_reply_errors
+
+    body = "## Audit findings\n\nAutomatic capability-gap task creation is not supported.\n\nChoose a recommended next action."
+    command = {
+        "id": "renderer",
+        "type": "command_execution",
+        "command": "python - <<'PY'\nsubprocess.run(['python', '/skills/conversation_renderer.py', '--input', 'view.json'])\nPY",
+        "exit_code": 0,
+        "aggregated_output": body + "\n\n",
+    }
+    reply = {"id": "final", "type": "agent_message", "text": body}
+    items = [command, reply]
+    if variation == "terminal-newlines":
+        reply["text"] += "\n"
+    elif variation == "lost-limit":
+        reply["text"] = body.replace("Automatic capability-gap task creation is not supported.\n\n", "")
+    elif variation in {"rewritten", "matching-commentary"}:
+        reply["text"] = "You can choose one of the recommendations to continue with."
+        if variation == "matching-commentary":
+            items.insert(1, {"id": "commentary", "type": "agent_message", "text": body})
+    elif variation == "extra-heading":
+        reply["text"] = "Here are the results:\n\n" + body
+    elif variation == "failed":
+        command["exit_code"] = 2
+    elif variation == "empty":
+        command["aggregated_output"] = ""
+    elif variation == "missing":
+        items.remove(command)
+    elif variation == "lookalike":
+        command["command"] = "python /skills/conversation_renderer.py.backup"
+    elif variation == "later-inspection":
+        items.insert(1, {**command, "id": "inspection", "command": "cat /skills/conversation_renderer.py"})
+    elif variation == "superseded":
+        items.insert(1, {**command, "id": "later", "aggregated_output": "Updated output"})
+    elif variation == "after-final":
+        items.reverse()
+    events = [{"type": "item.completed", "item": item} for item in items]
+    events.append({"type": "turn.completed"})
+    if variation == "multiple-turns":
+        events.append({"type": "turn.completed"})
+    elif variation == "wrong-turn":
+        events.insert(1, {"type": "turn.started"})
+    elif variation == "unfinished":
+        events.pop()
+    selected = "later" if variation == "superseded" else "renderer"
+    errors = rendered_reply_errors(b"\n".join(encoded(event) for event in events), selected)
+    assert not errors if expected is None else any(expected in error for error in errors)
+
+
+def test_retained_native_render_delivery():
+    from capture_workflow import rendered_reply_errors
+
+    source = os.environ.get("EVAL_AUTHOR_RENDER_CAPTURE")
+    if not source:
+        pytest.skip("set EVAL_AUTHOR_RENDER_CAPTURE and EVAL_AUTHOR_RENDER_ITEM_ID for a retained native run")
+    path = Path(source)
+    captured = json.loads(path.read_text())
+    assert captured["cell"]["host"] == "codex"
+    assert captured["skills_unchanged"]
+    assert captured["returncode"] == 0 and captured["reason"] == "awaiting_native_review"
+    raw = (path.parent / captured["raw"]["path"]).read_bytes()
+    assert sha(raw) == captured["raw"]["sha256"]
+    errors = rendered_reply_errors(raw, os.environ["EVAL_AUTHOR_RENDER_ITEM_ID"])
+    assert not errors, errors
