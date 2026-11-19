@@ -21,7 +21,12 @@ from eval_author_shared.task_evidence import loads  # noqa: E402
 from measure import measure  # noqa: E402
 from rubric_evidence_scoring import canonical_definitions as legacy_definitions  # noqa: E402
 from rubric_identity import MAX_FILES, MAX_TOTAL_BYTES, read_selected  # noqa: E402
-from rubric_leakage_current import assess_current, canonical_definitions, definitions_digest  # noqa: E402
+from rubric_leakage_current import (  # noqa: E402
+    apply_levels,
+    assess_current,
+    canonical_definitions,
+    definitions_digest,
+)
 
 
 def cell(value: object) -> str:
@@ -618,6 +623,8 @@ def assess_table(root: Path, selected: dict[str, Any], task: str | None) -> dict
     from rubric_create02_subject import assess as assess_create02_subject
 
     report = assess_create02_subject(root, selected, report)
+    # Later projections may rescore rows; levels are applied last so suite rows stay unscored per task.
+    report = apply_levels(report)
     if task:
         definitions = canonical_definitions()
         if report["items"].keys() != definitions.keys():

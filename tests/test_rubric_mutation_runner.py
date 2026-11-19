@@ -41,8 +41,8 @@ def test_real_missing_input_assessment_repair_and_external_expectation(tmp_path)
 def test_withheld_selection_keeps_all_criteria_unknown(tmp_path):
     result = runner().run_source_case(tmp_path / "missing", "withhold-assessment-evidence")
     assert set(result["observed"]) == set(runner().canonical_definitions())
-    assert len(result["observed"]) == 21
-    assert sum(len(row["checks"]) for row in result["observed"].values()) == 70
+    assert len(result["observed"]) == 23
+    assert sum(len(row["checks"]) for row in result["observed"].values()) == 76
     assert all(row["score"] is None for row in result["observed"].values())
     assert all(value == "matched" for value in result["comparison"].values())
     assert result["repair"]["matches_baseline"]
@@ -94,13 +94,13 @@ def test_reconciles_current_numeric_and_missing_without_claiming_pending_matches
     module = runner()
     result = module.run_source_case(tmp_path / "missing", "withhold-assessment-evidence")
     coverage = module.reconcile([result])
-    assert coverage["criterion_count"] == 21
-    assert coverage["check_count"] == 70
-    assert sum(row["scenario"] != "missing" for row in coverage["cells"]) == 84
-    assert sum(row["scenario"] == "missing" for row in coverage["cells"]) == 21
+    assert coverage["criterion_count"] == 23
+    assert coverage["check_count"] == 76
+    assert sum(row["scenario"] != "missing" for row in coverage["cells"]) == 92
+    assert sum(row["scenario"] == "missing" for row in coverage["cells"]) == 23
     assert "METHOD-J1" not in {row["criterion"] for row in coverage["cells"]}
     assert coverage["counts"]["actual_prequalification"] == 0
-    assert coverage["counts"]["pending"] == 105
+    assert coverage["counts"]["pending"] == 115
     assert coverage["qualified_mutation_cells"] == 0
     module.validate_coverage(coverage)
     coverage["cells"][0]["criterion"] = "invented"

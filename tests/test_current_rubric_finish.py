@@ -448,7 +448,13 @@ def test_contract_method_acceptance_cannot_replace_lower_anchor(finish, monkeypa
 def provenance_packet(finish, monkeypatch):
     monkeypatch.setenv("EVAL_AUTHOR_SOURCE_REVIEW_OPERATOR_STORE", str(finish.RUNS / "leakage-current-operator-store"))
     monkeypatch.setenv("EVAL_AUTHOR_SOURCE_REVIEW_OPERATOR_TRUST", "localhost-assessment-operator-v1")
-    return finish.load(finish.PROVENANCE_BASELINE)
+    packet = finish.load(finish.PROVENANCE_BASELINE)
+    import rubric_leakage_current
+
+    if packet["definitions_sha256"] != rubric_leakage_current.definitions_digest():
+        # Retained owner decisions are bound to the definitions they were made against and never transfer.
+        pytest.skip("retained private provenance evidence predates the current rubric definitions")
+    return packet
 
 
 @requires_private_runs

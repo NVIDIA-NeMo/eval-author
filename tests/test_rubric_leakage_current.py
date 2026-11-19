@@ -32,9 +32,9 @@ def test_current_matrix_enumerates_all_cells_without_legacy_scores(monkeypatch):
     }
     monkeypatch.setattr(runner, "observed_rows", lambda record: deepcopy(rows))
     result = runner.matrix_summary({"report": "unused"}, [], {"report": "unused"})
-    assert len(result["cells"]) == 84
-    assert len(result["missing_evidence_cells"]) == 21
-    assert result["counts"]["unsupported"] == 84
+    assert len(result["cells"]) == 92
+    assert len(result["missing_evidence_cells"]) == 23
+    assert result["counts"]["unsupported"] == 92
     assert not result["base_qualified"]
     assert current.current_expectations({"AC-02": 0, "AC-03": 0, "AC-01": 0}) == {"AUDIT-03": 0}
 
@@ -46,10 +46,10 @@ def test_legacy_only_measurements_do_not_expand_selected_scope():
 
 def test_inventory_replaces_overlapping_legacy_rows():
     inventory = current.inventory()
-    assert inventory["criterion_count"] == 21
-    assert inventory["check_count"] == 70
-    assert inventory["numeric_cells"] == 84
-    assert inventory["missing_evidence_cells"] == 21
+    assert inventory["criterion_count"] == 23
+    assert inventory["check_count"] == 76
+    assert inventory["numeric_cells"] == 92
+    assert inventory["missing_evidence_cells"] == 23
     assert inventory["undefined"] == ["METHOD-J1"]
     assert not set(current.LEGACY_CROSSWALK) & current.canonical_definitions().keys()
     assert current.LEGACY_CROSSWALK["AC-02"] == current.LEGACY_CROSSWALK["AC-03"] == ["AUDIT-03"]
@@ -131,7 +131,7 @@ def test_measurement_findings_are_not_semantic_zero():
             }
         },
     )
-    assert result["items"]["AUDIT-05-B"]["score"] == 1
+    assert current.observed_score(result["items"]["AUDIT-05-B"]) == 1
     assert result["items"]["CREATE-02"]["score"] is None
     assert result["items"]["AUDIT-03"]["score"] is None
 
@@ -145,7 +145,10 @@ def test_recipe_selection_has_no_expected_scores(tmp_path):
     report = rubric_table.assess_table(tmp_path / "case", selected, None)
     assert set(report["items"]) == set(current.canonical_definitions())
     assert report["items"]["AUDIT-03"]["score"] is None
-    assert report["items"]["AUDIT-05-B"]["score"] == 1
+    assert current.observed_score(report["items"]["AUDIT-05-B"]) == 1
+    # AUDIT-05-B is suite-level: the task report keeps its evidence but does not score it.
+    assert report["items"]["AUDIT-05-B"]["score"] is None
+    assert report["items"]["AUDIT-05-B"]["assessment_state"] == "NOT_APPLICABLE"
     assert report["undefined_criteria"]["METHOD-J1"]["score"] is None
     text = rubric_table.render(report)
     assert "Anticheat" in text and "METHOD-J1" in text
@@ -165,11 +168,11 @@ def test_every_source_recipe_reaches_ordinary_observation_and_exact_repair(tmp_p
     report = rubric_table.assess_table(root, selected, None)
     recipes.verify_observation(report, case)
     for ident, expected in recipes.expectations(case).items():
-        assert report["items"][ident]["score"] == expected
+        assert current.observed_score(report["items"][ident]) == expected
     repair = tmp_path / "repair"
     repaired_selection = recipes.materialize(repair, "inventory")
     repaired = rubric_table.assess_table(repair, repaired_selection, None)
-    assert repaired["items"]["AUDIT-05-B"]["score"] == 1
+    assert current.observed_score(repaired["items"]["AUDIT-05-B"]) == 1
     assert repaired["items"]["CREATE-02"]["score"] is None
 
 

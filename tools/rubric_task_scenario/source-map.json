@@ -10,7 +10,7 @@
     },
     "assess.py": {
       "source": "tools/rubric_task_scenario/sources/assess.py",
-      "sha256": "dc40672668c6d5d7269f715f504a0c9d05dc2049440e42f2c7627e703391e97a",
+      "sha256": "416016c9d0e6e6309fb9acbbb7e27b6ee529bc2dbe70b4d1377a91d0db662f24",
       "origin_sha256": "f1502303a50bd86950a8c57d8b5b2afa4676a2bba5a76df9f4073006ec379070",
       "adaptation": "packaging headers/formatting and scoped changes; see adaptations",
       "executable": false
@@ -31,7 +31,7 @@
     },
     "ordinary-rubric-table.py.txt": {
       "source": "skills/eval-author-rubric/scripts/rubric_table.py",
-      "sha256": "839f2303d4187ff185ecd2963be820f359fab713561213bcdc06877ae7e4e177",
+      "sha256": "8e3f812c8f6f0e6769c8ec48555b315192bfb4f422e95e6e5f2a45baa1fabae4",
       "origin_sha256": "9ed60434b11a71555d0d8c692a3547fb259e4a3c08e75d8de1adf43fbbe4751f",
       "adaptation": "byte-identical repository reuse",
       "executable": false
@@ -269,7 +269,7 @@
     },
     "prior-package/canonical/leakage-and-credit.json": {
       "source": "skills/eval-author-rubric/references/leakage-and-credit.json",
-      "sha256": "1b3071ee125262ccab37a7c869b7de9420f41847440fe0558992abae06cd8955",
+      "sha256": "d48abca396fd9b4342a7ee54966db38c7e06b12e27bc31a062e7ac96bc7af0a1",
       "origin_sha256": "1b3071ee125262ccab37a7c869b7de9420f41847440fe0558992abae06cd8955",
       "adaptation": "byte-identical repository reuse",
       "executable": false

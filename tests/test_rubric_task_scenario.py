@@ -191,10 +191,16 @@ def test_complete_output_has_canonical_inventory_and_no_empirical_claim(scenario
     definitions, _ = a.definitions()
     assert set(report["items"]) == set(definitions)
     assert report["empirical_qualification"] is False
-    assert sum(row["score"] == 3 for row in report["items"].values()) == 20
-    assert [ident for ident, row in report["items"].items() if row["assessment_state"] == "NOT_APPLICABLE"] == [
-        "AUDIT-04-B"
+    task = {k: r for k, r in report["items"].items() if r["level"] == "task"}
+    suite = {k: r for k, r in report["items"].items() if r["level"] == "suite"}
+    # The refund task is scored on its own; suite rows use the companion families and selection cohort.
+    assert len(task) == 19 and sum(r["score"] == 3 for r in task.values()) == 18
+    assert len(suite) == 4 and sum(r["score"] == 3 for r in suite.values()) == 3
+    assert [k for k, r in report["items"].items() if r["assessment_state"] == "NOT_APPLICABLE"] == [
+        "AUDIT-04-B",
+        "AUDIT-04-B-SUITE",
     ]
+    assert {r["subject_id"] for r in task.values()} == {"perfect-task/refund"}
     for ident, row in report["items"].items():
         assert row["canonical_anchors"] == definitions[ident]["scoring"]
         assert row["approval_refs"] == [] and row["target_score"] is None

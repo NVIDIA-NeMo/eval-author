@@ -115,7 +115,7 @@ MUTATIONS: dict[str, tuple[str, str, str]] = {
         "provenance.evidence-revision-consistency",
     ),
     "withhold-reference": ("evidence", "reference control result removed", "task-contract.scoring-authority"),
-    "withhold-heldout": ("evidence", "held-out confirmation not run", "AUDIT-05-S03"),
+    "withhold-heldout": ("evidence", "independently authored held-out cases not run", "AUDIT-03"),
     "no-independent-review": ("review", "restricted-input agents disabled", "AUDIT-03"),
     "no-owner-review": ("review", "owner policy file absent", "AUDIT-03"),
 }
@@ -646,7 +646,12 @@ def render(runs: list[dict], out: Path, *, capped: bool = False) -> dict:
             "dropped": lowered + unassessed,
         }
     top = (2, 3) if capped else (3,)  # --no-agents caps independence-dependent rows at 2 by design
-    base_ok = all(v in top or (k == "AUDIT-04-B" and v == NA) for k, v in base.items())
+    levels = {c.criterion: c.level for c in CHECKS}
+    # Task rows are the per-eval score. Suite rows need other tasks; in a one-task demo they may only
+    # be Unassessed or N/A unless a defect is observed.
+    base_ok = all(
+        (v in top or (k == "AUDIT-04-B" and v == NA)) if levels[k] == "task" else v in (U, NA) for k, v in base.items()
+    )
     summary: dict[str, Any] = {
         "criteria": ids,
         "runs": len(runs),
@@ -666,7 +671,11 @@ def render(runs: list[dict], out: Path, *, capped: bool = False) -> dict:
         "# Rubric simulation demo",
         "",
         f"Runs: {len(runs)} · consistent: **{consistent}** · "
-        + ("base at its capped target (2 or 3, no agents)" if capped else "base 20×3 + AUDIT-04-B N/A")
+        + (
+            "base at its capped target (2 or 3, no agents)"
+            if capped
+            else "base task rows 18×3 + AUDIT-04-B N/A, suite rows U or N/A"
+        )
         + f": **{base_ok}** "
         f"· {len(mutations)} mutations, every one ranks below the base: **{summary['every_mutation_lower']}**"
         + (
@@ -680,29 +689,40 @@ def render(runs: list[dict], out: Path, *, capped: bool = False) -> dict:
         "",
         "## Per mutation",
         "",
-        "| Mutation | Kind | Intended change | Criterion | Base | Observed | Reason | Collateral changes |",
-        "|---|---|---|---|---:|---:|---|---|",
+        "| Mutation | Kind | Intended change | Criterion | Level | Base | Observed | Reason | Collateral changes |",
+        "|---|---|---|---|---|---:|---:|---|---|",
     ]
     for c in mutations:
         kind, change, target = MUTATIONS.get(c, ("", "", ""))
         row = dict(zip(ids, vec[c]))
         collateral = [f"{k} {_cell(base[k])}→{_cell(row[k])}" for k in pref[c]["dropped"] if k != target]
         lines.append(
-            f"| `{c}` | {kind} | {change} | {target} | {_cell(base.get(target, ''))} | {_cell(row.get(target, ''))} "
+            f"| `{c}` | {kind} | {change} | {target} | {levels.get(target, '')} "
+            f"| {_cell(base.get(target, ''))} | {_cell(row.get(target, ''))} "
             f"| {_cell(reasons[c].get(target, ''))}"
             + (" (not detectable without agents)" if c in summary["undetectable_without_agents"] else "")
             + f" | {'; '.join(collateral) or 'none'} |"
         )
-    lines += [
-        "",
-        "## Full matrix",
-        "",
-        "| Criterion | Tool | " + " | ".join(cases) + " |",
-        "|---|---|" + "---:|" * len(cases),
-    ]
-    for j, check in enumerate(CHECKS):
-        lines.append(f"| {check.criterion} | {check.tool} | " + " | ".join(_cell(vec[k][j]) for k in cases) + " |")
-    lines.append("| **rows at 3** | | " + " | ".join(f"**{sum(v == 3 for v in vec[k])}**" for k in cases) + " |")
+    for level, title in (
+        ("task", "Task-level rows (the per-eval score)"),
+        ("suite", "Suite-level rows (need other tasks)"),
+    ):
+        lines += [
+            "",
+            f"## {title}",
+            "",
+            "| Criterion | Tool | " + " | ".join(cases) + " |",
+            "|---|---|" + "---:|" * len(cases),
+        ]
+        for j, check in enumerate(CHECKS):
+            if check.level == level:
+                cells = " | ".join(_cell(vec[k][j]) for k in cases)
+                lines.append(f"| {check.criterion} | {check.tool} | {cells} |")
+        lines.append(
+            "| **rows at 3** | | "
+            + " | ".join(f"**{sum(v == 3 for v, ch in zip(vec[k], CHECKS) if ch.level == level)}**" for k in cases)
+            + " |"
+        )
     (out / "summary.md").write_text("\n".join(lines) + "\n")
     return summary
 
