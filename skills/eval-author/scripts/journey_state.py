@@ -570,7 +570,9 @@ def task_lifecycle(repo: Path, state: dict, task_path: str) -> dict:
     return {"status": "unknown", "reason": "No task acceptance decision is recorded"}
 
 
-def checklist(state: dict, *, state_only: bool = False, audit: dict | None = None) -> list[dict]:
+def checklist(
+    state: dict, *, state_only: bool = False, audit: dict | None = None, expansion: dict | None = None
+) -> list[dict]:
     """Project reconciled saved facts; never inspect artifacts from a renderer."""
     blocked = {item["phase"] for item in state["blockers"] if not _unused_audit_traces(state, item)}
     journey = state["journey"]
@@ -589,7 +591,7 @@ def checklist(state: dict, *, state_only: bool = False, audit: dict | None = Non
     if journey == "audit":
         completed = bool(completed and audit and audit["complete"])
     elif journey == "expand" and expansion_state.record(state) is not None:
-        completed = False
+        completed = bool(completed and expansion and expansion["complete"])
     elif isinstance(state["scopes"].get(journey), dict):
         completed = completed and not state["scopes"][journey].get("needs_review")
     rows = [
@@ -694,7 +696,9 @@ def view(state: dict, *, state_only: bool = False) -> dict:
             if not authoring_checks
             else {task: task_lifecycle(Path(state["repository"]), state, task) for task in state.get("tasks", {})}
         ),
-        "checklist": checklist(state, state_only=state_only, audit=audit) if state["journey"] else [],
+        "checklist": checklist(state, state_only=state_only, audit=audit, expansion=expansion)
+        if state["journey"]
+        else [],
         "runtime_requirements": requirements,
         "confirmation_is_runtime_evidence": False,
         "first_eval_observations": observations,

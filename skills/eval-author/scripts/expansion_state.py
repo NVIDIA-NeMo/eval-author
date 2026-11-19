@@ -438,7 +438,7 @@ def _selection_evidence(selection: dict) -> list[dict]:
 
 
 def observe(repo: Path, state: dict) -> dict:
-    from journey_state import ethos_digest, observe_artifacts
+    from journey_state import ethos_digest, observe_artifacts, task_lifecycle
 
     digest = None
     if record(state) is not None:
@@ -450,6 +450,14 @@ def observe(repo: Path, state: dict) -> dict:
     value = record(state)
     if value and "creation" in value:
         observed["artifacts"] = observe_artifacts(repo, *_sources(value))
+    if value and value["schema_version"] == 2 and value.get("execution"):
+        tasks = value["creation"]["tasks"]
+        observed["acceptance"] = {
+            task_key(task): task_lifecycle(repo, state, tasks[task_key(task)]["path"])
+            if task_key(task) in tasks
+            else {"status": "unknown", "reason": "Task not created"}
+            for task in value["plan"]["tasks"]
+        }
     return observed
 
 
@@ -588,7 +596,9 @@ def derive(state: dict, observed: object) -> dict | None:
     if (
         not isinstance(observed, dict)
         or set(observed)
-        != {"repository", "revision", "ethos_digest"} | ({"artifacts"} if "creation" in value else set())
+        != {"repository", "revision", "ethos_digest"}
+        | ({"artifacts"} if "creation" in value else set())
+        | ({"acceptance"} if value.get("execution") else set())
         or observed["repository"] != state["repository"]
         or type(observed["revision"]) is not int
         or observed["revision"] != state["revision"]
@@ -618,6 +628,18 @@ def derive(state: dict, observed: object) -> dict | None:
         review = _review(state, value, observed["artifacts"], creation, creating)
         if value.get("execution"):
             execution = _execution(state, value, observed["artifacts"], review)
+    accepted = observed.get("acceptance", {})
+    if value["schema_version"] == 2 and value.get("execution"):
+        if not isinstance(accepted, dict) or set(accepted) != {task_key(task) for task in value["plan"]["tasks"]}:
+            raise ValueError("Observe acceptance for exactly the agreed task set")
+        if any(
+            not isinstance(item, dict)
+            or set(item) != {"status", "reason"}
+            or item["status"] not in {"accepted", "draft", "unknown"}
+            or not isinstance(item["reason"], str)
+            for item in accepted.values()
+        ):
+            raise ValueError("Use current task lifecycle observations for acceptance")
     stage = "execution" if review and review["approved"] and execution else "task_review" if review else "creation"
     question = (value.get("creation") or {}).get("pending") if creating else value["pending"]
     if creating and question is None and value["schema_version"] == 2:
@@ -645,7 +667,14 @@ def derive(state: dict, observed: object) -> dict | None:
         "review": review,
         "execution": execution,
         "scope_approved": creating,
-        "complete": False,
+        "complete": bool(
+            creating
+            and execution
+            and execution["authorized"]
+            and execution["results_reviewed"]
+            and accepted
+            and all(item["status"] == "accepted" for item in accepted.values())
+        ),
     }
 
 
@@ -875,6 +904,10 @@ def transition(repo, previous: dict, updated: dict) -> None:
         progress = derive(updated, observed)
         assert progress is not None
         _review_transition(previous, updated, old, progress)
+        if updated["journey_status"].get("expand") == "complete" and not progress["complete"]:
+            if previous["journey_status"].get("expand") != "complete":
+                raise ValueError("Expansion completion requires current user acceptance of every agreed task")
+            updated["journey_status"]["expand"] = "in_progress"
         question = progress["pending_question"]
         ready = review_ready(updated) if after.get("review") else checkpoint_ready(updated)
         if question is not None and ready:
