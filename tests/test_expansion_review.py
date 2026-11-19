@@ -553,3 +553,100 @@ def test_run_only_blockers_preserve_review_routing_and_questions(modules, tmp_pa
         assert output.count(question) == 1
     else:
         assert progress(modules, tmp_path, resumed)["execution"]["authorized"]
+
+
+@pytest.mark.parametrize("path", ["starter_suite", "recorded_interaction"])
+@pytest.mark.parametrize("blocker", ["agent_connection", "model_credentials"])
+def test_revised_scope_with_review_history_preserves_blocker_recovery(modules, tmp_path, path, blocker):
+    if path == "recorded_interaction":
+        setup_ready(modules[0], tmp_path, journey="expand")
+        ethos_ready(modules[0], tmp_path)
+    saved, value = ready(modules, tmp_path, path=path)
+    saved = approve(modules, tmp_path, present_review(modules, tmp_path, saved, value), value)
+    saved = execution(modules, tmp_path, saved, value)
+    revised = modules[1].new_scope(
+        saved,
+        path=path,
+        plan={**value["plan"], "summary": "Revised refund scope"},
+        question="Agree to this revised plan?",
+        source="User revises scope after task review",
+    )
+    saved = save(modules, tmp_path, saved, revised)
+    question = "Restore agent access before continuing with the plan?"
+    blocked = modules[0].update(
+        tmp_path,
+        {
+            "journey_status": {"expand": "in_progress"},
+            "blockers": [{"id": blocker, "phase": "expand", "message": "Agent access unavailable"}],
+            "pending_question": question,
+        },
+        expected_revision=saved["revision"],
+    )
+    assert progress(modules, tmp_path, blocked)["stage"] == "scope"
+    assert modules[0].view(blocked)["state"]["pending_question"] == question
+    resumed = modules[0].initialize(tmp_path, journey="expand")
+    assert resumed["pending_question"] == question
+    output = modules[2].render(
+        {
+            "stage": "resume",
+            "state": resumed,
+            "revision": resumed["revision"],
+            "facts": {
+                "blockers": [
+                    {
+                        "id": blocker,
+                        "step": "Scope planning",
+                        "reason": "Agent access unavailable",
+                        "needed": "Restore access",
+                    }
+                ]
+            },
+        }
+    )
+    assert question in output and "Restore access" in output
+    restored = modules[0].update(
+        tmp_path, {"blockers": [], "pending_question": None}, expected_revision=resumed["revision"]
+    )
+    assert restored["pending_question"] == revised["pending"]["question"]
+    assert (
+        modules[2]
+        .render({**expansion_payload(modules, restored), "stage": "expansion_scope"})
+        .count(revised["pending"]["question"])
+        == 1
+    )
+
+
+@pytest.mark.parametrize("blocker", ["agent_connection", "model_credentials"])
+@pytest.mark.parametrize("checkpoint", ["review", "execution"])
+def test_ethos_reconfirmation_restores_review_question_with_run_only_blocker(modules, tmp_path, blocker, checkpoint):
+    saved, value = ready(modules, tmp_path)
+    question = REVIEW_QUESTION
+    if checkpoint == "execution":
+        saved = approve(modules, tmp_path, present_review(modules, tmp_path, saved, value), value)
+        saved = execution(modules, tmp_path, saved, value)
+        question = RUN_QUESTION
+    saved = modules[0].update(
+        tmp_path, {"journey_status": {"expand": "in_progress"}}, expected_revision=saved["revision"]
+    )
+    ethos_question = "Is this still the correct document and intended behavior?"
+    modules[0].update(
+        tmp_path,
+        {
+            "ethos": {"stage": "review"},
+            "blockers": [{"id": blocker, "phase": "expand", "message": "Agent access unavailable"}],
+            "pending_question": ethos_question,
+        },
+        expected_revision=saved["revision"],
+        state_only=True,
+    )
+    confirmed = modules[0].confirm_ethos(
+        tmp_path,
+        reviewed_digest=modules[0].ethos_digest(tmp_path),
+        source="User reconfirms unchanged intent",
+        validation="Saved-file validation passed",
+    )
+    assert confirmed["pending_question"] == question
+    resumed = modules[0].initialize(tmp_path, journey="expand")
+    assert resumed["pending_question"] == question
+    output = render(modules, resumed)
+    assert output.count(question) == 1 and ethos_question not in output
