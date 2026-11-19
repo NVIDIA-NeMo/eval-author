@@ -41,7 +41,9 @@ def author(modules, repo, value, index, status="passed"):
         task["validation"] = {
             "sha256": task["sha256"],
             "status": status,
-            "source": "Owning workflow checked native results",
+            "source": "The verifier accepted a second refund."
+            if status == "failed"
+            else "Owning workflow checked native results",
             "evidence": [evidence(repo, f".eval-author/.working/refund-{index}-{status}.json", status)],
         }
     value["creation"]["tasks"][modules[1].task_key(value["plan"]["tasks"][index])] = task
@@ -270,3 +272,72 @@ def test_invalid_creation_updates_leave_saved_state_unchanged(modules, tmp_path,
     with pytest.raises(ValueError):
         save(modules, tmp_path, saved, value)
     assert state.state_path(tmp_path).read_bytes() == before
+
+
+def test_provider_round_trip_does_not_require_a_hidden_creation_question(modules, tmp_path):
+    state, expansion, _ = modules
+    saved, value = begin(modules, tmp_path)
+    author(modules, tmp_path, value, 0)
+    value["creation"]["pending"] = {"question": "Which refund policy applies?", "source": "Missing policy"}
+    saved = save(modules, tmp_path, saved, value)
+    state.initialize(tmp_path, setup="harbor")
+    saved = setup_ready(state, tmp_path, journey="expand")
+    assert saved["pending_question"] is None
+    saved = state.update(tmp_path, {"next_handoff": "eval-author-task-create"}, expected_revision=saved["revision"])
+    assert progress(modules, tmp_path, saved)["stage"] == "scope"
+    assert expansion.record(saved)["creation"]["pending"] == value["creation"]["pending"]
+    value = copy.deepcopy(expansion.record(saved))
+    value["decision"] = {"kind": "approved", "source": "User reconfirms scope after provider recovery"}
+    saved = save(modules, tmp_path, saved, value)
+    assert saved["pending_question"] == value["creation"]["pending"]["question"]
+    assert progress(modules, tmp_path, saved)["stage"] == "creation"
+
+
+@pytest.mark.parametrize("decision", [None, "approved", "declined", "revise"])
+def test_continue_redirects_to_the_renderable_checkpoint(modules, tmp_path, decision):
+    saved, value = begin(modules, tmp_path)
+    value["decision"] = {"kind": decision, "source": "User's scope answer"} if decision else None
+    value["pending"] = (
+        {"question": "Which scenario should change?", "source": "User requests revision"}
+        if decision == "revise"
+        else None
+    )
+    saved = save(modules, tmp_path, saved, value)
+    payload = expansion_payload(modules, saved)
+    stage = "expansion_progress" if decision == "approved" else "expansion_scope"
+    with pytest.raises(ValueError, match=f"Use {stage} for the saved expansion checkpoint"):
+        modules[2].render({**payload, "stage": "expansion_continue"})
+    assert modules[2].render({**payload, "stage": stage})
+
+
+def test_shared_historical_draft_path_has_a_recoverable_scope_revision(modules, tmp_path):
+    state, expansion, _ = modules
+    saved, value = begin(modules, tmp_path)
+    author(modules, tmp_path, value, 1)
+    saved = save(modules, tmp_path, saved, value)
+    original = copy.deepcopy(value["plan"]["tasks"][1])
+    plan = copy.deepcopy(value["plan"])
+    plan["tasks"][1]["scenario"] = "Duplicate request after the refund window closes"
+    value = expansion.new_scope(saved, path=value["path"], plan=plan, question=None, source="User revises scenario")
+    value["decision"] = {"kind": "approved", "source": "User agrees to revision"}
+    saved = save(modules, tmp_path, saved, value)
+    task = author(modules, tmp_path, value, 1)
+    saved = save(modules, tmp_path, saved, value)
+    both = copy.deepcopy(plan)
+    both["tasks"].append(original)
+    before = state.state_path(tmp_path).read_bytes()
+    with pytest.raises(ValueError, match="before revising scope, move the current draft"):
+        expansion.new_scope(saved, path=value["path"], plan=both, question=None, source="User wants both")
+    assert state.state_path(tmp_path).read_bytes() == before
+    moved = ".eval-author/tasks/revised-refund"
+    shutil.move(tmp_path / task["path"], tmp_path / moved)
+    task["path"] = moved
+    task["sha256"] = state.task_digest(tmp_path, moved)
+    task["validation"] = None
+    saved = save(modules, tmp_path, saved, value)
+    value = expansion.new_scope(saved, path=value["path"], plan=both, question=None, source="User wants both")
+    value["decision"] = {"kind": "approved", "source": "User agrees to both scenarios"}
+    saved = save(modules, tmp_path, saved, value)
+    statuses = [row["status"] for row in progress(modules, tmp_path, saved)["creation"]["rows"]]
+    assert statuses == ["queued", "draft", "missing"]
+    assert not progress(modules, tmp_path, saved)["creation"]["ready_for_review"]

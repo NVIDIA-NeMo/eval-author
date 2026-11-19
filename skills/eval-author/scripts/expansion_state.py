@@ -323,7 +323,10 @@ def _validate_creation(value: dict) -> None:
     planned = {task_key(task) for task in value["plan"]["tasks"]}
     paths = [task["path"] for key, task in tasks.items() if key in planned]
     if len(set(paths)) != len(paths):
-        raise ValueError("Each agreed task needs its own draft")
+        raise ValueError(
+            "Each agreed task needs its own draft; before revising scope, move the current draft to a distinct "
+            "path, rebind its creation entry, and renew its validation under the existing agreement"
+        )
     active = creation["active"]
     if active is not None and (
         not isinstance(active, dict)
@@ -863,8 +866,7 @@ def transition(repo, previous: dict, updated: dict) -> None:
         assert progress is not None
         _review_transition(previous, updated, old, progress)
         question = progress["pending_question"]
-        ready = checkpoint_ready(updated)
-        if question is not None and ready:
+        if question is not None and checkpoint_ready(updated):
             if updated["pending_question"] != question:
                 if not checkpoint_ready(previous) and updated["pending_question"] is None:
                     reconcile_question(repo, updated)
