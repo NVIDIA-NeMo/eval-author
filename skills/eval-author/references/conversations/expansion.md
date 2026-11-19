@@ -348,7 +348,10 @@ again. Follow the [shared onboarding observation contract](onboarding.md#expansi
 when presenting shared recovery or resuming through onboarding. Supply current
 `facts.expansion_observations` to `expansion_continue` as well.
 Stale acceptance routes to `expansion_review`; a changed, unresolved scope routes
-to `expansion_scope`. Resolve that checkpoint before presenting completion.
+to `expansion_scope`. If the saved completion question outlives current
+acceptance, clear `execution.pending` and top-level `pending_question` together
+through the revision-checked state helper before rendering recovery. Preserve
+the task and run evidence. Resolve that checkpoint before presenting completion.
 An audit choice uses the existing
 [return-to-audit route](../shared-prerequisites.md#return-to-an-audit), preserving
 the task and run evidence. Selecting another recommendation uses the existing

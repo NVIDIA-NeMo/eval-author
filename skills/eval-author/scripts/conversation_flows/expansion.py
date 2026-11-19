@@ -277,6 +277,8 @@ def _results(state: dict, progress: dict, facts: dict) -> str:
     value = _checkpoint(state, progress, reviewing=True)
     if not progress.get("execution") or not progress["execution"]["authorized"]:
         raise ValueError("Reconcile the current tasks, settings, and run authorization before presenting results")
+    if progress["execution"]["results_reviewed"]:
+        raise ValueError("Use expansion_review for already-reviewed results and remaining task acceptance")
     if progress["pending_question"] is None:
         raise ValueError("Save the post-run results review question before presenting results")
     selection = value["execution"]["selection"]
@@ -420,13 +422,26 @@ def render(payload: dict) -> str:
     progress = expansion_state.derive(state, facts.get("expansion_observations"))
     if progress is None:
         raise ValueError("Save a structured expansion lifecycle before continuation")
+    execution_pending = (value.get("execution") or {}).get("pending") if value else None
+    if not progress["complete"] and any(
+        question in {copy.COMPLETION_QUESTION, copy.COMPLETION_WITH_IMPROVEMENTS}
+        for question in (
+            state["pending_question"],
+            progress["pending_question"],
+            (execution_pending or {}).get("question"),
+        )
+    ):
+        raise ValueError(
+            "Clear the stale completion question from execution.pending and pending_question "
+            "through a revision-checked state update before rendering recovery"
+        )
+    if payload["stage"] in {"expansion_review", "expansion_results"} and progress["complete"]:
+        raise ValueError("Use expansion_completion for accepted expansion results")
     if payload["stage"] == "expansion_completion":
         return _completion(state, progress, facts)
     if payload["stage"] == "expansion_results":
         return _results(state, progress, facts)
     if payload["stage"] == "expansion_review":
-        if progress["complete"]:
-            raise ValueError("Use expansion_completion for accepted expansion results")
         return _review(state, progress, facts["expansion_observations"])
     if value is not None and expansion_state.results_pending(progress):
         raise ValueError("Use expansion_results for the saved post-run results review")

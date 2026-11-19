@@ -164,7 +164,7 @@ def test_remaining_improvements_require_audit_context_and_exclude_selected_ids(m
 
 
 def assert_completion_resume(modules, saved, expected, remaining=None):
-    for stage in ("resume", "expansion_continue", "expansion_review"):
+    for stage in ("resume", "expansion_continue", "expansion_review", "expansion_results"):
         payload = expansion_payload(modules, saved)
         payload["stage"] = stage
         with pytest.raises(ValueError, match="Use expansion_completion"):
@@ -274,3 +274,54 @@ def test_shared_recovery_forwards_observations_after_results_acceptance(modules,
     assert "Choose what to do next" not in output
     assert "Expansion complete" not in output
     assert state.state_path(tmp_path).read_bytes() == before
+
+
+@pytest.mark.parametrize("improvements", [False, True])
+@pytest.mark.parametrize("change", ["draft", "task", "missing", "evidence", "agent"])
+def test_saved_completion_question_must_be_cleared_after_acceptance_changes(modules, tmp_path, improvements, change):
+    state, expansion, renderer = modules
+    saved, value = accepted(modules, tmp_path, path="audit_tool_gap" if improvements else "starter_suite")
+    remaining = {"R2": "Add an inspection task"} if improvements else {}
+    saved, _, _ = render(modules, tmp_path, saved, value, remaining)
+    task = next(iter(value["creation"]["tasks"].values()))
+    if change == "draft":
+        state.record_task(tmp_path, task=task["path"], status="draft", source="User withdraws acceptance")
+    elif change == "task":
+        (tmp_path / task["path"] / "instruction.md").write_text("Changed task")
+    elif change in {"evidence", "missing"}:
+        path = tmp_path / saved["tasks"][task["path"]]["evidence"][0]["path"]
+        path.unlink() if change == "missing" else path.write_text("Changed acceptance evidence")
+    else:
+        saved["agent"] = "different-agent"
+        state.save(tmp_path, saved)
+    resumed = state.initialize(tmp_path, journey="expand")
+    before = state.state_path(tmp_path).read_bytes()
+    for stage in ("expansion_review", "expansion_results", "expansion_completion"):
+        payload = expansion_payload(modules, resumed)
+        payload["stage"] = stage
+        with pytest.raises(ValueError, match="Clear the stale completion question"):
+            renderer.render(payload)
+    assert state.state_path(tmp_path).read_bytes() == before
+    value = copy.deepcopy(expansion.record(resumed))
+    value["execution"]["pending"] = None
+    repaired = save(modules, tmp_path, resumed, value)
+    assert repaired["pending_question"] is None
+    output = renderer.render({**expansion_payload(modules, repaired), "stage": "expansion_review"})
+    assert "finish here" not in output
+    assert "work on one of these improvements" not in output
+    assert "final acceptance requires your approval of these results" not in output
+    with pytest.raises(ValueError, match="Expansion completion requires current user acceptance"):
+        state.update(tmp_path, {"journey_status": {"expand": "complete"}}, expected_revision=repaired["revision"])
+
+
+def test_already_reviewed_results_with_unaccepted_task_return_to_task_review(modules, tmp_path):
+    state, _, renderer = modules
+    saved, value = accepted(modules, tmp_path)
+    task = next(iter(value["creation"]["tasks"].values()))
+    saved = state.record_task(tmp_path, task=task["path"], status="draft", source="User withdraws task acceptance")
+    payload: dict = {**expansion_payload(modules, saved), "stage": "expansion_results"}
+    payload["facts"]["attempts"] = []
+    with pytest.raises(ValueError, match="Use expansion_review for already-reviewed results"):
+        renderer.render(payload)
+    output = renderer.render({**expansion_payload(modules, saved), "stage": "expansion_review"})
+    assert "final acceptance requires your approval of these results" not in output
