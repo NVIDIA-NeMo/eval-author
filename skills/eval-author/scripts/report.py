@@ -38,7 +38,7 @@ from urllib.parse import quote, unquote
 # Isolated Python invocations must resolve the bundled sibling, never cwd code.
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import first_eval_state  # noqa: E402
-from interaction_types import INTERACTION_TYPE_LABELS, interaction_type_label  # noqa: E402
+from interaction_types import INTERACTION_TYPE_LABELS, USER_SIM_SCENARIO_FILENAME, interaction_type_label  # noqa: E402
 from journey_state import load_state, task_digest, task_lifecycle  # noqa: E402
 from journey_state import state_path as journey_state_path
 from search_tasks import search_tasks, within_task_scope  # noqa: E402
@@ -771,7 +771,7 @@ def design_text(value: object) -> str | None:
 def user_sim_identity(repo: Path, task_id: str, task_path: str) -> first_eval_state.UserSimScenarioIdentity:
     from user_sim import MAX_SCENARIO_BYTES, load_scenario
 
-    relative_path = task_path + "/user-sim.yaml"
+    relative_path = task_path + "/" + USER_SIM_SCENARIO_FILENAME
     path = local(repo, relative_path)
     content = read_bytes(path, MAX_SCENARIO_BYTES)
     scenario = load_scenario(path)

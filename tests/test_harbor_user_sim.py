@@ -241,7 +241,7 @@ def test_external_inputs_remain_bound_and_preserved(inputs: tuple) -> None:
     data["agents"][0]["name"] = "codex"
     data["agents"][0]["kwargs"] = {
         "config": "target-config.toml",
-        "unchanged_option": "value",
+        "version": "1.0",
     }
     data["user_agent"]["kwargs"] = {"config": "user-config.toml"}
     data["environment"]["extra_docker_compose"] = ["overlay.yaml"]
@@ -500,222 +500,6 @@ def test_invalid_harbor_version_is_explicit(inputs: tuple, monkeypatch: pytest.M
 
 
 @pytest.mark.parametrize("role", ["target", "simulator"])
-@pytest.mark.parametrize("source", ["./local-skills", "example/skills@commit"])
-def test_skill_sources_are_deferred_until_tree_binding_exists(inputs: tuple, role: str, source: str) -> None:
-    scenario, config, output, data = inputs
-    Path("local-skills").mkdir()
-    selected = data["agents"][0] if role == "target" else data["user_agent"]
-    selected["skills"] = [source]
-    config.write_text(yaml.safe_dump(data))
-    with pytest.raises(HarborTranslationError, match="tree binding"):
-        translate(scenario, config, output)
-    assert not output.exists()
-
-
-def test_inline_role_configs_remain_in_native_configuration(inputs: tuple) -> None:
-    scenario, config, output, data = inputs
-    data["agents"][0]["kwargs"] = {"config": {"policy": "target"}}
-    data["user_agent"]["kwargs"] = {"config": {"policy": "user"}}
-    config.write_text(yaml.safe_dump(data))
-    result = translate(scenario, config, output)
-    generated = yaml.safe_load(result.run_config_path.read_text())
-    assert generated["agents"] == data["agents"]
-    assert generated["user_agent"]["kwargs"] == data["user_agent"]["kwargs"]
-
-
-def test_native_expansion_preserves_original_config_strings(inputs: tuple, monkeypatch: pytest.MonkeyPatch) -> None:
-    scenario, config, output, data = inputs
-    native_expanduser = Path.expanduser
-
-    def expanduser(path: Path) -> Path:
-        return Path.cwd().joinpath(*path.parts[1:]) if path.parts and path.parts[0] == "~" else native_expanduser(path)
-
-    monkeypatch.setattr(Path, "expanduser", expanduser)
-    Path("extra.md").write_text("Extra task instructions")
-    Path("overlay.yaml").write_text("services: {}\n")
-    data["tasks"][0]["path"] = "~/tasks/return-headphones"
-    data["extra_instruction_paths"] = ["~/extra.md"]
-    data["environment"]["extra_docker_compose"] = ["~/overlay.yaml"]
-    config.write_text(yaml.safe_dump(data))
-    result = translate(scenario, config, output)
-    generated = yaml.safe_load(result.run_config_path.read_text())
-    assert generated["tasks"] == data["tasks"]
-    assert generated["extra_instruction_paths"] == ["~/extra.md"]
-    assert generated["environment"] == data["environment"]
-    assert {Path("extra.md").resolve(), Path("overlay.yaml").resolve()} <= set(result.input_paths)
-
-
-def test_disabled_native_verification_does_not_require_test_script(inputs: tuple) -> None:
-    scenario, config, output, data = inputs
-    (scenario.parent / "tests/test.sh").unlink()
-    data["verifier"]["disable"] = True
-    config.write_text(yaml.safe_dump(data))
-    result = translate(scenario, config, output)
-    generated = yaml.safe_load(result.run_config_path.read_text())
-    assert generated["verifier"] == data["verifier"]
-    assert result.to_dict()["runtime_ready"] is False
-
-
-@pytest.mark.parametrize("parent_alias", [False, True])
-def test_runtime_input_alias_cannot_hide_retargeted_bytes(inputs: tuple, parent_alias: bool) -> None:
-    scenario, config, output, data = inputs
-    for name in ("old", "new"):
-        directory = Path(name)
-        directory.mkdir()
-        (directory / "config.json").write_text(json.dumps({"policy": name}))
-    alias = Path("selected")
-    suffix = "" if parent_alias else "/config.json"
-    alias.symlink_to(Path.cwd() / f"old{suffix}", target_is_directory=parent_alias)
-    data["agents"][0]["kwargs"] = {"config": "selected/config.json" if parent_alias else "selected"}
-    config.write_text(yaml.safe_dump(data))
-    for destination in (f"old{suffix}", f"new{suffix}"):
-        alias.unlink()
-        alias.symlink_to(Path.cwd() / destination, target_is_directory=parent_alias)
-        with pytest.raises(HarborTranslationError, match="symlink"):
-            translate(scenario, config, output)
-    assert not output.exists()
-
-
-def test_external_directory_alias_stays_visible_in_input_inventory(inputs: tuple, tmp_path: Path) -> None:
-    scenario, config, output, data = inputs
-    outside = tmp_path.parent / f"{tmp_path.name}-external"
-    outside.mkdir()
-    target = tmp_path / "external-target"
-    target.mkdir()
-    (target / "config.json").write_text('{"policy": "one"}')
-    alias = outside / "alias"
-    alias.symlink_to(target, target_is_directory=True)
-    declared = alias / "config.json"
-    data["user_agent"]["kwargs"] = {"config": str(declared)}
-    config.write_text(yaml.safe_dump(data))
-    result = translate(scenario, config, output)
-    assert declared in result.input_paths
-    assert declared.resolve() not in result.input_paths
-
-
-def test_native_task_alias_is_not_hidden_by_path_resolution(inputs: tuple) -> None:
-    scenario, config, output, data = inputs
-    Path("selected-task").symlink_to(scenario.parent, target_is_directory=True)
-    data["tasks"][0]["path"] = "selected-task"
-    config.write_text(yaml.safe_dump(data))
-    with pytest.raises(HarborTranslationError, match="symlink"):
-        translate(scenario, config, output)
-    assert not output.exists()
-
-
-def test_translation_snapshot_stays_frozen_when_source_changes(inputs: tuple) -> None:
-    scenario, config, output, _ = inputs
-    result = translate(scenario, config, output)
-    original_digest = result.input_digests[str(scenario)]
-    saved = result.to_dict()
-    changed = yaml.safe_load(scenario.read_text())
-    changed["start_prompt"] = "A different opening request"
-    scenario.write_text(yaml.safe_dump(changed))
-    assert result.input_digests[str(scenario)] == original_digest
-    assert result.input_digests[str(scenario)] != hashlib.sha256(scenario.read_bytes()).hexdigest()
-    assert saved["input_digests"] == result.to_dict()["input_digests"]
-    assert json.loads((output / "persona.txt").read_text())["start_prompt"] != changed["start_prompt"]
-    with pytest.raises(TypeError):
-        cast(dict[str, str], result.input_digests)[str(scenario)] = "new"
-
-
-@pytest.mark.parametrize("input_name", ["scenario", "base", "external"])
-def test_mixed_source_versions_fail_before_return(
-    inputs: tuple, monkeypatch: pytest.MonkeyPatch, input_name: str
-) -> None:
-    scenario, config, output, data = inputs
-    external = Path.cwd() / "acpx.json"
-    external.write_text('{"timeout": 10}')
-    data["user_agent"]["bridge"] = {"kind": "acp", "kwargs": {"acpx_config_path": str(external)}}
-    config.write_text(yaml.safe_dump(data))
-    selected = {"scenario": scenario, "base": config, "external": external}[input_name]
-    original_write = Path.write_text
-
-    def write_text(path: Path, text: str) -> int:
-        result = original_write(path, text)
-        if path == output / "run.yaml":
-            original_write(selected, selected.read_text() + "\n")
-        return result
-
-    monkeypatch.setattr(Path, "write_text", write_text)
-    with pytest.raises(HarborTranslationError, match="changed during"):
-        translate(scenario, config, output)
-
-
-@pytest.mark.parametrize("content", ['{"agents": {}}', '{"defaultAgent": "other"}', "[]"])
-def test_acpx_cannot_replace_the_selected_target(inputs: tuple, content: str) -> None:
-    scenario, config, output, original = inputs
-    Path("acpx.json").write_text(content)
-    original["user_agent"]["bridge"] = {"kind": "acp", "kwargs": {"acpx_config_path": "acpx.json"}}
-    config.write_text(yaml.safe_dump(original))
-    with pytest.raises(ValueError):
-        translate(scenario, config, output)
-    assert not output.exists()
-
-
-@pytest.mark.parametrize("installed_version", ["0.9.0", "0.23.0", "0.24.0rc1"])
-def test_older_harbor_version_is_explicit(
-    inputs: tuple, monkeypatch: pytest.MonkeyPatch, installed_version: str
-) -> None:
-    scenario, config, output, _ = inputs
-    monkeypatch.setattr("harbor_user_sim.version", lambda _: installed_version)
-    with pytest.raises(HarborTranslationError, match=r"requires harbor >=0\.24\.0"):
-        translate(scenario, config, output)
-
-
-@pytest.mark.parametrize("installed_version", ["0.24.0", "0.24.1", "0.25.0", "0.100.0", "1.0.0"])
-def test_compatible_harbor_versions_translate(
-    inputs: tuple, monkeypatch: pytest.MonkeyPatch, installed_version: str
-) -> None:
-    scenario, config, output, _ = inputs
-    monkeypatch.setattr("harbor_user_sim.version", lambda _: installed_version)
-    result = translate(scenario, config, output)
-    assert result.run_config_path.is_file()
-    assert result.to_dict()["runtime_ready"] is False
-
-
-def test_invalid_harbor_version_is_explicit(inputs: tuple, monkeypatch: pytest.MonkeyPatch) -> None:
-    scenario, config, output, _ = inputs
-    monkeypatch.setattr("harbor_user_sim.version", lambda _: "invalid")
-    with pytest.raises(HarborTranslationError, match="requires harbor"):
-        translate(scenario, config, output)
-    assert not output.exists()
-
-
-def test_cli_has_safe_summary_and_sanitized_errors(inputs: tuple) -> None:
-    scenario, config, output, original = inputs
-    command = [
-        sys.executable,
-        str(SCRIPTS / "harbor_user_sim.py"),
-        "translate",
-        "--scenario",
-        str(scenario),
-        "--config",
-        str(config),
-        "--output",
-        str(output),
-    ]
-    success = subprocess.run(command, capture_output=True, text=True, check=False)
-    assert success.returncode == 0
-    summary = json.loads(success.stdout)
-    assert summary["translated"] and not summary["runtime_ready"]
-    assert summary["run_config_path"] == str(output / "run.yaml")
-    assert "R31" not in success.stdout
-    original["user_agent"]["model_name"] = {"secret": "DO_NOT_ECHO_SECRET"}
-    config.write_text(yaml.safe_dump(original))
-    command[-1] = str(output.parent / "invalid")
-    failure = subprocess.run(command, capture_output=True, text=True, check=False)
-    assert failure.returncode == 2
-    assert not json.loads(failure.stderr)["translated"]
-    assert "DO_NOT_ECHO_SECRET" not in failure.stdout + failure.stderr
-    config.write_text("user_agent: [DO_NOT_ECHO_YAML_SECRET\n")
-    malformed = subprocess.run(command, capture_output=True, text=True, check=False)
-    assert malformed.returncode == 2
-    assert not json.loads(malformed.stderr)["translated"]
-    assert "DO_NOT_ECHO_YAML_SECRET" not in malformed.stdout + malformed.stderr
-
-
-@pytest.mark.parametrize("role", ["target", "simulator"])
 @pytest.mark.parametrize("field", ["name", "import_path"])
 @pytest.mark.parametrize("control", ["harbor.agents.nop:NopAgent", "harbor.agents.oracle:OracleAgent"])
 def test_control_aliases_are_rejected(inputs: tuple, role: str, field: str, control: str) -> None:
@@ -748,3 +532,53 @@ def test_control_alias_check_follows_native_name_precedence(inputs: tuple) -> No
     data["agents"][0]["import_path"] = "harbor.agents.oracle:OracleAgent"
     config.write_text(yaml.safe_dump(data))
     assert translate(scenario, config, output).run_config_path.is_file()
+
+
+@pytest.mark.parametrize(
+    "body,success",
+    [
+        ('print("PRIVATE_CANARY")\nfrom harbor.agents.installed.claude_code import ClaudeCode as Agent\n', True),
+        ('raise RuntimeError("PRIVATE_CANARY")\n', False),
+        ("raise SystemExit(0)\n", False),
+        ('raise SystemExit("PRIVATE_CANARY")\n', False),
+    ],
+)
+def test_custom_agent_import_preserves_sanitized_cli_contract(inputs: tuple, body: str, success: bool) -> None:
+    import os
+
+    scenario, config, output, data = inputs
+    plugin = scenario.parent.parent / "private_agent.py"
+    plugin.write_text(body)
+    data["agents"] = [{"import_path": "private_agent:Agent"}]
+    config.write_text(yaml.safe_dump(data))
+    script = Path(__file__).resolve().parents[1] / "skills/eval-author/scripts/harbor_user_sim.py"
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(script),
+            "translate",
+            "--scenario",
+            str(scenario),
+            "--config",
+            str(config),
+            "--output",
+            str(output),
+        ],
+        env={**os.environ, "PYTHONPATH": str(plugin.parent)},
+        text=True,
+        capture_output=True,
+    )
+    assert "PRIVATE_CANARY" not in result.stdout + result.stderr
+    assert "Traceback" not in result.stderr
+    assert result.returncode == (0 if success else 2)
+    assert isinstance(json.loads(result.stdout if success else result.stderr), dict)
+    assert output.exists() is success
+
+
+def test_target_environment_fallback_is_not_dropped_by_translation(inputs: tuple) -> None:
+    scenario, config, output, data = inputs
+    data["agents"][0]["env"] = {"CLAUDE_CODE_MAX_TURNS": "2"}
+    config.write_text(yaml.safe_dump(data))
+    with pytest.raises(HarborTranslationError, match="max_turns"):
+        translate(scenario, config, output)
+    assert not output.exists()

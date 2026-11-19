@@ -6,6 +6,7 @@
 import copy
 import hashlib
 import importlib
+import json
 from pathlib import Path
 
 import pytest
@@ -471,3 +472,80 @@ def test_disabled_simulation_cannot_record_new_task_construction(modules, tmp_pa
     with pytest.raises(ValueError, match="User simulation is disabled"):
         creation.author(modules, tmp_path, value, "refund")
     assert modules[0].state_path(tmp_path).read_bytes() == before
+
+
+@pytest.mark.parametrize("journey", ["create", "expand"])
+def test_combined_simulation_update_keeps_authority_checks(modules, tmp_path, journey):
+    state, _ = modules
+    initial = state.initialize(tmp_path, journey=journey)
+    patch = {
+        "scopes": {
+            journey: {
+                "user_simulation": {"enabled": True, "source": "enable simulation"},
+                "trace_choice": {"mode": "none", "source": "No traces"},
+            }
+        }
+    }
+    with pytest.raises(ValueError, match="expected-revision"):
+        state.update(tmp_path, patch)
+    with pytest.raises(ValueError, match="State changed"):
+        state.update(tmp_path, patch, expected_revision=initial["revision"] - 1)
+    other = "expand" if journey == "create" else "create"
+    with pytest.raises(ValueError, match="authoring journey"):
+        state.update(tmp_path, {"scopes": {other: patch["scopes"][journey]}}, expected_revision=initial["revision"])
+    saved = state.update(tmp_path, patch, expected_revision=initial["revision"])
+    assert saved["scopes"][journey]["user_simulation"]["enabled"]
+
+
+def test_creation_trace_update_preserves_preproposal_simulation_choice(modules, tmp_path):
+    state, _ = modules
+    initial = state.initialize(tmp_path, journey="create")
+    choice = {"enabled": True, "source": "enable simulation"}
+    state.update(
+        tmp_path,
+        {"scopes": {"create": {"user_simulation": choice}}},
+        expected_revision=initial["revision"],
+        state_only=True,
+    )
+    saved = state.update(tmp_path, {"scopes": {"create": {"trace_choice": {"mode": "none", "source": "No traces"}}}})
+    assert saved["scopes"]["create"]["user_simulation"] == choice
+
+
+def test_historical_multitask_selection_loads_and_can_disable_simulation(modules, tmp_path):
+    selected_user_sim(modules, tmp_path)
+    state, helper = modules
+    saved = state.load_state(tmp_path)
+    record = saved["scopes"]["create"]["first_eval"]
+    record["plan"]["tasks"].append({**design()[0], "id": "other", "example_ids": ["other-1"]})
+    record["selection"]["cases"].append({"task_id": "other", "example_ids": ["other-1"], "attempts": 1})
+    state.state_path(tmp_path).write_text(json.dumps(saved))
+    loaded = state.load_state(tmp_path, state_only=True)
+    assert len(helper.record(loaded)["selection"]["cases"]) == 2
+    assert not helper.progress(tmp_path, state.load_state(tmp_path))["selection_current"]
+    updated = state.update(
+        tmp_path,
+        {"scopes": {"create": {"user_simulation": {"enabled": False, "source": "disable"}}}},
+        expected_revision=loaded["revision"],
+        state_only=True,
+    )
+    assert len(helper.record(updated)["selection"]["cases"]) == 2
+
+
+@pytest.mark.parametrize("change", ["delete", "symlink", "parent_symlink"])
+def test_bound_working_directory_must_remain_present_and_inside_repository(modules, tmp_path, change):
+    value = selected_user_sim(modules, tmp_path)
+    directory = tmp_path / "runtime/work"
+    directory.mkdir(parents=True)
+    value["selection"]["user_sim"]["working_directory"] = "runtime/work"
+    value["selection"].pop("authorization", None)
+    creation.save(modules, tmp_path, value)
+    assert creation.facts(modules, tmp_path)["selection_current"]
+    directory.rmdir()
+    if change == "symlink":
+        directory.symlink_to(tmp_path, target_is_directory=True)
+    elif change == "parent_symlink":
+        directory.parent.rmdir()
+        directory.parent.symlink_to(tmp_path, target_is_directory=True)
+        (tmp_path / "work").mkdir()
+    progress = creation.facts(modules, tmp_path)
+    assert not progress["selection_current"] and not progress["execution_authorized"]

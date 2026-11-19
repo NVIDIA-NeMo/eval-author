@@ -6,7 +6,9 @@
 from __future__ import annotations
 
 import argparse
+import contextlib
 import copy
+import io
 import json
 import sys
 from collections.abc import Mapping
@@ -19,6 +21,7 @@ from typing import TYPE_CHECKING, Any
 import yaml
 from eval_author_shared.task_evidence import CONTROL_AGENT_ALIASES, digest
 from harbor_acp import validate_acp_target_settings, validate_acpx_config_file
+from interaction_types import USER_SIM_SCENARIO_FILENAME
 from runtime_policy import RuntimePolicyError, require_supported
 from user_sim import UserSimError, load_scenario
 
@@ -221,13 +224,17 @@ def _validate_task(native: JobConfig, scenario_path: Path, output_dir: Path) -> 
     # Harbor 0.24.0 implicitly loads this file and bypasses the simulator.
     if task.paths.trajectory_path.exists() or task.paths.trajectory_path.is_symlink():
         raise HarborTranslationError("Task-provided trajectory.json is incompatible with user simulation")
-    if scenario_path != task_dir.resolve() / "user-sim.yaml":
+    if scenario_path != task_dir.resolve() / USER_SIM_SCENARIO_FILENAME:
         raise HarborTranslationError("Use the user-sim.yaml inside the selected native task directory")
     target = native.agents[0]
-    target_class = AgentFactory.get_agent_class_from_config(target)
+    try:
+        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+            target_class = AgentFactory.get_agent_class_from_config(target)
+    except (Exception, SystemExit) as error:
+        raise HarborTranslationError("Could not load the selected target agent") from error
     try:
         validate_acp_target_settings(target, target_class, task_mcp_servers=bool(task.config.environment.mcp_servers))
-    except RuntimePolicyError as error:
+    except ValueError as error:
         raise HarborTranslationError(str(error)) from error
 
 

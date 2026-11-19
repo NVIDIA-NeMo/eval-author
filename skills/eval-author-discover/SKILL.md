@@ -45,9 +45,9 @@ metadata:
 
 # Eval Author: discover
 
-Inspecting a native `user_agent` configuration doesn't enable simulation. Apply
-[the simulation opt-in gate](../eval-author/references/coverage-planning.md#enable-experimental-user-simulation)
-before continuing into simulation authoring or execution.
+Inspecting a native `user_agent` configuration doesn't enable simulation.
+Before simulation authoring or execution, apply the
+[simulation opt-in gate](../eval-author/references/coverage-planning.md#enable-experimental-user-simulation).
 
 ## Purpose
 

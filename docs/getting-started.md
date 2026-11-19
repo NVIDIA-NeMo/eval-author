@@ -305,8 +305,8 @@ Requirements depend on the operation. Use the
 [Harbor setup guide](../skills/eval-author/references/harbor-setup.md) when
 you need to create, validate, or run Harbor tasks.
 
-All Harbor-backed workflows require Harbor 0.24.0 or newer in Python 3.12+.
-Upgrade older installations before running discovery or authoring checks.
+For Harbor-backed workflows, use the [current runtime requirements](../skills/eval-author/references/runtime-prerequisites.md).
+Check them before running discovery or authoring checks.
 
 | Operation | Requirements |
 | --- | --- |

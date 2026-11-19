@@ -13,6 +13,7 @@ import conversation_templates as shared
 import first_eval_state
 import journey_state
 from conversation_formatting import checklist, json_context, link, literal, mapping, text
+from interaction_types import USER_SIM_SCENARIO_FILENAME
 
 from . import first_eval_templates as copy
 
@@ -131,7 +132,7 @@ def adapter_task(record: dict, task: dict) -> dict:
         if field in task:
             context[field] = task[field]
     if task.get("interaction_type") == "user_sim" and context["path"]:
-        context["expected_scenario_path"] = str(PurePosixPath(context["path"]) / "user-sim.yaml")
+        context["expected_scenario_path"] = str(PurePosixPath(context["path"]) / USER_SIM_SCENARIO_FILENAME)
     return context
 
 
@@ -278,7 +279,7 @@ def authored_rows(record: dict, facts: dict, observed: dict, task_ids: list[str]
             if (
                 scenario.get("task_id") != task_id
                 or scenario.get("user_type") != "neutral"
-                or scenario.get("path") != record["tasks"][task_id]["path"] + "/user-sim.yaml"
+                or scenario.get("path") != record["tasks"][task_id]["path"] + "/" + USER_SIM_SCENARIO_FILENAME
                 or not scenario.get("digest")
                 or observed["files"].get(scenario["path"]) != scenario["digest"]
             ):

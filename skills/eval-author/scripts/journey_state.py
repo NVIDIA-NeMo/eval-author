@@ -847,17 +847,23 @@ def update(repo: Path, patch: dict, *, expected_revision: int | None = None, sta
         raise ValueError("State-only updates accept prerequisites, blockers, routing, and ethos.stage=review only")
     simulation_scope: str | None = None
     scopes = patch.get("scopes")
-    if isinstance(scopes, dict) and len(scopes) == 1:
-        selected = next(iter(scopes))
-        if selected in {"create", "expand"} and isinstance(scopes[selected], dict):
-            if set(scopes[selected]) == {"user_simulation"}:
-                validate_user_simulation(scopes[selected]["user_simulation"])
+    if isinstance(scopes, dict):
+        for selected in ("create", "expand"):
+            scope = scopes.get(selected)
+            if isinstance(scope, dict) and "user_simulation" in scope:
+                if simulation_scope is not None:
+                    raise ValueError("Update user simulation for one authoring journey at a time")
+                validate_user_simulation(scope["user_simulation"])
                 simulation_scope = selected
                 if expected_revision is None:
                     raise ValueError("User simulation updates require --expected-revision from the latest show")
     if state_only and "scopes" in patch:
         scopes = patch["scopes"]
-        if simulation_scope is not None:
+        if (
+            simulation_scope is not None
+            and set(scopes) == {simulation_scope}
+            and set(scopes[simulation_scope]) == {"user_simulation"}
+        ):
             pass
         elif (
             isinstance(scopes, dict)
@@ -1008,7 +1014,7 @@ def update(repo: Path, patch: dict, *, expected_revision: int | None = None, sta
                 if not isinstance(value, dict):
                     raise ValueError(f"{field} must be a mapping")
                 changes = copy.deepcopy(value)
-                if field == "scopes" and typed_create:
+                if field == "scopes" and isinstance(create_patch, dict) and isinstance(prior_create, dict):
                     changes["create"] = {**copy.deepcopy(prior_create), **changes["create"]}
                 if field == "scopes" and isinstance(audit_patch, dict) and isinstance(prior_audit, dict):
                     changes["audit"] = {**copy.deepcopy(prior_audit), **changes["audit"]}

@@ -114,7 +114,12 @@ def observations(record):
     summary = (record["run_review"] or {}).get("summary")
     if summary:
         files[summary["path"]] = summary["digest"]
-    return {"tasks": {key: task["sha256"] for key, task in record["tasks"].items()}, "files": files}
+    simulation = (record["selection"] or {}).get("user_sim")
+    return {
+        "tasks": {key: task["sha256"] for key, task in record["tasks"].items()},
+        "files": files,
+        "directories": {simulation["working_directory"]: True} if simulation else {},
+    }
 
 
 def test_proposal_displays_selected_interaction_without_inferring_legacy_type(creation):

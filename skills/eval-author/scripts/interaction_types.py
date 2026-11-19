@@ -8,6 +8,8 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Final, Literal, TypedDict, cast
 
+USER_SIM_SCENARIO_FILENAME: Final = "user-sim.yaml"
+
 InteractionType = Literal["single_turn", "scripted_multi_step", "user_sim"]
 
 SINGLE_TURN: Final = "single_turn"

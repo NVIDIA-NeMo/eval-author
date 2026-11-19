@@ -14,7 +14,7 @@ from itertools import chain
 from pathlib import Path, PurePosixPath
 from typing import Literal, TypedDict
 
-from interaction_types import user_simulation_enabled, validate_interaction_plan
+from interaction_types import USER_SIM_SCENARIO_FILENAME, user_simulation_enabled, validate_interaction_plan
 
 BUILD_STEPS = ("environment", "environment_check", "grading", "artifacts")
 REMAINING_STEPS = ("tasks", "environment_check", "validation", "artifacts")
@@ -163,7 +163,7 @@ def bind_user_sim_translation(repo: Path, translation: dict) -> UserSimBindings:
         if current_digest != digests[original]:
             raise ValueError("User-sim translation is stale. Regenerate it from the current inputs before binding.")
         references[path] = {"path": path, "digest": digests[original]}
-    scenarios = [ref for path, ref in references.items() if PurePosixPath(path).name == "user-sim.yaml"]
+    scenarios = [ref for path, ref in references.items() if PurePosixPath(path).name == USER_SIM_SCENARIO_FILENAME]
     if len(scenarios) != 1:
         raise ValueError("Retain exactly one task-local user-sim.yaml input")
     return {
@@ -345,13 +345,6 @@ def validate(value: dict) -> None:
         if selection is not None:
             _evidence([selection["config"], *selection.get("inputs", [])])
             simulation = selection.get("user_sim")
-            if (user_sim_tasks(value) or simulation is not None) and (
-                len(planned) != 1 or len(selection["cases"]) != 1
-            ):
-                raise ValueError(
-                    "User-sim execution supports exactly one approved task in this release. "
-                    "Use a separate or explicitly revised one-task suite. Do not silently drop approved tasks."
-                )
             if simulation is not None:
                 if not isinstance(simulation, dict) or set(simulation) != {
                     "task_id",
@@ -486,7 +479,7 @@ def _sources(value: dict) -> tuple[dict, set]:
     for task_id, task in value["tasks"].items():
         tasks[task_id] = task["path"]
         if task_id in user_sim_tasks(value):
-            files.add(task["path"] + "/user-sim.yaml")
+            files.add(task["path"] + "/" + USER_SIM_SCENARIO_FILENAME)
         for field in ("environment", "validation"):
             files.update(ref["path"] for ref in (task.get(field) or {}).get("evidence", []))
     selection = value["selection"]
@@ -509,10 +502,18 @@ def observe(repo, state: dict) -> dict:
     from journey_state import MAX_TASK_BYTES, _file_digest, _task_local_path, task_digest
 
     value = record(state)
-    observed = {"tasks": {}, "files": {}}
+    observed = {"tasks": {}, "files": {}, "directories": {}}
     if value is None:
         return observed
     validate(value)
+    simulation = (value["selection"] or {}).get("user_sim")
+    if simulation:
+        directory = simulation["working_directory"]
+        try:
+            local = repo if directory == "." else _task_local_path(repo, directory)
+            observed["directories"][directory] = local.is_dir() and not local.is_symlink()
+        except (OSError, ValueError):
+            observed["directories"][directory] = False
     tasks, files = _sources(value)
     for key, path in tasks.items():
         try:
@@ -617,7 +618,7 @@ def derive(state: dict, observed: object) -> dict | None:
         return None
     validate(value)
     declared_tasks, declared_files = _sources(value)
-    if not isinstance(observed, dict) or set(observed) != {"tasks", "files"}:
+    if not isinstance(observed, dict) or set(observed) not in ({"tasks", "files"}, {"tasks", "files", "directories"}):
         raise ValueError("Supply task/file byte observations, never derived approval overrides")
     for field, allowed in (("tasks", declared_tasks), ("files", declared_files)):
         entries = observed[field]
@@ -626,6 +627,16 @@ def derive(state: dict, observed: object) -> dict | None:
         for checksum in entries.values():
             if checksum is not None:
                 _digest(checksum)
+
+    simulation = (value["selection"] or {}).get("user_sim")
+    directories = observed.get("directories", {})
+    allowed_directories = {simulation["working_directory"]} if simulation else set()
+    if (
+        not isinstance(directories, dict)
+        or set(directories) - allowed_directories
+        or any(type(present) is not bool for present in directories.values())
+    ):
+        raise ValueError("Observe only the declared working directory's current boundary")
 
     def current(ref: dict) -> bool:
         return observed["files"].get(ref["path"]) == ref["digest"]
@@ -736,10 +747,13 @@ def derive(state: dict, observed: object) -> dict | None:
     simulation_current = bool(
         simulation
         and value["provider"] == "harbor"
+        and len(planned) == 1
+        and len(selection["cases"]) == 1
+        and observed.get("directories", {}).get(simulation["working_directory"], False)
         and not simulation_blocked
         and simulation_tasks == {simulation["task_id"]}
         and simulation["scenario"]["path"]
-        == value["tasks"].get(simulation["task_id"], {}).get("path", "") + "/user-sim.yaml"
+        == value["tasks"].get(simulation["task_id"], {}).get("path", "") + "/" + USER_SIM_SCENARIO_FILENAME
         and current(simulation["scenario"])
         and _user_sim_settings(settings.get("user_sim"))
         and bridge_current
@@ -1201,6 +1215,17 @@ def transition(repo, previous: dict, updated: dict) -> None:
     if shown and shown != (before or {}).get("execution_settings_presented"):
         if not (old and old["suite_approved"] and now["suite_approved"] and now["execution_settings_presented"]):
             raise ValueError("Approve the full suite before recording current execution settings display")
+    selection = after["selection"]
+    if (
+        selection
+        and selection != (before or {}).get("selection")
+        and (user_sim_tasks(after) or selection.get("user_sim"))
+        and (len(after["plan"]["tasks"]) != 1 or len(selection["cases"]) != 1)
+    ):
+        raise ValueError(
+            "User-sim execution supports exactly one approved task. "
+            "Use a separate or explicitly revised one-task suite. Do not silently drop approved tasks."
+        )
     authorization = (after["selection"] or {}).get("authorization")
     if authorization and authorization != ((before or {}).get("selection") or {}).get("authorization"):
         if not (

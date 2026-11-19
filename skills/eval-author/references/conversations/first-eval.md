@@ -441,7 +441,9 @@ files, and evidence. A state-only prerequisite snapshot is insufficient.
 
 The caller obtains fresh `first_eval_observations` from the state helper and
 passes them as `facts.observations`. They contain actual task digests under
-`tasks` and actual retained-file digests under `files`; missing artifacts are
+`tasks` and actual retained-file digests under `files`. For a bound user-sim
+selection, `directories` maps its working directory to a boolean proving that
+it still exists inside the repository without a symlink boundary. Missing artifacts are
 `null`. The renderer derives applicability from these observations and the saved
 `scopes.create.first_eval` record. It never accepts supplied approval, validation,
 completion, or progress booleans. Save decisions and actual results before
