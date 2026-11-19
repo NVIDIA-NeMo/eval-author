@@ -1359,7 +1359,7 @@ def run_matrix(
         raise ValueError("current combined base failed")
     if saved.get("definitions_sha256") == definitions_digest() and {
         k: r["score"] for k, r in observed_rows(baseline).items()
-    } != {k: r["score"] for k, r in saved["report"]["items"].items()}:
+    } != {k: observed_score(r) for k, r in saved["report"]["items"].items()}:
         raise ValueError("current base differs from supplied same-definition milestone")
     scopes = selected_scopes(root, original)
     runs = []

@@ -133,7 +133,7 @@ def inventory() -> dict[str, Any]:
             for ident, definition in definitions.items()
             for check in definition["checks"]
         ],
-        "count_basis": "11 provenance + 3 contract + 7 leakage; four overlapping legacy scoring rows replaced, not added. METHOD-J1 has no defined checks/anchors and is excluded from numeric denominators.",
+        "count_basis": "11 provenance + 3 contract + 9 leakage (7 task-level, 2 suite-only); four overlapping legacy scoring rows replaced, not added. METHOD-J1 has no defined checks/anchors and is excluded from numeric denominators.",
     }
 
 

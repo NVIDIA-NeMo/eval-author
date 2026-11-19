@@ -140,8 +140,9 @@ base misses its target, or if a mutation does not rank lower.
   replays the cache. Without `--offline`, a cache miss calls the model.
   `--no-agents` caps the independent rows at 2.
 - **Owner decisions:** `policy.json` is a simulated one-time owner declaration.
-  `heldout.freeze.json` freezes the agent-authored held-out attacks. AUDIT-05-S03
-  reaches 3 only when that frozen set reproduces every expected result.
+  `heldout.freeze.json` freezes the agent-authored held-out attacks. The freeze lets the
+  demo detect post-freeze tuning (AUDIT-05-S03 scores 0); otherwise AUDIT-05-S03 stays
+  Unassessed because it is suite-level.
 
 Mutation kinds:
 
@@ -389,7 +390,7 @@ every applicable top anchor remains unfinished; native/model allowances are clos
 
 The consolidated runner assesses the supplied combined base once. It runs shared physical cases through `rubric_base_assessment.py`, then reassesses the exact original selection as the common repair. It accepts bases below 3, but does not call them qualified. Accepted operator decisions and explicit upper companions keep their original packets and native receipts.
 
-Canonical definitions generate 23 criteria (19 task-level, 4 suite-level), 76 checks and 92 numeric cells, plus 23 separate missing-evidence cells. Suite-level cells are read from the evidence a task report keeps for the suite, not from its task score. The criteria comprise 11 provenance, 3 contract and 7 leakage entries. The seven leakage entries replace the four overlapping legacy Anticheat rows. `METHOD-J1` remains explicitly Unassessed because upstream has no definition. It contributes no numeric cell. `current-inventory.json` retains the exact definitions, checks, anchors and crosswalk.
+Canonical definitions generate 23 criteria (19 task-level, 4 suite-level), 76 checks and 92 numeric cells, plus 23 separate missing-evidence cells. Suite-level cells are read from the evidence a task report keeps for the suite, not from its task score. The criteria comprise 11 provenance, 3 contract and 9 leakage entries. The leakage entries replace the four overlapping legacy Anticheat rows. `METHOD-J1` remains explicitly Unassessed because upstream has no definition. It contributes no numeric cell. `current-inventory.json` retains the exact definitions, checks, anchors and crosswalk.
 
 `expected` retains the external original recipe. `current_expected` reconciles its targets without changing observed scores. `actual` comes from the ordinary report. AC-02 and AC-03 share AUDIT-03. AC-04 maps to ENV-03-S01. AC-01 contributes evidence to AUDIT-05-B, CREATE-02 and AUDIT-03's forbidden-answer-access control. Its numeric score has no equivalent in those three predicates, so it creates no automatic numeric target. Legacy rows and failed expectations remain historical evidence. They do not qualify current criteria.
 

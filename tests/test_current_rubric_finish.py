@@ -448,19 +448,26 @@ def test_contract_method_acceptance_cannot_replace_lower_anchor(finish, monkeypa
 def provenance_packet(finish, monkeypatch):
     monkeypatch.setenv("EVAL_AUTHOR_SOURCE_REVIEW_OPERATOR_STORE", str(finish.RUNS / "leakage-current-operator-store"))
     monkeypatch.setenv("EVAL_AUTHOR_SOURCE_REVIEW_OPERATOR_TRUST", "localhost-assessment-operator-v1")
-    packet = finish.load(finish.PROVENANCE_BASELINE)
+    return finish.load(finish.PROVENANCE_BASELINE)
+
+
+@pytest.fixture
+def decided_provenance_packet(provenance_packet):
     import rubric_leakage_current
 
-    if packet["definitions_sha256"] != rubric_leakage_current.definitions_digest():
+    if provenance_packet["definitions_sha256"] != rubric_leakage_current.definitions_digest():
         # Retained owner decisions are bound to the definitions they were made against and never transfer.
-        pytest.skip("retained private provenance evidence predates the current rubric definitions")
-    return packet
+        pytest.skip("retained private owner decisions predate the current rubric definitions")
+    return provenance_packet
 
 
 @requires_private_runs
-def test_actual_provenance_comparison_and_existing_audit_qualification(finish, provenance_packet):
+def test_actual_provenance_comparison_and_existing_audit_qualification(finish, decided_provenance_packet):
     value = finish.validate_provenance_review(
-        finish.PROVENANCE_REVIEW, finish.ROOT, provenance_packet["selection"], provenance_packet["report"]
+        finish.PROVENANCE_REVIEW,
+        finish.ROOT,
+        decided_provenance_packet["selection"],
+        decided_provenance_packet["report"],
     )
     assert value["comparison"]["comparison_count"] == 1161
     assert len(value["comparison"]["initial_failures"]) == 1
@@ -487,7 +494,7 @@ def test_provenance_drift_rejected(finish, monkeypatch, name):
 )
 @requires_private_runs
 def test_provenance_scoped_method_and_neighbor_preservation(
-    finish, monkeypatch, tmp_path, provenance_packet, decision, revoked, expected
+    finish, monkeypatch, tmp_path, decided_provenance_packet, decision, revoked, expected
 ):
     real_read = finish.read_decision
     receipt = (
@@ -500,14 +507,14 @@ def test_provenance_scoped_method_and_neighbor_preservation(
         "read_decision",
         lambda request, *a: receipt if request["question_id"] == "B-TRACE-CORROBORATION" else real_read(request, *a),
     )
-    report = provenance_packet["report"]
+    report = decided_provenance_packet["report"]
     value = finish.validate_provenance_review(
-        finish.PROVENANCE_REVIEW, finish.ROOT, provenance_packet["selection"], report
+        finish.PROVENANCE_REVIEW, finish.ROOT, decided_provenance_packet["selection"], report
     )
     reference = tmp_path / "corroboration.json"
     finish.completion.save(reference, value)
     output = finish.apply_provenance_review(
-        report, value, reference, root=finish.ROOT, selection=provenance_packet["selection"]
+        report, value, reference, root=finish.ROOT, selection=decided_provenance_packet["selection"]
     )
     assert output["items"]["AUDIT-05-B"]["score"] == 3
     assert output["items"]["TRACE-04-A"]["score"] == expected
@@ -520,7 +527,7 @@ def test_provenance_scoped_method_and_neighbor_preservation(
     monkeypatch.setattr(finish, "validate_provenance_review", lambda *a: changed)
     with pytest.raises(ValueError, match="changed during projection"):
         finish.apply_provenance_review(
-            report, value, reference, root=finish.ROOT, selection=provenance_packet["selection"]
+            report, value, reference, root=finish.ROOT, selection=decided_provenance_packet["selection"]
         )
 
 
@@ -528,8 +535,10 @@ def test_provenance_scoped_method_and_neighbor_preservation(
     "ident,change", [(i, c) for i in ("AUDIT-05-B", "TRACE-04-A") for c in ("failed", "missing", "lower", "canonical")]
 )
 @requires_private_runs
-def test_provenance_permission_never_replaces_lower_anchor(finish, monkeypatch, provenance_packet, ident, change):
-    report = deepcopy(provenance_packet["report"])
+def test_provenance_permission_never_replaces_lower_anchor(
+    finish, monkeypatch, decided_provenance_packet, ident, change
+):
+    report = deepcopy(decided_provenance_packet["report"])
     row = report["items"][ident]
     if change == "failed":
         row["check_results"][0]["outcome"] = "FAIL"
@@ -540,7 +549,7 @@ def test_provenance_permission_never_replaces_lower_anchor(finish, monkeypatch, 
     else:
         row["score"] = 1
     value = finish.validate_provenance_review(
-        finish.PROVENANCE_REVIEW, finish.ROOT, provenance_packet["selection"], report
+        finish.PROVENANCE_REVIEW, finish.ROOT, decided_provenance_packet["selection"], report
     )
     assert value["predicates"][ident]["promotion_ready"] is False
 

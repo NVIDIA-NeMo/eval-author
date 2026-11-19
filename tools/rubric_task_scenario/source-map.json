@@ -10,14 +10,14 @@
     },
     "assess.py": {
       "source": "tools/rubric_task_scenario/sources/assess.py",
-      "sha256": "416016c9d0e6e6309fb9acbbb7e27b6ee529bc2dbe70b4d1377a91d0db662f24",
+      "sha256": "d5c51026bb4ae936a181df06459bf930fab8e79e77956435583036d1aba21a25",
       "origin_sha256": "f1502303a50bd86950a8c57d8b5b2afa4676a2bba5a76df9f4073006ec379070",
       "adaptation": "packaging headers/formatting and scoped changes; see adaptations",
       "executable": false
     },
     "run.py": {
       "source": "tools/rubric_task_scenario/sources/run.py",
-      "sha256": "c8ceb6535b9af8f0a300717a6e8c1e4c5504984ea1c74ee3fa6707464b13574b",
+      "sha256": "e757a23bdc2cbeb284b9917db8549082b7211d3682061c0b741376a813ab3949",
       "origin_sha256": "3d8c041d4b93c8824a14a4cfd4355dc40a308ea5f211602250fdb2795b4aa4b9",
       "adaptation": "packaging headers/formatting and scoped changes; see adaptations",
       "executable": false
@@ -31,7 +31,7 @@
     },
     "ordinary-rubric-table.py.txt": {
       "source": "skills/eval-author-rubric/scripts/rubric_table.py",
-      "sha256": "8e3f812c8f6f0e6769c8ec48555b315192bfb4f422e95e6e5f2a45baa1fabae4",
+      "sha256": "eebab567f416ed4127077856bb75493dd2054d847a6d50cbf62f048a771dab63",
       "origin_sha256": "9ed60434b11a71555d0d8c692a3547fb259e4a3c08e75d8de1adf43fbbe4751f",
       "adaptation": "byte-identical repository reuse",
       "executable": false
@@ -291,7 +291,7 @@
   },
   "adaptations": {
     "collection": "Fresh local controls, JSON-whitespace-only consumed policy/candidate style pairs with exact input/output representations; other cues fixed. No private historical runs included.",
-    "assessment": "Structured fictional dispositions bound to complete evidence and source manifests, exact scope/conditions and no material contradiction; parallel target result/state equality; exact trace use; all scores invalidated on stale binding; matched style predicates.",
+    "assessment": "Structured fictional dispositions bound to complete evidence and source manifests, exact scope/conditions and no material contradiction; parallel target result/state equality; exact trace use; all scores invalidated on stale binding; matched style predicates. Task-level rows read refund-family evidence only; suite-level rows read every family.",
     "runner": "Public wrapper materializes allowlisted repository inputs into new private output; replaces original-host historical check with bundled byte/mode identity comparison before/after execution; historical integrity not claimed.",
     "custody": "Source-only simulation controllers; header/formatting changes repinned to bundled vendor bytes, original pins retained only via origin hashes. No real authority admission.",
     "canonical_renderer_task": "Reuse byte-identical repository canonical definitions, ordinary renderer and refund sources; only separately modified companion fixtures copied.",
