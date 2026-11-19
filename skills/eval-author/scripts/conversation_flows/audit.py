@@ -124,6 +124,7 @@ def scope(state: dict, lifecycle: dict) -> str:
     task_review = audit_state.mode(state) == "task_review"
     if "mode" in state["scopes"]["audit"]:
         lines.append(copy.MODE_SELECTED.format(mode=copy.MODE_LABELS[audit_state.mode(state)]))
+    lines.append("")
     exclusions = []
     for key, label in copy.SCOPE_LABELS.items():
         if task_review and key == "traces":
@@ -141,7 +142,7 @@ def scope(state: dict, lifecycle: dict) -> str:
                     path=source_link(state, item["path"]), reason=literal(item["reason"], "exclusion reason")
                 )
             )
-    lines.extend(["", copy.EXCLUSIONS, *exclusions] if exclusions else ["", copy.NO_EXCLUSIONS])
+    lines.extend(["", copy.EXCLUSIONS, "", *exclusions] if exclusions else ["", copy.NO_EXCLUSIONS])
     return "\n".join(lines)
 
 

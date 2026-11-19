@@ -359,17 +359,20 @@ need none; present them from the Audit coverage report: its findings, evidence
 limits, and next actions. Link the relevant saved sections and explicitly name
 those as the content to review; do not ask the user to reapprove intended checks.
 
-Record the findings in state, then render `audit_findings` and end the turn. It
-asks no approval question and saves no pending checkpoint. A user correction
+Record the findings in state, set `journey_status.audit` to `complete` if
+`audit.complete` is true, then run the history snapshot once. Finish this work
+before rendering `audit_findings`. Send its returned Markdown as the entire
+final response under the [unchanged-output contract](../../eval-author/references/conversation-rendering.md),
+then end the turn; do not replace it with a separately written summary.
+It asks no approval question and saves no pending checkpoint. A user correction
 changes the content; regenerate the report and record the findings again.
-When the findings are recorded, set `journey_status.audit` to `complete` if
-`audit.complete` is true, then run the history snapshot once.
 
 ### After review: offer the next step
 
-Include the next-step offer with the findings. Refer to the concrete
-recommendations already in the report and explain relevant implementation limits
-alongside the affected recommendation. Do not imply that Eval Author can apply
+Supply the report's concrete recommendations as `audit_findings` facts, with
+relevant implementation limits alongside the affected recommendation. The
+renderer includes the next-step offer; do not append another one after rendering.
+Do not imply that Eval Author can apply
 an unsupported change. Offer to continue with the selected work, not to produce
 another set of recommendations or repair proposals. Avoid ending only with a
 generic invitation for questions or a bare link to another skill.
