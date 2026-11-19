@@ -354,9 +354,12 @@ def _results(state: dict, progress: dict, facts: dict) -> str:
 def _completion(state: dict, progress: dict, facts: dict) -> str:
     _checkpoint(state, progress, reviewing=True)
     if not progress["complete"]:
-        raise ValueError("Accept every agreed task's current results before offering completion choices")
+        checkpoint = expansion_state.resume_stage(state, facts.get("expansion_observations"))
+        raise ValueError(f"Use {checkpoint} to resolve stale or unaccepted expansion results")
     if state["journey_status"].get("expand") == "complete":
-        return "\n\n".join([copy.COMPLETION_HEADING, copy.COMPLETION_ACCEPTED, copy.COMPLETION_FINISHED]) + "\n"
+        return (
+            "\n\n".join([copy.COMPLETION_FINISHED_HEADING, copy.COMPLETION_ACCEPTED, copy.COMPLETION_FINISHED]) + "\n"
+        )
     remaining = facts.get("remaining_improvements")
     if not isinstance(remaining, dict):
         raise ValueError("Supply the inspected remaining supported improvements, or an empty object")
@@ -401,15 +404,15 @@ def render(payload: dict) -> str:
         facts = mapping(payload.get("facts", {}), "audit opening facts", {"selected_improvements", "limits"})
         return _audit_opening(state, facts)
     value = expansion_state.record(state)
-    if payload["stage"] == "expansion_continue" and value is not None and value["schema_version"] == 2:
-        checkpoint = expansion_state.resume_stage(state)
-        raise ValueError(f"Use {checkpoint} for the saved expansion checkpoint")
     allowed = {"expansion_observations"}
     if payload["stage"] == "expansion_results":
         allowed.add("attempts")
     elif payload["stage"] == "expansion_completion":
         allowed.add("remaining_improvements")
     facts = mapping(payload.get("facts", {}), "expansion facts", allowed)
+    if payload["stage"] == "expansion_continue" and value is not None and value["schema_version"] == 2:
+        checkpoint = expansion_state.resume_stage(state, facts.get("expansion_observations"))
+        raise ValueError(f"Use {checkpoint} for the saved expansion checkpoint")
     progress = expansion_state.derive(state, facts.get("expansion_observations"))
     if progress is None:
         raise ValueError("Save a structured expansion lifecycle before continuation")

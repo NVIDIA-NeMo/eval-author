@@ -65,20 +65,32 @@ def test_completion_offers_audit_or_finish_and_resumes_without_starting_work(mod
     from conversation_flows import expansion_templates as templates
 
     expected_finished = (
-        "\n\n".join([templates.COMPLETION_HEADING, templates.COMPLETION_ACCEPTED, templates.COMPLETION_FINISHED]) + "\n"
+        "\n\n".join(
+            [templates.COMPLETION_FINISHED_HEADING, templates.COMPLETION_ACCEPTED, templates.COMPLETION_FINISHED]
+        )
+        + "\n"
     )
     assert_completion_resume(modules, resumed, expected_finished)
     assert "Would you like" not in expected_finished
 
 
-@pytest.mark.parametrize("change", ["draft", "task", "evidence", "missing", "agent", "scope", "settings", "rerun"])
-def test_incomplete_or_changed_work_cannot_offer_completion_or_mark_complete(modules, tmp_path, change):
+@pytest.mark.parametrize("finished", [False, True])
+@pytest.mark.parametrize(
+    "change", ["draft", "task", "missing_task", "evidence", "missing", "agent", "scope", "settings", "rerun"]
+)
+def test_incomplete_or_changed_work_cannot_offer_completion_or_mark_complete(modules, tmp_path, change, finished):
     saved, value = accepted(modules, tmp_path)
+    if finished:
+        saved = modules[0].update(
+            tmp_path, {"journey_status": {"expand": "complete"}}, expected_revision=saved["revision"]
+        )
     task = next(iter(value["creation"]["tasks"].values()))
     if change == "draft":
         saved = modules[0].record_task(tmp_path, task=task["path"], status="draft", source="Not accepted")
     elif change == "task":
         (tmp_path / task["path"] / "instruction.md").write_text("Changed task")
+    elif change == "missing_task":
+        (tmp_path / task["path"] / "instruction.md").unlink()
     elif change in {"evidence", "missing"}:
         path = tmp_path / saved["tasks"][task["path"]]["evidence"][0]["path"]
         path.unlink() if change == "missing" else path.write_text("Changed evidence")
@@ -105,6 +117,15 @@ def test_incomplete_or_changed_work_cannot_offer_completion_or_mark_complete(mod
         saved = save(modules, tmp_path, saved, value)
     saved = modules[0].initialize(tmp_path, journey="expand")
     assert not modules[0].view(saved)["expansion"]["complete"]
+    checkpoint = "expansion_scope" if change == "scope" else "expansion_review"
+    for stage in ("resume", "expansion_continue", "expansion_completion"):
+        data = expansion_payload(modules, saved)
+        data["stage"] = stage
+        with pytest.raises(ValueError, match=f"Use {checkpoint}"):
+            modules[2].render(data)
+    recovery = expansion_payload(modules, saved)
+    recovery["stage"] = checkpoint
+    assert modules[2].render(recovery)
     payload = expansion_payload(modules, saved)
     payload["stage"] = "expansion_completion"
     payload["facts"]["remaining_improvements"] = {}
@@ -139,8 +160,6 @@ def assert_completion_resume(modules, saved, expected, remaining=None):
     for stage in ("resume", "expansion_continue", "expansion_review"):
         payload = expansion_payload(modules, saved)
         payload["stage"] = stage
-        if stage == "resume":
-            payload.pop("facts")
         with pytest.raises(ValueError, match="Use expansion_completion"):
             modules[2].render(payload)
     payload = expansion_payload(modules, saved)
@@ -185,4 +204,19 @@ def test_remaining_improvement_ids_use_audit_validation(modules, tmp_path, ids):
     _, payload, _ = render(modules, tmp_path, saved, value, {"R2": "Supported task"})
     payload["facts"]["remaining_improvements"] = dict.fromkeys(ids, "Unsupported ID")
     with pytest.raises(ValueError, match="unique report recommendation IDs"):
+        modules[2].render(payload)
+
+
+@pytest.mark.parametrize("stage", ["resume", "expansion_continue"])
+def test_results_review_resume_requires_current_observations(modules, tmp_path, stage):
+    saved, value = accepted(modules, tmp_path)
+    saved, _, _ = render(modules, tmp_path, saved, value)
+    payload = expansion_payload(modules, saved)
+    payload["stage"] = stage
+    observed = payload["facts"].pop("expansion_observations")
+    with pytest.raises(ValueError, match="Supply current expansion_observations"):
+        modules[2].render(payload)
+    payload["facts"]["expansion_observations"] = observed
+    observed["revision"] -= 1
+    with pytest.raises(ValueError, match="current repository and revision"):
         modules[2].render(payload)

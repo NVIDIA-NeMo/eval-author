@@ -130,6 +130,7 @@ EXECUTION_STALE = (
 )
 
 COMPLETION_HEADING = "### Choose what to do next"
+COMPLETION_FINISHED_HEADING = "### Expansion complete"
 COMPLETION_FINISHED = "You chose to finish here. Your accepted tasks and run evidence remain saved."
 COMPLETION_ACCEPTED = "All tasks in your agreed plan are accepted."
 COMPLETION_AUDIT = (

@@ -337,7 +337,10 @@ only while all agreed tasks remain accepted. On resume, route saved results-revi
 checkpoints to `expansion_completion`, using freshly reconciled observations and
 remaining-improvement facts for an unanswered choice. A finished expansion uses
 the same renderer to acknowledge finishing without asking the answered question
-again. Stale acceptance must be resolved before presenting completion.
+again. Supply current `facts.expansion_observations` when routing a saved
+results review through onboarding `resume` or `expansion_continue` as well.
+Stale acceptance routes to `expansion_review`; a changed, unresolved scope routes
+to `expansion_scope`. Resolve that checkpoint before presenting completion.
 An audit choice uses the existing
 [return-to-audit route](../shared-prerequisites.md#return-to-an-audit), preserving
 the task and run evidence. Selecting another recommendation uses the existing

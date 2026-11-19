@@ -422,6 +422,8 @@ def render(payload: dict) -> str:
         fact_keys |= {"ethos", "question", "draft"}
     if state["journey"] == "audit" and stage in {"resume", "results", "confirmed"}:
         fact_keys.add("audit_observations")
+    if state["journey"] == "expand" and not state_only:
+        fact_keys.add("expansion_observations")
     facts = mapping(payload.get("facts", {}), "facts", fact_keys)
     if (
         stage == "resume"
@@ -433,18 +435,8 @@ def render(payload: dict) -> str:
         raise ValueError("Use audit_resume for saved audit checkpoints after shared onboarding is complete")
     expansion = expansion_state.record(state) if state["journey"] == "expand" else None
     if expansion is not None and not state_only:
-        checkpoint = "expansion_scope" if expansion["schema_version"] == 2 else "expansion_continue"
-        if (
-            expansion["schema_version"] == 2
-            and expansion.get("creation") is not None
-            and expansion["decision"]
-            and expansion["decision"]["kind"] == "approved"
-            and not state["scopes"]["expand"].get("needs_review")
-        ):
-            checkpoint = "expansion_progress"
-        reviewing = checkpoint == "expansion_progress" and expansion.get("review") is not None
-        if reviewing:
-            checkpoint = expansion_state.resume_stage(state)
+        checkpoint = expansion_state.resume_stage(state, facts.get("expansion_observations"))
+        reviewing = checkpoint in {"expansion_review", "expansion_completion"}
         pending = expansion_state.pending(expansion)
         ready = expansion_state.review_ready(state) if reviewing else expansion_state.checkpoint_ready(state)
         if ready and (

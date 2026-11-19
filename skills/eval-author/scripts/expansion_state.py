@@ -678,17 +678,25 @@ def derive(state: dict, observed: object) -> dict | None:
     }
 
 
-def resume_stage(state: dict) -> str:
+def resume_stage(state: dict, observed: object = None) -> str:
     value = record(state)
     if value is None or value["schema_version"] != 2:
         return "expansion_continue"
-    if (value.get("execution") or {}).get("results_review"):
+    progress = derive(state, observed) if observed is not None else None
+    if (value.get("execution") or {}).get("results_review") and progress is None:
+        raise ValueError("Supply current expansion_observations to route saved results review")
+    if progress and progress["complete"]:
         return "expansion_completion"
+    if (
+        not value["decision"]
+        or value["decision"]["kind"] != "approved"
+        or state["scopes"]["expand"].get("needs_review")
+        or value.get("creation") is None
+    ):
+        return "expansion_scope"
     if value.get("review") is not None:
         return "expansion_review"
-    if value.get("creation") is not None:
-        return "expansion_progress"
-    return "expansion_scope"
+    return "expansion_progress"
 
 
 def entry_ready(state: dict) -> bool:
