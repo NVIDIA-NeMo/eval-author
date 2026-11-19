@@ -3,17 +3,38 @@
 
 """Render expansion entry, planning, and creation checkpoints."""
 
+from typing import Literal, TypedDict, cast
+
 import conversation_templates as shared
 import expansion_state
 import journey_state
-from conversation_formatting import link, literal, mapping
+from conversation_formatting import link, literal, mapping, text
 
 from . import expansion_templates as copy
 from . import onboarding
 
 JOURNEYS = ("expand",)
-STAGES = {"expansion_audit_opening", "expansion_continue", "expansion_scope", "expansion_progress", "expansion_review"}
+STAGES = {
+    "expansion_audit_opening",
+    "expansion_continue",
+    "expansion_scope",
+    "expansion_progress",
+    "expansion_review",
+    "expansion_results",
+}
 PREVIEWS: set[str] = set()
+
+
+class AttemptResult(TypedDict):
+    task_id: str
+    example_id: str | None
+    attempt: int
+    status: Literal["completed", "error", "incomplete"]
+    score: str | None
+    error: str | None
+    output: str | None
+    trace: str | None
+    verification: str | None
 
 
 def _audit_opening(state: dict, facts: dict) -> str:
@@ -246,6 +267,88 @@ def _execution(state: dict, value: expansion_state.ScopeRecord, progress: dict, 
     return "\n\n".join(parts) + "\n"
 
 
+def _results(state: dict, progress: dict, facts: dict) -> str:
+    value = _checkpoint(state, progress, reviewing=True)
+    if not progress.get("execution") or not progress["execution"]["authorized"]:
+        raise ValueError("Reconcile the current tasks, settings, and run authorization before presenting results")
+    if progress["pending_question"] is None:
+        raise ValueError("Save the post-run results review question before presenting results")
+    selection = value["execution"]["selection"]
+    assert selection is not None
+    titles = {expansion_state.task_key(task): task["task"] for task in value["plan"]["tasks"]}
+    expected = [
+        (case["task_id"], example, attempt)
+        for case in selection["cases"]
+        for example in (case["example_ids"] if state["setup"] == "gym" else [None])
+        for attempt in range(1, case["attempts"] + 1)
+    ]
+    supplied = facts.get("attempts")
+    if not isinstance(supplied, list) or len(supplied) > len(expected):
+        raise ValueError("Supply only inspected attempts from the authorized selection")
+    expected_keys = set(expected)
+    attempts: dict[tuple[str, str | None, int], AttemptResult] = {}
+    fields = set(AttemptResult.__annotations__)
+    for item in supplied:
+        item = mapping(item, "attempt result", fields)
+        if set(item) != fields:
+            raise ValueError("Record each attempt's result and available evidence explicitly")
+        if (
+            not isinstance(item["task_id"], str)
+            or item["example_id"] is not None
+            and not isinstance(item["example_id"], str)
+        ):
+            raise ValueError("Attempt results require the selected task and example identities")
+        key = (item["task_id"], item["example_id"], item["attempt"])
+        if type(item["attempt"]) is not int or key not in expected_keys or key in attempts:
+            raise ValueError("Attempt results must uniquely identify an authorized task, example, and attempt")
+        if (
+            not isinstance(item["status"], str)
+            or item["status"] not in copy.RESULT_STATUS
+            or item["status"] == "error"
+            and not item["error"]
+        ):
+            raise ValueError("Record the native attempt status and any execution error")
+        for field in ("score", "error"):
+            if item[field] is not None:
+                text(item[field], field)
+        if item["status"] == "completed" and item["error"] is not None:
+            raise ValueError("An execution error cannot be reported as completed")
+        attempts[key] = cast(AttemptResult, item)
+    rows = [copy.RESULTS_TABLE]
+    for key in expected:
+        task_id, example, number = key
+        label = titles[task_id] + (f" / {example}" if example is not None else "")
+        label = literal(copy.RESULT_ATTEMPT.format(task=label, number=number), "attempt", table=True)
+        item = attempts.get(key)
+        result = copy.RESULT_MISSING
+        links = [copy.RESULT_UNAVAILABLE] * 3
+        if item:
+            result = copy.RESULT_STATUS[item["status"]]
+            if item["score"] is not None:
+                result += copy.RESULT_SCORE.format(value=literal(item["score"], "score", table=True))
+            else:
+                result += copy.RESULT_SCORE_UNAVAILABLE
+            if item["error"] is not None:
+                result += copy.RESULT_ERROR.format(value=literal(item["error"], "execution error", table=True))
+            elif item["status"] == "completed":
+                result += copy.RESULT_NO_ERROR
+            for index, (field, target) in enumerate(
+                (("output", item["output"]), ("trace", item["trace"]), ("verification", item["verification"]))
+            ):
+                if target is not None:
+                    path = text(target, field)
+                    prefix = state["repository"].rstrip("/") + "/.eval-author/"
+                    if not path.startswith(prefix):
+                        raise ValueError("Attempt evidence must link to its retained repository artifact")
+                    journey_state._relative_task_path(path[len(state["repository"].rstrip("/")) + 1 :])
+                    links[index] = link(path, copy.RESULT_LINK_LABELS[field])
+        rows.append("| " + " | ".join((label, result, *links)) + " |")
+    parts = [copy.RESULTS_HEADING, "\n".join(rows), copy.RESULTS_REVIEW]
+    if progress["pending_question"] is not None:
+        parts.append(literal(progress["pending_question"], "results review question"))
+    return "\n\n".join(parts) + "\n"
+
+
 def render(payload: dict) -> str:
     state = payload.get("state")
     if not isinstance(state, dict):
@@ -270,10 +373,18 @@ def render(payload: dict) -> str:
             else "expansion_scope"
         )
         raise ValueError(f"Use {checkpoint} for the saved expansion checkpoint")
-    facts = mapping(payload.get("facts", {}), "expansion facts", {"expansion_observations"})
+    facts = mapping(
+        payload.get("facts", {}),
+        "expansion facts",
+        {"expansion_observations", "attempts"}
+        if payload["stage"] == "expansion_results"
+        else {"expansion_observations"},
+    )
     progress = expansion_state.derive(state, facts.get("expansion_observations"))
     if progress is None:
         raise ValueError("Save a structured expansion lifecycle before continuation")
+    if payload["stage"] == "expansion_results":
+        return _results(state, progress, facts)
     if payload["stage"] == "expansion_review":
         return _review(state, progress, facts["expansion_observations"])
     if progress["stage"] in {"task_review", "execution"}:

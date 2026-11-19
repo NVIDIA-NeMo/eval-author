@@ -110,8 +110,8 @@ def execution(modules, repo, saved, value, *, present=True):
     return saved
 
 
-def authorized(modules, repo):
-    saved, value = ready(modules, repo)
+def authorized(modules, repo, *, setup="gym"):
+    saved, value = ready(modules, repo, setup=setup)
     saved = approve(modules, repo, present_review(modules, repo, saved, value), value)
     saved = execution(modules, repo, saved, value)
     value["execution"]["selection"]["authorization"] = bound(
@@ -417,3 +417,107 @@ def test_harbor_ignores_non_gym_row_metadata_when_rendering(modules, tmp_path):
     output = render(modules, save(modules, tmp_path, saved, value))
     assert "ROW_METADATA" not in output and output.count("Not applicable") == 2
     assert "Attempts per task" in output
+
+
+def result_payload(modules, repo, *, setup="gym"):
+    state, _, _ = modules
+    saved, value = authorized(modules, repo, setup=setup)
+    for task in value["creation"]["tasks"].values():
+        saved = state.record_task(repo, task=task["path"], status="draft", source="New authored task")
+    value["execution"]["pending"] = {
+        "question": "Which tasks do you approve, or what would you like to change?",
+        "source": "Post-run task acceptance decision",
+    }
+    saved = save(modules, repo, saved, value)
+    paths = {}
+    for field, name in (("output", "interaction.json"), ("trace", "trajectory.json"), ("verification", "checks.json")):
+        path = f".eval-author/jobs/refund-0/repeat-1/{name}"
+        evidence(repo, path, "Retained native attempt evidence")
+        paths[field] = str(repo / path)
+    cases = value["execution"]["selection"]["cases"]
+    attempts = [
+        {
+            "task_id": case["task_id"],
+            "example_id": case["example_ids"][0] if setup == "gym" else None,
+            "attempt": attempt,
+            "status": "completed",
+            "score": "1" if attempt == 1 else "0",
+            "error": None,
+            **(paths if index == 0 and attempt == 1 else dict.fromkeys(paths)),
+        }
+        for index, case in enumerate(cases)
+        for attempt in (1, 2)
+    ]
+    attempts[2].update(status="error", score=None, error="Provider timeout | retry required")
+    return (
+        saved,
+        value,
+        {
+            **expansion_payload(modules, saved),
+            "stage": "expansion_results",
+            "facts": {
+                **expansion_payload(modules, saved)["facts"],
+                "attempts": attempts[:-1],
+            },
+        },
+    )
+
+
+@pytest.mark.parametrize("setup", ["gym", "harbor"])
+def test_results_show_every_authorized_attempt_with_evidence_and_leave_tasks_draft(modules, tmp_path, setup):
+    state, _, renderer = modules
+    saved, value, data = result_payload(modules, tmp_path, setup=setup)
+    before = state.state_path(tmp_path).read_bytes()
+    output = renderer.render(data)
+    assert output == renderer.render(data)
+    assert state.state_path(tmp_path).read_bytes() == before
+    assert output.count("; no execution error") == 2
+    assert "Completed; score 0; no execution error" in output
+    assert "Execution error; score not available; Provider timeout &#124; retry required" in output
+    assert "Missing result | Not available | Not available | Not available" in output
+    assert "interaction.json" in output and "trajectory.json" in output and "checks.json" in output
+    assert output.endswith(value["execution"]["pending"]["question"] + "\n")
+    assert all(
+        state.task_lifecycle(tmp_path, saved, task["path"])["status"] == "draft"
+        for task in value["creation"]["tasks"].values()
+    )
+    attempts = data["facts"]["attempts"]
+    resumed = state.initialize(tmp_path, journey="expand")
+    data.update(expansion_payload(modules, resumed))
+    data["stage"] = "expansion_results"
+    data["facts"]["attempts"] = attempts
+    assert renderer.render(data) == output
+    if setup == "gym":
+        fixture = FIXTURES / "results-review.md"
+        assert output.replace(str(tmp_path), "/repo") == fixture.read_text().split("\n\n", 1)[1]
+
+
+@pytest.mark.parametrize("change", ["duplicate", "unselected", "bad_link", "stale_task", "stale_config", "no_question"])
+def test_results_reject_ambiguous_scope_stale_authorization_and_missing_review_question(modules, tmp_path, change):
+    state, _, renderer = modules
+    saved, value, data = result_payload(modules, tmp_path)
+    if change == "duplicate":
+        data["facts"]["attempts"][1] = data["facts"]["attempts"][0]
+    elif change == "unselected":
+        data["facts"]["attempts"][0]["attempt"] = 3
+    elif change == "bad_link":
+        data["facts"]["attempts"][0]["output"] = str(tmp_path / ".eval-author/../private.json")
+    elif change == "no_question":
+        value["execution"]["pending"] = None
+        saved = save(modules, tmp_path, saved, value)
+    else:
+        path = (
+            ".eval-author/tasks/refund-0/instruction.md"
+            if change == "stale_task"
+            else ".eval-author/.working/agent.yaml"
+        )
+        (tmp_path / path).write_text("Changed content")
+        saved = state.initialize(tmp_path, journey="expand")
+    attempts = data["facts"]["attempts"]
+    data.update(expansion_payload(modules, saved))
+    data["stage"] = "expansion_results"
+    data["facts"]["attempts"] = attempts
+    before = state.state_path(tmp_path).read_bytes()
+    with pytest.raises(ValueError):
+        renderer.render(data)
+    assert state.state_path(tmp_path).read_bytes() == before
