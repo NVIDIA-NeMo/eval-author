@@ -423,17 +423,25 @@ def render(payload: dict) -> str:
     if progress is None:
         raise ValueError("Save a structured expansion lifecycle before continuation")
     execution_pending = (value.get("execution") or {}).get("pending") if value else None
-    if not progress["complete"] and any(
-        question in {copy.COMPLETION_QUESTION, copy.COMPLETION_WITH_IMPROVEMENTS}
-        for question in (
-            state["pending_question"],
-            progress["pending_question"],
-            (execution_pending or {}).get("question"),
+    if (
+        progress["context_current"]
+        and not state["scopes"]["expand"].get("needs_review")
+        and expansion_state.review_ready(state)
+        and not progress["complete"]
+        and any(
+            question in {copy.COMPLETION_QUESTION, copy.COMPLETION_WITH_IMPROVEMENTS}
+            for question in (
+                state["pending_question"],
+                progress["pending_question"],
+                (execution_pending or {}).get("question"),
+            )
         )
     ):
+        if journey_state.active_blockers(state):
+            raise ValueError("Continue the saved recovery question through shared onboarding")
         raise ValueError(
-            "Clear the stale completion question from execution.pending and pending_question "
-            "through a revision-checked state update before rendering recovery"
+            "Clear the stale completion question from execution.pending through a revision-checked state update. "
+            "Clear pending_question only if it matches that completion question; preserve any other pending question."
         )
     if payload["stage"] in {"expansion_review", "expansion_results"} and progress["complete"]:
         raise ValueError("Use expansion_completion for accepted expansion results")
