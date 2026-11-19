@@ -454,8 +454,9 @@ def nested_checkout(repo: Path, path: Path) -> bool:
     return False
 
 
-def task_sort(task: dict) -> tuple[bool, str, str, str]:
+def task_sort(task: dict) -> tuple[bool, bool, str, str, str]:
     return (
+        task.get("readiness") != "draft",
         task["status"] != "proposed",
         PurePosixPath(task["path"]).parent.as_posix() if task["path"] else "",
         task["display_id"],
@@ -1301,7 +1302,7 @@ def render_runs_markdown(data: dict) -> str:
     if not data["runs"]:
         lines.append("No recorded evaluation jobs.")
     if data["standalone_trials"]:
-        lines.extend(["", "## Legacy trials", "", "Standalone trials are not evaluation jobs.", ""])
+        lines.extend(["", "## Individual attempts", "", "Standalone trials are not evaluation jobs.", ""])
         lines.extend(markdown_runs(data["standalone_trials"], "Trial"))
     return "\n".join(lines).rstrip() + "\n"
 
@@ -1684,7 +1685,7 @@ def refresh(
                 (standalone_trials, "standalone_trials", runs_complete),
             ]:
                 if not complete:
-                    label = "Legacy trials" if key == "standalone_trials" else key.capitalize()
+                    label = "Individual attempts" if key == "standalone_trials" else key.capitalize()
                     warnings.append(f"{label} inventory is incomplete; retained entries may be unverified.")
                 current = {r["path"] for r in records}
                 roots = metadata["task_roots" if key == "tasks" else "jobs_roots"]

@@ -9,7 +9,7 @@ Use this shared reporting contract for Harbor and NeMo Gym.
 
 `.eval-author/report.html` defines the case/run review content.
 Its Tasks tab lists the current saved first-evaluation plan alongside discovered
-Harbor tasks and NeMo Gym workload definitions in one table, with **Proposed** rows first,
+Harbor tasks and NeMo Gym workload definitions in one table, with **Draft** rows first, then **Proposed** rows,
 including tasks being authored and accepted tasks at their stable paths, with
 Task, Status, Behavior, Expected outcome, Verifier, and Actions columns.
 For authored tasks, Task shows the complete task README's first H1 title,
@@ -23,7 +23,7 @@ verifier description as defined in the task README.
 Its Runs tab lists one row per native Harbor job with date/time, the exact on-disk
 directory name and project-relative path, role, status, aggregate reward, and actions.
 Its Harbor viewer action opens the job and its individual trials. Standalone results appear separately under
-the collapsed Legacy trials section; a folder of trials does not establish a
+the collapsed Individual attempts section; a folder of trials does not establish a
 single job or evaluation invocation. Both show available warnings
 and missing-data states. Settings configures browser viewer addresses only.
 
@@ -38,7 +38,7 @@ writes it and then refreshes the suite report.
 The same generator writes each content tab as Markdown in `.eval-author/report_markdown/`,
 for agents and reviews: `tasks.md` (a status summary that counts Proposed, Draft,
 Accepted, and Unknown tasks with their meaning, then the task table) and `runs.md`
-(jobs, then Legacy trials as an H2). Tables keep the same columns and ordering as
+(jobs, then Individual attempts as an H2). Tables keep the same columns and ordering as
 the HTML, and native score labels replace visual bars. Preserve statuses,
 warnings, record diagnostics, and missing-data labels. Links resolve from
 `report_markdown/`. Until the first audit it also writes a placeholder
@@ -277,7 +277,7 @@ For future Harbor suite evaluations, use one native job per invocation, with an
 explicit task set, agent/model configuration, and agreed attempts. Give every
 rerun a fresh job directory. This also applies to a one-task evaluation intended
 for the Runs table. Controls and per-trial proof workflows may keep standalone
-trials when fixed evidence paths are required; they appear under Legacy trials.
+trials when fixed evidence paths are required; they appear under Individual attempts.
 Report refresh reads evidence and never launches, rewrites, or combines runs.
 
 Optional imported `behavior` and `expected_outcome` fields require project-relative

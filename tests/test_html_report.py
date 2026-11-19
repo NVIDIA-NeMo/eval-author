@@ -651,7 +651,7 @@ def test_job_replacing_standalone_at_same_path_has_no_legacy_duplicate(tmp_path)
     assert updated["standalone_trials"] == []
 
 
-def test_browser_renders_job_reward_meter_and_separate_legacy_trials(tmp_path):
+def test_browser_renders_job_reward_meter_and_separate_individual_attempts(tmp_path):
     node = shutil.which("node")
     if not node:
         pytest.skip("Node is needed to exercise report rendering")
@@ -680,7 +680,7 @@ const descendants=node=>[node,...node.children.flatMap(descendants)];
 assert.equal(ids['run-rows'].children.length,1);
 assert.equal(ids['legacy-rows'].children.length,1);
 assert.equal(ids['legacy-trials'].hidden,false);
-assert.equal(ids['legacy-summary'].textContent,'Legacy trials (1)');
+assert.equal(ids['legacy-summary'].textContent,'Individual attempts (1)');
 const job=ids['run-rows'].children[0];
 assert.equal(job.dataset.kind,'job');
 const nodes=descendants(job);
@@ -709,14 +709,14 @@ assert.equal(ids['legacy-trials'].hidden,true);
     assert result.returncode == 0, result.stderr
 
 
-def test_markdown_legacy_trials_mirrors_the_separate_html_section(tmp_path):
+def test_markdown_individual_attempts_mirrors_the_separate_html_section(tmp_path):
     path = job(tmp_path, total=1)
     trial(tmp_path, path + "/one")
     legacy = ".eval-author/jobs/checks/single"
     trial(tmp_path, legacy)
     report.refresh(tmp_path, patch=rule(path))
     raw = markdown_report(tmp_path, "runs")
-    jobs, standalone = raw.split("## Legacy trials")
+    jobs, standalone = raw.split("## Individual attempts")
     assert "| Job | Reward |" in jobs and "| Trial | Reward |" in standalone
     assert legacy not in jobs and path not in standalone
     assert legacy in standalone and path in jobs
@@ -908,7 +908,7 @@ def test_browser_task_status_is_separate_from_inventory_status(tmp_path):
     node = shutil.which("node")
     if not node:
         pytest.skip("Node is needed to exercise task rendering")
-    draft, accepted, unknown = [task(tmp_path, name=name) for name in ("alpha", "beta", "gamma")]
+    draft, accepted, unknown = [task(tmp_path, name=name) for name in ("zeta", "alpha", "gamma")]
     evidence = ".eval-author/jobs/reviewed-baseline.json"
     write(tmp_path, evidence, {"reward": 0, "validation": "passed"})
     journey_state.record_task(tmp_path, task=draft, status="draft", source="Authoring is underway")
@@ -919,6 +919,9 @@ def test_browser_task_status_is_separate_from_inventory_status(tmp_path):
     data = report.refresh(tmp_path, max_entries=1)
     assert not data["inventory"]["complete"]
     assert all(item["status"] == "unverified" for item in data["tasks"])
+    assert [item["path"] for item in data["tasks"]] == [draft, accepted, unknown]
+    markdown = markdown_report(tmp_path, "tasks")
+    assert markdown.index("<code>org/zeta</code>") < markdown.index("<code>org/alpha</code>")
     expected = {
         "harbor:" + path: status for path, status in ((draft, "Draft"), (accepted, "Accepted"), (unknown, "Unknown"))
     }
@@ -947,6 +950,7 @@ vm.createContext(context);vm.runInContext(input.helper+'drawCases();',context);
 const headers=descendants(ids['case-tables']).filter(node=>node.tag==='th');
 assert.deepEqual(headers.map(node=>node.textContent),['Task','Status','Behavior','Expected outcome','Verifier','Actions']);
 assert.equal(taskRows().length,3);
+assert.equal(input.expected[taskRows()[0].dataset.task],'Draft');
 for(const row of taskRows()){
   assert.equal(row.children.length,6);
   const inventory=descendants(row.children[0]);
@@ -1489,6 +1493,8 @@ def headings_of(tokens):
 
 @pytest.mark.parametrize("with_proposals", [False, True])
 def test_markdown_mirrors_report_tabs_rows_and_links(tmp_path, with_proposals):
+    import journey_state
+
     path = task(
         tmp_path,
         readme="# Refund policy\n## Behavior under test\nRefund authorization.\n## Expected result\nOnly approved refunds are stored.\n",
@@ -1498,10 +1504,10 @@ def test_markdown_mirrors_report_tabs_rows_and_links(tmp_path, with_proposals):
     sibling = task(tmp_path, name="alpha", readme="# Alpha task\n")
     if with_proposals:
         import first_eval_state
-        import journey_state
         from test_first_eval_state import start
 
         start((journey_state, first_eval_state), tmp_path)
+    journey_state.record_task(tmp_path, task=sibling, status="draft", source="Awaiting task acceptance")
     run_path = job(tmp_path)
     trial(tmp_path, run_path + "/pass")
     trial(tmp_path, run_path + "/fail", reward=0)
@@ -1513,8 +1519,10 @@ def test_markdown_mirrors_report_tabs_rows_and_links(tmp_path, with_proposals):
     }
     data = report.refresh(tmp_path, patch=patch)
     proposal_count = 2 if with_proposals else 0
-    assert all(item["status"] == "proposed" for item in data["tasks"][:proposal_count])
-    assert [item["path"] for item in data["tasks"][proposal_count:]] == [path, sibling, other]
+    assert data["tasks"][0]["path"] == sibling
+    assert data["tasks"][0]["readiness"] == "draft"
+    assert all(item["status"] == "proposed" for item in data["tasks"][1 : proposal_count + 1])
+    assert [item["path"] for item in data["tasks"][proposal_count + 1 :]] == [path, other]
     tokens = markdown_tokens(tmp_path) + markdown_tokens(tmp_path, "runs")
     headings = headings_of(tokens)
     assert headings == [("h1", "Tasks"), ("h2", "Status summary"), ("h2", "Task list"), ("h1", "Runs")]
