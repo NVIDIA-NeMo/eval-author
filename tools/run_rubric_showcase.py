@@ -13,6 +13,7 @@ import subprocess
 import sys
 import tempfile
 from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -39,16 +40,37 @@ def run(output, name, script, *args):
 
 def collect(output):
     (output / "identity").mkdir(mode=0o700)
-    identity = json.loads(run(output, "identity", "run_rubric_measurements.py", "--format", "json"))
-    (output / "identity/panel.json").write_text(json.dumps(identity, indent=2, allow_nan=False) + "\n")
-    run(output, "provenance", "run_rubric_provenance_demo.py", "--run-dir", output / "provenance")
-    run(output, "task-contract", "run_task_contract_demo.py", "--output", output / "task-contract")
-    run(
-        output, "integrity", "run_verification_integrity_demo.py", "--format", "json", "--run-dir", output / "integrity"
+
+    def identity() -> None:
+        panel = json.loads(run(output, "identity", "run_rubric_measurements.py", "--format", "json"))
+        (output / "identity/panel.json").write_text(json.dumps(panel, indent=2, allow_nan=False) + "\n")
+
+    def scorer() -> None:
+        run(output, "scorer", "run_scorer_controls.py", "--rubric", "--output", output / "scorer")
+        run(output, "scorer-replay", "run_scorer_controls.py", "--rubric", "--verify-existing", output / "scorer")
+
+    # The demos write disjoint outputs; only the scorer replay depends on the scorer run.
+    jobs = (
+        identity,
+        lambda: run(output, "provenance", "run_rubric_provenance_demo.py", "--run-dir", output / "provenance"),
+        lambda: run(output, "task-contract", "run_task_contract_demo.py", "--output", output / "task-contract"),
+        lambda: run(
+            output,
+            "integrity",
+            "run_verification_integrity_demo.py",
+            "--format",
+            "json",
+            "--run-dir",
+            output / "integrity",
+        ),
+        scorer,
+        lambda: run(
+            output, "criterion-scoring", "run_criterion_scoring_demo.py", "--output", output / "criterion-scoring"
+        ),
     )
-    run(output, "scorer", "run_scorer_controls.py", "--rubric", "--output", output / "scorer")
-    run(output, "scorer-replay", "run_scorer_controls.py", "--rubric", "--verify-existing", output / "scorer")
-    run(output, "criterion-scoring", "run_criterion_scoring_demo.py", "--output", output / "criterion-scoring")
+    with ThreadPoolExecutor(max_workers=len(jobs)) as pool:
+        for future in [pool.submit(job) for job in jobs]:
+            future.result()
     return summarize_reports(output)
 
 
