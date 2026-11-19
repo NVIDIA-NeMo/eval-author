@@ -369,9 +369,10 @@ changes the content; regenerate the report and record the findings again.
 
 ### After review: offer the next step
 
-Supply the report's concrete recommendations as `audit_findings` facts, with
-relevant implementation limits alongside the affected recommendation. Supply each recommendation's support
-classification under the [audit presentation contract](../../eval-author/references/conversations/audit.md#stages-and-facts).
+Supply up to three prioritized report recommendations in the `audit_findings`
+`recommendations` fact under the [audit presentation contract](../../eval-author/references/conversations/audit.md#stages-and-facts).
+State any implementation limit in the affected recommendation's `reason`, and
+supply its `support` classification under that contract.
 The renderer labels support and offers only supported work; do not append another
 offer or a journey checklist after rendering. Do not imply that Eval Author can apply
 an unsupported change. Offer to continue with the selected work, not to produce

@@ -147,7 +147,7 @@ def checkpoint(modules, stage):
         "traces": "selected",
         "checks": "selected",
         "measurement": "approved",
-        "findings": "measured",
+        "findings": "reviewed",
         "next_action": "reviewed",
         "blockers": "measured",
     }[stage]
@@ -333,6 +333,7 @@ def continuation(modules, scenario):
         if scenario == "specific_improvement":
             lifecycle["next_action"]["recommendation_ids"] = ["R1", "R2"]
     elif scenario in {"limited_findings", "partial_findings"}:
+        payload["state"]["journey_status"]["audit"] = "in_progress"
         lifecycle["measurement"].update(
             status="partial" if scenario == "partial_findings" else "deferred",
             source=(
@@ -398,6 +399,9 @@ def test_reviewed_transcripts_are_exact_and_render_without_side_effects(modules,
     monkeypatch.setattr(audit, "observe", forbid_io)
     monkeypatch.setattr(subprocess, "run", forbid_io)
     for scenario, payload in requests:
+        if payload["stage"] == "audit_findings":
+            expected_status = "complete" if progress(payload, modules)["complete"] else "in_progress"
+            assert payload["state"]["journey_status"]["audit"] == expected_status, scenario
         original = copy.deepcopy(payload)
         assert renderer.render(payload) == expected[scenario], scenario
         assert renderer.render(copy.deepcopy(payload)) == expected[scenario], scenario
