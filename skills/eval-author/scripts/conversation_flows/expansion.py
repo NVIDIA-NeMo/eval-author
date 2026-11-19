@@ -134,7 +134,7 @@ def _artifact(state: dict, path: str, label: str) -> str:
 
 def _review(state: dict, progress: dict, observed: dict) -> str:
     value = _checkpoint(state, progress, reviewing=True)
-    if expansion_state.results_pending(state):
+    if expansion_state.results_pending(progress):
         raise ValueError("Use expansion_results for the saved post-run results review")
     review = progress.get("review")
     if review is None or progress["stage"] not in {"task_review", "execution"}:
@@ -256,7 +256,9 @@ def _execution(state: dict, value: expansion_state.ScopeRecord, progress: dict, 
             )
         )
     parts.append(
-        copy.EXECUTION_AUTHORIZED
+        copy.RESULTS_REVIEWED
+        if execution["results_reviewed"]
+        else copy.EXECUTION_AUTHORIZED
         if execution["authorized"]
         else copy.EXECUTION_DECLINED
         if execution["declined"]
@@ -366,17 +368,6 @@ def render(payload: dict) -> str:
         facts = mapping(payload.get("facts", {}), "audit opening facts", {"selected_improvements", "limits"})
         return _audit_opening(state, facts)
     value = expansion_state.record(state)
-    if payload["stage"] == "expansion_continue" and value is not None and value["schema_version"] == 2:
-        checkpoint = (
-            "expansion_results"
-            if expansion_state.results_pending(state)
-            else "expansion_review"
-            if value.get("review") is not None
-            else "expansion_progress"
-            if value.get("creation") is not None
-            else "expansion_scope"
-        )
-        raise ValueError(f"Use {checkpoint} for the saved expansion checkpoint")
     facts = mapping(
         payload.get("facts", {}),
         "expansion facts",
@@ -384,14 +375,27 @@ def render(payload: dict) -> str:
         if payload["stage"] == "expansion_results"
         else {"expansion_observations"},
     )
-    progress = expansion_state.derive(state, facts.get("expansion_observations"))
+    progress = (
+        expansion_state.derive(state, facts["expansion_observations"]) if "expansion_observations" in facts else None
+    )
+    if payload["stage"] == "expansion_continue" and value is not None and value["schema_version"] == 2:
+        checkpoint = (
+            "expansion_results"
+            if expansion_state.results_pending(progress)
+            else "expansion_review"
+            if value.get("review") is not None
+            else "expansion_progress"
+            if value.get("creation") is not None
+            else "expansion_scope"
+        )
+        raise ValueError(f"Use {checkpoint} for the saved expansion checkpoint")
     if progress is None:
         raise ValueError("Save a structured expansion lifecycle before continuation")
     if payload["stage"] == "expansion_results":
         return _results(state, progress, facts)
     if payload["stage"] == "expansion_review":
         return _review(state, progress, facts["expansion_observations"])
-    if value is not None and expansion_state.results_pending(state):
+    if value is not None and expansion_state.results_pending(progress):
         raise ValueError("Use expansion_results for the saved post-run results review")
     if progress["stage"] in {"task_review", "execution"}:
         raise ValueError("Use expansion_review for saved task review and execution settings")

@@ -8,6 +8,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Literal, NotRequired, TypedDict, cast
 
@@ -156,14 +157,11 @@ def pending(value: EntryRecord | ScopeRecord) -> PendingDecision | None:
     return None
 
 
-def results_pending(state: dict) -> bool:
-    value = record(state)
-    if value is None or value["schema_version"] != 2 or not value.get("execution") or not value.get("review"):
+def results_pending(progress: dict | None) -> bool:
+    if progress is None:
         return False
-    execution = value["execution"]
-    authorization = (execution["selection"] or {}).get("authorization")
-    digest = _execution_digest(state, value, _review_digest(value))
-    return bool(execution["pending"] and authorization and authorization["digest"] == digest)
+    execution = progress.get("execution")
+    return bool(execution and execution["authorized"] and progress["pending_question"] is not None)
 
 
 def record(state: dict) -> EntryRecord | ScopeRecord | None:
@@ -739,6 +737,13 @@ def reconcile_question(repo, state: dict, *, answered_ethos_review: bool = False
     )["pending_question"]
 
 
+def _only_clears(previous: Mapping[str, object], updated: Mapping[str, object] | None, fields: tuple[str, ...]) -> bool:
+    return updated is not None and all(
+        previous.get(key) == updated.get(key) or key in fields and updated.get(key) is None
+        for key in previous.keys() | updated.keys()
+    )
+
+
 def _review_transition(previous: dict, updated: dict, old: dict | None, now: dict) -> None:
     before = dict(record(previous) or {})
     after = record(updated)
@@ -746,8 +751,10 @@ def _review_transition(previous: dict, updated: dict, old: dict | None, now: dic
     for key in ("review", "execution"):
         if key in before and key not in after:
             raise ValueError("Retain saved task review and execution decisions when revising scope")
-        clearing_question = key in before and after.get(key) == {**before[key], "pending": None}
-        if key in after and after.get(key) != before.get(key) and not now["scope_approved"] and not clearing_question:
+        clearing_decisions = key in before and _only_clears(
+            before[key], after.get(key), ("pending", "results_review") if key == "execution" else ("pending",)
+        )
+        if key in after and after.get(key) != before.get(key) and not now["scope_approved"] and not clearing_decisions:
             raise ValueError("Agree the current scope before updating task review or execution settings")
     review = after.get("review")
     if review:
@@ -783,7 +790,7 @@ def _review_transition(previous: dict, updated: dict, old: dict | None, now: dic
         return
     assert review is not None
     prior = before.get("execution") or {}
-    if execution != prior and execution != {**prior, "pending": None} and not now["review"]["approved"]:
+    if not _only_clears(prior, execution, ("pending", "results_review")) and not now["review"]["approved"]:
         raise ValueError("Approve the current generated tasks before updating execution settings")
     presentation = execution["execution_settings_presented"]
     if presentation and presentation != prior.get("execution_settings_presented"):
@@ -805,7 +812,7 @@ def _review_transition(previous: dict, updated: dict, old: dict | None, now: dic
         and old["execution"]["selection_digest"] != now["execution"]["selection_digest"]
     ):
         raise ValueError(
-            "Clear the prior results review before changing execution settings, selection, or authorization"
+            "Clear the prior results review when changing tasks, scope, settings, selection, or authorization"
         )
     if results_review and results_review != prior.get("results_review"):
         if not (

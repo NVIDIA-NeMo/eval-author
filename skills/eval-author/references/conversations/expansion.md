@@ -297,9 +297,22 @@ After the user accepts the results for the complete agreed set, save
 `execution.pending` and top-level `pending_question` in the same save. This optional field
 binds the final review to the authorized tasks, agent, and settings; it does not
 replace individual task acceptance or the owning workflow's technical checks.
-Clear it when changing settings, selection, or authorization. Before any rerun, clear it and retain earlier
-results as history; new results need a new user review. Do not reuse a pre-run
+Clear it when changing tasks, scope, settings, selection, or authorization; the
+same save may clear the obsolete review and its pending question during repair.
+Before asking permission for any rerun, clear both `results_review` and
+`selection.authorization`, then save the new permission question in
+`execution.pending`. Reuse the current settings display when unchanged; render
+`expansion_review`, wait for the actual permission reply, and bind the new
+authorization before execution. Retain earlier results as history; new results
+need a new user review. Do not reuse a pre-run
 decision's source or save this review together with initial run authorization.
+
+For generic onboarding resume, supply current `facts.expansion_observations`
+from the state helper so routing uses observed authorization. Without these
+observations, resume directs to `expansion_review`, which uses fresh observations
+to select the results checkpoint or show the required repair. Once results are
+reviewed and the question is cleared, `expansion_review` shows the reviewed-run
+status without repeating permission or acceptance questions.
 
 ## Shared checkpoint contract
 

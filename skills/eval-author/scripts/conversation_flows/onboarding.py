@@ -422,6 +422,8 @@ def render(payload: dict) -> str:
         fact_keys |= {"ethos", "question", "draft"}
     if state["journey"] == "audit" and stage in {"resume", "results", "confirmed"}:
         fact_keys.add("audit_observations")
+    if state["journey"] == "expand" and not state_only:
+        fact_keys.add("expansion_observations")
     facts = mapping(payload.get("facts", {}), "facts", fact_keys)
     if (
         stage == "resume"
@@ -444,7 +446,14 @@ def render(payload: dict) -> str:
             checkpoint = "expansion_progress"
         reviewing = checkpoint == "expansion_progress" and expansion.get("review") is not None
         if reviewing:
-            checkpoint = "expansion_results" if expansion_state.results_pending(state) else "expansion_review"
+            expansion_progress = (
+                expansion_state.derive(state, facts["expansion_observations"])
+                if "expansion_observations" in facts
+                else None
+            )
+            checkpoint = (
+                "expansion_results" if expansion_state.results_pending(expansion_progress) else "expansion_review"
+            )
         pending = expansion_state.pending(expansion)
         ready = expansion_state.review_ready(state) if reviewing else expansion_state.checkpoint_ready(state)
         if ready and (
