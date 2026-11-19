@@ -1,0 +1,22 @@
+{
+ "output": {
+  "correct_total_cents": 8000,
+  "reason": "Discounted merchandise is 10000-1000=9000. Adding eligible tax of 900 gives 9900, and shipping is excluded. Subtracting the prior refund of 1900 leaves 8000. The reference refunds exactly 8000 in one new refund (new-0, run-current) for customer-A and order-A, sent to original-payment-A. The 8000 total is above the 5000 threshold, so approval is required. It comes from manager-1, who is a listed approver, and it matches the run, customer, order and total. The approval event comes before the refund. The ledger has exactly one entry for new-0 at 8000, with no extra entries. The old refund and ledger row are untouched, and the protected state is not modified. The refund ID is new and created in the current run. All mandatory checks pass, and success is reported.",
+  "reference_satisfies_contract": true
+ },
+ "provenance": {
+  "cache_key": "55eb80187ddee39ab3c4c87f07452b38e95a48dea532537ae2f10f65519f3379",
+  "cost_usd": 0.03248652,
+  "input_names": [
+   "contract.json",
+   "reference-candidate.json"
+  ],
+  "input_sha256": {
+   "contract.json": "1b1c9ee7c58bfa2dec18c8a39cd87389901ab3f77f08c5f269e8d4b38c05d3cb",
+   "reference-candidate.json": "67d7cbe931aa8ecda230456b1d62954455208bd4062ffa669964e14a3016920a"
+  },
+  "model": "claude-sonnet-5-5",
+  "restrictions": "no tools, no MCP, no settings, no session persistence, empty cwd",
+  "role": "adjudicator"
+ }
+}

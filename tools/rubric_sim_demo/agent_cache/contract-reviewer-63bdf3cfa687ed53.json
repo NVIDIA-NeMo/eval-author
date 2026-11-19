@@ -1,0 +1,21 @@
+{
+ "output": {
+  "material_ambiguities": [],
+  "material_contradictions": []
+ },
+ "provenance": {
+  "cache_key": "63bdf3cfa687ed5314bd94aad19d60586a4802a580f699e9d0ca8fcc8dccad41",
+  "cost_usd": 0.03238587,
+  "input_names": [
+   "contract.json",
+   "instruction.md"
+  ],
+  "input_sha256": {
+   "contract.json": "6b1fd1ee2fa8c8294ee1575a5e44fc84f66a112b3417fb692e3d445a28fd3530",
+   "instruction.md": "ad5c684e2575351513c8e0781a640ff9d84e26032554fd823f01de5ca30c0585"
+  },
+  "model": "claude-sonnet-5-5",
+  "restrictions": "no tools, no MCP, no settings, no session persistence, empty cwd",
+  "role": "contract-reviewer"
+ }
+}

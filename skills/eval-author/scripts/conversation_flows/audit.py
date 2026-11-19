@@ -27,7 +27,7 @@ PHASES = {
     "complete": "next_action",
 }
 STAGES = {"audit_" + stage for stage in {*PHASES.values(), "blockers", "resume"}}
-COMMON_FACTS = {"audit_observations", "links", "blockers"}
+COMMON_FACTS = {"audit_observations", "links", "blockers", "suite_report_error"}
 STAGE_FACTS = {
     "suites": {"suites", "report_action"},
     "traces": {"report_action"},
@@ -48,8 +48,12 @@ def rows(value: object, label: str, *, maximum: int = 100) -> list:
 def recommendations(facts: dict) -> list[dict]:
     result = rows(facts.get("recommendations", []), "recommendations", maximum=3)
     labels = set()
+    identifiers = []
     for item in result:
-        mapping(item, "recommendation", {"kind", "label", "reason"})
+        mapping(item, "recommendation", {"kind", "label", "reason", "id"})
+        if "id" in item:
+            audit_state.recommendation_ids([item["id"]])
+            identifiers.append(item["id"])
         if item.get("kind") not in audit_state.ACTIONS - {"finish"}:
             raise ValueError("Recommendations require a supported next action")
         label = text(item.get("label"), "recommendation label")
@@ -57,6 +61,8 @@ def recommendations(facts: dict) -> list[dict]:
         if label in labels:
             raise ValueError("Recommendation labels must be distinct")
         labels.add(label)
+    if identifiers:
+        audit_state.recommendation_ids(identifiers)
     return result
 
 
@@ -69,23 +75,6 @@ def decision_question(stage: str, lifecycle: dict, facts: dict) -> str:
         return copy.TRACE_QUESTION
     if stage == "checks":
         return copy.CHECKS_QUESTION
-    if stage == "findings":
-        items = recommendations(facts)
-        if not items:
-            return copy.NO_CHANGE_QUESTION
-        if any(item["kind"] != "improve" for item in items):
-            return copy.OTHER_ACTION_QUESTION
-        labels = [
-            copy.IMPROVEMENT_CHOICE.format(label=literal(item["label"], "recommendation label")) for item in items
-        ]
-        choices = (
-            labels[0]
-            if len(labels) == 1
-            else (copy.TWO_IMPROVEMENTS if len(labels) == 2 else copy.MULTIPLE_IMPROVEMENTS).format(
-                choices=", ".join(labels)
-            )
-        )
-        return copy.FINDINGS_QUESTION.format(choices=choices)
     raise ValueError("This audit stage has no canonical decision question")
 
 
@@ -118,7 +107,16 @@ def report_notice(state: dict, lifecycle: dict, facts: dict) -> str:
     action = facts.get("report_action")
     if not isinstance(action, str) or action not in copy.REPORT_ACTIONS:
         raise ValueError("Supply the actual report action: created, updated, or unchanged")
-    return copy.REPORT_ACTIONS[action].format(report=report_link(state, lifecycle, facts))
+    notice = copy.REPORT_ACTIONS[action].format(report=report_link(state, lifecycle, facts))
+    # The audit renderer refreshes report.html from the canonical report; a legacy location has no Audit tab yet.
+    # A suite_report_error means the Markdown is current but the HTML is not, so never announce the HTML then.
+    if facts.get("suite_report_error"):
+        notice += " " + copy.HTML_REPORT_FAILED
+    elif lifecycle["findings"]["report"]["path"] == copy.CANONICAL_REPORT:
+        notice += " " + copy.HTML_REPORT.format(
+            html=link(local_target(state, copy.HTML_REPORT_PATH), copy.HTML_REPORT_LABEL, fragment="audit")
+        )
+    return notice
 
 
 def scope(state: dict, lifecycle: dict) -> str:
@@ -250,6 +248,15 @@ def recommendation_section(facts: dict) -> str | None:
     return copy.RECOMMENDATIONS_HEADING + "\n\n" + "\n".join(lines)
 
 
+def closing_status(lifecycle: dict, audit: dict) -> str:
+    """A task review without tasks is finished for what it can review, not an unfinished measured audit."""
+    if audit["complete"]:
+        return copy.AUDIT_COMPLETE
+    if audit["mode"] == "task_review" and lifecycle["suites"]["status"] != "selected":
+        return copy.TASK_REVIEW_NO_TASKS
+    return copy.AUDIT_LIMITED
+
+
 def render_findings(state: dict, lifecycle: dict, audit: dict, facts: dict) -> list[str]:
     findings = rows(facts.get("findings"), "findings")
     if not findings:
@@ -273,8 +280,9 @@ def render_findings(state: dict, lifecycle: dict, audit: dict, facts: dict) -> l
     parts.extend([scope(state, lifecycle), measurement_status(lifecycle, audit)])
     if limits := bullet_section(copy.LIMITS_HEADING, facts.get("limits"), "evidence limits"):
         parts.append(limits)
+    parts.append(closing_status(lifecycle, audit))
     if recommended := recommendation_section(facts):
-        parts.append(recommended)
+        parts.extend([recommended, copy.NEXT_OFFER])
     return parts
 
 
@@ -327,21 +335,23 @@ def render(payload: dict) -> str:
         raise ValueError("Resolve saved blockers or render audit_blockers before continuing")
     if not all(row["complete"] for row in journey_state.checklist(state)[:2]):
         raise ValueError("Resolve shared prerequisites and confirm ETHOS.md before audit checkpoints")
-    if stage != PHASES[audit["stage"]] and not (stage == "next_action" and audit["findings_reviewed"]):
+    if stage != PHASES[audit["stage"]] and not (stage in {"findings", "next_action"} and audit["findings_reviewed"]):
         raise ValueError("Audit stage differs from the current unresolved milestone; resume current state")
     pending = audit["pending_checkpoint"]
     question = None
-    if stage in {"suites", "traces", "checks", "findings"}:
+    if stage in {"suites", "traces", "checks"}:
         question = decision_question(stage, lifecycle, facts)
         if not pending or pending["question"] != question:
             raise ValueError(
                 "Save the current canonical audit decision question and checkpoint digest before rendering"
             )
-    elif stage == "next_action":
+    elif stage in {"findings", "next_action"}:
+        if not audit["findings_reviewed"]:
+            raise ValueError("Record current findings in the audit report before presenting them")
         if pending:
             question = literal(pending["question"], "pending next action")
         elif state["pending_question"] is not None:
-            raise ValueError("Clear the answered findings question before acknowledging acceptance")
+            raise ValueError("Clear the obsolete findings question before acknowledging recorded findings")
     elif state["pending_question"] is not None:
         raise ValueError("Resolve the pending measurement question through a saved blocker")
     if stage == "suites":
@@ -362,17 +372,16 @@ def render(payload: dict) -> str:
     else:
         parts = [
             copy.REVIEW_ACCEPTED,
-            copy.AUDIT_COMPLETE
-            if audit["complete"]
-            else copy.TASK_REVIEW_NO_TASKS
-            if audit["mode"] == "task_review"
-            else copy.AUDIT_LIMITED,
+            closing_status(lifecycle, audit),
             report_link(state, lifecycle, facts),
         ]
         if not audit["complete"]:
             parts.append(measurement_status(lifecycle, audit))
         if audit["next_action_current"]:
             parts.append(copy.NEXT_ACTIONS[lifecycle["next_action"]["kind"]])
+            action = lifecycle["next_action"]
+            if action["kind"] == "improve" and not action.get("recommendation_ids"):
+                parts.append(copy.MISSING_RECOMMENDATION_SELECTION)
         elif pending and (recommended := recommendation_section(facts)):
             parts.append(recommended)
     if stage in {"suites", "traces", "measurement"} and "report_action" in facts:

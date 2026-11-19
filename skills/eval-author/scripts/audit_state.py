@@ -6,14 +6,18 @@
 from __future__ import annotations
 
 import copy
+import hashlib
+import json
 import re
 from pathlib import Path, PurePosixPath
+from typing import Any
 
 from first_eval_state import fingerprint
 
 STAGES = ("suite_selection", "trace_selection", "checks_review", "measurement", "findings_review", "next_action")
 ACTIONS = {"finish", "improve", "create", "collect_evidence", "fix_agent"}
 MODES = {"task_review", "measured"}
+DEFAULT_MODE = "task_review"
 
 
 def check_kind(kind: object) -> str:
@@ -32,8 +36,7 @@ def mode(state: dict) -> str:
     scope = state.get("scopes", {}).get("audit", {})
     decision = scope.get("mode") if isinstance(scope, dict) else None
     if decision is None:
-        # Audits saved before the approach choice always required measurement.
-        return "measured"
+        return DEFAULT_MODE
     validate_mode(decision)
     return decision["kind"]
 
@@ -57,14 +60,24 @@ def new_record() -> dict:
         "measurement": None,
         "findings": None,
         "findings_review": None,
+        "findings_final": None,
         "next_action": None,
         "pending": None,
     }
 
 
+# Keys added after audits were first saved. Every reader goes through record(), so a record
+# saved before a key existed is completed once here instead of in each place that reads it.
+OPTIONAL_KEYS: dict[str, Any] = {"selection_manifest": None, "findings_final": None}
+
+
 def record(state: dict) -> dict | None:
     scope = state.get("scopes", {}).get("audit", {})
-    return scope.get("lifecycle") if isinstance(scope, dict) else None
+    lifecycle = scope.get("lifecycle") if isinstance(scope, dict) else None
+    if isinstance(lifecycle, dict):
+        for key, default in OPTIONAL_KEYS.items():
+            lifecycle.setdefault(key, default)
+    return lifecycle
 
 
 def _fields(value, fields: str) -> None:
@@ -117,9 +130,80 @@ def _decision(value) -> None:
     _text(value["source"])
 
 
+def recommendation_ids(value) -> None:
+    if (
+        not isinstance(value, list)
+        or not value
+        or len(value) > 1000
+        or any(not isinstance(item, str) or not re.fullmatch(r"R[1-9][0-9]*", item) for item in value)
+        or len(set(value)) != len(value)
+    ):
+        raise ValueError("Select unique report recommendation IDs such as R1")
+
+
+def validate_handoff(value: dict) -> None:
+    _fields(value, "recommendation_ids findings_digest report content source")
+    recommendation_ids(value["recommendation_ids"])
+    _digest(value["findings_digest"])
+    _ref(value["report"])
+    _ref(value["content"])
+    _text(value["source"])
+
+
+def selected_recommendations(repo: Path, lifecycle: dict) -> list[dict]:
+    action = lifecycle["next_action"]
+    ids = action.get("recommendation_ids", []) if action else []
+    if not ids:
+        return []
+    findings = lifecycle["findings"]
+    if not findings or "content" not in findings:
+        raise ValueError("Recommendation selection requires the reviewed structured report")
+    ref = findings["content"]
+    path = (repo / ref["path"]).resolve()
+    if not path.is_relative_to(repo.resolve()):
+        raise ValueError("Report content must stay inside the repository")
+    raw = path.read_bytes()
+    if hashlib.sha256(raw).hexdigest() != ref["digest"]:
+        raise ValueError("Report content changed; review before selecting recommendations")
+    rows = {row["id"]: row for row in json.loads(raw)["recommendations"]}
+    if any(identifier not in rows for identifier in ids):
+        raise ValueError("Select recommendation IDs from the reviewed report")
+    allowed = {
+        "improve": {"new_task", "revise_task", "repair_verifier"},
+        "collect_evidence": {"collect_evidence"},
+        "fix_agent": {"fix_agent"},
+    }.get(action["kind"], set())
+    if any(rows[identifier]["action"] not in allowed for identifier in ids):
+        raise ValueError("Selected recommendations must match the next action")
+    return [rows[identifier] for identifier in ids]
+
+
+def retain_handoff(previous: dict, updated: dict) -> None:
+    lifecycle = record(updated)
+    action = lifecycle["next_action"] if lifecycle else None
+    if not action or action == (record(previous) or {}).get("next_action"):
+        return
+    assert lifecycle is not None
+    if action["kind"] != "improve" or not action.get("recommendation_ids"):
+        # A declined or replacement action must not leave an older selection active.
+        scope = updated["scopes"].get("expand", {})
+        if isinstance(scope, dict):
+            scope.pop("audit_handoff", None)
+        return
+    scope = updated["scopes"].setdefault("expand", {})
+    if not isinstance(scope, dict):
+        scope = {"legacy_context": scope}
+        updated["scopes"]["expand"] = scope
+    scope["audit_handoff"] = copy.deepcopy(
+        {key: action[key] for key in ("recommendation_ids", "findings_digest", "source")}
+        | {key: lifecycle["findings"][key] for key in ("report", "content")}
+    )
+    scope.update(confirmed=False, needs_review=True)
+
+
 def validate(value: dict) -> None:
     try:
-        value = {"selection_manifest": None, **value}
+        value = {**OPTIONAL_KEYS, **value}
         _fields(value, " ".join(new_record()))
         if type(value["schema_version"]) is not int or value["schema_version"] != 1:
             raise ValueError("Unsupported audit lifecycle version")
@@ -153,7 +237,7 @@ def validate(value: dict) -> None:
         for key in ("specification", "selection_manifest"):
             if value[key] is not None:
                 _path(value[key])
-        for key in ("checks_approval", "findings_review"):
+        for key in ("checks_approval", "findings_review", "findings_final"):
             if value[key] is not None:
                 _decision(value[key])
         measurement = value["measurement"]
@@ -187,11 +271,16 @@ def validate(value: dict) -> None:
                 _paths([ref["path"] for ref in findings["inputs"]])
         action = value["next_action"]
         if action is not None:
-            _fields(action, "kind findings_digest source")
+            _fields(
+                action,
+                "kind findings_digest source" + (" recommendation_ids" if "recommendation_ids" in action else ""),
+            )
             if action["kind"] not in ACTIONS:
                 raise ValueError("Unknown audit next action")
             _digest(action["findings_digest"])
             _text(action["source"])
+            if "recommendation_ids" in action:
+                recommendation_ids(action["recommendation_ids"])
         pending = value["pending"]
         if pending is not None:
             _fields(pending, "stage digest question source")
@@ -380,12 +469,12 @@ def derive(state: dict, observed: dict) -> dict | None:
                 "evidence": {ref["path"]: files.get(ref["path"]) for ref in (measurement or {}).get("evidence", [])},
             }
         )
-    reviewed = bool(
-        (task_review or measured or current_partial or deferred)
-        and findings_digest
-        and value["findings_review"]
-        and value["findings_review"]["digest"] == findings_digest
-    )
+    # A task review has no measurement to mark the end of analysis. The preliminary checks report is
+    # recorded as findings before analysis, so only a finalization bound to the report's digest completes it.
+    final = value["findings_final"]
+    finalized = bool(task_review and findings and final and final["digest"] == findings["report"]["digest"])
+    # Current findings count as reviewed without a user decision; only the next action is the user's to choose.
+    reviewed = bool((finalized or measured or current_partial or deferred) and findings_digest)
     action_current = bool(
         reviewed and value["next_action"] and value["next_action"]["findings_digest"] == findings_digest
     )
@@ -432,6 +521,7 @@ def derive(state: dict, observed: dict) -> dict | None:
         "measurement_complete": measured,
         "findings_digest": findings_digest,
         "findings_reviewed": reviewed,
+        "findings_final_current": finalized,
         "next_action_current": action_current,
         "complete": reviewed and (measured or task_review and value["suites"]["status"] == "selected"),
     }
@@ -455,11 +545,16 @@ def transition(repo, previous: dict, updated: dict) -> dict | None:
     # Current scope bounds also apply when checking the previously saved approval.
     prior = derive(previous, observed) if before else None
     assert current is not None
-    for field in ("checks_approval", "measurement", "findings_review", "next_action", "pending"):
+    for field in ("checks_approval", "measurement", "findings_review", "findings_final", "next_action", "pending"):
         value = after[field]
         if value is None or value == (before or {}).get(field):
             continue
-        if current["changed_task_bindings"] and field in {"measurement", "findings_review", "next_action"}:
+        if current["changed_task_bindings"] and field in {
+            "measurement",
+            "findings_review",
+            "findings_final",
+            "next_action",
+        }:
             raise ValueError(
                 "Tasks recorded in the findings changed after approval: "
                 + ", ".join(current["changed_task_bindings"])
@@ -476,10 +571,17 @@ def transition(repo, previous: dict, updated: dict) -> dict | None:
                 raise ValueError("Bind measurement to the approved audit inputs")
             if value["status"] == "complete" and not current["measurement_complete"]:
                 raise ValueError("Completed measurement requires current selected evidence")
+        if field == "findings_final":
+            if mode(updated) != "task_review":
+                raise ValueError("Only a task review records a findings finalization")
+            if not current["findings_final_current"]:
+                raise ValueError("Bind the finalization to the digest of the current findings report")
         if field == "findings_review" and not current["findings_reviewed"]:
             raise ValueError("Review current findings from complete, partial, or explicitly deferred measurement")
         if field == "next_action" and not current["next_action_current"]:
             raise ValueError("Select a next action explicitly against reviewed current findings")
+        if field == "next_action":
+            selected_recommendations(repo, after)
         if field == "pending" and not current["pending_checkpoint"]:
             raise ValueError("Pending audit checkpoint must match the current unresolved decision")
     return current

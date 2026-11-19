@@ -43,6 +43,10 @@ remain applicable to trace fields, including turn and span source references.
 Input artifacts live in `inputs` with task-relative paths, and each review note
 serves as its rationale. Requirements carry the bound candidate statement and an explicit
 correctness authority. A source agent's answer does not establish that authority.
+Write `authority.reference` as a repository-relative locator when the authority is
+a file: `path`, `path#Heading`, `path#L3-L5`, or `path#/json/pointer`, for example
+`ETHOS.md#Constraints`. Rubric review, measured from the repository root, can check
+that a locator names real content; prose references stay valid but cannot be checked.
 
 ```bash
 python <eval_author_dir>/scripts/construction_contract.py --plan <private-contract.json> --mode proposal

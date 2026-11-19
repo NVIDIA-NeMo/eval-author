@@ -56,22 +56,19 @@ candidate admission, environment preparation, construction and native qualificat
 This source mode does not require an audit gap and does not claim coverage closure.
 Skip the audit selector and gap-only scaffold/acceptance steps; use the selected
 provider's native task initialization and the handoff's qualification procedure.
-For audit-gap requests, retain Steps 1–8 and their measured eligibility rules.
-Proposal-only requests still stop before construction.
 
 ## Purpose
 
 Read `eval-author` for the shared evidence standard and boundaries. Read
-`eval-author-audit` for measurement and aggregation. Start with the proposal step
-to turn audit evidence into prioritized dataset improvements across tools,
-capabilities, and failure cases. For proposal-only requests, stop after Step 1. Shared lifecycle decisions and
+`eval-author-audit` for measurement and aggregation. Use Step 1 for explicitly
+requested recommendations or additional planning across tools, capabilities,
+and failure cases. For proposal-only requests, stop after Step 1. Shared lifecycle decisions and
 pending work belong only in `.eval-author/.working/journey-state.json`; recommendations
 remain a user-facing deliverable and native evidence remains immutable.
-Enter that step directly from the core's proposal route, carrying existing audit
-findings and prior answers. Accepting the audit's offer to propose tasks also
-enters Step 1 directly; reuse the reviewed Audit coverage report and agreed priorities.
-When handing off from a guided audit, wait for an explicit answer accepting that
-offer; report acceptance alone is not permission to begin proposals.
+Reuse prior findings and answers. For guided audits and `scopes.expand.audit_handoff`, follow the
+[selected audit continuation](../eval-author/references/conversations/expansion.md#selected-audit-improvements)
+instead of requiring another proposal step. Recording findings alone does not
+select implementation work.
 For task creation, consume the core's shared prerequisite result, including direct
 invocation. Proposal-only requests keep their supplied-input scope. Reuse the
 confirmed Ethos and prerequisites.
@@ -142,7 +139,7 @@ path is not permission to include another corpus. Ask about an unresolved source
 before searching or reading it. Proposal-only work can use the available reviewed
 findings without requiring new traces or a creation-scope checkpoint.
 
-When available, read the **Audit coverage report** (`.eval-author/audit-coverage-report.md`)
+When available, read the **Audit coverage report** ([its location](../eval-author-audit/references/coverage-report.md#artifact-names))
 for test mappings, findings, limitations, and agreed next actions. Check its applicability
 against the underlying specification and reports; a mapped test does not establish
 measured coverage. The Markdown report supplies context, while measurement JSON
@@ -151,7 +148,7 @@ absence alone does not require repeating an otherwise usable audit.
 
 Keep the audit's [artifact names](../eval-author-audit/references/coverage-report.md#artifact-names)
 in proposal replies and links: Audit specification (`audit.md`), Audit coverage
-report (`audit-coverage-report.md`), and Coverage measurements (JSON)
+report (`report_markdown/audits.md`), and Coverage measurements (JSON)
 (`audit-coverage-report.json`). Review status does not change these names.
 
 Read available aggregate measurements, relevant per-trace `details.json` and
@@ -231,8 +228,11 @@ uv run <skill_dir>/scripts/task_pipeline.py select \
   --report .eval-author/audit-coverage-report.json
 ```
 
-Choose one item from `actionable_tools`. Stop task creation when the list is
-empty, and surface the dataset recommendations from Step 1. An empty selector means no eligible tool
+Choose one item from `actionable_tools`, matching any retained recommendation
+selection. If that selection has no match, or the list is empty, stop task
+creation and explain the implementation limit while retaining the audit
+recommendation. Do not offer another proposal as a substitute
+for the requested change. An empty selector means no eligible tool
 gaps, not that there are no useful dataset improvements. Capability and
 failure-case items are not task-generation inputs in v1, even when capability
 coverage was measured.

@@ -33,7 +33,7 @@ At each checkpoint inspect the three-item checklist, current stage, unfinished
 work, and next question. Unanswered scope choices must stop fixture, instruction,
 and grader generation, including delegated work. Save decisions and progress in
 the selected journey’s `scopes` entry in `.eval-author/.working/journey-state.json`; audit-based proposals use
-the same `.eval-author/audit-coverage-report.md`. Keep plans, task validation,
+the same `.eval-author/report_markdown/audits.md`. Keep plans, task validation,
 actual agent performance, and measured coverage as separate claims. If execution
 is unavailable, exercise the partial-completion path; do not invent run evidence.
 
@@ -86,7 +86,7 @@ checklist: prerequisites and `ETHOS.md` checked, creation current. Repeat with
 missing run credentials; they must not remove the current marker or introduce
 execution settings at these checkpoints. The first source question ends the turn;
 inspect tool logs to ensure no adapter investigation, task planning, or environment
-preparation continues while waiting. Answer “Start from ETHOS.md.” Inspect the next
+preparation continues while waiting. Answer “Continue without traces.” Inspect the next
 final reply: it proposes one to three tasks with one example each, states that one first task will be
 built and reviewed before the rest, and ends with the rendered design feedback
 question. No task files or integration implementation exist. Interrupt and
@@ -156,7 +156,7 @@ No build receipt establishes formal grading validation or agent execution.
 then generate HTML and Markdown review artifacts before
 `first_eval_review_first`. Lead with which task is ready and its approved design
 and `ETHOS.md` grounding. The next paragraph directs the user to the linked HTML
-Tasks view or mirrored README before the item summaries. Each artifact is linked
+Tasks view or suite README before the item summaries. Each artifact is linked
 once, without a duplicate report footer. Link the task README, with input,
 expected result, grading, a meaningful limitation, and distinct environment,
 validation, and actual-agent execution findings. All required grading controls,
@@ -221,7 +221,7 @@ every task has passed its required grading controls, including hosted grading or
 calibration when used. Refresh the report and mirror. Inspect the final response:
 it leads with the suite scope and `ETHOS.md` grounding, directs the user to review
 the linked HTML Tasks view or
-mirrored README, summarizes the tasks and honest check status, and asks whether
+suite README, summarizes the tasks and honest check status, and asks whether
 the tasks look good. There are no model, budget, credential, attempt-setting,
 or run-authorization questions. No work proceeds while that approval is pending,
 including after a nonblocking question tool returns.

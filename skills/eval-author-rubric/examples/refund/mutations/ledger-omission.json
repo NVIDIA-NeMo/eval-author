@@ -1,0 +1,12 @@
+{
+  "schema": "rubric-example-mutation-v1",
+  "id": "ledger-omission",
+  "category": "task_or_scorer_defect",
+  "edits": [
+    {
+      "path": "tests/refund_scorer.py",
+      "old": "== sorted(expected_ledger, key=lambda row: (row[\"refund_id\"], row[\"amount_cents\"])),",
+      "new": "== sorted(ledger_delta, key=lambda row: (row[\"refund_id\"], row[\"amount_cents\"])),"
+    }
+  ]
+}

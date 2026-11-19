@@ -68,6 +68,12 @@ For a new audit, choose one of two approaches before setup checks:
   saved agent runs to validate that intended behaviors and tools are covered.
   Uses additional tokens.
 
+Both approaches hold each scored check to the standard Eval Author applies to
+tasks it creates: it must trace to the task instruction and a justified expected
+value. Checks for requirements the instruction never states, or expected values
+that contradict their source, are reported as false rejections. Expected values
+with no identifiable source are reported as evidence limits.
+
 An approach already named in your request carries forward. The choice replaces
 the initial readiness question. Resuming an audit keeps its saved approach and
 pending decision. Saved setup or Ethos from creating evaluations can be reused,
@@ -91,8 +97,9 @@ Ethos again when the agent, intended behavior, or document has changed.
 Previously selected suites and runs do not need another selection; when those
 inputs are settled, the next review is the proposed audit checks. Measured audits
 require traces. Missing traces pause measurement while preserving earlier work.
-Task review can finish after you accept the findings, with run coverage labeled
-unmeasured. Both approaches save the Audit coverage report.
+Task review finishes once its findings are recorded, with run coverage labeled
+unmeasured. A saved audit without an approach defaults to task review.
+Both approaches save the Audit coverage report.
 If saved selections refer to older work, Eval Author explains their source and
 how they differ from current recorded tasks or runs, then asks which set you
 intend to audit. Missing-path findings identify the particular selection that
@@ -143,7 +150,7 @@ choose a bounded place to look before searching.
 At **Define what the evals should cover**, review the proposed checks in the
 [Audit coverage report](results.md#coverage-audits). Approval allows measurement
 of the agreed traces without another readiness question. After measurement,
-review the findings in that same report; there is no intermediate approval pause.
+read the findings in that same report. You don't need to approve them.
 
 **Shared progress** (`.eval-author/.working/journey-state.json`) saves suite and
 trace selections separately, review decisions, measurement status, pending
@@ -155,7 +162,7 @@ within its selected suite or trace location.
 
 Changes to the agent, Ethos, selected scope, specification, cases, verifiers, or
 traces reopen check review and dependent measurement and findings. Changes to
-report content or its supporting evidence also reopen findings review. Saved
+report content or its supporting evidence also make recorded findings stale until they are regenerated. Saved
 progress therefore reflects the current inputs when you resume.
 
 Coverage measurement compares that specification with recorded traces
@@ -180,23 +187,20 @@ insufficient evidence. Coverage measurements (JSON) alone does not identify
 which explanation applies or establish overall agent quality.
 
 The final checklist step includes generating the Audit coverage report and
-reviewing it with you. Saving it does not complete that step: the review remains
-pending until you respond to the review check-in. Whenever a session creates or updates
-the report, its final response says so and links it, including at intermediate
-checkpoints. On resume, Eval Author reconciles the report with changed inputs
+presenting its current findings; it does not wait for an acceptance reply.
+Whenever a session creates or updates the report, its final response says so and
+links it, including at intermediate checkpoints. On resume, Eval Author reconciles the report with changed inputs
 before presenting its findings as current.
 
-The review ends with a concrete offer to help with the next step. For an existing
-suite with supported gaps, Eval Author names the main gaps and offers to propose
-new or improved evaluation tasks, ranked with their expected behavior, verifier,
-and supporting evidence. One question offers corrections, acceptance, or the
-next action, then waits. Acceptance alone ends review without another question.
-Accepting the findings can complete a task review or fully measured
-audit while you leave the next action undecided; it does not start proposal
-work. A deferred or partial measurement remains unfinished after findings review.
-Accepting the findings and that offer moves directly
-into the proposal workflow, reusing the report, specification, selected sources,
-and prior answers.
+The review includes recommended changes, their expected behavior, supporting
+evidence, and which next actions Eval Author can perform. The findings need no
+approval, so the audit ends with a concrete next-step offer and no question.
+Recording current findings can complete a task review or fully measured
+audit while you leave the next action undecided; it does not start implementation.
+A deferred or partial measurement remains unfinished after findings review.
+Selecting a recommendation continues to the supported authoring path, reusing
+the audit's recommendation and settled decisions. Eval Author explains any
+implementation limit without offering to prepare the same recommendation again.
 
 The offer follows the evidence. With no evaluations, it points to the
 [first-eval workflow](first-evals.md). With insufficient evidence, it recommends
@@ -232,6 +236,10 @@ retained-control classifications. `valid` still means findings are accounted for
 current passing retained controls for every selected task. Missing, denied,
 unresolved, stale, or unproven evidence cannot pass merely because a report explains
 it. The selected-mode command exits nonzero when either condition fails.
+
+Add `--integrity` to report receipt contradictions, required-control states,
+and superseded manifests. See
+[verification-integrity checks](determinism-checks.md#verification-integrity-checks).
 
 This is a bounded retained-credit check, not full workflow readiness or task
 qualification. It does not execute controls, prove solver-role isolation, or
@@ -289,17 +297,34 @@ verifier would check it, and supporting evidence.
 Recommendations distinguish agent failures from verifier defects and ungraded
 runs. Applicable controls must be executed before a task is described as screened.
 Missing evidence leaves screening unproven. Proposals expand the existing
-next actions in the Audit coverage report. You can request this directly
-or accept Eval Author's offer during the audit review; the handoff reuses the
-audit inputs and settled answers.
+next actions in the Audit coverage report. Request this directly when you want
+additional planning; it is not a required follow-up to an audit.
 
 See [audit results](results.md#coverage-audits) for where protections and later
 findings belong.
-Accepting the proposal offer produces recommendations. Creating, validating,
-or running tasks remains separately scoped: ask for the selected proposal to be
-implemented and validated when you are ready. The current automatic creation
-workflow supports one eligible, measured tool-coverage gap at a time; other
-recommendations may need further task design or measurement.
+An explicit planning request produces recommendations. Selecting an existing
+audit recommendation reuses it. Construction design, validation, and execution
+keep their applicable scope and authorization requirements. The supported
+authoring paths are summarized below.
+
+### What Eval Author can create or improve
+
+| Work | Current support |
+|---|---|
+| Build a first NeMo Gym or Harbor suite | Supported, including task instructions, fixtures, environments, graders, and validation |
+| Add tasks to a starter suite created with Eval Author | Supported; no audit or measured tool gap is required |
+| Create a task from an audit finding | The audit-gap creation workflow supports one eligible, measured tool gap at a time |
+| Automatically create tasks for capability or failure-case audit gaps | Not supported by the audit-gap generator; the audit can recommend these changes |
+| Create a task candidate from a recorded agent interaction | Experimental; requires privacy review, candidate admission, and native qualification |
+| Revise or repair tasks and graders within Eval Author's existing authoring workflow | Supported; affected validation and acceptance evidence must be renewed |
+| Recommend stronger cases, grader repairs, regressions, or additional evidence | Included in the audit |
+| Apply arbitrary audit-selected revisions to existing suite cases or graders | A general implementation workflow is not yet supported |
+
+Creating a task includes authoring and validating its grader. The repair workflow
+also supports fixing verified defects in Eval Author tasks and revalidating them.
+That support does not establish a general editor for every existing evaluation
+suite. For a selected audit recommendation, Eval Author identifies the applicable
+authoring path or explains that applying the change is not yet supported.
 
 For the complete workflows, see the [discovery](../skills/eval-author-discover/SKILL.md),
 [audit](../skills/eval-author-audit/SKILL.md), and

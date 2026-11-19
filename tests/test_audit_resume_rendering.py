@@ -42,7 +42,10 @@ def presentation(modules, *, complete=False, stage="resume"):
     else:
         lifecycle = audit.new_record()
         lifecycle["suites"]["candidates"] = ["suites/refunds"]
-        state["scopes"]["audit"] = {"lifecycle": lifecycle}
+        state["scopes"]["audit"] = {
+            "mode": {"kind": "measured", "source": "User chose measured audit"},
+            "lifecycle": lifecycle,
+        }
         state["journey_status"]["audit"] = "in_progress"
         observed = {"files": {}}
         lifecycle["pending"] = {

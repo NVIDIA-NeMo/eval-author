@@ -148,6 +148,11 @@
           "propose"
         ],
         "write_paths": [
+          ".eval-author/report_markdown/audits.md",
+          ".eval-author/README.md",
+          ".eval-author/report.html",
+          ".eval-author/report_markdown/tasks.md",
+          ".eval-author/report_markdown/runs.md",
           ".eval-author/audit-coverage-report.md",
           ".eval-author/.working/"
         ],
@@ -267,6 +272,11 @@
           "propose"
         ],
         "write_paths": [
+          ".eval-author/report_markdown/audits.md",
+          ".eval-author/README.md",
+          ".eval-author/report.html",
+          ".eval-author/report_markdown/tasks.md",
+          ".eval-author/report_markdown/runs.md",
           ".eval-author/audit-coverage-report.md",
           ".eval-author/.working/"
         ],
@@ -352,10 +362,10 @@
       },
       {
         "prompts": [
-          "Start from ETHOS.md.",
+          "Continue without traces.",
           "Use ETHOS.md without existing traces."
         ],
-        "context": "The previous turn confirmed saved ETHOS.md, showed Next Steps with the first two checklist items complete, and asked whether to use existing traces or start from ETHOS.md. Shared state retains that source question and first-eval handoff, with no saved task design. The user now selects ETHOS.md; save that answer and propose the small task design without asking readiness or sources again. This does not approve authoring or execution.",
+        "context": "The previous turn confirmed saved ETHOS.md, showed Next Steps with the first two checklist items complete, and asked whether to include existing traces when designing the first evaluations. Shared state retains that source question and first-eval handoff, with no saved task design. The user now chooses to continue without traces; save that answer and propose the small task design without asking readiness or sources again. This does not approve authoring or execution.",
         "flow": "eval-author-first-eval",
         "allowed_actions": [
           "read_skill",
@@ -491,6 +501,11 @@
         "write_paths": [
           ".eval-author/.working/",
           ".eval-author/audit.md",
+          ".eval-author/report_markdown/audits.md",
+          ".eval-author/README.md",
+          ".eval-author/report.html",
+          ".eval-author/report_markdown/tasks.md",
+          ".eval-author/report_markdown/runs.md",
           ".eval-author/audit-coverage-report.md"
         ],
         "handoff": "review_audit_checks"

@@ -355,7 +355,9 @@ def load_analysis(cases: Path, analysis: Path, *, allow_unsigned: bool = False) 
     inputs = load_cases(cases, allow_unsigned=allow_unsigned)
     settings = AnalysisSettings.model_validate(read_yaml(analysis))
     if settings.case_settings.keys() != inputs.cases.keys():
-        raise ValueError("analysis case_settings must match the cases exactly")
+        raise ValueError(
+            "analysis case_settings must match all source cases in cases.yml exactly, before any case selection"
+        )
     return LoadedAnalysis(inputs, settings)
 
 

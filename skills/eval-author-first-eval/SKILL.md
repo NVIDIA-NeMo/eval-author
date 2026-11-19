@@ -1,9 +1,8 @@
 ---
 name: eval-author-first-eval
 description: >-
-  For a fresh start, read the eval-author core skill at ../eval-author/SKILL.md,
-  use its pure conversation renderer for orientation and end the turn before
-  repository inspection or prerequisite work.
+  For a fresh start, read the eval-author core skill at ../eval-author/SKILL.md
+  and follow its entry rules before repository inspection or prerequisite work.
   Confirm ETHOS.md, plan evaluation tasks, and build first evals or
   expand a starter NeMo Gym or Harbor suite while explaining
   its parts. No prior traces or coverage reports are required. Missing selected
@@ -48,8 +47,8 @@ source remains a recorded outcome, not a reason to invent a replacement task.
 ## Purpose and conversation
 
 Read the [core skill](../eval-author/SKILL.md) for shared boundaries and onboarding.
-Fresh invocations use its pure onboarding renderer and stop at its orientation
-checkpoint. Complete the saved state-only prerequisite pass before target
+Follow its entry rules for fresh creation and selected starter expansion.
+Complete the saved state-only prerequisite pass before target
 `ETHOS.md` inspection, then reconcile artifacts normally. Reuse current
 [ETHOS.md confirmation](../eval-author/references/ethos-confirmation.md)
 and source choices through the shared completion pause. For fresh creation with
@@ -197,7 +196,7 @@ put later run results and evidence links in the outer suite README.
 
 Satisfy [grader validation before authored-task review](../eval-author/references/conversations/first-eval.md#grader-validation-before-authored-task-review)
 for this task, including its actual model-based judge when used. Generate the
-report and Markdown mirror using [Report generation](../eval-author/references/suite-readme.md#report-generation)
+report and Markdown reports using [Report generation](../eval-author/references/suite-readme.md#report-generation)
 before `first_eval_review_first`. Link the actual Tasks view and task README,
 and report environment proof, verifier validation, and actual-agent execution
 separately. Missing or stale required validation or artifacts block review.
@@ -248,7 +247,7 @@ execution claims. Unknown or missing evidence never establishes completion.
 
 Once all agreed tasks are authored, their environments are proven, and every
 task satisfies the [pre-review validation gate](../eval-author/references/conversations/first-eval.md#grader-validation-before-authored-task-review),
-refresh the report and Markdown mirror and use the [suite review checkpoint](../eval-author/references/conversations/first-eval.md#review-the-authored-suite-before-execution-settings).
+refresh the report and Markdown reports and use the [suite review checkpoint](../eval-author/references/conversations/first-eval.md#review-the-authored-suite-before-execution-settings).
 Render `first_eval_review_suite` as the final reply and end the turn. Wait for
 approval of the whole suite before discussing target-agent execution models,
 credentials, attempt settings, or run authorization. Grader-validation

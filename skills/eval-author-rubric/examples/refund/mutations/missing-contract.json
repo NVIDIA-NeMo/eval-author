@@ -1,0 +1,11 @@
+{
+  "schema": "rubric-example-mutation-v1",
+  "id": "missing-contract",
+  "category": "task_artifact_defect",
+  "edits": [
+    {
+      "path": "environment/contract.json",
+      "delete": true
+    }
+  ]
+}

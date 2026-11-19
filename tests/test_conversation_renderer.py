@@ -14,6 +14,7 @@ import sys
 from pathlib import Path
 
 import pytest
+from journey_state_support import expansion_start
 
 SCRIPTS = Path(__file__).resolve().parents[1] / "skills/eval-author/scripts"
 FIXTURES = Path(__file__).parent / "fixtures/journey-conversation"
@@ -62,6 +63,8 @@ def ready_state(state_module, journey="create"):
     state = state_module.new_state(Path("/workspace/agent"))
     state.update(agent="Account Support", journey=journey, setup="gym", revision=7)
     state["updated_at"] = "2026-10-23T12:00:00+00:00"
+    if journey == "audit":
+        state["scopes"]["audit"] = {"mode": {"kind": "measured", "source": "User chose measured audit"}}
     required = (
         state_module.COMMON_PREREQUISITES | {"data"}
         if journey == "audit"
@@ -164,14 +167,21 @@ def test_render_neither_reads_files_nor_executes_nor_mutates(conversation, state
 @pytest.mark.parametrize("journey", JOURNEYS)
 def test_orientation_does_not_need_state(conversation, journey):
     result = conversation.render({"stage": "orientation", "journey": journey})
-    assert result.startswith("Welcome to Eval Author!")
-    assert result.count("- [ ]") == 3
-    assert result.count("**We're here**") == 1
-    if journey == "audit":
-        assert "How would you like to audit your evaluations?" in result
+    if journey == "expand":
+        assert result.startswith("Let’s work on improving your existing evaluations.")
+        assert result.count("\n- ") == 3
+        assert "- [ ]" not in result
+        assert result.endswith("What would you like to work on?\n")
         assert "Ready to get started?" not in result
     else:
-        assert result.endswith("Ready to get started?\n")
+        assert result.startswith("Welcome to Eval Author!")
+        assert result.count("- [ ]") == 3
+        assert result.count("**We're here**") == 1
+        if journey == "audit":
+            assert "How would you like to audit your evaluations?" in result
+            assert "Ready to get started?" not in result
+        else:
+            assert result.endswith("Ready to get started?\n")
     assert "### Next Steps" not in result
     assert "| Prerequisite |" not in result
 
@@ -199,8 +209,8 @@ def test_live_prerequisites_table_requires_the_opening_reply(conversation, journ
     assert "Ready to get started?" not in result
     assert "| Required skills | Checking |" in result
     if journey == "audit":
-        assert "| Traces from completed evaluation runs | Unknown |" in result
-        assert "This audit requires saved traces from evaluations that have already run." in result
+        assert "| Traces from completed evaluation runs | Not needed now |" in result
+        assert "unmeasured" in result
     else:
         assert "| Agent connection and credentials | Needed before agent runs |" in result
 
@@ -355,6 +365,112 @@ def test_resume_preserves_pending_downstream_decision(conversation, state_module
     assert "Ready to get started?" not in result
     assert "Ready to continue?" not in result
     assert result.count("- [x]") == 2
+
+
+@pytest.mark.parametrize("stage", ["results", "ethos", "confirmed", "resume"])
+@pytest.mark.parametrize("change", ["current", "ethos", "handoff"])
+def test_structured_expansion_requires_its_own_continuation(conversation, state_module, tmp_path, stage, change):
+    modules = (state_module, importlib.import_module("expansion_state"), conversation)
+    saved = expansion_start(modules, tmp_path, handoff=True)
+    if change == "ethos":
+        (tmp_path / "ETHOS.md").write_text("# Changed agent intent\n", encoding="utf-8")
+    elif change == "handoff":
+        saved["scopes"]["expand"]["audit_handoff"]["recommendation_ids"] = ["R2"]
+    observed = state_module.view(saved)
+    assert observed["expansion"]["context_current"] is (change == "current")
+    payload = {"stage": stage, "state": observed["state"], "revision": saved["revision"]}
+    before = copy.deepcopy(payload)
+    with pytest.raises(ValueError, match="Use expansion_continue"):
+        conversation.render(payload)
+    assert payload == before
+
+
+def expansion_question_variant(question, variant):
+    return {
+        "entry": question,
+        "padding": f"\t {question} \r\n",
+        "crlf": question.replace(" ", "\r\n", 1),
+        "spacing": question.replace(" ", " \t "),
+    }[variant]
+
+
+@pytest.mark.parametrize(
+    "stage,recovery,question_variant",
+    [
+        (stage, recovery, question_variant)
+        for stage in ("results", "ethos", "resume")
+        for recovery in ("prerequisite", "ethos", "blocker")
+        for question_variant in ("recovery", "entry")
+    ]
+    + [("resume", "ethos", variant) for variant in ("padding", "crlf", "spacing")],
+)
+def test_structured_expansion_keeps_shared_recovery_available(
+    conversation, state_module, tmp_path, stage, recovery, question_variant
+):
+    modules = (state_module, importlib.import_module("expansion_state"), conversation)
+    saved = expansion_start(modules, tmp_path)
+    entry_question = saved["pending_question"]
+    recovery_question = "Can we resolve this prerequisite before continuing?"
+    if question_variant == "recovery":
+        saved["pending_question"] = recovery_question
+    else:
+        saved["pending_question"] = expansion_question_variant(entry_question, question_variant)
+    facts = {
+        "ethos": {
+            "status": "existing",
+            "link": str(tmp_path / "ETHOS.md"),
+            "summary": "The agent helps users recover access to their accounts.",
+        }
+    }
+    if recovery == "ethos":
+        saved["ethos"]["stage"] = "review"
+    else:
+        if recovery == "prerequisite":
+            saved["prerequisites"]["runtime"]["status"] = "missing"
+        saved["blockers"] = [
+            {
+                "id": "missing_inputs",
+                "phase": "setup" if recovery == "prerequisite" else "expand",
+                "message": "Missing inputs",
+            }
+        ]
+        facts["blockers"] = [
+            {
+                "id": "missing_inputs",
+                "step": "Restore missing inputs",
+                "reason": "Required inputs are unavailable.",
+                "needed": "Supply the missing inputs before continuing.",
+            }
+        ]
+    payload = {"stage": stage, "state": saved, "revision": saved["revision"], "facts": facts}
+    before = copy.deepcopy(payload)
+    result = conversation.render(payload)
+    assert entry_question not in result
+    if question_variant == "recovery":
+        assert recovery_question in result
+    elif recovery == "ethos":
+        assert facts["ethos"]["summary"] in result
+    else:
+        assert "Restore missing inputs" in result
+    assert payload == before
+
+
+@pytest.mark.parametrize("question_variant", ["entry", "padding", "crlf", "spacing"])
+def test_structured_expansion_recovery_rejects_replayed_entry_question(
+    conversation, state_module, tmp_path, question_variant
+):
+    modules = (state_module, importlib.import_module("expansion_state"), conversation)
+    saved = expansion_start(modules, tmp_path)
+    saved["ethos"]["stage"] = "review"
+    question = expansion_question_variant(saved["pending_question"], question_variant)
+    payload = {
+        "stage": "resume",
+        "state": saved,
+        "revision": saved["revision"],
+        "facts": {"question": question},
+    }
+    with pytest.raises(ValueError, match="Use expansion_continue"):
+        conversation.render(payload)
 
 
 def test_resume_uses_unanswered_intent_question_when_no_pending_question(conversation, state_module):
@@ -943,6 +1059,7 @@ def test_prerequisite_results_preserves_audit_framework_and_selected_scope(conve
     before = copy.deepcopy(snapshot)
     payload = prerequisite_results_payload(state_module, journey="audit")
     payload.update(state=snapshot, revision=snapshot["revision"])
+    payload["facts"]["rows"].pop("traces")
     payload["facts"]["rows"]["evaluation_framework"].update(
         findings="Custom evaluation suite", source="Suite documentation"
     )
@@ -1467,6 +1584,7 @@ def test_live_prerequisites_table_reuses_known_framework_and_retains_unknown_tra
         "journey": "audit",
         "ready": True,
         "facts": {
+            "audit_mode": "measured",
             "rows": {
                 "evaluation_framework": {
                     "status": "confirmed",
@@ -1474,7 +1592,7 @@ def test_live_prerequisites_table_reuses_known_framework_and_retains_unknown_tra
                     "source": "User reply 1",
                 },
                 "traces": {"status": "unknown", "findings": "Saved trace availability is unresolved."},
-            }
+            },
         },
     }
     before = copy.deepcopy(payload)
@@ -1637,6 +1755,16 @@ def test_prerequisite_failure_reports_unsaved_findings_without_state_or_io(
         assert absent not in result
     assert "The prerequisites for reviewing ETHOS.md are complete." not in result
     assert payload == before
+
+
+@pytest.mark.parametrize("mode", [None, "task_review", "measured"])
+def test_audit_prerequisite_failure_uses_selected_approach_or_task_review_default(conversation, mode):
+    payload = prerequisite_failure_payload("audit")
+    if mode is not None:
+        payload["facts"]["audit_mode"] = mode
+    result = conversation.render(payload)
+    status = "Unknown" if mode == "measured" else "Not needed now"
+    assert f"| Traces from completed evaluation runs | {status} |" in result
 
 
 def test_prerequisite_failure_cli_uses_stdin_when_state_storage_is_unavailable(

@@ -1,0 +1,10 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+tasks:
+  - task_id: hello-world
+    revision: 1
+    source:
+      git_url: https://github.com/laude-institute/harbor.git
+      git_commit_id: ec6618290a90aa4ba2cfd08bd91b2f8a1afa760a
+      path: examples/tasks/hello-world

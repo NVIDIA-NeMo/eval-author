@@ -24,15 +24,15 @@ Choose task review and state that no recorded runs exist. Confirm the usual
 prerequisites and Ethos, then select the synthetic account-support tasks below.
 The agent inspects scenarios, fixtures, and verifiers and saves findings with
 run coverage unmeasured. It neither asks for traces nor treats missing runs as
-a blocker. Check approval and findings acceptance remain separate decisions.
-After acceptance, the audit can complete with `measurement: null`.
+a blocker. Only the check approval is a user decision; findings need none.
+Once findings are recorded, the audit can complete with `measurement: null`.
 
 Resume from prerequisites, check review, and findings review in fresh chats.
 The saved approach and pending decision survive without another mode choice.
 Change to measured audit explicitly. Prior task-review approvals reopen and
 selected runs are required before measurement. Change back and verify that old
-approvals do not become current again. Legacy lifecycles without a saved mode
-remain measured and preserve their existing decisions.
+approvals do not become current again. A saved audit without a mode uses task
+review and leaves run coverage unmeasured.
 
 Unless a scenario tests this choice, select the measured approach at entry.
 An explicit request for a measured audit reuses that choice. These acceptance
@@ -47,7 +47,7 @@ coverage counts. Run variants with no usable agent trajectory, an explicit owner
 acceptance override, and a failure followed by a passing control on the same
 revision. The audit must inspect the task's grading entry point and exposed
 inputs and include each unresolved verifier failure in both its chat findings
-and saved Key findings before asking for acceptance.
+and saved Key findings when presenting them.
 
 Exercise all four families: a successful no-op, a submission containing only
 reference-like comments, forged and stale success artifacts or writable runner
@@ -201,7 +201,7 @@ independently when evaluation-scope confirmation remains unanswered; resuming
 must neither infer suite acceptance nor ask for the same trace selection again.
 
 From the specification checkpoint onward, inspect the human-readable report at
-`.eval-author/audit-coverage-report.md` separately from progress state. It must
+`.eval-author/report_markdown/audits.md` separately from progress state. It must
 explain scope with available evidence, and map stable
 audit-item names to intended tests separately from observed run evidence. A test
 definition is not measured coverage. Its generated **Coverage report** must list
@@ -385,7 +385,7 @@ accepted Ethos and registry, without invented execution evidence. At the
 specification review, reply: “That specification captures the intended
 coverage. Finalize the specification-only findings with measurement pending.”
 
-**Final review:** The agent creates or updates and explicitly links `.eval-author/audit-coverage-report.md`,
+**Final review:** The agent creates or updates and explicitly links `.eval-author/report_markdown/audits.md`,
 updates `.eval-author/.working/journey-state.json`, and distinguishes finished specification
 work from unmeasured coverage in its findings. It reports no zero
 coverage percentage or completed measured audit. It offers first-eval creation
@@ -561,7 +561,7 @@ missing trace source before dependent trace work.
 **Deferral:** Leave the trace source unresolved and continue agreed independent
 specification work. Measurement stays unmeasured; no new trace source is inferred.
 
-## 9. Generate the report and review it together
+## 9. Generate the report and present findings
 
 **Setup:** Use the shared fixture and synthetic traces sufficient to exercise
 tool, capability, and failure-case measurements. Include at least one intended
@@ -581,10 +581,10 @@ test proposals or tasks as a side effect.
 **After measurement:** Proceed directly to findings review, without a permission pause.
 
 **Inspect:** The agent updates and explicitly links the report, summarizes what
-the results support and what remains unresolved, and renders one combined
-corrections, acceptance, and next-action question. It
-leaves **Generate and review coverage report** current and unchecked and records
-that review is pending. A file write followed by all three checked boxes fails.
+the results support and what remains unresolved, and offers applicable next
+actions. Current recorded findings complete the fully measured audit without
+requiring report acceptance. Missing or stale evidence keeps the affected work
+incomplete; a file write alone does not prove completion.
 The report remains the sole review document, with its established label and
 verified section links. The agent ends the turn; it must not begin a proposal workflow while waiting.
 
@@ -595,29 +595,44 @@ Please correct the mapping and explain the remaining unauthorized-reset gap.”
 Markdown mapping and findings; if they already capture that limit, it explains
 where. It distinguishes the explanation from unchanged measured results and
 does not edit coverage JSON to make the narrative fit. When it writes, its
-final reply announces and links the revision and offers the corrected findings
-for review. Reply: “The corrected findings look right; the report review is
-complete.” Only then may it mark the fifth step complete and record that answer.
+final reply announces and links the revision. Recording current corrected
+findings restores completion when the underlying audit evidence remains current;
+it does not require another user acceptance.
 
-**Acceptance alone:** Review ends without another offer or question. Inspect
+**No next action selected:** The audit ends without another forced question. Inspect
 channels and tool/delegation logs: there must be no proposal analysis, writes,
 or background proposal agents. A broad audit-and-suggest request does not change
 this. A later explicit request may select the offered next action.
-Reply: “Yes, propose those task improvements.” It proceeds directly to
+Reply: “Let's work on the first recommendation.” The agent retains that selection
+and follows the selected audit continuation without another recommendation pass.
+It checks the applicable construction path, reuses agreed scope, and asks only
+for missing construction decisions. If implementation is unsupported, it explains
+the limit instead of offering another written repair proposal. For an unsupported
+grader repair, it leads with the canonical `UNSUPPORTED_GRADER_REPAIR` copy in
+the [expansion templates](../../skills/eval-author/scripts/conversation_flows/expansion_templates.py),
+without a bookkeeping preamble or a blanket source-edit prohibition. Any
+report-update failure appears in a separate paragraph. Selection alone does not
+approve construction or agent execution.
+
+**Explicit proposal-only request:** Reply instead: “Please expand the first
+recommendation into a detailed proposal.” The agent enters
 `eval-author-task-create` Step 1, reusing the current report, specification,
 measurements, reviewed Ethos, and selected source scope. It does not replay audit
 onboarding, repeat settled input questions, or add another readiness checkpoint.
-The ranked, evidence-based proposals are saved and linked as
-the same generated `.eval-author/audit-coverage-report.md` from authored content, distinguishing new tasks,
-improvements to existing tasks, and evidence gathering. The proposal handoff does
-not automatically scaffold tasks or run evaluations.
+The requested details expand the same generated
+`.eval-author/report_markdown/audits.md` from authored content. The proposal-only
+request does not authorize scaffolding tasks or running evaluations.
 
 Run these concise variants from the report-review checkpoint:
 
-- **Accept review and proposals together:** “The report looks right; propose
-  tasks to improve that coverage.” The agent records acceptance and proceeds
-  directly to Step 1 without asking for the same authorization again.
-- **Decline:** Accept review and decline the offered next action in the same reply. The agent
+- **Select improvements:** “Work on the first and third recommendations.” The
+  agent records the selection, reuses those recommendations, and proceeds to the
+  applicable construction decision or unsupported implementation explanation.
+  It does not offer a separate proposal step.
+- **Request additional proposals:** “Expand those recommendations into detailed
+  proposals.” The agent proceeds directly to Step 1 without asking for the same
+  authorization again.
+- **Decline:** Decline the offered next action. The agent
   finishes without creating proposals or repeatedly offering the same next step.
 - **Missing evidence:** Use an unmeasured report. The offer prioritizes gathering
   the needed evidence; any Ethos-backed task ideas remain explicitly unmeasured
@@ -647,7 +662,7 @@ an aggregate or publishing stale aggregate counts. If a valid subset is
 aggregated within the agreed scope, the report makes that subset explicit and
 does not imply complete measurement of both runs. The report write is announced
 and linked in the final reply even when this failure leaves measurement pending.
-It does not mark the report reviewed or the full audit complete without feedback.
+It does not mark the full measured audit complete while required inputs remain unmeasured.
 
 Before answering an evidence-limitation question, verify no deferral was saved.
 After the user chooses limited review, retain that reply and evidence, refresh
@@ -824,8 +839,8 @@ check, not evidence of reliability across models or repeated runs.
 ## Audit proposals without duplicate reports
 
 Start from a report with intended checks, evidence, findings, and next actions.
-Accept proposal work. The agent expands the existing next actions and links
-material already covered elsewhere. No extra overview, mapping table, lifecycle
+Explicitly request proposal-only work. The agent expands the existing next
+actions and links material already covered elsewhere. No extra overview, mapping table, lifecycle
 section, or recommendations document appears. The suite README and HTML report
 contain no audit recommendations. An audit with no justified change can end.
 
@@ -865,3 +880,30 @@ the file, show a diff, and identify the content field to change.
 For a legacy report, confirm that ordinary refresh preserves it. Request
 conversion explicitly and confirm that the original bytes remain available.
 HTML reports, all READMEs, and audit-history storage remain unchanged.
+
+## Scripted report-to-improvement demonstrations (ASE-1294)
+
+Run the retained deterministic scenarios with a fresh output directory:
+
+```bash
+uv run --locked pytest -q tests/test_audit_report_content.py \
+  -k 'audit_handoff_demo or no_change_report_demo' \
+  --basetemp /tmp/ase-1294-new-demo
+```
+
+Pytest clears `--basetemp` at startup. Each handoff scenario retains the synthetic
+suite, authored content, generated `.eval-author/report_markdown/audits.md`, shared
+journey state, `scripted-transcript.md`, and `demo-evidence.json`. The matrix covers
+user-created and Eval Author-created origin labels, no selected next action, finish,
+selected additions/case revisions/verifier repair, evidence collection, and agent
+fixes. The improvement path reloads into expansion, preserves its selection
+through a planning update, records blocked follow-through in the same report,
+and intentionally changes a task to demonstrate the existing stale-input blocker.
+The no-change example maps all agreed behaviors and renders no recommendations;
+it establishes definition-level mappings only.
+
+These are reproducible scripted decisions and synthetic artifacts, not live
+assistant conversations, grader controls, or agent runs. Origin labels exercise
+context retention, not suite creation. No grading behavior, model reliability,
+or improved measured coverage is established. Existing conversation fixtures
+cover check approval, partial evidence, no-change findings, and legacy decisions.

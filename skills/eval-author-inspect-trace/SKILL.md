@@ -42,7 +42,8 @@ construction, follow the [trace source handoff](../eval-author/references/trace-
 This branch starts before Intake CLI resolution and needs no Intake access. It
 owns scrubbing, the contextual privacy review, and the recorded evidence audit.
 Use [trace sources](references/sources.md) for source kinds and scrubbing, and the
-[evidence audit contract](references/evidence-audit.md) for review coverage.
+[evidence audit contract](references/evidence-audit.md) for review coverage and
+for [repeats after tool errors](references/evidence-audit.md#repeats-after-tool-errors).
 Return the private workspace to first-eval or task-create after review; candidacy
 belongs to task-create. For a remote Intake investigation, continue below.
 

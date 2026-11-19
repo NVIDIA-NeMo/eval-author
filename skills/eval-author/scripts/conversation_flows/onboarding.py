@@ -13,12 +13,13 @@ from urllib.parse import urlsplit
 
 import audit_state
 import conversation_templates as shared
+import expansion_state
 import first_eval_state
 import journey_state
 from conversation_formatting import checklist as format_checklist
 from conversation_formatting import link, literal, mapping, text
 
-from . import audit_templates, first_eval, first_eval_templates
+from . import audit_templates, expansion_templates, first_eval, first_eval_templates
 from . import onboarding_templates as copy
 
 JOURNEYS = (None, *shared.JOURNEYS)
@@ -80,7 +81,9 @@ def canonical_blocker(state: dict, blocker: dict) -> dict | None:
 
 def prerequisite_table(journey: str, facts: dict, *, state: dict | None = None, checking: bool = False) -> str:
     selected_mode = (
-        audit_state.mode(state) if state is not None else audit_state.check_kind(facts.get("audit_mode", "measured"))
+        audit_state.mode(state)
+        if state is not None
+        else audit_state.check_kind(facts.get("audit_mode", audit_state.DEFAULT_MODE))
     )
     rows = copy.AUDIT_ROWS if journey == "audit" else copy.AUTHORING_ROWS
     supplied = mapping(facts.get("rows", {}), "rows", {key for key, _ in rows})
@@ -388,6 +391,8 @@ def render(payload: dict) -> str:
             paragraphs = [copy.PREREQUISITE_PROGRESS_INTRO, prerequisite_table(journey, facts, checking=True)]
         elif journey is None:
             paragraphs = [copy.WELCOME, copy.GOAL_QUESTION, "\n".join(f"- {choice}" for choice in copy.GOAL_CHOICES)]
+        elif journey == "expand":
+            paragraphs = [expansion_templates.options_prompt()]
         else:
             paragraphs = [
                 copy.WELCOME_WITH_CHECKLIST if stage == "orientation" else copy.GOAL_INTROS[journey],
@@ -426,6 +431,18 @@ def render(payload: dict) -> str:
         and not any(item["phase"] in {"setup", "ethos"} for item in journey_state.active_blockers(state))
     ):
         raise ValueError("Use audit_resume for saved audit checkpoints after shared onboarding is complete")
+    expansion = expansion_state.record(state) if state["journey"] == "expand" else None
+    if expansion is not None and not state_only:
+        if expansion_state.entry_ready(state):
+            raise ValueError(
+                "Use expansion_continue for saved expansion checkpoints after shared onboarding is complete"
+            )
+        question = literal(expansion["pending"]["question"], "expansion question")
+        if facts.get("question") is not None and literal(facts["question"], "question") == question:
+            raise ValueError("Use expansion_continue for the saved expansion question after shared recovery")
+        if state["pending_question"] is not None and literal(state["pending_question"], "pending question") == question:
+            state = state.copy()
+            state["pending_question"] = None
     audit = None
     if "audit_observations" in facts:
         observed = facts["audit_observations"]
