@@ -6,14 +6,18 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Literal, TypedDict, cast
+from typing import Final, Literal, TypedDict, cast
 
 InteractionType = Literal["single_turn", "scripted_multi_step", "user_sim"]
 
+SINGLE_TURN: Final = "single_turn"
+SCRIPTED_MULTI_STEP: Final = "scripted_multi_step"
+USER_SIM: Final = "user_sim"
+
 INTERACTION_TYPE_LABELS = {
-    "single_turn": "Single Turn",
-    "scripted_multi_step": "Scripted Multi-step",
-    "user_sim": "User Simulation",
+    SINGLE_TURN: "Single Turn",
+    SCRIPTED_MULTI_STEP: "Scripted Multi-step",
+    USER_SIM: "User Simulation",
 }
 
 
@@ -43,20 +47,20 @@ def validate_interaction_plan(task: Mapping[str, object]) -> None:
         raise ValueError("Unknown task interaction_type")
     interaction_type_label(kind)
     required: list[str] = []
-    if kind in {"scripted_multi_step", "user_sim"}:
+    if kind in {SCRIPTED_MULTI_STEP, USER_SIM}:
         required.append("state_requirements")
-    if kind == "user_sim":
+    if kind == USER_SIM:
         required.append("conversation_scenario")
     for field in ("state_requirements", "conversation_scenario"):
         if field in required or field in task:
             value = task.get(field)
             if not isinstance(value, str) or not value.strip():
                 raise ValueError(f"{field} must describe the selected interaction")
-    if "prerequisite_checks" in task or kind == "scripted_multi_step":
+    if "prerequisite_checks" in task or kind == SCRIPTED_MULTI_STEP:
         checks = task.get("prerequisite_checks")
         if not isinstance(checks, list) or any(not isinstance(check, str) or not check.strip() for check in checks):
             raise ValueError("prerequisite_checks must be a list of nonempty checks")
-        if kind == "scripted_multi_step" and not checks:
+        if kind == SCRIPTED_MULTI_STEP and not checks:
             raise ValueError("Scripted multi-step tasks require checked prerequisites")
 
 

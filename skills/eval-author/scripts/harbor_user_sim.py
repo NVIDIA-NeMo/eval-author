@@ -17,14 +17,18 @@ from types import MappingProxyType
 from typing import TYPE_CHECKING, Any
 
 import yaml
-from eval_author_shared.task_evidence import digest
-from harbor_acp import validate_acp_target_settings
+from eval_author_shared.task_evidence import CONTROL_AGENT_ALIASES, digest
+from harbor_acp import validate_acp_target_settings, validate_acpx_config_file
 from runtime_policy import RuntimePolicyError, require_supported
 from user_sim import UserSimError, load_scenario
 
 if TYPE_CHECKING:
     from harbor.models.job.config import JobConfig
 
+PERSONA_FILENAME = "persona.txt"
+USER_PROMPT_FILENAME = "user-prompt.md"
+BRIDGE_PROMPT_FILENAME = "bridge-prompt.md"
+RUN_CONFIG_FILENAME = "run.yaml"
 NEUTRAL_PERSONA = Path(__file__).resolve().parents[2] / "eval-author-user-sim/references/neutral-persona.md"
 USER_TEMPLATE = """{neutral}
 
@@ -86,7 +90,16 @@ def _role(value: object, label: str) -> dict[str, Any]:
         raise HarborTranslationError(f"Select an explicit {label} configuration")
     if not any(isinstance(value.get(key), str) and value[key].strip() for key in ("name", "import_path")):
         raise HarborTranslationError(f"Select an explicit {label} name or import_path")
-    if value.get("name") in {"oracle", "nop"}:
+    from harbor.agents.factory import is_acp_registry_shorthand
+    from harbor.models.agent.name import AgentName
+
+    name = value.get("name")
+    identity = (
+        name
+        if name and (name in AgentName.values() or is_acp_registry_shorthand(name))
+        else value.get("import_path") or name
+    )
+    if CONTROL_AGENT_ALIASES.get(identity, identity) in {"oracle", "nop"}:
         raise HarborTranslationError(f"{label} must not be an Oracle or NOP control")
     return value
 
@@ -129,9 +142,9 @@ def _configure_user(data: dict[str, Any], output_dir: Path) -> None:
     if bridge.get("prompt_path") is not None:
         raise HarborTranslationError("Existing bridge prompt overrides require explicit reconciliation")
     ACPBridgeKwargs.model_validate(bridge.get("kwargs", {}))
-    user["user_persona_path"] = str(output_dir / "persona.txt")
-    user["user_prompt_template_path"] = str(output_dir / "user-prompt.md")
-    bridge["prompt_path"] = str(output_dir / "bridge-prompt.md")
+    user["user_persona_path"] = str(output_dir / PERSONA_FILENAME)
+    user["user_prompt_template_path"] = str(output_dir / USER_PROMPT_FILENAME)
+    bridge["prompt_path"] = str(output_dir / BRIDGE_PROMPT_FILENAME)
 
 
 def _input_path_without_alias(path: Path) -> Path:
@@ -179,15 +192,10 @@ def _external_inputs(native: JobConfig) -> tuple[Path, ...]:
 
 
 def _validate_acpx_input(native: JobConfig) -> None:
-    from harbor.bridges.acp import validate_acpx_config
-
     assert native.user_agent is not None
     path = native.user_agent.bridge.kwargs.get("acpx_config_path")
     if path is not None:
-        config = json.loads(Path(path).read_text())
-        if not isinstance(config, dict):
-            raise HarborTranslationError("ACPX overrides must contain an object")
-        validate_acpx_config(config)
+        validate_acpx_config_file(Path(path))
 
 
 def _snapshot_input(path: Path, snapshots: dict[str, str]) -> None:
@@ -219,7 +227,7 @@ def _validate_task(native: JobConfig, scenario_path: Path, output_dir: Path) -> 
     target_class = AgentFactory.get_agent_class_from_config(target)
     try:
         validate_acp_target_settings(target, target_class, task_mcp_servers=bool(task.config.environment.mcp_servers))
-    except ValueError as error:
+    except RuntimePolicyError as error:
         raise HarborTranslationError(str(error)) from error
 
 
@@ -235,7 +243,9 @@ def translate(scenario_path: Path, config_path: Path, output_dir: Path) -> Trans
 
     if output_dir.exists() or output_dir.is_symlink():
         raise HarborTranslationError("Choose a new output directory to preserve earlier translated inputs")
-    scenario_path, config_path, output_dir = (path.resolve() for path in (scenario_path, config_path, output_dir))
+    scenario_path = _input_path_without_alias(scenario_path)
+    config_path = _input_path_without_alias(config_path)
+    output_dir = output_dir.resolve()
     snapshots = {str(path): digest(path) for path in (scenario_path, config_path)}
     scenario = load_scenario(scenario_path)
     data = _selected_job(config_path)
@@ -249,12 +259,12 @@ def translate(scenario_path: Path, config_path: Path, output_dir: Path) -> Trans
         _snapshot_input(path, snapshots)
     _validate_acpx_input(native)
     template = USER_TEMPLATE.format(neutral=NEUTRAL_PERSONA.read_text())
-    validate_user_prompt_template(template, source="Eval Author", persona_path=output_dir / "persona.txt")
+    validate_user_prompt_template(template, source="Eval Author", persona_path=output_dir / PERSONA_FILENAME)
     files = {
-        "persona.txt": json.dumps(scenario.to_dict(), indent=2, ensure_ascii=False, allow_nan=False) + "\n",
-        "user-prompt.md": template,
-        "bridge-prompt.md": BRIDGE_PROMPT,
-        "run.yaml": yaml.safe_dump(data, sort_keys=False, allow_unicode=True),
+        PERSONA_FILENAME: json.dumps(scenario.to_dict(), indent=2, ensure_ascii=False, allow_nan=False) + "\n",
+        USER_PROMPT_FILENAME: template,
+        BRIDGE_PROMPT_FILENAME: BRIDGE_PROMPT,
+        RUN_CONFIG_FILENAME: yaml.safe_dump(data, sort_keys=False, allow_unicode=True),
     }
     output_dir.mkdir(mode=0o700, parents=True, exist_ok=False)
     for name, content in files.items():
@@ -265,7 +275,7 @@ def translate(scenario_path: Path, config_path: Path, output_dir: Path) -> Trans
     return TranslationResult(
         task_id=scenario.task_id,
         user_type=scenario.user_type,
-        run_config_path=output_dir / "run.yaml",
+        run_config_path=output_dir / RUN_CONFIG_FILENAME,
         working_directory=Path.cwd().resolve(),
         input_paths=tuple(
             dict.fromkeys((scenario_path, config_path, *(output_dir / name for name in files), *external_inputs))

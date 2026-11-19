@@ -8,8 +8,9 @@ Apply the selected suite's [simulation opt-in gate](coverage-planning.md#enable-
 Read the [scenario contract](../../eval-author-user-sim/references/scenario-contract.md)
 for the input format, neutral behavior, and information boundaries.
 
-Use `harbor_user_sim.py` with the selected Harbor environment that meets the
-[shared runtime policy](../scripts/runtime-policy.json).
+Use `harbor_user_sim.py` in the selected Python environment with the
+[supported Harbor runtime](runtime-prerequisites.md). The installed runtime must
+pass the native schema and interface checks below before execution.
 It translates one agreed neutral scenario into native job and prompt inputs.
 It doesn't install adapters, call models, start an environment, or run a trial.
 

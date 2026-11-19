@@ -5,6 +5,8 @@
 
 from __future__ import annotations
 
+import json
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -64,3 +66,12 @@ def validate_acp_target_settings(
                 "Do not drop target settings to make preflight pass."
             )
         return
+
+
+def validate_acpx_config_file(path: Path) -> None:
+    from harbor.bridges.acp import validate_acpx_config
+
+    overrides = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(overrides, dict):
+        raise ValueError("ACPX overrides must contain an object")
+    validate_acpx_config(overrides)

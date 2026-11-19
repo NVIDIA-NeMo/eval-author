@@ -19,7 +19,6 @@ from __future__ import annotations
 
 import contextlib
 import inspect
-import json
 import shutil
 import subprocess
 import sys
@@ -33,7 +32,7 @@ from _checks import ADVISORY, FAIL, PASS, REQUIRED, WARN, CheckResult, check
 from harbor.agents.base import BaseAgent
 from harbor.agents.factory import AgentFactory
 from harbor.agents.protocols import ACPAgentMixin
-from harbor.bridges.acp import ACPBridgeKwargs, validate_acpx_config
+from harbor.bridges.acp import ACPBridgeKwargs
 from harbor.cli.config_sources import load_config_source as load_config_source
 from harbor.environments.factory import EnvironmentFactory
 from harbor.job import Job
@@ -50,7 +49,7 @@ from harbor.trial.simulated_user import (
     validate_user_agent_version_pin,
 )
 from harbor.utils.env import get_required_host_vars
-from harbor_acp import validate_acp_target_settings
+from harbor_acp import validate_acp_target_settings, validate_acpx_config_file
 from providers.harbor._explore import ConfigCandidate
 from pydantic import ValidationError
 from working_paths import scratch_directory
@@ -399,10 +398,7 @@ def _check_user_inputs(config: JobConfig, outcome: ValidationOutcome) -> None:
         if user.bridge.kind == BridgeKind.ACP:
             kwargs = ACPBridgeKwargs.model_validate(user.bridge.kwargs)
             if kwargs.acpx_config_path is not None:
-                overrides = json.loads(kwargs.acpx_config_path.read_text(encoding="utf-8"))
-                if not isinstance(overrides, dict):
-                    raise ValueError("ACPX overrides must be an object")
-                validate_acpx_config(overrides)
+                validate_acpx_config_file(kwargs.acpx_config_path)
     except (OSError, ValueError, UnicodeError) as exc:
         outcome.checks.append(
             _check(
@@ -448,6 +444,8 @@ def _check_task_interactions(config: JobConfig, task_dirs: list[Path], outcome: 
         outcome.checks.append(
             _check("user-agent-task", FAIL, "Harbor does not support user-agent bridges on multi-step tasks.")
         )
+        return
+    if not any(task.steps and len(task.steps) > 1 for task in tasks):
         return
     for agent in config.agents:
         if not agent.resume_trajectory:

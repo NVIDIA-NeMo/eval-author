@@ -305,16 +305,19 @@ def test_optional_target_variable_does_not_hide_required_simulator_variable(judg
     assert [(item.name, item.default) for item in outcome.required_env_vars] == [("SHARED_KEY", None)]
 
 
+@pytest.mark.parametrize("steps", [1, 2])
 @pytest.mark.parametrize("user_sim", [True, False])
-def test_multistep_bridge_or_unsupported_session_resume_is_blocked(judge: Any, tmp_path: Path, user_sim: bool) -> None:
+def test_multistep_bridge_or_unsupported_session_resume_is_blocked(
+    judge: Any, tmp_path: Path, user_sim: bool, steps: int
+) -> None:
     task = tmp_path / "task"
     _write_task(task)
     path = task / "task.toml"
-    path.write_text(path.read_text() + '\n[[steps]]\nname = "first"\n')
+    path.write_text(path.read_text() + "".join(f'\n[[steps]]\nname = "step-{i}"\n' for i in range(steps)))
     value = config() if user_sim else config(agents=[{"name": "nop", "resume_trajectory": True}], user_agent=None)
     outcome = judge.ValidationOutcome()
     judge._check_task_interactions(value, [task], outcome)
-    assert failures(outcome) == ["user-agent-task" if user_sim else "agent-resume"]
+    assert failures(outcome) == (["user-agent-task"] if user_sim else ["agent-resume"] if steps > 1 else [])
 
 
 def test_job_preflight_checks_simulator_even_if_resolution_fails(
@@ -365,9 +368,9 @@ def test_explicit_private_config_preflight_does_not_scan_other_tasks(
     monkeypatch.setattr(judge, "_check_backend", lambda *args: None)
     monkeypatch.setattr(judge, "_harbor_executable", lambda: None)
     result = asyncio.run(helper.preflight(tmp_path, path))
-    assert result["preflight_passed"] is True
-    assert result["runtime_verified"] is False
-    assert result["config_path"] == str(path)
+    assert result.preflight_passed is True
+    assert result.runtime_verified is False
+    assert result.config_path == str(path)
 
 
 def test_preflight_cli_sanitizes_invalid_yaml(tmp_path: Path) -> None:

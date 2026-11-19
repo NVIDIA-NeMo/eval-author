@@ -190,6 +190,7 @@ data, observable state, isolation, and smoke evidence establish environment
 readiness; task controls never prove the kit. Build on that proven kit and keep reference
 answers and verifier-only information outside the agent's initial environment.
 
+Prepare the task-specific fixtures and README Verifier section before the scenario handoff.
 For an approved `user_sim` task, call
 [`eval-author-user-sim`](../eval-author-user-sim/SKILL.md) after environment proof
 to author the neutral scenario and conversation-dependent checks. Preserve its
@@ -235,6 +236,8 @@ reviewed approach; it does not claim individual review of every later task.
 Only after current first-task approval, render `first_eval_prepare_remaining`
 and build the remaining agreed tasks with the approved pattern. Reuse applicable
 proof and controls, refreshing the report after authoring, revisions, and validation.
+For every remaining `user_sim` task, use the same scenario-authoring handoff after
+its environment proof, prepared fixtures, and README Verifier section are ready.
 Read every authored row with `first_eval_table_data.py --stage review_suite`
 after the refresh and pass the returned `task_rows` to the renderer.
 Keep task paths stable; a blocked first task never unlocks remaining authoring.
