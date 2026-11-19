@@ -12,8 +12,30 @@ from . import expansion_templates as copy
 from . import onboarding
 
 JOURNEYS = ("expand",)
-STAGES = {"expansion_continue", "expansion_scope", "expansion_progress", "expansion_review"}
+STAGES = {"expansion_audit_opening", "expansion_continue", "expansion_scope", "expansion_progress", "expansion_review"}
 PREVIEWS: set[str] = set()
+
+
+def _audit_opening(state: dict, facts: dict) -> str:
+    scope = state["scopes"].get("expand")
+    handoff = scope.get("audit_handoff") if isinstance(scope, dict) else None
+    if handoff is None:
+        raise ValueError("Retain the selected audit improvements before rendering their opening")
+    selected = handoff["recommendation_ids"]
+    labels = mapping(facts.get("selected_improvements"), "selected improvements", set(selected))
+    if set(labels) != set(selected):
+        raise ValueError("Supply labels for exactly the retained audit improvement selection")
+    count = "one" if len(selected) == 1 else "two" if len(selected) == 2 else "many"
+    parts = [
+        copy.AUDIT_SELECTION_ACKNOWLEDGMENTS[count],
+        copy.AUDIT_SELECTIONS.format(
+            value="; ".join(literal(labels[key], "selected improvement label") for key in selected)
+        ),
+        copy.AUDIT_NEXT_STEPS,
+    ]
+    if "limits" in facts:
+        parts.append(copy.AUDIT_LIMITS.format(value=literal(facts["limits"], "known support limits")))
+    return "\n\n".join(parts) + "\n"
 
 
 def _checkpoint(state: dict, progress: dict, *, reviewing: bool = False) -> expansion_state.ScopeRecord:
@@ -235,6 +257,9 @@ def render(payload: dict) -> str:
         raise ValueError("Expansion continuation requires stateful input only")
     if type(payload.get("revision")) is not int or payload["revision"] != state["revision"]:
         raise ValueError("State revision differs; reload before rendering expansion")
+    if payload["stage"] == "expansion_audit_opening":
+        facts = mapping(payload.get("facts", {}), "audit opening facts", {"selected_improvements", "limits"})
+        return _audit_opening(state, facts)
     value = expansion_state.record(state)
     if payload["stage"] == "expansion_continue" and value is not None and value["schema_version"] == 2:
         checkpoint = (

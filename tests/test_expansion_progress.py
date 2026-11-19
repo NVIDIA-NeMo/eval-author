@@ -23,8 +23,8 @@ def save(modules, repo, saved, value):
     )
 
 
-def begin(modules, repo):
-    saved = start(modules, repo)
+def begin(modules, repo, path="starter_suite"):
+    saved = start(modules, repo, path)
     value = copy.deepcopy(modules[1].record(saved))
     value["plan"]["tasks"].append({**value["plan"]["tasks"][0], "task": "Duplicate refund request"})
     value.update(decision={"kind": "approved", "source": "User agrees to both tasks"}, pending=None)
@@ -54,6 +54,30 @@ def progress(modules, repo, saved):
 
 def render(modules, saved):
     return modules[2].render({**expansion_payload(modules, saved), "stage": "expansion_progress"})
+
+
+@pytest.mark.parametrize("path", ["starter_suite", "audit_tool_gap", "recorded_interaction"])
+def test_starting_activity_is_visible_before_task_files_and_survives_resume(modules, tmp_path, path):
+    state, expansion, _ = modules
+    saved, value = begin(modules, tmp_path, path)
+    detail = "Preparing the partial-refund environment and starting data."
+    value["creation"]["active"] = {
+        "task": expansion.task_key(value["plan"]["tasks"][0]),
+        "status": "creating",
+        "detail": detail,
+    }
+    saved = save(modules, tmp_path, saved, value)
+    message = render(modules, saved)
+    assert "| Partial refund | Creating |" in message
+    assert "| Duplicate refund request | Not created |" in message
+    assert detail in message
+    assert not value["creation"]["tasks"]
+    assert not progress(modules, tmp_path, saved)["creation"]["ready_for_review"]
+    assert not (tmp_path / ".eval-author/tasks").exists()
+    resumed = state.initialize(tmp_path, journey="expand")
+    assert render(modules, resumed) == message
+    assert resumed["journey_status"].get("expand") != "complete"
+    assert resumed["pending_question"] is None
 
 
 def test_two_task_creation_failure_repair_and_resume_match_fixtures(modules, tmp_path):

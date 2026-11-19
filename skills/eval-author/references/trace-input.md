@@ -76,6 +76,9 @@ trace-source mode can create a user-requested task without inventing an audit
 gap. Its audit-gap mode still requires the existing measured selector and repeated
 closure evidence. Proposal-only requests stop before construction.
 
+For journey `expand`, follow the shared [creation and validation progress](conversations/expansion.md#creation-and-validation-progress)
+before construction and throughout qualification, including resumed work.
+
 Use the [shared construction contract](construction-plan.md). Preserve starting
 state, reversals and reconstructed inputs, and declare negative, valid-alternative
 and dependency-bypass controls. Apply the shared
