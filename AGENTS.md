@@ -29,6 +29,13 @@ Review every change for repeated content: instructions, setup steps, workflow li
 - User-facing details live in one `docs/` page; other docs link to it.
 - Shared logic goes in one script or helper rather than being copied between skills.
 
+## Research artifact compatibility
+
+This is a research project. Do not add speculative format versions, migration code,
+or backward-compatibility branches for reports and artifacts that can be regenerated.
+Validate the current format and change it directly when needed. Keep actual runtime
+requirements and evidence-integrity checks.
+
 ## Types and validation
 
 - Prefer explicit parameter and return types when writing or changing scripts and code.

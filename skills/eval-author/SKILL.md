@@ -43,6 +43,7 @@ not-for:
   - eval-author-rubric (experimental; only with explicit end-user opt-in, never by default)
   - eval-author-trace-environment (experimental; use only when explicitly requested or continuing its existing workspace)
   - eval-author-environment (use after an authoring sub-flow hands over its cases to build and prove their task environment)
+  - eval-author-user-sim (use inside authoring for an approved User-sim task after environment proof)
   - nemo-intake (use to instrument agents, ingest telemetry, or query Intake outside Eval Author)
   - nemo-experimentalist (use to run insight-driven optimization end to end, which drives the Eval Author agent itself)
   - nemo-evaluator (use to run an existing benchmark rather than work on a repository's own suite)
@@ -312,6 +313,7 @@ This file carries the standard and boundaries; the sub-flow carries the steps.
 | `eval-author-rubric` | **Experimental; explicit end-user opt-in only, never automatic.** Assess selected rubric items across validity, coverage, and diversity; populated validity areas are anti-cheat; artifact, configuration, and provenance; and task contract and scoring authority |
 | `eval-author-trace-environment` | **Experimental.** Continue an existing trace-environment workspace or handle an explicit request for this compatibility workflow |
 | `eval-author-environment` | Build and prove the environment a Harbor or NeMo Gym task runs in: provider fit, how each dependency is provided, starting data and reset, end-state export, and isolation. Not user-invocable; first-eval and task-create hand it their agreed cases |
+| `eval-author-user-sim` | Author and validate the neutral scenario and conversation-dependent checks for an approved Harbor User-sim task after environment proof. Not user-invocable; execution integration remains a separate blocker |
 
 `eval-author-audit` works one level above tasks: it generates and validates the
 coverage denominator, measures traces against it, and aggregates deterministic

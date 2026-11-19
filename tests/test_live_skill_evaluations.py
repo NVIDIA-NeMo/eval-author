@@ -1157,6 +1157,7 @@ def test_seed_datasets_are_bounded_and_have_negative_cases(live):
         "skills/eval-author-first-eval",
         "skills/eval-author-task-create",
         "skills/eval-author-environment",
+        "skills/eval-author-user-sim",
         "skills/eval-author-rubric",
         "team-skills/ethos/ethos-orchestrate",
         "team-skills/ethos/ethos-explore",
