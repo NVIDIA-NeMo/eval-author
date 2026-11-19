@@ -18,6 +18,18 @@ The audit already records the recommended changes, and its handoff identifies
 which ones the user selected. Reuse that report and the retained decisions;
 do not offer to prepare another proposal or repeat the recommendation pass.
 
+Immediately after retaining the selection and entering `expand`, render
+`expansion_audit_opening` with the complete saved state and exact revision.
+Supply `facts.selected_improvements` as an object mapping exactly the handoff's
+selected recommendation IDs to their current report labels, plus `facts.limits`
+when a support limit is already known. Show the returned Markdown unchanged in
+commentary before eligibility checks, adapter investigation, or task-plan details,
+then continue in the same turn. This opening needs no ready prerequisites or
+planning lifecycle and asks no new question. It acknowledges only the saved
+selection, without approving construction or execution. Resolve changed or
+missing recommendation context before rendering; do not repeat the opening on
+every planning reply or resume of an unchanged selection.
+
 Check which selected changes have a supported authoring path. For an audit
 tool-gap addition, continue at [task-create Step 2](../../../eval-author-task-create/SKILL.md#step-2-select-one-actionable-gap),
 matching eligibility to the selected recommendation. Do not substitute an
@@ -31,10 +43,12 @@ For repairs within an existing authoring flow, use the
 The audit handoff does not add a general workflow for editing existing suite
 cases or graders. Describe an unavailable implementation path as not yet
 supported, retaining the audit's recommendation without offering to write it
-again. For an unsupported grader repair, use `UNSUPPORTED_GRADER_REPAIR` from
+again. For an unsupported verifier repair, use `UNSUPPORTED_GRADER_REPAIR` from
 [expansion_templates.py](../../scripts/conversation_flows/expansion_templates.py).
-Lead with that explanation without a bookkeeping preamble. Keep any report-update
-failure in a separate paragraph. Do not apply this limitation to supported
+Include known limits in the opening above without repeating them afterward. If a
+limit is discovered later, explain it without another selection acknowledgment.
+When all selected changes are unsupported, do not offer or enter task planning.
+Keep any report-update failure in a separate paragraph. Do not apply this limitation to supported
 authoring or repair work or describe it as a blanket prohibition on source edits.
 
 `expansion_continue` presents a saved unresolved entry question; it is not a
