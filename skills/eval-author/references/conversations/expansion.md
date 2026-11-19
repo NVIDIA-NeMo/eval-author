@@ -17,6 +17,18 @@ The audit already records the recommended changes, and its handoff identifies
 which ones the user selected. Reuse that report and the retained decisions;
 do not offer to prepare another proposal or repeat the recommendation pass.
 
+Immediately after retaining the selection and entering `expand`, render
+`expansion_audit_opening` with the complete saved state and exact revision.
+Supply `facts.selected_improvements` as an object mapping exactly the handoff's
+selected recommendation IDs to their current report labels, plus `facts.limits`
+when a support limit is already known. Show the returned Markdown unchanged in
+commentary before eligibility checks, adapter investigation, or task-plan details,
+then continue in the same turn. This opening needs no ready prerequisites or
+planning lifecycle and asks no new question. It acknowledges only the saved
+selection, without approving construction or execution. Resolve changed or
+missing recommendation context before rendering; do not repeat the opening on
+every planning reply or resume of an unchanged selection.
+
 Check which selected changes have a supported authoring path. For an audit
 tool-gap addition, continue at [task-create Step 2](../../../eval-author-task-create/SKILL.md#step-2-select-one-actionable-gap),
 matching eligibility to the selected recommendation. Do not substitute an

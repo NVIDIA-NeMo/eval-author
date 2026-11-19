@@ -101,3 +101,85 @@ def test_supplied_plan_prose_stays_inside_its_paragraph_or_table_cell(modules, t
     assert "**Improvement:** \\# Heading - \\[x\\] approve &#124; &lt;tag&gt;" in text
     assert "First &#124; second<br>\\# Escaped" in text
     assert "\\[click\\](https://example.com) &lt;tag&gt;" in text
+
+
+@pytest.mark.parametrize("count", [1, 2, 3])
+def test_audit_selection_opening_precedes_planning_without_changing_saved_decisions(modules, tmp_path, count):
+    state, _, renderer = modules
+    saved = start(modules, tmp_path, "audit_tool_gap")
+    saved["scopes"]["expand"].pop("lifecycle")
+    selected = ["R1", "R3", "R4"][:count]
+    saved["scopes"]["expand"]["audit_handoff"]["recommendation_ids"] = selected
+    saved["prerequisites"]["runtime"] = {"status": "missing", "source": "Runtime needs recovery"}
+    state.save(tmp_path, saved)
+    labels = {
+        "R1": "Add a linked-issue inspection case",
+        "R3": "Repair the existing verifier",
+        "R4": "Add a read-only question case",
+    }
+    data = {
+        "stage": "expansion_audit_opening",
+        "state": saved,
+        "revision": saved["revision"],
+        "facts": {
+            "selected_improvements": {key: labels[key] for key in reversed(selected)},
+            "limits": "Editing this suite’s existing verifier is not yet supported inside Eval Author",
+        },
+    }
+    before = copy.deepcopy(data)
+    saved_bytes = state.state_path(tmp_path).read_bytes()
+    text = renderer.render(data)
+    if count == 2:
+        expected = (FIXTURES / "audit-opening.md").read_text().split("\n\n", 1)[1]
+        assert text == expected
+    else:
+        assert text.startswith(
+            "Your improvement selection is saved." if count == 1 else "Your improvement selections are saved."
+        )
+    assert "; ".join(labels[key] for key in selected) in text
+    assert data == before
+    assert state.state_path(tmp_path).read_bytes() == saved_bytes
+    resumed = state.initialize(tmp_path, journey="expand")
+    assert renderer.render({**data, "state": resumed, "revision": resumed["revision"]}) == text
+    assert resumed["scopes"] == saved["scopes"]
+    assert resumed["tasks"] == saved["tasks"]
+
+
+@pytest.mark.parametrize("change", ["no_handoff", "missing_selection", "extra_selection", "revision"])
+def test_audit_opening_requires_the_retained_selection_and_current_state(modules, tmp_path, change):
+    _, _, renderer = modules
+    saved = start(modules, tmp_path, "audit_tool_gap")
+    data = {
+        "stage": "expansion_audit_opening",
+        "state": saved,
+        "revision": saved["revision"],
+        "facts": {"selected_improvements": {"R1": "New case", "R3": "Repair verifier"}},
+    }
+    if change == "no_handoff":
+        saved["scopes"]["expand"].pop("audit_handoff")
+    elif change == "missing_selection":
+        data["facts"]["selected_improvements"].pop("R3")
+    elif change == "extra_selection":
+        data["facts"]["selected_improvements"]["R4"] = "Unselected case"
+    else:
+        data["revision"] -= 1
+    with pytest.raises(ValueError):
+        renderer.render(data)
+
+
+def test_audit_opening_treats_labels_and_known_limits_as_literal_prose(modules, tmp_path):
+    _, _, renderer = modules
+    saved = start(modules, tmp_path, "audit_tool_gap")
+    text = renderer.render(
+        {
+            "stage": "expansion_audit_opening",
+            "state": saved,
+            "revision": saved["revision"],
+            "facts": {
+                "selected_improvements": {"R1": "# Approve\n- [x] create", "R3": "<script>repair</script>"},
+                "limits": "[link](https://example.com)\n# New heading",
+            },
+        }
+    )
+    assert "\\# Approve - \\[x\\] create; &lt;script&gt;repair&lt;/script&gt;" in text
+    assert "\\[link\\](https://example.com) \\# New heading" in text
