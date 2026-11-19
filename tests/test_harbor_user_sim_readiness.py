@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import asyncio
+import builtins
 import importlib
 import json
 import subprocess
@@ -101,6 +102,156 @@ def test_target_replay_and_conflicting_installed_versions_are_blocked(judge: Any
     assert {"user-agent-session", "user-agent-version"} <= set(failures(outcome))
 
 
+@pytest.mark.parametrize("target_identity", ["name", "import_path", "name-import"])
+@pytest.mark.parametrize("user_identity", ["name", "import_path", "name-import"])
+@pytest.mark.parametrize("target_version", [None, "2.1.74", "2.1.75"])
+def test_version_checks_use_resolved_role_names(
+    judge: Any, target_identity: str, user_identity: str, target_version: str | None
+) -> None:
+    def role(identity: str, version: str | None) -> dict[str, Any]:
+        key = "import_path" if identity == "import_path" else "name"
+        name = "claude-code" if identity == "name" else "harbor.agents.installed.claude_code:ClaudeCode"
+        return {key: name, "kwargs": {"version": version}}
+
+    value = config(
+        agents=[role(target_identity, target_version)],
+        user_agent={**role(user_identity, "2.1.75"), "bridge": {"kind": "acp"}},
+    )
+    outcome = judge.ValidationOutcome()
+    judge._check_agent(value, outcome)
+    assert ("user-agent-version" in failures(outcome)) == (target_version != "2.1.75")
+
+
+@pytest.mark.parametrize("user_sim", [True, False])
+@pytest.mark.parametrize(
+    "setting,value",
+    [
+        ("prompt_template_path", "PRIVATE_CANARY"),
+        ("append_system_prompt", "PRIVATE_CANARY"),
+        ("allowed_tools", "PRIVATE_CANARY"),
+        ("disallowed_tools", "PRIVATE_CANARY"),
+        ("config", {"policy": "PRIVATE_CANARY"}),
+        ("memory_dir", "PRIVATE_CANARY"),
+        ("disable_web_search", True),
+        ("max_turns", 3),
+        ("max_budget_usd", "1"),
+        ("fallback_model", "PRIVATE_CANARY"),
+        ("thinking_display", "omitted"),
+        ("permission_mode", "plan"),
+    ],
+)
+def test_ignored_claude_options_only_block_interactive_targets(
+    judge: Any, setting: str, value: object, user_sim: bool
+) -> None:
+    selected = config(agents=[{"name": "claude-code", "kwargs": {setting: value}}])
+    if not user_sim:
+        selected.user_agent = None
+    outcome = judge.ValidationOutcome()
+    judge._check_agent(selected, outcome)
+    assert ("user-agent-settings" in failures(outcome)) == user_sim
+    if user_sim:
+        assert setting in str(outcome)
+    assert "PRIVATE_CANARY" not in str(outcome)
+
+
+@pytest.mark.parametrize(
+    "name,kwargs,blocked",
+    [
+        ("claude-code", {"reasoning_effort": "high", "max_thinking_tokens": 1000}, False),
+        ("codex", {"config": {"instructions": "policy"}, "web_search": "disabled"}, False),
+        ("gemini-cli", {"reasoning_effort": "high", "disable_web_search": True}, False),
+        ("gemini-cli", {"sandbox": True}, True),
+        ("opencode", {"opencode_config": {"instructions": ["policy"]}}, False),
+        ("opencode", {"variant": "high"}, True),
+        ("codex", {"prompt_template_path": "prompt.md"}, True),
+        ("gemini-cli", {"prompt_template_path": "prompt.md"}, True),
+        ("opencode", {"prompt_template_path": "prompt.md"}, True),
+    ],
+)
+def test_stock_acp_settings_follow_each_adapters_support(
+    judge: Any, name: str, kwargs: dict[str, Any], blocked: bool
+) -> None:
+    outcome = judge.ValidationOutcome()
+    judge._check_agent(config(agents=[{"name": name, "kwargs": kwargs}]), outcome)
+    assert failures(outcome) == (["user-agent-settings"] if blocked else [])
+
+
+def test_simulator_cli_settings_remain_supported(judge: Any) -> None:
+    value = config(
+        agents=[{"name": "codex"}],
+        user_agent={"name": "claude-code", "kwargs": {"append_system_prompt": "policy"}, "bridge": {"kind": "acp"}},
+    )
+    outcome = judge.ValidationOutcome()
+    judge._check_agent(value, outcome)
+    assert not failures(outcome)
+
+
+@pytest.mark.parametrize("custom_acp", [None, "command", "env"])
+def test_custom_acp_implementation_is_not_treated_as_stock(
+    judge: Any, monkeypatch: pytest.MonkeyPatch, custom_acp: str | None
+) -> None:
+    class InheritedClaude(ClaudeCode):
+        pass
+
+    class CustomClaude(ClaudeCode):
+        def acp_command(self) -> list[str]:
+            return ["custom-acp-with-policy"]
+
+    class CustomEnvClaude(ClaudeCode):
+        def acp_env(self) -> dict[str, str]:
+            return {"CUSTOM_ADAPTER_POLICY": "policy"}
+
+    target = {None: InheritedClaude, "command": CustomClaude, "env": CustomEnvClaude}[custom_acp]
+    monkeypatch.setattr(judge, "_agent_class", lambda _: target)
+    outcome = judge.ValidationOutcome()
+    judge._check_agent(config(agents=[{"name": "claude-code", "kwargs": {"append_system_prompt": "policy"}}]), outcome)
+    assert ("user-agent-settings" in failures(outcome)) == (custom_acp is None)
+
+
+@pytest.mark.parametrize("source", ["agent", "task"])
+@pytest.mark.parametrize("user_sim", [True, False])
+def test_claude_mcp_registration_is_not_silently_lost(judge: Any, tmp_path: Path, source: str, user_sim: bool) -> None:
+    task = tmp_path / "task"
+    _write_task(task)
+    value = config()
+    if source == "task":
+        with (task / "task.toml").open("a") as stream:
+            stream.write(
+                '\n[[environment.mcp_servers]]\nname = "orders"\ntransport = "sse"\nurl = "http://orders/mcp"\n'
+            )
+    else:
+        value = config(
+            agents=[
+                {
+                    "name": "claude-code",
+                    "mcp_servers": [{"name": "orders", "url": "http://orders/mcp", "transport": "sse"}],
+                }
+            ]
+        )
+    if not user_sim:
+        value.user_agent = None
+    outcome = judge.ValidationOutcome()
+    judge._check_agent(value, outcome)
+    judge._check_task_interactions(value, [task], outcome)
+    assert ("user-agent-settings" in failures(outcome)) == user_sim
+
+
+def test_preflight_rejects_old_runtime_before_importing_judge(
+    judge: Any, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    helper = importlib.import_module("check_harbor_config")
+    monkeypatch.setattr(helper, "version", lambda _: "0.23.0")
+    original_import = builtins.__import__
+
+    def guarded_import(name: str, *args: Any, **kwargs: Any) -> Any:
+        assert name != "providers.harbor._judge", "Unsupported runtime imported native validators"
+        return original_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", guarded_import)
+    with pytest.raises(ValueError, match=r"harbor >=0\.24\.0"):
+        asyncio.run(helper.preflight(tmp_path, tmp_path / "run.yaml"))
+
+
 @pytest.mark.parametrize(
     "case", ["missing-persona", "missing-template", "invalid-template", "missing-bridge", "reserved-acpx", "bad-kwargs"]
 )
@@ -154,16 +305,19 @@ def test_optional_target_variable_does_not_hide_required_simulator_variable(judg
     assert [(item.name, item.default) for item in outcome.required_env_vars] == [("SHARED_KEY", None)]
 
 
+@pytest.mark.parametrize("steps", [1, 2])
 @pytest.mark.parametrize("user_sim", [True, False])
-def test_multistep_bridge_or_unsupported_session_resume_is_blocked(judge: Any, tmp_path: Path, user_sim: bool) -> None:
+def test_multistep_bridge_or_unsupported_session_resume_is_blocked(
+    judge: Any, tmp_path: Path, user_sim: bool, steps: int
+) -> None:
     task = tmp_path / "task"
     _write_task(task)
     path = task / "task.toml"
-    path.write_text(path.read_text() + '\n[[steps]]\nname = "first"\n')
+    path.write_text(path.read_text() + "".join(f'\n[[steps]]\nname = "step-{i}"\n' for i in range(steps)))
     value = config() if user_sim else config(agents=[{"name": "nop", "resume_trajectory": True}], user_agent=None)
     outcome = judge.ValidationOutcome()
     judge._check_task_interactions(value, [task], outcome)
-    assert failures(outcome) == ["user-agent-task" if user_sim else "agent-resume"]
+    assert failures(outcome) == (["user-agent-task"] if user_sim else ["agent-resume"] if steps > 1 else [])
 
 
 def test_job_preflight_checks_simulator_even_if_resolution_fails(
@@ -214,9 +368,9 @@ def test_explicit_private_config_preflight_does_not_scan_other_tasks(
     monkeypatch.setattr(judge, "_check_backend", lambda *args: None)
     monkeypatch.setattr(judge, "_harbor_executable", lambda: None)
     result = asyncio.run(helper.preflight(tmp_path, path))
-    assert result["preflight_passed"] is True
-    assert result["runtime_verified"] is False
-    assert result["config_path"] == str(path)
+    assert result.preflight_passed is True
+    assert result.runtime_verified is False
+    assert result.config_path == str(path)
 
 
 def test_preflight_cli_sanitizes_invalid_yaml(tmp_path: Path) -> None:

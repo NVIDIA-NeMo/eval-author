@@ -19,7 +19,6 @@ from __future__ import annotations
 
 import contextlib
 import inspect
-import json
 import shutil
 import subprocess
 import sys
@@ -33,7 +32,7 @@ from _checks import ADVISORY, FAIL, PASS, REQUIRED, WARN, CheckResult, check
 from harbor.agents.base import BaseAgent
 from harbor.agents.factory import AgentFactory
 from harbor.agents.protocols import ACPAgentMixin
-from harbor.bridges.acp import ACPBridgeKwargs, validate_acpx_config
+from harbor.bridges.acp import ACPBridgeKwargs
 from harbor.cli.config_sources import load_config_source as load_config_source
 from harbor.environments.factory import EnvironmentFactory
 from harbor.job import Job
@@ -50,6 +49,7 @@ from harbor.trial.simulated_user import (
     validate_user_agent_version_pin,
 )
 from harbor.utils.env import get_required_host_vars
+from harbor_acp import validate_acp_target_settings, validate_acpx_config_file
 from providers.harbor._explore import ConfigCandidate
 from pydantic import ValidationError
 from working_paths import scratch_directory
@@ -328,6 +328,7 @@ def _check_agent(config: JobConfig, outcome: ValidationOutcome) -> None:
     roles = [("agent", agent) for agent in config.agents]
     if config.user_agent is not None:
         roles.append(("user-agent", config.user_agent))
+    resolved: list[tuple[str, AgentConfig, type[BaseAgent]]] = []
     for role, agent in roles:
         try:
             agent_class = _agent_class(agent)
@@ -339,6 +340,9 @@ def _check_agent(config: JobConfig, outcome: ValidationOutcome) -> None:
             )
             continue
         outcome.checks.append(_check(role, PASS, f"Harbor {role} class {agent_class.__name__} is available."))
+        resolved.append((role, agent, agent_class))
+    user_class = next((cls for role, _, cls in resolved if role == "user-agent"), None)
+    for role, agent, agent_class in resolved:
         user = config.user_agent
         if role != "agent" or user is None:
             continue
@@ -362,10 +366,15 @@ def _check_agent(config: JobConfig, outcome: ValidationOutcome) -> None:
             outcome.checks.append(
                 _check("user-agent-session", FAIL, "Harbor cannot combine user_agent with target load_trajectory.")
             )
-        if user.kwargs.get("version") is not None:
+        if compatible and user.bridge.kind == BridgeKind.ACP:
+            try:
+                validate_acp_target_settings(agent, agent_class)
+            except ValueError as error:
+                outcome.checks.append(_check("user-agent-settings", FAIL, str(error)))
+        if user.kwargs.get("version") is not None and user_class is not None:
             try:
                 validate_user_agent_version_pin(
-                    agent.name, agent.kwargs.get("version"), user.name, user.kwargs["version"]
+                    agent_class.name(), agent.kwargs.get("version"), user_class.name(), user.kwargs["version"]
                 )
             except ValueError:
                 outcome.checks.append(
@@ -389,10 +398,7 @@ def _check_user_inputs(config: JobConfig, outcome: ValidationOutcome) -> None:
         if user.bridge.kind == BridgeKind.ACP:
             kwargs = ACPBridgeKwargs.model_validate(user.bridge.kwargs)
             if kwargs.acpx_config_path is not None:
-                overrides = json.loads(kwargs.acpx_config_path.read_text(encoding="utf-8"))
-                if not isinstance(overrides, dict):
-                    raise ValueError("ACPX overrides must be an object")
-                validate_acpx_config(overrides)
+                validate_acpx_config_file(kwargs.acpx_config_path)
     except (OSError, ValueError, UnicodeError) as exc:
         outcome.checks.append(
             _check(
@@ -419,13 +425,27 @@ def _check_user_inputs(config: JobConfig, outcome: ValidationOutcome) -> None:
 
 
 def _check_task_interactions(config: JobConfig, task_dirs: list[Path], outcome: ValidationOutcome) -> None:
-    multi_step = [path for path in task_dirs if (task := _task_config(path)) is not None and task.steps]
+    tasks = [task for path in task_dirs if (task := _task_config(path)) is not None]
+    if config.user_agent is not None and config.user_agent.bridge.kind == BridgeKind.ACP:
+        if any(task.environment.mcp_servers for task in tasks):
+            for agent in config.agents:
+                try:
+                    agent_class = _agent_class(agent)
+                except (Exception, SystemExit):
+                    continue  # The agent import check already reports the blocker.
+                try:
+                    validate_acp_target_settings(agent, agent_class, task_mcp_servers=True)
+                except ValueError as error:
+                    outcome.checks.append(_check("user-agent-settings", FAIL, str(error)))
+    multi_step = any(task.steps for task in tasks)
     if not multi_step:
         return
     if config.user_agent is not None:
         outcome.checks.append(
             _check("user-agent-task", FAIL, "Harbor does not support user-agent bridges on multi-step tasks.")
         )
+        return
+    if not any(task.steps and len(task.steps) > 1 for task in tasks):
         return
     for agent in config.agents:
         if not agent.resume_trajectory:
