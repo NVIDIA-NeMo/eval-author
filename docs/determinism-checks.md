@@ -688,8 +688,7 @@ Add `--upper-evidence-root /absolute/upper-execution-current` to link the separa
 
 ## Overall rubric showcase
 
-Run the identity, provenance, scorer, verification-integrity, task-contract/Ethos
-and synthetic criterion-rule demos. Then inspect their retained results in one HTML page:
+Run the current-rubric simulation and inspect its assessments, authority measurements, and control results in one HTML page:
 
 ```bash
 uv run --locked python tools/run_rubric_showcase.py \
@@ -698,26 +697,13 @@ uv run --locked python tools/run_rubric_showcase.py \
   --verify-existing "$PWD/.eval-author/showcase-new"
 ```
 
-Use a new directory. Open its `index.html`. The page links each score to the
-emitted rubric report. It shows all paired refund controls, including operational
-and ambiguous cases. AC-02 scores come from the actual reports, not task-credit
-counts. Receipt-consistency group scores remain separate from canonical scores.
+Use a new directory and open its `index.html`. The primary table uses the current 23 criteria, with task scores and suite evidence shown separately. Each observation links to its emitted assessment. The source, leakage, and task-contract simulations exercise numeric assessments across 13 current criteria. Other rows show their evidence gaps and next actions.
 
-This command starts no models or Docker containers. It runs fixture scorers,
-synthetic native-result producers, the existing rubric commands, and scorer replay.
-Missing evidence stays unassessed. The page lists the controls needed for stronger
-AC-02 scores and the saved-envelope acceptance/recovery path that is not yet shown.
-It does not turn partial acceptance claims into complete workflow acceptance.
+The command runs local fixture scorers, synthetic result producers, ordinary rubric assessments, and retained replay. It starts no models or Docker containers. Review requests remain visible without collecting new approvals. Use the same Python executable for generation and verification because configuration evidence records its invocation.
 
-The criterion-rule panel exercises 0, 1, 2, 3 and missing-evidence cases for the
-18 legacy criteria. It does not establish coverage of the current leakage definitions. The separate `criterion_demonstration` field labels these
-as synthetic examples, not measured task scores. The real fixture panels emit
-`provenance.task-artifact-access`, `provenance.grading-path`,
-`provenance.grading-dependency-access`, AC-02, AC-03's forged-success defect and
-task-contract.discoverable-requirements's hidden requirement. Remaining real-task
-scores still need criterion-specific evidence adapters, scoped human adjudication,
-native probes or independent corroboration.
-The coverage and diversity pillars remain unimplemented.
+The authority section shows resolved requirement references, observed or missing scorer fields, unresolved review questions, and rejected verifier citations. The refund case includes all nine requirement mappings and the recorded human review. Its check observations remain unknown because no result is selected. Pointer presence establishes an emitted observation, not the correctness of an expected value.
+
+The historical 18-row criterion-rule matrix remains available as a separate scoring-rule simulation. Its AC scores are not transferred to current criteria. Receipt-consistency groups and task credit also remain separate from canonical scores.
 
 Run only the task-contract source controls with:
 
@@ -925,7 +911,7 @@ An optional `result_artifact_id` selects a native result with role `result`. Eac
 
 An authority citation that resolves to a `scorer` artifact fails with `authority.reference_implementation`.
 
-Unresolved, prose, and unselected requirement rows include a W07 question with the requirement ID, reference, and decision needed. Unknowns remain valid input. They do not establish resolved authority. Agent crosswalk ambiguities and contradictions also need review. Neither pointer presence nor link resolution resolves them.
+Unresolved, prose, and unselected requirement rows include a review-packet question with the requirement ID, reference, and decision needed. Unknowns remain valid input. They do not establish resolved authority. Agent crosswalk ambiguities and contradictions also need review. Neither pointer presence nor link resolution resolves them.
 
 Keep selections and output private because they can contain local evidence locations.
 
@@ -1109,7 +1095,7 @@ inputs. The contract and expected credit vectors live in `evals/scorer-controls/
 These synthetic contract examples are neither authenticated task-owner approvals
 nor canonical rubric scores.
 
-The [authority record](../evals/scorer-controls/authority.json) maps all nine checks to stated requirements and expected-value sources. Its [source-bound human review](../evals/scorer-controls/authority-review.md) records Andrew's adjudication of the synthetic mappings, including positive refund amounts and an optional asserted success signal. W04 links both files alongside its unchanged synthetic/not-authenticated label.
+The [authority record](../evals/scorer-controls/authority.json) maps all nine checks to stated requirements and expected-value sources. Its [source-bound human review](../evals/scorer-controls/authority-review.md) records Andrew's adjudication of the synthetic mappings, including positive refund amounts and an optional asserted success signal. The refund panel links both files alongside its unchanged synthetic/not-authenticated label.
 
 The rubric measurement panel resolves the record's references. Without a selected native result, its check observations remain unknown. The review does not authenticate the example rules. It does not automatically assign level 2.
 

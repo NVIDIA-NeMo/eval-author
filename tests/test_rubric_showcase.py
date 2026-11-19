@@ -30,7 +30,7 @@ def showcase_output(tmp_path_factory, worker_id):
                 [sys.executable, str(ROOT / "tools/run_rubric_showcase.py"), "--output", str(output)],
                 capture_output=True,
                 text=True,
-                timeout=900,
+                timeout=1800,
                 env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"},
             )
             assert result.returncode == 0, result.stderr
@@ -38,11 +38,66 @@ def showcase_output(tmp_path_factory, worker_id):
     return output
 
 
-def test_showcase_includes_separate_all18_rule_demo(showcase_output):
+def test_showcase_includes_current_assessments_and_historical_rule_demo(showcase_output):
     output = showcase_output
-    summary = json.loads((output / "showcase.json").read_text())
+    module = showcase_module()
+    summary = module.read(output / "showcase.json")
+    sys.path.insert(0, str(ROOT / "skills/eval-author-rubric/scripts"))
+    from rubric_leakage_current import canonical_definitions, level
+
+    definitions = canonical_definitions()
+    inventory = summary["criterion_inventory"]
+    assert [row["id"] for row in inventory] == list(definitions)
+    assert len(inventory) == 23
+    assert sum(row["level"] == "task" for row in inventory) == 19
+    assert sum(row["level"] == "suite" for row in inventory) == 4
+    for row in inventory:
+        assert row["title"] == definitions[row["id"]]["title"]
+        assert row["level"] == level(definitions[row["id"]])
+    assessments = summary["current_assessments"]
+    import rubric_leakage_recipes as leakage
+    import rubric_mutation_runner as runner
+
+    source_cases = {path.stem for path in (runner.fixtures.EXAMPLE / "mutations").glob("*.json")}
+    source_cases.update(runner.EXTRA_CASES)
+    expected_reports = {
+        f"source-controls/{case}/{arm}/report/assessment.json"
+        for case in source_cases
+        for arm in ("baseline", "changed", "repair")
+    } | {f"current-leakage/{case}/assessment/ordinary/report/assessment.json" for case in (*leakage.CASES, "repair")}
+    assert len(assessments) == len(expected_reports)
+    assert {case["evidence"] for case in assessments} == expected_reports
+    assert len(summary["current_numeric_criteria"]) == 13
+    assert summary["pending_owner_requests"]["exact_request_count"] == 24
+    numeric = set()
+    from rubric_leakage_current import observed_score
+
+    for case in assessments:
+        numeric.update(ident for ident, row in case["report"]["items"].items() if observed_score(row) is not None)
+    assert set(summary["current_numeric_criteria"]) == numeric | {"task-contract.discoverable-requirements"}
+    assert {"AUDIT-05-B", "AUDIT-05-S03"} <= numeric
+    assert "AUDIT-04-B-SUITE" not in numeric and "CREATE-02-SUITE" not in numeric
+    assert not any(ident.startswith("AC-") for ident in summary["current_numeric_criteria"])
+    for case in assessments:
+        saved = module.read(output / case["evidence"])
+        assert case["report"] == saved["report"]
+        assert set(case["report"]["items"]) == set(definitions)
+        for ident, row in case["report"]["items"].items():
+            assert row["level"] == level(definitions[ident])
+            if row["level"] == "suite":
+                assert row["score"] is None and row["status"] == "NOT_APPLICABLE"
+            if row["score"] is None:
+                assert row["remaining_gaps"]
+        if any(
+            f"source-controls/{name}/changed/" in case["id"]
+            for name in ("completion-only", "approval-after-effect", "ledger-omission")
+        ):
+            assert case["report"]["items"]["AUDIT-03"]["score"] == 0
+            assert case["report"]["items"]["AUDIT-03"]["evidence_strength"] == "E1"
+        if "source-controls/declared-scripted/changed/" in case["id"]:
+            assert case["report"]["items"]["provenance.declared-configuration"]["score"] == 2
     demo = summary["criterion_demonstration"]
-    assert demo["criterion_count"] == len(summary["criterion_inventory"]) == 18
+    assert demo["criterion_count"] == len(summary["historical_criterion_inventory"]) == 18
     assert demo["vector_count_per_root"] == 90
     assert demo["task_qualification"] is False
     assert demo["assessment_scope"] == "synthetic-scoring-demonstration"
@@ -54,9 +109,9 @@ def test_showcase_includes_separate_all18_rule_demo(showcase_output):
         assert set(demo["results"][variant].values()) == {expected}
         baseline = json.loads((output / f"criterion-scoring/run-a/{variant}/baseline-report.json").read_text())
         assert report["items"] == baseline["items"]
-    assert len(summary["production_gaps"]) == 12
+    assert len(summary["production_gaps"]) == 10
     page = (output / "index.html").read_text()
-    assert "Synthetic scoring-rule coverage" in page
+    assert "Historical synthetic scoring-rule coverage" in page
     assert "synthetic numbers do not qualify" in page
     assert "criterion-scoring/run-a/missing/measure-report.json" in page
 
@@ -95,7 +150,15 @@ def test_showcase_repeats_every_area_in_fresh_root(showcase_output):
     primary = json.loads((output / "semantic-result.json").read_text())
     repeated = json.loads((repeat / "semantic-result.json").read_text())
     assert primary == repeated
-    assert set(primary) == {"identity", "provenance", "task_contract", "scorer", "integrity", "criterion_demonstration"}
+    assert set(primary) == {
+        "identity",
+        "provenance",
+        "task_contract",
+        "scorer",
+        "integrity",
+        "criterion_demonstration",
+        "current_assessments",
+    }
     assert summary["determinism"]["fresh_run_equal"] is True
     assert set(summary["determinism"]["areas"]) == set(primary)
     assert all(summary["determinism"]["areas"].values())
@@ -275,17 +338,17 @@ def test_showcase_cli_reads_emitted_scores_and_keeps_boundaries(showcase_output)
     assert "Unassessed" in page
     assert "Independent held-out" in page
     assert "The fixture demo runs" in page
-    assert "Canonical rubric" in page
+    assert "Current canonical criteria" in page
     assert "receipt_consistency" in page
     assert "scorer/rubric-reviewed.json" in page
     assert "integrity/anchor-3/rubric.stdout.json" in page
     assert summary["identity"]["status"] == "passed"
     assert summary["provenance"]["matched"] == summary["provenance"]["cases"] == 16
     assert {
-        "AC-01",
-        "AC-02",
-        "AC-03",
-        "AC-04",
+        "AUDIT-03",
+        "AUDIT-04-B",
+        "TRACE-04-A",
+        "ENV-03-S01",
         "task-contract.clear-contract",
         "task-contract.discoverable-requirements",
         "task-contract.scoring-authority",
@@ -324,7 +387,7 @@ def showcase_module():
     return module
 
 
-@pytest.mark.parametrize("invalid_root", [None, "primary", "fresh"])
+@pytest.mark.parametrize("invalid_root", [None, "primary", "fresh", "current-primary", "current-fresh"])
 def test_main_validates_both_collections_once_before_success(tmp_path, monkeypatch, capsys, invalid_root):
     module = showcase_module()
     output = tmp_path / "output"
@@ -355,9 +418,15 @@ def test_main_validates_both_collections_once_before_success(tmp_path, monkeypat
         if not module.read(root / "scorer/panel.json")["valid"]:
             raise ValueError("injected invalid report")
 
+    def validate_current(root: Path) -> None:
+        events.append(("validate-current", root))
+        if root == {"current-primary": output, "current-fresh": fresh}.get(invalid_root):
+            raise ValueError("injected invalid report")
+
     # Keep main, compare_runs, hashes and verify_existing real; fake panel boundaries.
     monkeypatch.setattr(module, "collect", collect)
     monkeypatch.setattr(module, "validate_reports", validate)
+    monkeypatch.setattr(module, "validate_current", validate_current)
     monkeypatch.setattr(module, "summarize_reports", summarize)
     monkeypatch.setattr(module, "semantic_projection", summarize)
     monkeypatch.setattr(module, "render", lambda summary, panel: "<html>showcase</html>")
@@ -379,6 +448,10 @@ def test_main_validates_both_collections_once_before_success(tmp_path, monkeypat
     expected = [("collect", output), ("collect", fresh), ("validate", output)]
     if invalid_root != "primary":
         expected.append(("validate", fresh))
+    if invalid_root not in {"primary", "fresh"}:
+        expected.append(("validate-current", output))
+        if invalid_root != "current-primary":
+            expected.append(("validate-current", fresh))
     assert events == expected
     for root in (output, fresh):
         assert (root / "scorer/panel.json").is_file()
@@ -514,7 +587,7 @@ def test_verify_existing_is_read_only(showcase_output):
         [sys.executable, str(ROOT / "tools/run_rubric_showcase.py"), "--verify-existing", str(showcase_output)],
         capture_output=True,
         text=True,
-        timeout=60,
+        timeout=600,
     )
     assert result.returncode == 0, result.stderr
     assert hashes() == before
@@ -574,7 +647,46 @@ def test_showcase_surfaces_authority_and_ethos_without_new_scores(showcase_outpu
     module = showcase_module()
     summary = module.read(showcase_output / "showcase.json")
     rows = {row["id"]: row for row in summary["identity"]["evidence_cases"]}
-    assert len(rows) == summary["identity"]["counts"]["evidence_cases"] == 13
+    assert len(rows) == summary["identity"]["counts"]["evidence_cases"] == 20
+    retained = module.read(showcase_output / "identity/panel.json")
+    authority = {row["id"]: row for row in rows.values() if row["measurement"] == "authority"}
+    assert set(authority) == {
+        "authority-resolved",
+        "authority-broken-reference",
+        "authority-prose",
+        "authority-check-unobserved",
+        "authority-no-result",
+        "authority-unresolved",
+        "authority-unselected",
+        "authority-owner-instruction",
+        "authority-verifier-reference",
+        "authority-refund",
+    }
+    page = (showcase_output / "index.html").read_text()
+    assert '<h3 id="authority">W03 authority observations</h3>' in page
+    for case in retained["evidence_cases"]:
+        if case["id"] not in authority:
+            continue
+        observation = case["observed"]["measurements"]["authority"]
+        assert authority[case["id"]]["observation"] == observation
+        for requirement in observation["requirements"]:
+            assert requirement["reference"] in page
+            if "question" in requirement:
+                assert requirement["question"]["decision_needed"] in page
+        for check in observation["checks"]:
+            assert check["pointer"] in page
+    assert "Check observations establish emission only" in page
+    assert "Unresolved authority questions" in page
+    assert "authority.check_unobserved" in page
+    assert "authority.reference_implementation" in page
+    assert 'href="scorer/inputs/contract.json"' in page
+    assert 'href="scorer/rubric-reviewed.json"' in page
+    assert "No result artifact selected" in page
+    assert "does not establish authenticated owner approval" in page
+    refund = authority["authority-refund"]["observation"]
+    assert refund["counts"]["requirements"] == refund["counts"]["checks"] == 9
+    assert all(row["status"] == "resolved" for row in refund["requirements"])
+    assert all(row["status"] == "unknown" for row in refund["checks"])
     for ident, statuses in (
         ("authority-resolved", ["resolved", "resolved"]),
         ("authority-broken-reference", ["broken", "resolved"]),
@@ -589,7 +701,7 @@ def test_showcase_surfaces_authority_and_ethos_without_new_scores(showcase_outpu
     assert "authority.reference_broken" in page
     assert "authority.reference_prose" in page
     assert "Owner confirmation: NOT_RUN" in page
-    assert len(summary["production_gaps"]) == 12
+    assert len(summary["production_gaps"]) == 10
     for row in summary["task_contract"]["ethos"]:
         assert row["usable_authority"] is False
         assert row["owner_confirmation"]["status"] == "NOT_RUN"
@@ -607,6 +719,8 @@ def test_showcase_surfaces_authority_and_ethos_without_new_scores(showcase_outpu
         ("authority-prose", "diagnostics"),
         ("ethos-valid", "status"),
         ("authority-resolved", "exit-code"),
+        ("authority-check-unobserved", "check"),
+        ("authority-prose", "question"),
     ],
 )
 def test_identity_validation_rejects_resealed_evidence_outcomes(showcase_output, tmp_path, ident, mutation):
@@ -626,6 +740,10 @@ def test_identity_validation_rejects_resealed_evidence_outcomes(showcase_output,
         observation["status"] = "invented"
     elif mutation == "exit-code":
         row["cli_exit_code"] = 99
+    elif mutation == "check":
+        observation["checks"][0]["status"] = "observed"
+    elif mutation == "question":
+        del observation["requirements"][0]["question"]
     elif measurement == "authority":
         observation["requirements"][0]["status"] = "invented"
         if mutation == "resealed-expectation":
@@ -635,6 +753,8 @@ def test_identity_validation_rejects_resealed_evidence_outcomes(showcase_output,
         if mutation == "resealed-expectation":
             row["expected"]["valid"] = observation["valid"]
     path.write_text(json.dumps(panel))
+    if mutation in {"check", "question"}:
+        (output / "identity.stdout").write_text(json.dumps(panel))
     with pytest.raises(ValueError, match="identity"):
         module.validate_reports(output)
     (output / "showcase-hashes.json").write_text(json.dumps(module.retained_hashes(output)))
@@ -765,6 +885,246 @@ def test_source_bound_validation_rejects_fabricated_ethos_confirmation(showcase_
     path.write_text(json.dumps(panel))
     with pytest.raises(ValueError, match="ethos"):
         module.validate_source_bound_scores(output)
+
+
+@pytest.fixture
+def current_validation_bundle(tmp_path, monkeypatch, request):
+    tmp_path = tmp_path / getattr(request, "param", "")
+    module = showcase_module()
+    current, table = module.current_modules()
+    import rubric_leakage_recipes as leakage
+    import rubric_mutation_runner as runner
+
+    def write(path, value):
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(value))
+
+    report = {
+        "items": {
+            ident: {
+                "score": None,
+                "status": "UNASSESSED",
+                "check_results": [{"check_id": check["id"], "outcome": "NOT_RUN"} for check in definition["checks"]],
+            }
+            for ident, definition in current.canonical_definitions().items()
+        }
+    }
+
+    def assessment(root, relative):
+        path = root / relative
+        write(
+            path,
+            {
+                "root": str(root),
+                "report": report,
+                "selection": {},
+                "task": None,
+                "definitions_sha256": current.definitions_digest(),
+            },
+        )
+        (path.parent / "results.md").write_text("markdown")
+        (path.parent / "results.html").write_text("html")
+        return {"state": "assessed", "report": str(path), "exit": 1}
+
+    source = []
+    cases = sorted(
+        {path.stem for path in (runner.fixtures.EXAMPLE / "mutations").glob("*.json")} | runner.EXTRA_CASES.keys()
+    )
+    for case in cases:
+        records = {
+            arm: assessment(tmp_path / "source-controls" / case / arm, "report/assessment.json")
+            for arm in ("changed", "baseline", "repair")
+        }
+        catalog = runner.expectation(case)
+        source.append(
+            {
+                "case": case,
+                "assessment": records["changed"],
+                "baseline_assessment": records["baseline"],
+                "repair": {"assessment": records["repair"]},
+                "expected": catalog.get(
+                    "expected_scores", dict.fromkeys(catalog["target_criteria"], catalog["intended_score"])
+                ),
+                "observed": runner.observed_rows(records["changed"]),
+            }
+        )
+    runs = [
+        {
+            "case": "leakage-" + case,
+            "assessment": assessment(tmp_path / "current-leakage" / case, "assessment/ordinary/report/assessment.json"),
+        }
+        for case in leakage.CASES
+    ]
+    indexed = {row["case"]: row["assessment"] for row in runs}
+    repairs = {
+        "baseline": indexed["leakage-inventory"],
+        "repair": assessment(tmp_path / "current-leakage/repair", "assessment/ordinary/report/assessment.json"),
+    }
+    for row in runs:
+        case = row["case"].removeprefix("leakage-")
+        ident = leakage.CONTROL_CASES[case][0] if case in leakage.CONTROL_CASES else None
+        row["criterion_baseline"] = indexed[f"leakage-{ident}.base"] if ident else repairs["baseline"]
+        row["criterion_repair"] = indexed[f"leakage-{ident}.repair"] if ident else repairs["repair"]
+    monkeypatch.setattr(runner, "validate_coverage", lambda value: None)
+    monkeypatch.setattr(runner, "verify_case_input", lambda root, case: None)
+    monkeypatch.setattr(leakage, "verify_input", lambda root, case, selection: None)
+    monkeypatch.setattr(leakage, "verify_observation", lambda report, case: None)
+    monkeypatch.setattr(table, "assess_table", lambda root, selection, task: report)
+    monkeypatch.setattr(table, "render", lambda report, title: "markdown")
+    monkeypatch.setattr(table, "render_html", lambda markdown: "html")
+    pending = leakage.pending_requests(runs)
+    result = {
+        "runs": runs,
+        "source_repairs": repairs,
+        "pending_requests": pending,
+        "verification": "ordinary-replay-verified",
+    }
+    write(tmp_path / "source-controls/runs.json", source)
+    write(tmp_path / "source-controls/coverage.json", runner.reconcile(source))
+    write(tmp_path / "current-leakage/leakage-results.json", result)
+    write(tmp_path / "current-leakage/owner-requests.json", pending)
+    return module, tmp_path
+
+
+@pytest.mark.parametrize(
+    "current_validation_bundle",
+    ["source-controls/demo", "current-leakage/demo", "source-controls/current-leakage/demo"],
+    indirect=True,
+)
+def test_current_validation_accepts_producer_names_in_ancestors(current_validation_bundle):
+    module, output = current_validation_bundle
+    module.validate_current(output)
+
+
+@pytest.mark.parametrize("producer", ["source-controls", "current-leakage"])
+@pytest.mark.parametrize("mutation", ["outside-root", "parent-traversal"])
+def test_current_validation_confines_producer_reports(current_validation_bundle, producer, mutation):
+    module, output = current_validation_bundle
+    path = output / producer / ("runs.json" if producer == "source-controls" else "leakage-results.json")
+    value = module.read(path)
+    runs = value if producer == "source-controls" else value["runs"]
+    record = runs[0]["assessment"]
+    relative = Path(record["report"]).relative_to(output)
+    root = output.parent / (output.name + "-outside") if mutation == "outside-root" else output / "child/.."
+    record["report"] = str(root / relative)
+    path.write_text(json.dumps(value))
+    with pytest.raises(ValueError):
+        module.validate_current(output)
+
+
+@pytest.mark.parametrize("producer", ["source-controls", "current-leakage"])
+@pytest.mark.parametrize(
+    "mutation", ["empty", "omitted", "duplicate", "duplicate-report", "missing-baseline", "wrong-repair"]
+)
+def test_current_validation_requires_complete_producer_inventory(current_validation_bundle, producer, mutation):
+    module, output = current_validation_bundle
+    module.validate_current(output)
+    path = output / producer / ("runs.json" if producer == "source-controls" else "leakage-results.json")
+    value = module.read(path)
+    runs = value if producer == "source-controls" else value["runs"]
+    if mutation == "empty":
+        runs.clear()
+        if producer == "current-leakage":
+            value["source_repairs"].clear()
+    elif mutation == "omitted":
+        runs.pop()
+    elif mutation == "duplicate":
+        runs[-1] = runs[0]
+    elif mutation == "duplicate-report":
+        runs[-1]["assessment"] = runs[0]["assessment"]
+    elif mutation == "missing-baseline":
+        del runs[0]["baseline_assessment" if producer == "source-controls" else "criterion_baseline"]
+    elif producer == "source-controls":
+        runs[0]["repair"]["assessment"] = runs[0]["baseline_assessment"]
+    else:
+        runs[0]["criterion_repair"] = runs[0]["criterion_baseline"]
+    path.write_text(json.dumps(value))
+    with pytest.raises((ValueError, KeyError)):
+        module.validate_current(output)
+
+
+@pytest.mark.parametrize("mutation", ["omitted-attempt", "duplicate-attempt", "omitted-target"])
+def test_current_validation_reconciles_coverage_with_runs(current_validation_bundle, mutation):
+    module, output = current_validation_bundle
+    path = output / "source-controls/coverage.json"
+    coverage = module.read(path)
+    cell = next(row for row in coverage["cells"] if row["attempts"])
+    if mutation == "omitted-attempt":
+        cell["attempts"].pop()
+    elif mutation == "duplicate-attempt":
+        cell["attempts"].append(cell["attempts"][0])
+    else:
+        path = output / "source-controls/runs.json"
+        runs = module.read(path)
+        runs[0]["expected"] = {}
+        path.write_text(json.dumps(runs))
+    if mutation != "omitted-target":
+        path.write_text(json.dumps(coverage))
+    with pytest.raises(ValueError, match="coverage|expectation"):
+        module.validate_current(output)
+
+
+@pytest.mark.parametrize(
+    "mutation", ["missing-repair", "duplicate-repair", "wrong-control-base", "wrong-control-repair", "wrong-root"]
+)
+def test_current_validation_checks_repair_and_root_bindings(current_validation_bundle, mutation):
+    module, output = current_validation_bundle
+    path = output / "current-leakage/leakage-results.json"
+    result = module.read(path)
+    if mutation == "missing-repair":
+        del result["source_repairs"]["repair"]
+    elif mutation == "duplicate-repair":
+        result["source_repairs"]["repair"] = result["source_repairs"]["baseline"]
+    elif mutation.startswith("wrong-control"):
+        row = next(row for row in result["runs"] if row["case"] == "leakage-AUDIT-03.0")
+        field = "criterion_baseline" if mutation == "wrong-control-base" else "criterion_repair"
+        row[field] = result["source_repairs"]["baseline"]
+    else:
+        assessment = Path(result["source_repairs"]["repair"]["report"])
+        saved = module.read(assessment)
+        saved["root"] = str(output / "current-leakage/inventory")
+        assessment.write_text(json.dumps(saved))
+    path.write_text(json.dumps(result))
+    with pytest.raises((ValueError, KeyError)):
+        module.validate_current(output)
+
+
+def test_current_semantic_comparison_omits_only_path_bound_requests():
+    module = showcase_module()
+    from copy import deepcopy
+
+    report: dict[str, Any] = {
+        "measurements": {
+            "scoped_reviews": {
+                "contract": {
+                    "request": {
+                        "binding": "request-a",
+                        "crosswalk": {"intake_binding": "intake-a"},
+                        "question": "Keep this decision",
+                    }
+                }
+            }
+        },
+        "items": {
+            "task-contract.scoring-authority": {
+                "score": 0,
+                "evidence_refs": [{"binding": "request-a", "measurement": "contract"}],
+                "check_results": [{"outcome": "FAIL", "evidence_refs": [{"binding": "request-a"}]}],
+            }
+        },
+    }
+    other = deepcopy(report)
+    request = other["measurements"]["scoped_reviews"]["contract"]["request"]
+    request["binding"] = "request-b"
+    request["crosswalk"]["intake_binding"] = "intake-b"
+    row = other["items"]["task-contract.scoring-authority"]
+    row["evidence_refs"][0]["binding"] = "request-b"
+    row["check_results"][0]["evidence_refs"][0]["binding"] = "request-b"
+    before = deepcopy(report)
+    assert module.current_semantics(report) == module.current_semantics(other)
+    assert report == before
+    request["question"] = "Changed decision"
+    assert module.current_semantics(report) != module.current_semantics(other)
 
 
 def test_showcase_refuses_existing_output(tmp_path):
@@ -946,6 +1306,24 @@ def test_renderer_escapes_all_untrusted_scalar_fields():
         },
         "determinism": {"fresh_run_equal": payload},
     }
+
+    def test_payload_row():
+        return {
+            "score": None,
+            "status": payload,
+            "remaining_gaps": [payload],
+            "level": "task",
+            "findings": [payload],
+            "check_results": [{"method": "human_review", "outcome": "NOT_RUN", "next_action": payload}],
+        }
+
+    summary["historical_criterion_inventory"] = summary["criterion_inventory"]
+    summary["criterion_inventory"] = [{"id": ident, "title": payload, "level": "task"} for ident in ids]
+    summary["current_assessments"] = [
+        {"id": payload, "evidence": payload, "report": {"items": {ident: test_payload_row() for ident in ids}}}
+    ]
+    summary["current_numeric_criteria"] = []
+    summary["pending_owner_requests"] = {"exact_request_count": payload}
     page = module.render(summary, {"cases": []})
     assert payload not in page
     assert html.escape(payload, quote=True) in page

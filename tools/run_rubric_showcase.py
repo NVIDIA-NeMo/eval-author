@@ -38,6 +38,167 @@ def run(output, name, script, *args):
     return completed.stdout
 
 
+SCRIPTS = ROOT / "skills/eval-author-rubric/scripts"
+
+
+def current_modules():
+    sys.path.insert(0, str(SCRIPTS))
+    import rubric_leakage_current
+    import rubric_table
+
+    return rubric_leakage_current, rubric_table
+
+
+def collect_current(output: Path) -> None:
+    for name, script, accepted in (
+        ("source-controls", "rubric_mutation_runner.py", (0,)),
+        ("current-leakage", "rubric_leakage_recipes.py", (0, 1)),
+    ):
+        completed = subprocess.run(
+            [sys.executable, "-B", str(SCRIPTS / script), "--output", str(output / name)],
+            capture_output=True,
+            text=True,
+            timeout=900,
+            env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"},
+        )
+        (output / f"{name}.stdout").write_text(completed.stdout)
+        (output / f"{name}.stderr").write_text(completed.stderr)
+        if completed.returncode not in accepted:
+            raise ValueError(f"{name} failed; inspect retained stderr")
+        if name == "current-leakage":
+            result = read(output / name / "leakage-results.json")
+            require_equal(result["verification"], "ordinary-replay-verified", "current leakage replay")
+            require_equal(
+                completed.returncode,
+                int(bool(result["pending_requests"]["exact_request_count"])),
+                "current leakage exit",
+            )
+
+
+def current_assessments(output: Path) -> list[dict]:
+    current_modules()
+    import rubric_leakage_recipes as leakage
+    import rubric_mutation_runner as runner
+
+    records: dict[str, dict] = {}
+
+    def index(runs: list[dict], expected: set[str], producer: str) -> dict[str, dict]:
+        indexed = {run["case"]: run for run in runs}
+        if len(indexed) != len(runs) or set(indexed) != expected:
+            raise ValueError(f"{producer} case inventory differs from producer catalog")
+        return indexed
+
+    def retain(record: dict, relative: Path) -> None:
+        if record["state"] != "assessed":
+            raise ValueError("current assessment blocked")
+        path = Path(record["report"])
+        if ".." in path.parts or path.parts[-len(relative.parts) :] != relative.parts:
+            raise ValueError("current assessment reference differs from producer case")
+        key = relative.as_posix()
+        if key in records:
+            raise ValueError("duplicate current assessment reference")
+        records[key] = record
+
+    source_cases = {path.stem for path in (runner.fixtures.EXAMPLE / "mutations").glob("*.json")}
+    source_cases.update(runner.EXTRA_CASES)
+    source = index(read(output / "source-controls/runs.json"), source_cases, "source-controls")
+    for case, run in source.items():
+        for arm, record in (
+            ("changed", run["assessment"]),
+            ("baseline", run["baseline_assessment"]),
+            ("repair", run["repair"]["assessment"]),
+        ):
+            retain(record, Path("source-controls") / case / arm / "report/assessment.json")
+
+    result = read(output / "current-leakage/leakage-results.json")
+    runs = index(result["runs"], {"leakage-" + case for case in leakage.CASES}, "current-leakage")
+    repairs = result["source_repairs"]
+    require_equal(sorted(repairs), ["baseline", "repair"], "current leakage source repairs")
+    require_equal(repairs["baseline"], runs["leakage-inventory"]["assessment"], "current leakage source baseline")
+    retain(repairs["repair"], Path("current-leakage/repair/assessment/ordinary/report/assessment.json"))
+    for name, run in runs.items():
+        case = name.removeprefix("leakage-")
+        retain(run["assessment"], Path("current-leakage") / case / "assessment/ordinary/report/assessment.json")
+        if case in leakage.CONTROL_CASES:
+            ident, _ = leakage.CONTROL_CASES[case]
+            baseline = runs["leakage-" + ident + ".base"]["assessment"]
+            repair = runs["leakage-" + ident + ".repair"]["assessment"]
+        else:
+            baseline, repair = repairs["baseline"], repairs["repair"]
+        require_equal(run["criterion_baseline"], baseline, "current leakage paired baseline")
+        require_equal(run["criterion_repair"], repair, "current leakage paired repair")
+    return [
+        {"id": str(Path(relative).parent), "evidence": relative, "report": read(output / relative)["report"]}
+        for relative in sorted(records)
+    ]
+
+
+def validate_current(output: Path) -> None:
+    current, table = current_modules()
+    import rubric_leakage_recipes as leakage
+    import rubric_mutation_runner as runner
+
+    assessments = current_assessments(output)
+    for case in assessments:
+        path = output / case["evidence"]
+        saved = read(path)
+        root = Path(saved["root"])
+        expected_root = path.parents[1 if case["evidence"].startswith("source-controls/") else 3]
+        if root != expected_root or ".." in root.parts:
+            raise ValueError("current assessment root differs from retained bundle")
+    source = read(output / "source-controls/runs.json")
+    for run in source:
+        catalog = runner.expectation(run["case"])
+        expected = catalog.get("expected_scores", dict.fromkeys(catalog["target_criteria"], catalog["intended_score"]))
+        require_equal(run["expected"], expected, "source expectation catalog")
+        for record, case in (
+            (run["assessment"], run["case"]),
+            (run["baseline_assessment"], "base"),
+            (run["repair"]["assessment"], "base"),
+        ):
+            root = Path(record["report"]).parents[1]
+            relative = root.relative_to(output / "source-controls")
+            if ".." in relative.parts:
+                raise ValueError("source assessment root differs from retained bundle")
+            runner.verify_case_input(root, case)
+    require_equal(
+        read(output / "source-controls/coverage.json"), runner.reconcile(source), "source coverage reconciliation"
+    )
+    result = read(output / "current-leakage/leakage-results.json")
+    for record in [*(run["assessment"] for run in result["runs"]), *result["source_repairs"].values()]:
+        path = Path(record["report"])
+        relative = path.relative_to(output / "current-leakage")
+        if ".." in relative.parts:
+            raise ValueError("current leakage assessment path differs from retained bundle")
+    require_equal(result["verification"], "ordinary-replay-verified", "current leakage replay")
+    require_equal(result["pending_requests"], leakage.pending_requests(result["runs"]), "current owner requests")
+    require_equal(
+        read(output / "current-leakage/owner-requests.json"), result["pending_requests"], "owner request file"
+    )
+    for case in assessments:
+        path = output / case["evidence"]
+        saved = read(path)
+        root = Path(saved["root"])
+        if not root.is_relative_to(output):
+            raise ValueError("current assessment root differs from retained bundle")
+        report = table.assess_table(root, saved["selection"], saved["task"])
+        require_equal(saved["definitions_sha256"], current.definitions_digest(), "current definitions")
+        require_equal(report, saved["report"], "current assessment replay")
+        if set(report["items"]) != set(current.canonical_definitions()):
+            raise ValueError("current criterion inventory mismatch")
+        title = Path(saved["task"]).parent.name if saved["task"] else "Selected package"
+        markdown = table.render(report, title)
+        require_equal((path.parent / "results.md").read_text(), markdown, "current Markdown")
+        require_equal((path.parent / "results.html").read_text(), table.render_html(markdown), "current HTML")
+    for run in result["runs"]:
+        saved = read(Path(run["assessment"]["report"]))
+        leakage.verify_input(Path(saved["root"]), run["case"].removeprefix("leakage-"), saved["selection"])
+        leakage.verify_observation(saved["report"], run["case"].removeprefix("leakage-"))
+    repair = read(Path(result["source_repairs"]["repair"]["report"]))
+    leakage.verify_input(Path(repair["root"]), "inventory", repair["selection"])
+    leakage.verify_observation(repair["report"], "inventory")
+
+
 def collect(output):
     (output / "identity").mkdir(mode=0o700)
 
@@ -52,6 +213,7 @@ def collect(output):
     # The demos write disjoint outputs; only the scorer replay depends on the scorer run.
     jobs = (
         identity,
+        lambda: collect_current(output),
         lambda: run(output, "provenance", "run_rubric_provenance_demo.py", "--run-dir", output / "provenance"),
         lambda: run(output, "task-contract", "run_task_contract_demo.py", "--output", output / "task-contract"),
         lambda: run(
@@ -78,6 +240,7 @@ def summarize_reports(output: Path) -> dict:
     from run_criterion_scoring_demo import canonical_definitions
 
     definitions = canonical_definitions()
+    current, _ = current_modules()
     identity = read(output / "identity/panel.json")
     provenance = read(output / "provenance/panel.json")
     task_contract = read(output / "task-contract/panel.json")
@@ -169,14 +332,42 @@ def summarize_reports(output: Path) -> dict:
                 "evidence": "integrity/" + case["evidence"]["report"],
             }
         )
+    historical_inventory = inventory
+    assessments = current_assessments(output)
+    inventory = [
+        {
+            "id": ident,
+            "title": definition["title"],
+            "source": definition.get("source"),
+            "level": current.level(definition),
+        }
+        for ident, definition in current.canonical_definitions().items()
+    ]
+    numeric = {
+        ident
+        for case in assessments
+        for ident, row in case["report"]["items"].items()
+        if current.observed_score(row) is not None
+    }
+    if any(
+        read(output / "task-contract" / case["report"])["items"]["task-contract.discoverable-requirements"]["score"]
+        is not None
+        for case in task_contract["cases"]
+        if case["kind"] == "task_contract"
+    ):
+        numeric.add("task-contract.discoverable-requirements")
     return {
         "schema": "rubric-showcase-v2",
+        "historical_criterion_inventory": historical_inventory,
+        "current_assessments": assessments,
+        "current_numeric_criteria": sorted(numeric),
+        "pending_owner_requests": read(output / "current-leakage/owner-requests.json"),
         "native_execution": False,
         "workflow_acceptance": False,
         "aggregate_score": None,
         "criterion_inventory": inventory,
         "criterion_demonstration": demonstration,
-        "production_gaps": [row["id"] for row in inventory if row["id"] not in demonstrated],
+        "production_gaps": [row["id"] for row in inventory if row["id"] not in numeric],
         "receipt_authenticity": {
             arm: {
                 "criterion": read(output / f"scorer/rubric-{arm}.json")["items"]["AC-03"],
@@ -376,6 +567,11 @@ def validate_reports(output: Path) -> None:
                     if measurement == "ethos":
                         require_equal(observation["valid"], definition["valid"], "identity ethos validity")
                     else:
+                        require_equal(
+                            evidence_matches(row["observed"], definition, None, None),
+                            True,
+                            "identity authority checks and questions",
+                        )
                         require_equal(
                             [item["status"] for item in observation["requirements"]],
                             definition["requirement_statuses"],
@@ -645,11 +841,35 @@ def validate_source_bound_scores(output: Path) -> None:
             read(output / "task-contract" / row["crosswalk"])
 
 
+def current_semantics(report: dict) -> dict:
+    from copy import deepcopy
+
+    result = deepcopy(report)
+    request = result["measurements"].get("scoped_reviews", {}).get("contract", {}).get("request")
+    if request is None:
+        return result
+    # Intake hashes bind the absolute task path. Keep all request content and
+    # verify original bindings against each root during retained validation.
+    binding = request.pop("binding")
+    request["crosswalk"].pop("intake_binding")
+    for ident, row in result["items"].items():
+        if not ident.startswith("task-contract."):
+            continue
+        for owner in [row, *row["check_results"]]:
+            for reference in owner.get("evidence_refs", []):
+                if reference.get("binding") == binding:
+                    reference.pop("binding")
+    return result
+
+
 def semantic_projection(output: Path) -> dict:
     from run_verification_integrity_demo import normalized
 
     contract = read(output / "task-contract/panel.json")
     return {
+        "current_assessments": [
+            {**case, "report": current_semantics(case["report"])} for case in current_assessments(output)
+        ],
         # These panels retain all cases, diagnostics, checks, gaps and stable identities.
         "criterion_demonstration": {
             "summary": read(output / "criterion-scoring/summary.json"),
@@ -696,6 +916,7 @@ def compare_runs(output: Path) -> dict:
         "areas": areas,
         "scope": "same-checkout semantic projections across newly produced roots; not raw-byte or relocation equality",
         "raw_identity": "Unmodified reports, path-bound receipts and hashes retained separately in both roots.",
+        "current_comparison": "Contract intake/request bindings include absolute task paths. Only those bindings and their criterion references are omitted from semantic comparison; retained replay verifies the original bindings.",
         "identity_input_retention": "Identity panel uses temporary inputs; retained reports are not durable input replay.",
     }
 
@@ -712,7 +933,10 @@ def render(summary, panel):
     def score(value):
         return "Unassessed" if value is None else esc(value)
 
-    labels = {row["id"]: row["title"] for row in summary["criterion_inventory"]}
+    current, table = current_modules()
+    labels = {
+        row["id"]: row["title"] for row in [*summary["historical_criterion_inventory"], *summary["criterion_inventory"]]
+    }
 
     def label(ident: str) -> str:
         return display_text(labels[ident])
@@ -756,6 +980,43 @@ def render(summary, panel):
         f"<td>{esc(', '.join(item['code'] for item in row['observation'].get('diagnostics', [])) or 'None')}</td></tr>"
         for row in summary["identity"]["evidence_cases"]
     )
+    authority_cases = [row for row in summary["identity"]["evidence_cases"] if row["measurement"] == "authority"]
+    authority_sections = []
+    for row in authority_cases:
+        observation = row["observation"]
+        requirements = "".join(
+            f"<tr><td>{esc(item['id'])}</td><td>{esc(item['basis'])}</td>"
+            f"<td><code>{esc(item['reference'])}</code></td><td>{esc(item['status'])}</td>"
+            f"<td>{esc(', '.join(item['checks']))}</td></tr>"
+            for item in observation["requirements"]
+        )
+        checks = "".join(
+            f"<tr><td>{esc(item['id'])}</td><td><code>{esc(item['pointer'])}</code></td>"
+            f"<td>{esc(item['status'])}</td></tr>"
+            for item in observation["checks"]
+        )
+        questions = "".join(
+            f"<li>{esc(item['question']['requirement_id'])}: {esc(item['question']['reference'])}. "
+            f"{esc(item['question']['decision_needed'])}</li>"
+            for item in observation["requirements"]
+            if "question" in item
+        )
+        diagnostics = "".join(
+            f"<li>{esc(item['subject'])}: {esc(item['code'])} ({esc(item['status'])})</li>"
+            for item in observation["diagnostics"]
+        )
+        authority_sections.append(
+            f"<h4>{esc(row['id'])}: {esc(observation['status'])}</h4>"
+            f"<p>Result: {esc(observation['result_artifact_id'] or 'No result artifact selected')}. "
+            f"Observation scope: {esc(observation['check_observation_scope'])}.</p>"
+            '<div class="scroll"><table><thead><tr><th>Requirement</th><th>Basis</th><th>Reference</th>'
+            f"<th>Status</th><th>Mapped checks</th></tr></thead><tbody>{requirements}</tbody></table></div>"
+            '<div class="scroll"><table><thead><tr><th>Check</th><th>Result pointer</th><th>Observation</th>'
+            f"</tr></thead><tbody>{checks}</tbody></table></div>"
+            f"<p>Unresolved authority questions</p><ul>{questions or '<li>None recorded</li>'}</ul>"
+            f"<p>Failures and diagnostics</p><ul>{diagnostics or '<li>None recorded</li>'}</ul>"
+        )
+    authority_html = "".join(authority_sections)
     identity_rows = "".join(
         f"<tr><td>{esc(row['id'])}</td>"
         + "".join(
@@ -768,11 +1029,6 @@ def render(summary, panel):
         )
         + "</tr>"
         for row in summary["identity"]["assessments"]
-    )
-    inventory_rows = "".join(
-        f"<tr><td>{criterion(row['id'])}</td><td>{esc(row['area'])}</td>"
-        f"<td>{esc(row['demonstration_status'])}; {esc(row['scoring_rule_status'])}</td></tr>"
-        for row in summary["criterion_inventory"]
     )
     authenticity_rows = "".join(
         f"<tr><td>{esc(arm)}</td><td>{score(row['criterion']['score'])}</td>"
@@ -804,8 +1060,66 @@ def render(summary, panel):
             for variant in variants
         )
         + "</tr>"
-        for item in summary["criterion_inventory"]
+        for item in summary["historical_criterion_inventory"]
     )
+    current_rows = []
+    for item in summary["criterion_inventory"]:
+        ident = item["id"]
+        observations = []
+        for case in summary["current_assessments"]:
+            row = case["report"]["items"][ident]
+            observations.append((case, row))
+        numeric = [(case, row) for case, row in observations if current.observed_score(row) is not None]
+        grouped: dict[tuple, list] = {}
+        for case, row in numeric:
+            evidence = row.get("suite_evidence") or row
+            scope = evidence.get("assessment_scope") or row.get("assessment_scope") or "Not specified"
+            limitations = tuple(dict.fromkeys([*row.get("limitations", []), *evidence.get("limitations", [])]))
+            key = (current.observed_score(row), evidence.get("evidence_strength"), scope, limitations)
+            grouped.setdefault(key, []).append(case)
+        links = "".join(
+            f'<li><a href="{esc(str(Path(cases[0]["evidence"]).parent / "results.html"))}">'
+            f"{score(value)}/{esc(strength or 'Unassessed')}</a> ({len(cases)} assessments). "
+            f"Scope: {esc(scope)}. {esc(' '.join(limitations))}</li>"
+            for (value, strength, scope, limitations), cases in sorted(grouped.items())
+        )
+        exemplar_case, exemplar = (numeric or observations)[0]
+        if ident == "task-contract.discoverable-requirements":
+            for case in summary["task_contract"]["assessments"]:
+                row = case["items"][ident]
+                if row["score"] is not None:
+                    links += f'<li><a href="{esc(case["evidence"])}">{esc(case["id"])}</a>: {score(row["score"])}/{esc(row["evidence_strength"])}</li>'
+                    exemplar = row
+        gap = table.attention(exemplar, "No numeric assessment supplied.")
+        action = table.human_action(exemplar)
+        grouped_details: dict[tuple[str, str, str], list[dict]] = {}
+        for case, row in observations:
+            reasons = [table.attention(row, "Unassessed")]
+            if row.get("execution_state"):
+                reasons.append(f"Execution: {row['execution_state']}.")
+            reasons.extend(row.get("remaining_gaps", []))
+            suite_gaps = (row.get("suite_evidence") or {}).get("remaining_gaps", [])
+            if suite_gaps:
+                reasons.append("Suite evidence: " + " ".join(suite_gaps))
+            key = (row["status"], " ".join(dict.fromkeys(reasons)), table.human_action(row))
+            grouped_details.setdefault(key, []).append(case)
+        details = "".join(
+            f"<li>{esc(status)}. {esc(reason)} {esc(next_action)}<ul>"
+            + "".join(
+                f'<li><a href="{esc(str(Path(case["evidence"]).parent / "results.html"))}">{esc(case["id"])}</a></li>'
+                for case in cases
+            )
+            + "</ul></li>"
+            for (status, reason, next_action), cases in grouped_details.items()
+        )
+        current_rows.append(
+            f"<tr><td>{criterion(ident)}</td><td>{esc(item['level'])}</td>"
+            f"<td>{'Suite evidence only. Not applicable to a single task. ' if item['level'] == 'suite' else ''}"
+            f"{'<ul>' + links + '</ul>' if links else 'Unassessed'}</td>"
+            f"<td>{esc(gap)}<br>{esc(action)}"
+            f"<details><summary>All case findings and evidence</summary><ul>{details}</ul></details></td></tr>"
+        )
+    current_html = "".join(current_rows)
     production_gaps = ", ".join(label(ident) for ident in summary["production_gaps"])
     gaps = "".join(f"<li>{display_text(gap)}</li>" for gap in scorer["reviewed"]["remaining_gaps"])
     return f"""<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
@@ -815,9 +1129,16 @@ def render(summary, panel):
 h1{{font-size:30px;line-height:1.2}}h2{{margin-top:36px;font-size:22px}}a{{color:var(--accent,#95cd7a)}}p,li{{max-width:90ch}}.muted{{color:var(--muted-foreground,#b6c0c7)}}.scroll{{overflow-x:auto}}table{{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums}}th,td{{text-align:left;border-bottom:1px solid var(--border,#46515a);padding:10px 12px;vertical-align:top}}th{{font-size:14px}}code,pre{{font-size:13px}}pre{{overflow:auto;padding:16px;border:1px solid var(--border,#46515a)}}summary{{cursor:pointer;padding:12px 0}}@media(max-width:600px){{body{{padding:16px}}h1{{font-size:25px}}}}
 </style><main>
 <p class="muted">Experimental rubric · local paired demonstration</p>
-<h1>The reviewed scorer rejects shortcuts. Integrity checks find unsupported claims.</h1>
+<h1>Current rubric assessments and authority evidence</h1>
+<h2>Current canonical criteria</h2>
+<p>The current inventory contains {len(summary["criterion_inventory"])} criteria: 19 task rows and 4 suite rows. These are separate fixture assessments, not one task score. Local refund controls are a synthetic simulation, not native/model evidence. Numeric groups retain their assessment scope and limitations. Numeric observations include collateral results. They do not establish qualified mutation coverage.</p>
+<p>{len(summary["current_numeric_criteria"])} criteria have numeric observations in the retained evidence. Suite evidence stays separate from task scores. Unassessed is not zero. METHOD-J1 remains Unassessed because its canonical definition, checks and anchors are missing.</p>
+<p>The current producers leave {esc(summary["pending_owner_requests"]["exact_request_count"])} exact review requests pending. <a href="current-leakage/owner-requests.json">Review requests and required decisions</a>. <a href="source-controls/coverage.json">Source-control coverage</a>. <a href="current-leakage/leakage-results.json">Current leakage controls and replay</a>.</p>
+<div class="scroll"><table><thead><tr><th>Criterion</th><th>Level</th><th>Observed scores and evidence</th><th>Findings, missing evidence and next action</th></tr></thead><tbody>{current_html}</tbody></table></div>
+<h2>Supporting local evidence</h2>
 <p>The fixture demo runs the same frozen refund controls through two scorers. The integrity demo passes synthetic native results to the real receipt producer and rubric CLI. This run starts no Docker containers or models.</p>
-<h2>1. Canonical rubric: Anticheat-02</h2>
+<h2>Historical Anticheat-02 scoring evidence</h2>
+<p>The AC criteria below belong to the historical rubric. Their numeric scores do not transfer to current criteria. Current AUDIT-03 observations above use the owning current assessment.</p>
 <p>The completion-only baseline awards credit that the task forbids. The reviewed scorer accepts valid solutions and checks the required effects. Task-credit totals use each arm's own scale, separate from the canonical rubric score.</p>
 <div class="scroll"><table><thead><tr><th>Scorer</th><th>Anticheat-02</th><th>False accepts / healthy invalid</th><th>False rejects / healthy valid</th><th>Operational errors</th><th>Evidence</th></tr></thead><tbody>{compare}</tbody></table></div>
 <p>{esc(scorer["matched_controls"])}/{esc(scorer["attempted_controls"])} control outcomes match the frozen expectations. The reviewed scorer accepts {esc(scorer["reviewed"]["alternatives_accepted"])}/{esc(scorer["reviewed"]["alternatives_total"])} declared valid alternatives. The baseline has {esc(scorer["baseline"]["health_errors"])} operational errors. The reviewed arm has {esc(scorer["reviewed"]["health_errors"])}. These errors do not count as semantic rejections. Each control's frozen acceptance expectation for the reviewed arm determines its valid/invalid denominator. They include valid alternatives, permitted inaction, partial credit and the negative approval boundary. Operational cases remain separate. Same-input scorer replay: {esc(scorer["replay_equal"])}.</p>
@@ -837,20 +1158,22 @@ h1{{font-size:30px;line-height:1.2}}h2{{margin-top:36px;font-size:22px}}a{{color
 <h3>Selected-source evidence diagnostics</h3>
 <p>The identity panel includes {esc(summary["identity"]["counts"]["evidence_cases"])} evidence cases. Authority locators resolve selected content, fail for a broken reference, or stay unknown for prose. An unaffected neighbor remains resolved. Resolving a locator does not establish semantic correctness or authenticated owner approval. These checks add no canonical score.</p>
 <div class="scroll"><table><thead><tr><th>Case</th><th>Measurement</th><th>Status</th><th>Observed detail</th><th>Diagnostics</th></tr></thead><tbody>{evidence_rows}</tbody></table></div>
+<h3 id="authority">W03 authority observations</h3>
+<p>{len(authority_cases)} authority cases use the retained <a href="identity/panel.json">identity observations</a>. Check observations establish emission only. The selected results are synthetic inputs, not executed scorer results. Resolving a reference does not establish authenticated owner approval or semantic correctness.</p>
+<p>The refund case resolves its contract references but selects no result artifact. Its checks remain unknown. Compare the <a href="scorer/inputs/contract.json">retained refund contract</a> and the separate <a href="scorer/rubric-reviewed.json">reviewed refund scorer evidence</a>. Those local controls do not supply a result to the authority case.</p>
+{authority_html}
 <p>The order-total task asks for total.txt. Its planted scorer also requires summary.json. The retained static crosswalk cites the instruction, scorer and input data. A clean neighbor removes that hidden condition. For the planted hidden condition, the real CLI emits Discoverable grading requirements = 0/E1. This score is bound to the supported fixture source bytes. The clean neighbor stays Unassessed because removing one defect does not establish a positive anchor. Clear task contract and Correctness and scoring authority remain Unassessed. No human adjudication is supplied.</p>
 <table><thead><tr><th>Source case</th><th>{label("task-contract.clear-contract")}</th><th>{label("task-contract.discoverable-requirements")}</th><th>{label("task-contract.scoring-authority")}</th><th>Discoverability evidence strength</th><th>Evidence</th></tr></thead><tbody>{contract_rows}</tbody></table>
 <p><a href="task-contract/report.md">Condition crosswalk and expected-versus-observed inspection</a>. {esc(summary["task_contract"]["matched"])}/{esc(summary["task_contract"]["cases"])} task-contract and Ethos scenarios match their expectations. The results come from authored static inspections and real structure checks. No model judgment was measured.</p>
 <div class="scroll"><table><thead><tr><th>Ethos case</th><th>Measurement status</th><th>Structure valid</th><th>Owner confirmation</th><th>Evidence</th></tr></thead><tbody>{ethos_rows}</tbody></table></div>
 <p>A structurally valid but changed Ethos still fails its digest binding. An unavailable validator leaves the result unknown. Valid structure does not establish confirmed owner intent. The owning journey-state validator handles saved-byte confirmation and invalidation. This demo supplies no reviewed user turn. Confirmation is NOT_RUN, and the demo creates no journey-state approval.</p>
-<h2>5. Synthetic scoring-rule coverage</h2>
-<p>All {esc(demo["criterion_count"])} criteria have tests for 0, 1, 2, 3 and missing through the actual measurement CLI: {esc(demo["vector_count_per_root"])} criterion vectors per root. These authored synthetic numbers do not qualify a task. They appear only in criterion_demonstration, never in real measured items. The source-bound scores above come from inspecting selected sources or executing local controls. This matrix tests how scoring rules respond to invented observations. Human review, native execution and independent corroboration were NOT_RUN.</p>
+<h2>Historical synthetic scoring-rule coverage</h2>
+<p>The historical {esc(demo["criterion_count"])} criteria have tests for 0, 1, 2, 3 and missing through the actual measurement CLI: {esc(demo["vector_count_per_root"])} criterion vectors per root. These authored synthetic numbers do not qualify a task. They appear only in criterion_demonstration, never in real measured items. The source-bound scores above come from inspecting selected sources or executing local controls. This matrix tests how scoring rules respond to invented observations. Human review, native execution and independent corroboration were NOT_RUN.</p>
 <div class="scroll"><table><thead><tr><th>Criterion</th><th>0 anchor</th><th>1 anchor</th><th>2 anchor</th><th>3 anchor</th><th>Missing evidence</th></tr></thead><tbody>{matrix}</tbody></table></div>
 <p><a href="criterion-scoring/summary.json">Synthetic coverage and rejection controls</a>. Each cell links to the full emitted report, including evidence references and limitations. Synthetic E1 does not establish native or authenticated human evidence.</p>
-<h2>6. Full criterion inventory (score-free)</h2>
-<p>The populated rubric covers validity areas. Coverage and diversity remain unimplemented. Defining a criterion does not mean its checks ran or produced a numeric score.</p>
-<div class="scroll"><table><thead><tr><th>Criterion</th><th>Area</th><th>This demonstration</th></tr></thead><tbody>{inventory_rows}</tbody></table></div>
+<p>The historical synthetic matrix does not establish current 23-criterion coverage. The current inventory and ordinary assessments appear first.</p>
 <h2>7. Remaining evidence gaps</h2>
-<p>This demo produces no source-bound canonical score for these {len(summary["production_gaps"])} criteria: {production_gaps}. Synthetic anchor tests do not fill these production evidence gaps. This list describes what the demo covers. It does not mean every adapter is absent.</p>
+<p>This demo produces no numeric observation for these {len(summary["production_gaps"])} criteria: {production_gaps}. Synthetic anchor tests do not fill these production evidence gaps. This list describes what the demo covers. It does not mean every adapter is absent.</p>
 <p>The local paired controls match their expected outcomes. A canonical score of 2 requires the remaining applicable attack controls and native evidence. Independent held-out attacks and valid alternatives are required for score 3.</p><ul>{gaps}</ul>
 <p>To demonstrate complete verification and recovery, first produce a full saved acceptance envelope and show ordinary acceptance. Then invalidate it with a later failure or source change. Rerun the affected controls and show ordinary acceptance again. The current partial-claim cases do not demonstrate that sequence.</p>
 <p>These results establish no overall quality score, coverage/diversity score or task qualification. They establish neither authenticated approval authority nor a causal authoring benefit. A matched authoring study is separate work.</p>
@@ -890,6 +1213,8 @@ def verify_existing(output: Path) -> None:
     require_equal(
         (output / "index.html").read_text(), render(summary, read(output / "scorer/panel.json")), "retained HTML"
     )
+    for root in (output, output / "fresh-replay"):
+        validate_current(root)
 
 
 def main(argv=None):
