@@ -50,12 +50,15 @@ def recommendations(facts: dict) -> list[dict]:
     labels = set()
     identifiers = []
     for item in result:
-        mapping(item, "recommendation", {"kind", "label", "reason", "id"})
+        mapping(item, "recommendation", {"kind", "label", "reason", "id", "support"})
         if "id" in item:
             audit_state.recommendation_ids([item["id"]])
             identifiers.append(item["id"])
         if item.get("kind") not in audit_state.ACTIONS - {"finish"}:
             raise ValueError("Recommendations require a supported next action")
+        support = item.get("support", "unknown")
+        if not isinstance(support, str) or support not in copy.RECOMMENDATION_SUPPORT:
+            raise ValueError("Recommendation support must be supported, separate_work, or unknown")
         label = text(item.get("label"), "recommendation label")
         text(item.get("reason"), "recommendation reason")
         if label in labels:
@@ -245,7 +248,8 @@ def recommendation_section(facts: dict) -> str | None:
     for index, item in enumerate(items, 1):
         label = text(item["label"], "recommendation label")
         label = literal(label[:1].upper() + label[1:], "recommendation label")
-        lines.append(f"{index}. **{label}:** {literal(item['reason'], 'recommendation reason')}")
+        support = copy.RECOMMENDATION_SUPPORT[item.get("support", "unknown")]
+        lines.append(f"{index}. **{label}:** **{support}.** {literal(item['reason'], 'recommendation reason')}")
     return copy.RECOMMENDATIONS_HEADING + "\n\n" + "\n".join(lines)
 
 
@@ -283,7 +287,15 @@ def render_findings(state: dict, lifecycle: dict, audit: dict, facts: dict) -> l
         parts.append(limits)
     parts.append(closing_status(lifecycle, audit))
     if recommended := recommendation_section(facts):
-        parts.extend([recommended, copy.NEXT_OFFER])
+        supported = [
+            literal(item["label"], "recommendation label")
+            for item in recommendations(facts)
+            if item.get("support") == "supported"
+        ]
+        offer = copy.SUPPORTED_NEXT_OFFER.format(actions=" or ".join(supported)) if supported else copy.NEXT_OFFER
+        parts.append(recommended)
+        if not audit["pending_checkpoint"]:
+            parts.append(offer)
     return parts
 
 
@@ -387,7 +399,8 @@ def render(payload: dict) -> str:
             parts.append(recommended)
     if stage in {"suites", "traces", "measurement"} and "report_action" in facts:
         parts.append(report_notice(state, lifecycle, facts))
-    parts.append(progress(state, audit, stage))
+    if stage not in {"findings", "next_action"}:
+        parts.append(progress(state, audit, stage))
     if question:
         parts.append(question)
     return "\n\n".join(parts) + "\n"

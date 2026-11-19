@@ -39,8 +39,9 @@ provenance through a revision-checked update:
 Current findings need no decision checkpoint: once the report, content, and inputs
 are recorded and current, and a task review has recorded `findings_final` for that report,
 `audit.findings_reviewed` is true and `audit_findings`
-renders without a question. An optional next-action question uses
-`pending.stage: "next_action"` and the current `audit.findings_digest`. Measurement has no decision checkpoint or
+renders without a findings-acceptance question. An optional saved next-action question uses
+`pending.stage: "next_action"` and the current `audit.findings_digest`; offer only supported actions.
+The renderer reuses that question instead of adding its default continuation offer. Measurement has no decision checkpoint or
 entry in `checkpoint_digests`. Never save `pending.stage: "measurement"`.
 
 Refresh state and observations after saving and before rendering.
@@ -81,8 +82,17 @@ for bounded excerpts. No preparation payload or manifest inspection is performed
 Each finding is `{kind, label, evidence}`; kinds are `strength`,
 `missing_scenario`, `grading_weakness`, `agent_failure`, `insufficient_evidence`.
 Lead `conclusion` with the established outcome. Each recommendation is
-`{kind, label, reason}`; kinds are `improve`, `create`, `collect_evidence`,
-`fix_agent`. Supply at most three prioritized choices, or none when unsupported.
+`{kind, label, reason, support}`; kinds are `improve`, `create`, `collect_evidence`,
+`fix_agent`. Supply at most three prioritized recommendations.
+Set `support` to `supported` or `separate_work` for the actual recommended action
+in this suite, following the [selected audit continuation](expansion.md#selected-audit-improvements).
+Do not infer support from `kind`: inspecting existing verifier evidence does not
+establish support for creating missing controls. Explain the concrete limit in
+`reason`. If support is unresolved, use `unknown`; older payloads without this
+field display unconfirmed support rather than implying implementation is available.
+The closing question offers only recommendations marked `supported`.
+Findings and next-action acknowledgments omit the trailing journey checklist;
+incomplete measurement remains explicit in the findings and evidence limits.
 Improvement labels are noun phrases without a leading article; template copy
 supplies it. Detailed findings and evidence belong in the report.
 

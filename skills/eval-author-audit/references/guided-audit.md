@@ -370,9 +370,10 @@ changes the content; regenerate the report and record the findings again.
 ### After review: offer the next step
 
 Supply the report's concrete recommendations as `audit_findings` facts, with
-relevant implementation limits alongside the affected recommendation. The
-renderer includes the next-step offer; do not append another one after rendering.
-Do not imply that Eval Author can apply
+relevant implementation limits alongside the affected recommendation. Supply each recommendation's support
+classification under the [audit presentation contract](../../eval-author/references/conversations/audit.md#stages-and-facts).
+The renderer labels support and offers only supported work; do not append another
+offer or a journey checklist after rendering. Do not imply that Eval Author can apply
 an unsupported change. Offer to continue with the selected work, not to produce
 another set of recommendations or repair proposals. Avoid ending only with a
 generic invitation for questions or a bare link to another skill.
@@ -391,7 +392,7 @@ available Coverage measurements (JSON) and evidence, selected source scope, user
 corrections, and agreed priorities.
 Do not restart the audit, repeat settled questions, or run another recommendation
 pass. Creating and running tasks stays separately scoped. If the user declines,
-finish with the reviewed report and derived checklist, retaining incomplete measurement.
+finish with the reviewed report, retaining incomplete measurement.
 
 An explicit request for additional planning may enter `eval-author-task-create`
 at **Step 1: propose dataset improvements**, expanding the same report records
