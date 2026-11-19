@@ -1368,8 +1368,8 @@ def render_readme_section() -> str:
         "[Open report.html](report.html) in a browser. It is one offline file: it needs no server, and it "
         "contacts nothing until you open a Harbor viewer link. It has four tabs.",
         "",
-        "- **Tasks** lists every test case, proposed tasks first. Each row shows what the task tests, the result "
-        "it expects, and how its verifier grades it. The status badge tracks review: **Proposed** tasks are "
+        "- **Tasks** lists every test case, draft tasks first, then proposed tasks. Each row shows what the task "
+        "tests, the result it expects, and how its verifier grades it. The status badge tracks review: **Proposed** tasks are "
         "designed but not yet built, **Draft** tasks are built and waiting for your acceptance (or changed after "
         "it), and **Accepted** tasks are approved by you for that exact revision. Hover over or focus a badge to "
         "read why. **Task README** opens the full case documentation, and **View task** opens it in Harbor's task "

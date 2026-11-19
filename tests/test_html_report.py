@@ -921,7 +921,7 @@ def test_browser_task_status_is_separate_from_inventory_status(tmp_path):
     assert all(item["status"] == "unverified" for item in data["tasks"])
     assert [item["path"] for item in data["tasks"]] == [draft, accepted, unknown]
     markdown = markdown_report(tmp_path, "tasks")
-    assert markdown.index("<code>org/zeta</code>") < markdown.index("<code>org/alpha</code>")
+    assert markdown.index("org/zeta") < markdown.index("org/alpha")
     expected = {
         "harbor:" + path: status for path, status in ((draft, "Draft"), (accepted, "Accepted"), (unknown, "Unknown"))
     }
