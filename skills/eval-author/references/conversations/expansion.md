@@ -127,6 +127,10 @@ and `validation`, initially `null`. A validation record contains
 `sha256`, `status` (`passed`, `failed`, or `blocked`), `source`, and retained
 `evidence: [{path, digest}]`. Record the owning workflow's actual native-control
 outcome, bound to the task revision, following [task validation](../task-validation.md).
+Obtain task `sha256` values from `journey_state.task_digest(repo, task_path)`
+and evidence `digest` values from SHA-256 of the retained files’ actual bytes.
+For failed or blocked validation, use a short user-facing failure or blocker
+reason in `source`; the renderer displays it as the explanation beneath the table.
 A scaffold, filename, saved boolean, or intended repair does not establish a
 passing result. The progress observer checks task and evidence freshness; the
 existing workflow owns native validation, without a second receipt validator.
@@ -145,7 +149,12 @@ artifacts and failed evidence, and repair drafts only through the existing
 [repair procedure](../task-validation.md#repair-and-retain) and its budgets.
 After task or evidence changes, renew only affected validation. Retain historical
 task-map entries after scope edits; they do not replace or reduce the current
-agreed set. Return scope or cost changes to the existing scope checkpoint.
+agreed set. Each agreed task needs a distinct draft path. Before restoring a
+historical scenario that shares the current draft’s path, move the current draft
+to a distinct path, rebind its creation entry under the existing agreement, and
+renew its validation. Then revise scope to include both scenarios; recreate or
+repair the historical draft through the owning workflow. Return scope or cost
+changes to the existing scope checkpoint.
 Derived `creation.ready_for_review` requires current passing validation for the
 complete agreed set. It permits the owning workflow's authored-task review;
 it does not accept tasks, approve their review, authorize agent execution, or

@@ -113,13 +113,13 @@ def render(payload: dict) -> str:
         facts = mapping(payload.get("facts", {}), "audit opening facts", {"selected_improvements", "limits"})
         return _audit_opening(state, facts)
     value = expansion_state.record(state)
-    if payload["stage"] == "expansion_continue" and value is not None and value["schema_version"] == 2:
-        checkpoint = "expansion_progress" if value.get("creation") is not None else "expansion_scope"
-        raise ValueError(f"Use {checkpoint} for the saved expansion checkpoint")
     facts = mapping(payload.get("facts", {}), "expansion facts", {"expansion_observations"})
     progress = expansion_state.derive(state, facts.get("expansion_observations"))
     if progress is None:
         raise ValueError("Save a structured expansion lifecycle before continuation")
+    if payload["stage"] == "expansion_continue" and value is not None and value["schema_version"] == 2:
+        checkpoint = "expansion_progress" if progress["stage"] == "creation" else "expansion_scope"
+        raise ValueError(f"Use {checkpoint} for the saved expansion checkpoint")
     if payload["stage"] == "expansion_progress":
         return _progress(state, progress)
     if payload["stage"] == "expansion_scope":
