@@ -678,6 +678,19 @@ def derive(state: dict, observed: object) -> dict | None:
     }
 
 
+def resume_stage(state: dict) -> str:
+    value = record(state)
+    if value is None or value["schema_version"] != 2:
+        return "expansion_continue"
+    if (value.get("execution") or {}).get("results_review"):
+        return "expansion_completion"
+    if value.get("review") is not None:
+        return "expansion_review"
+    if value.get("creation") is not None:
+        return "expansion_progress"
+    return "expansion_scope"
+
+
 def entry_ready(state: dict) -> bool:
     from journey_state import active_blockers, checklist
 

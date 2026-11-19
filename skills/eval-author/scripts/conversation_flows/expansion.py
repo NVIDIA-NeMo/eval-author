@@ -3,9 +3,9 @@
 
 """Render expansion entry, planning, and creation checkpoints."""
 
-import re
 from typing import Literal, TypedDict, cast
 
+import audit_state
 import conversation_templates as shared
 import expansion_state
 import journey_state
@@ -355,14 +355,18 @@ def _completion(state: dict, progress: dict, facts: dict) -> str:
     _checkpoint(state, progress, reviewing=True)
     if not progress["complete"]:
         raise ValueError("Accept every agreed task's current results before offering completion choices")
+    if state["journey_status"].get("expand") == "complete":
+        return "\n\n".join([copy.COMPLETION_HEADING, copy.COMPLETION_ACCEPTED, copy.COMPLETION_FINISHED]) + "\n"
     remaining = facts.get("remaining_improvements")
-    if not isinstance(remaining, dict) or len(remaining) > 1000:
+    if not isinstance(remaining, dict):
         raise ValueError("Supply the inspected remaining supported improvements, or an empty object")
     handoff = state["scopes"]["expand"].get("audit_handoff")
     selected = handoff["recommendation_ids"] if handoff else []
     if remaining and not handoff:
         raise ValueError("Remaining audit improvements require an originating audit handoff")
-    if any(not isinstance(key, str) or not re.fullmatch(r"R[1-9][0-9]*", key) or key in selected for key in remaining):
+    if remaining:
+        audit_state.recommendation_ids(list(remaining))
+    if any(key in selected for key in remaining):
         raise ValueError("Offer only supported, unselected recommendations from the originating audit")
     question = copy.COMPLETION_WITH_IMPROVEMENTS if remaining else copy.COMPLETION_QUESTION
     if progress["pending_question"] != question:
@@ -398,13 +402,7 @@ def render(payload: dict) -> str:
         return _audit_opening(state, facts)
     value = expansion_state.record(state)
     if payload["stage"] == "expansion_continue" and value is not None and value["schema_version"] == 2:
-        checkpoint = (
-            "expansion_review"
-            if value.get("review") is not None
-            else "expansion_progress"
-            if value.get("creation") is not None
-            else "expansion_scope"
-        )
+        checkpoint = expansion_state.resume_stage(state)
         raise ValueError(f"Use {checkpoint} for the saved expansion checkpoint")
     allowed = {"expansion_observations"}
     if payload["stage"] == "expansion_results":
@@ -420,6 +418,8 @@ def render(payload: dict) -> str:
     if payload["stage"] == "expansion_results":
         return _results(state, progress, facts)
     if payload["stage"] == "expansion_review":
+        if progress["complete"]:
+            raise ValueError("Use expansion_completion for accepted expansion results")
         return _review(state, progress, facts["expansion_observations"])
     if progress["stage"] in {"task_review", "execution"}:
         raise ValueError("Use expansion_review for saved task review and execution settings")

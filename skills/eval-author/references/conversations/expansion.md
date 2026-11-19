@@ -333,7 +333,12 @@ user's choice; start no audit, additional construction, or agent run automatical
 
 On a reply, clear the answered pending question through the existing
 revision-checked update. Finishing records `journey_status.expand: complete`
-only while all agreed tasks remain accepted. An audit choice uses the existing
+only while all agreed tasks remain accepted. On resume, route saved results-review
+checkpoints to `expansion_completion`, using freshly reconciled observations and
+remaining-improvement facts for an unanswered choice. A finished expansion uses
+the same renderer to acknowledge finishing without asking the answered question
+again. Stale acceptance must be resolved before presenting completion.
+An audit choice uses the existing
 [return-to-audit route](../shared-prerequisites.md#return-to-an-audit), preserving
 the task and run evidence. Selecting another recommendation uses the existing
 reviewed audit next-action handoff and scope checkpoint; do not extend the

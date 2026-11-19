@@ -53,6 +53,7 @@ def test_completion_offers_audit_or_finish_and_resumes_without_starting_work(mod
     assert modules[0].view(resumed)["expansion"]["complete"]
     assert resumed["pending_question"] == saved["pending_question"]
     assert resumed["next_handoff"] is None
+    assert_completion_resume(modules, resumed, output)
     assert "Other supported" not in output
     value["execution"]["pending"] = None
     saved = save(modules, tmp_path, resumed, value)
@@ -60,6 +61,14 @@ def test_completion_offers_audit_or_finish_and_resumes_without_starting_work(mod
         tmp_path, {"journey_status": {"expand": "complete"}}, expected_revision=saved["revision"]
     )
     assert modules[0].view(finished)["checklist"][2]["complete"]
+    resumed = modules[0].initialize(tmp_path, journey="expand")
+    from conversation_flows import expansion_templates as templates
+
+    expected_finished = (
+        "\n\n".join([templates.COMPLETION_HEADING, templates.COMPLETION_ACCEPTED, templates.COMPLETION_FINISHED]) + "\n"
+    )
+    assert_completion_resume(modules, resumed, expected_finished)
+    assert "Would you like" not in expected_finished
 
 
 @pytest.mark.parametrize("change", ["draft", "task", "evidence", "missing", "agent", "scope", "settings", "rerun"])
@@ -123,4 +132,57 @@ def test_remaining_improvements_require_audit_context_and_exclude_selected_ids(m
         modules[2].render(payload)
     payload["facts"]["remaining_improvements"] = {}
     with pytest.raises(ValueError, match="actual completion question"):
+        modules[2].render(payload)
+
+
+def assert_completion_resume(modules, saved, expected, remaining=None):
+    for stage in ("resume", "expansion_continue", "expansion_review"):
+        payload = expansion_payload(modules, saved)
+        payload["stage"] = stage
+        if stage == "resume":
+            payload.pop("facts")
+        with pytest.raises(ValueError, match="Use expansion_completion"):
+            modules[2].render(payload)
+    payload = expansion_payload(modules, saved)
+    payload["stage"] = "expansion_completion"
+    if remaining is not None or saved["journey_status"].get("expand") != "complete":
+        payload["facts"]["remaining_improvements"] = remaining or {}
+    assert modules[2].render(payload) == expected
+    assert "next step is to run" not in expected
+
+
+def test_completion_resume_retains_remaining_improvements(modules, tmp_path):
+    saved, value = accepted(modules, tmp_path, path="audit_tool_gap")
+    remaining = {"R2": "Add an inspection task"}
+    _, _, output = render(modules, tmp_path, saved, value, remaining)
+    resumed = modules[0].initialize(tmp_path, journey="expand")
+    assert_completion_resume(modules, resumed, output, remaining)
+
+
+@pytest.mark.parametrize("change", ["task", "evidence"])
+def test_explicit_recompletion_rejects_stale_acceptance(modules, tmp_path, change):
+    saved, value = accepted(modules, tmp_path)
+    saved = modules[0].update(tmp_path, {"journey_status": {"expand": "complete"}}, expected_revision=saved["revision"])
+    task = next(iter(value["creation"]["tasks"].values()))
+    path = (
+        tmp_path / task["path"] / "instruction.md"
+        if change == "task"
+        else tmp_path / saved["tasks"][task["path"]]["evidence"][0]["path"]
+    )
+    path.write_text("Changed since acceptance")
+    resumed = modules[0].initialize(tmp_path, journey="expand")
+    before = modules[0].state_path(tmp_path).read_bytes()
+    with pytest.raises(ValueError, match="Expansion completion requires current user acceptance"):
+        modules[0].update(tmp_path, {"journey_status": {"expand": "complete"}}, expected_revision=resumed["revision"])
+    assert modules[0].state_path(tmp_path).read_bytes() == before
+    demoted = modules[0].update(tmp_path, {}, expected_revision=resumed["revision"])
+    assert demoted["journey_status"]["expand"] == "in_progress"
+
+
+@pytest.mark.parametrize("ids", [["R0"], ["R01"], ["arbitrary"], list(range(1001))])
+def test_remaining_improvement_ids_use_audit_validation(modules, tmp_path, ids):
+    saved, value = accepted(modules, tmp_path, path="audit_tool_gap")
+    _, payload, _ = render(modules, tmp_path, saved, value, {"R2": "Supported task"})
+    payload["facts"]["remaining_improvements"] = dict.fromkeys(ids, "Unsupported ID")
+    with pytest.raises(ValueError, match="unique report recommendation IDs"):
         modules[2].render(payload)
