@@ -335,7 +335,11 @@ def test_reconfirmed_ethos_reconciles_the_question_without_reopening_scope(modul
     if change == "unchanged":
         review = state.update(
             tmp_path,
-            {"ethos": {"stage": "review"}, "pending_question": "Does this intent still match?"},
+            {
+                "ethos": {"stage": "review"},
+                "pending_question": "Does this intent still match?",
+                "next_handoff": "ethos-orchestrate",
+            },
             expected_revision=saved["revision"],
         )
     else:
@@ -373,6 +377,64 @@ def test_reconfirmed_ethos_reconciles_the_question_without_reopening_scope(modul
     output = renderer.render(resume_payload(modules, tmp_path, updated))
     assert recovery_question in output
     assert answered_question not in output and QUESTION not in output
+
+
+@pytest.mark.parametrize("path", ["starter_suite", "recorded_interaction"])
+@pytest.mark.parametrize("approved", [False, True])
+@pytest.mark.parametrize("recovery", ["agent", "rebind", "blocker", "authoring"])
+def test_ethos_confirmation_preserves_other_owners_questions(modules, tmp_path, path, approved, recovery):
+    state, expansion, renderer = modules
+    tmp_path = tmp_path / "repo"
+    tmp_path.mkdir()
+    saved = start(modules, tmp_path, path)
+    if approved:
+        value = copy.deepcopy(expansion.record(saved))
+        value["decision"] = {"kind": "approved", "source": "User approves"}
+        value["pending"] = None
+        saved = save_scope(modules, tmp_path, saved, value)
+    if not (tmp_path / "ETHOS.md").exists():
+        (tmp_path / "ETHOS.md").write_text("# Confirmed agent intent\n")
+    if recovery == "agent":
+        saved = state.initialize(tmp_path, agent="other-agent")
+    elif recovery == "rebind":
+        original_repo = tmp_path
+        tmp_path = original_repo.with_name(original_repo.name + "-relocated")
+        original_repo.rename(tmp_path)
+        saved = state.rebind(tmp_path, previous_repository=str(original_repo), expected_revision=saved["revision"])
+    else:
+        patch = {
+            "ethos": {"stage": "review"},
+            "pending_question": "Restore access to the fixtures?" if recovery == "blocker" else "Which case next?",
+            "next_handoff": "ethos-orchestrate" if recovery == "blocker" else "eval-author-task-create",
+        }
+        if recovery == "blocker":
+            patch["blockers"] = [{"id": "fixture_access", "phase": "setup", "message": "No fixture access"}]
+        saved = state.update(tmp_path, patch, expected_revision=saved["revision"])
+    saved = state.update(
+        tmp_path,
+        {"prerequisites": {key: {"status": "confirmed", "source": "Fresh probe"} for key in state.PREREQUISITES}},
+        expected_revision=saved["revision"],
+    )
+    question = saved["pending_question"]
+    scope = copy.deepcopy(saved["scopes"]["expand"])
+    confirmed = state.confirm_ethos(
+        tmp_path,
+        reviewed_digest=state.ethos_digest(tmp_path),
+        source="User confirms reviewed behavior",
+        validation="Parser passed",
+        expected_revision=saved["revision"],
+    )
+    resumed = state.initialize(tmp_path, journey="expand")
+    assert confirmed["pending_question"] == resumed["pending_question"] == question
+    assert resumed["scopes"]["expand"] == scope
+    payload = resume_payload(modules, tmp_path, resumed)
+    if recovery == "blocker":
+        payload["facts"]["blockers"] = [
+            {"id": "fixture_access", "step": "Restore access", "reason": "No fixture access", "needed": "Grant access"}
+        ]
+    output = renderer.render(payload)
+    assert question in output.replace("\\_", "_")
+    assert QUESTION not in output
 
 
 @pytest.mark.parametrize("path", ["starter_suite", "recorded_interaction"])

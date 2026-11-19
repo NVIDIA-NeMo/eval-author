@@ -283,8 +283,20 @@ def checkpoint_ready(state: dict) -> bool:
 
 def reconcile_question(repo, state: dict, *, answered_ethos_review: bool = False) -> None:
     value = record(state)
-    if value is not None and value["schema_version"] == 2 and answered_ethos_review:
-        state["pending_question"] = None
+    if value is not None and value["schema_version"] == 2:
+        from journey_state import active_blockers, checklist
+
+        scope_question = value["pending"]["question"] if value["pending"] else None
+        ethos_question = (
+            state["next_handoff"] == "ethos-orchestrate"
+            and checklist(state)[0]["complete"]
+            and not any(blocker["phase"] in {"setup", "ethos"} for blocker in active_blockers(state))
+        )
+        if answered_ethos_review and (
+            ethos_question or state["pending_question"] == scope_question and checkpoint_ready(state)
+        ):
+            state["pending_question"] = None
+        answered_ethos_review = False
     if (
         value is None
         or not value["pending"]
