@@ -282,9 +282,9 @@ def test_shared_recovery_forwards_observations_after_results_acceptance(modules,
     ):
         payload = expansion_payload(modules, saved)
         payload["stage"] = expansion_stage
-        with pytest.raises(ValueError) as error:
+        owner = "shared onboarding" if recovery == "setup" else "context changed; reconcile it through"
+        with pytest.raises(ValueError, match=owner):
             renderer.render(payload)
-        assert "Clear the stale completion question" not in str(error.value)
     assert state.state_path(tmp_path).read_bytes() == before
 
 
@@ -336,7 +336,7 @@ def test_already_reviewed_results_with_unaccepted_task_return_to_task_review(mod
     assert "final acceptance requires your approval of these results" not in output
 
 
-@pytest.mark.parametrize("improvements", [False, True])
+@pytest.mark.parametrize("path", ["starter_suite", "audit_tool_gap", "recorded_interaction"])
 @pytest.mark.parametrize(
     "phase,blocker_id",
     [
@@ -351,11 +351,11 @@ def test_already_reviewed_results_with_unaccepted_task_return_to_task_review(mod
 @pytest.mark.parametrize("state_only", [False, True])
 @pytest.mark.parametrize("finished", [False, True])
 def test_blocker_recovery_has_one_owner_and_restores_the_saved_choice(
-    modules, tmp_path, improvements, phase, blocker_id, question, state_only, finished
+    modules, tmp_path, path, phase, blocker_id, question, state_only, finished
 ):
     state, expansion, renderer = modules
-    saved, value = accepted(modules, tmp_path, path="audit_tool_gap" if improvements else "starter_suite")
-    remaining = {"R2": "Add an inspection task"} if improvements else {}
+    saved, value = accepted(modules, tmp_path, path=path)
+    remaining = {"R2": "Add an inspection task"} if path == "audit_tool_gap" else {}
     saved, _, original_output = render(modules, tmp_path, saved, value, remaining)
     completion_question = value["execution"]["pending"]["question"]
     if finished:

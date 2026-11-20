@@ -365,7 +365,8 @@ The renderer selects active blockers from state:
 - `setup` and `ethos` blockers always apply. At `prerequisite_results`, these
   are the only active phases because artifact checks are still deferred.
 - At later stages, current-journey blockers apply only after both shared steps
-  are complete.
+  are complete, or the selected expansion flow's existing
+  [scoped Ethos exception](expansion.md#state-authority) establishes shared readiness.
   Before downstream work starts, `environment`, `services`, `data`,
   `agent_connection`, and `model_credentials` remain deferred; another
   current-journey blocker, such as a missing authoring route, can block the handoff.

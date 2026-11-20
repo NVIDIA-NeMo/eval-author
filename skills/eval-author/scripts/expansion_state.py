@@ -786,35 +786,40 @@ def checkpoint(state: dict, progress: dict | None) -> ExpansionCheckpoint:
     return {"stage": "resume" if shared else stage, "continuation": stage, "pending_question": current_question}
 
 
-def entry_ready(state: dict) -> bool:
-    from journey_state import active_blockers, checklist
+def _shared_ready(state: dict, *, scoped: bool) -> bool:
+    from journey_state import checklist
 
+    if state["journey"] != "expand" or state["ethos"]["remaining_questions"]:
+        return False
+    if not scoped:
+        return all(row["complete"] for row in checklist(state)[:2])
     return (
-        state["journey"] == "expand"
-        and not state["ethos"]["remaining_questions"]
-        and not active_blockers(state)
-        and all(row["complete"] for row in checklist(state)[:2])
+        all(
+            state["prerequisites"].get(key, {}).get("status") in ("verified", "confirmed")
+            for key in ("python", "runtime")
+        )
+        and not any(row["phase"] in ("setup", "ethos") for row in state["blockers"])
+        and state["ethos"]["stage"] not in ("review", "interview", "draft", "write")
     )
+
+
+def entry_ready(state: dict) -> bool:
+    from journey_state import active_blockers
+
+    return _shared_ready(state, scoped=False) and not active_blockers(state)
 
 
 def checkpoint_ready(state: dict) -> bool:
     value = record(state)
     if value is None or value["schema_version"] == 1 or value["path"] != "recorded_interaction":
         return entry_ready(state)
-    return (
-        state["journey"] == "expand"
-        and all(
-            state["prerequisites"].get(key, {}).get("status") in ("verified", "confirmed")
-            for key in ("python", "runtime")
-        )
-        and not any(row["phase"] in ("setup", "ethos", "expand") for row in state["blockers"])
-        and state["ethos"]["stage"] not in ("review", "interview", "draft", "write")
-        and not state["ethos"]["remaining_questions"]
-    )
+    return review_ready(state) and not any(row["phase"] == "expand" for row in state["blockers"])
 
 
 def review_ready(state: dict) -> bool:
-    return checkpoint_ready({**state, "blockers": [item for item in state["blockers"] if item["phase"] != "expand"]})
+    value = record(state)
+    scoped = bool(value and value["schema_version"] == 2 and value["path"] == "recorded_interaction")
+    return _shared_ready(state, scoped=scoped)
 
 
 def presentation_state(state: dict, progress: dict | None, *, answered_ethos_review: bool = False) -> dict:
@@ -822,10 +827,12 @@ def presentation_state(state: dict, progress: dict | None, *, answered_ethos_rev
     if value is None or progress is None:
         return state
     if not value.get("execution"):
-        if not progress["context_current"] or not checkpoint_ready(state):
+        ready = review_ready(state) if value.get("review") else checkpoint_ready(state)
+        if not progress["context_current"] or not ready:
             return state
         if (
             answered_ethos_review
+            and checkpoint_ready(state)
             or state["pending_question"] is None
             or state["pending_question"] in saved_questions(value)
         ):

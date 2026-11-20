@@ -326,6 +326,33 @@ def test_withdrawing_review_display_invalidates_approval_and_run_permission(modu
     assert not current["review"]["approved"] and not current["execution"]["authorized"]
 
 
+@pytest.mark.parametrize("path", ["starter_suite", "audit_tool_gap", "recorded_interaction"])
+@pytest.mark.parametrize("blocker_id", ["agent_connection", "model_credentials"])
+def test_stale_task_review_with_deferred_execution_dependency_remains_renderable(modules, tmp_path, path, blocker_id):
+    state, expansion, renderer = modules
+    saved, value = ready(modules, tmp_path, path=path)
+    saved = state.update(
+        tmp_path,
+        {"blockers": [{"id": blocker_id, "phase": "expand", "message": "Needed for later execution"}]},
+        expected_revision=saved["revision"],
+    )
+    assert saved["pending_question"] == REVIEW_QUESTION
+    (tmp_path / ".eval-author/report.html").write_text("Regenerated task report")
+    saved = state.initialize(tmp_path, journey="expand")
+    assert saved["pending_question"] is None
+    assert not state.active_blockers(saved)
+    assert expansion.record(saved)["review"]["pending"] == value["review"]["pending"]
+    data = expansion_payload(modules, saved)
+    before = state.state_path(tmp_path).read_bytes()
+    for stage in ("resume", "expansion_continue"):
+        with pytest.raises(ValueError, match="Use expansion_review"):
+            renderer.render({**data, "stage": stage})
+    output = renderer.render({**data, "stage": "expansion_review"})
+    assert "The task review reports need to be refreshed." in output
+    assert REVIEW_QUESTION not in output
+    assert state.state_path(tmp_path).read_bytes() == before
+
+
 def test_ethos_confirmation_does_not_clear_review_dependency_recovery(modules, tmp_path):
     saved, _ = ready(modules, tmp_path)
     question = "Restore the verifier dependency before continuing."
