@@ -55,6 +55,13 @@ def save_scope(modules, repo, saved, value):
     )
 
 
+def approve_scope(modules, repo, saved):
+    value = copy.deepcopy(modules[1].record(saved))
+    value["decision"] = {"kind": "approved", "source": "User approves"}
+    value["pending"] = None
+    return save_scope(modules, repo, saved, value)
+
+
 def start(modules, repo, path="starter_suite", *, existing_ethos=False):
     state, expansion, _ = modules
     saved = (
@@ -242,10 +249,7 @@ def test_scope_resume_rejects_stale_context_until_a_review_question_is_saved(mod
     state, expansion, renderer = modules
     saved = start(modules, tmp_path, "audit_tool_gap")
     if approved:
-        value = copy.deepcopy(expansion.record(saved))
-        value["decision"] = {"kind": "approved", "source": "User approves"}
-        value["pending"] = None
-        saved = save_scope(modules, tmp_path, saved, value)
+        saved = approve_scope(modules, tmp_path, saved)
     if change == "provider":
         state.initialize(tmp_path, setup="harbor")
         saved = setup_ready(state, tmp_path, journey="expand", setup="harbor")
@@ -351,10 +355,7 @@ def test_reconfirmed_ethos_reconciles_the_question_without_reopening_scope(modul
     state, expansion, renderer = modules
     saved = start(modules, tmp_path)
     if approved:
-        value = copy.deepcopy(expansion.record(saved))
-        value["decision"] = {"kind": "approved", "source": "User approves"}
-        value["pending"] = None
-        saved = save_scope(modules, tmp_path, saved, value)
+        saved = approve_scope(modules, tmp_path, saved)
     original_scope = copy.deepcopy(expansion.record(saved))
     original_ethos = (tmp_path / "ETHOS.md").read_bytes()
     if change == "unchanged":
@@ -413,10 +414,7 @@ def test_ethos_confirmation_preserves_other_owners_questions(modules, tmp_path, 
     tmp_path.mkdir()
     saved = start(modules, tmp_path, path)
     if approved:
-        value = copy.deepcopy(expansion.record(saved))
-        value["decision"] = {"kind": "approved", "source": "User approves"}
-        value["pending"] = None
-        saved = save_scope(modules, tmp_path, saved, value)
+        saved = approve_scope(modules, tmp_path, saved)
     if not (tmp_path / "ETHOS.md").exists():
         (tmp_path / "ETHOS.md").write_text("# Confirmed agent intent\n")
     if recovery == "agent":
@@ -470,10 +468,7 @@ def test_generated_ethos_review_clears_under_blockers(modules, tmp_path, path, a
     state, expansion, renderer = modules
     saved = start(modules, tmp_path, path, existing_ethos=True)
     if approved:
-        value = copy.deepcopy(expansion.record(saved))
-        value["decision"] = {"kind": "approved", "source": "User approves"}
-        value["pending"] = None
-        saved = save_scope(modules, tmp_path, saved, value)
+        saved = approve_scope(modules, tmp_path, saved)
     blocked = state.update(
         tmp_path,
         {
@@ -651,10 +646,7 @@ def test_scope_cannot_establish_journey_completion(modules, tmp_path, approved):
     state, expansion, _ = modules
     saved = start(modules, tmp_path)
     if approved:
-        value = copy.deepcopy(expansion.record(saved))
-        value["decision"] = {"kind": "approved", "source": "User approves"}
-        value["pending"] = None
-        saved = save_scope(modules, tmp_path, saved, value)
+        saved = approve_scope(modules, tmp_path, saved)
     before = state.state_path(tmp_path).read_bytes()
     with pytest.raises(ValueError, match="cannot establish completion"):
         state.update(tmp_path, {"journey_status": {"expand": "complete"}}, expected_revision=saved["revision"])

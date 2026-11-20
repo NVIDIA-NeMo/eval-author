@@ -265,7 +265,7 @@ When `scopes.expand.lifecycle` is present, use the
 [expansion continuation contract](expansion.md) after shared onboarding or
 recovery is complete. These onboarding stages remain available for unresolved
 prerequisites, Ethos, and active blockers.
-For expand journeys with a schema-v2 scope checkpoint, `results`, `ethos`,
+For expand journeys with a saved `scope` checkpoint, `results`, `ethos`,
 `confirmed`, and `resume` require fresh expansion observations whenever they
 reach the ready scope checkpoint. Read `journey_state.py show` without
 `--state-only` and forward its `expansion_observations` as
