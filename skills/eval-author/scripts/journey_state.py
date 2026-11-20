@@ -27,7 +27,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import audit_state  # noqa: E402
 import expansion_state  # noqa: E402
 import first_eval_state  # noqa: E402
-from conversation_templates import CHECKLIST_LABELS, JOURNEYS  # noqa: E402
+from conversation_templates import (  # noqa: E402
+    CHECKLIST_LABELS,
+    ETHOS_CHANGED_QUESTION,
+    ETHOS_SELECTED_QUESTION,
+    JOURNEYS,
+)
 from interaction_types import user_simulation_enabled, validate_user_simulation  # noqa: E402
 from runtime_policy import load as runtime_policy  # noqa: E402
 from working_paths import (  # noqa: E402
@@ -422,7 +427,7 @@ def load_state(repo: Path, *, state_only: bool = False) -> dict:
             )
             invalidate_scopes(state)
             state["next_handoff"] = "ethos-orchestrate"
-            state["pending_question"] = "ETHOS.md changed or is unavailable; review its intended behavior again."
+            state["pending_question"] = ETHOS_CHANGED_QUESTION
     if (
         state["ethos"]["draft_confirmed"]
         and state["ethos"]["stage"] != "complete"
@@ -1068,7 +1073,7 @@ def update(repo: Path, patch: dict, *, expected_revision: int | None = None, sta
             )
             invalidate_scopes(state)
             if "pending_question" not in patch:
-                state["pending_question"] = "Review the selected ETHOS.md and confirm its intended behavior."
+                state["pending_question"] = ETHOS_SELECTED_QUESTION
             if "next_handoff" not in patch:
                 state["next_handoff"] = "ethos-orchestrate"
         revising_intent = proposed.get("stage", "complete") not in {"complete", "review"}
