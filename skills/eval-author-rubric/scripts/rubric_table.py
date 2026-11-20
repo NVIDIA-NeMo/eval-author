@@ -23,7 +23,7 @@ from typing import Any
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "eval-author/scripts"))
 from eval_author_shared.task_evidence import loads  # noqa: E402
 from measure import measure  # noqa: E402
-from rubric_evidence_scoring import canonical_definitions, definitions_digest  # noqa: E402
+from rubric_evidence_scoring import canonical_definitions, definitions_digest, method_definitions  # noqa: E402
 
 SCOPES = {
     "synthetic-scoring-demonstration": "simulated",
@@ -38,10 +38,10 @@ def reason(row: dict[str, Any], definition: dict[str, Any]) -> str:
     return (row.get("remaining_gaps") or ["No evidence selected."])[0]
 
 
-def rows(report: dict[str, Any]) -> list[dict[str, Any]]:
-    definitions = canonical_definitions()
-    if set(report["items"]) != set(definitions):
-        raise ValueError("report does not cover the 23 rubric criteria")
+def rows(report: dict[str, Any], definitions: dict[str, dict[str, Any]] | None = None) -> list[dict[str, Any]]:
+    definitions = canonical_definitions() if definitions is None else definitions
+    if set(report["items"]) != set(canonical_definitions()) | set(method_definitions()):
+        raise ValueError("report does not cover the 23 rubric criteria and METHOD-J1")
     return [
         {
             "id": ident,
@@ -69,10 +69,24 @@ def render(report: dict[str, Any], title: str) -> str:
         "|---|---|---|---|---|---|---|",
     ]
     for row in table:
-        score = "U" if row["score"] is None else str(row["score"])
-        cells = [row["id"], row["title"], row["level"], score, row["strength"] or "", row["evidence"], row["reason"]]
-        lines.append("| " + " | ".join(str(cell).replace("|", "\\|") for cell in cells) + " |")
+        lines.append(line(row))
+    lines += [
+        "",
+        "## Method qualification",
+        "",
+        "METHOD-J1 scores the corroboration behind the 3s above. It is not part of the total.",
+        "",
+        "| Criterion | Title | Level | Score | Strength | Evidence | Reason |",
+        "|---|---|---|---|---|---|---|",
+        *(line(row) for row in rows(report, method_definitions())),
+    ]
     return "\n".join(lines) + "\n"
+
+
+def line(row: dict[str, Any]) -> str:
+    score = "U" if row["score"] is None else str(row["score"])
+    cells = [row["id"], row["title"], row["level"], score, row["strength"] or "", row["evidence"], row["reason"]]
+    return "| " + " | ".join(str(cell).replace("|", "\\|") for cell in cells) + " |"
 
 
 def render_html(report: dict[str, Any], title: str) -> str:
@@ -91,7 +105,7 @@ def render_html(report: dict[str, Any], title: str) -> str:
             )
         )
         + "</tr>"
-        for row in rows(report)
+        for row in rows(report) + rows(report, method_definitions())
     )
     style = (
         ":root{color-scheme:light dark}body{font:14px system-ui,sans-serif;margin:24px}"
@@ -153,7 +167,7 @@ def main(argv: list[str] | None = None) -> int:
         print("Assessment could not complete. Check the selection and its evidence.", file=sys.stderr)
         return 2
     print(markdown, end="")
-    return 0 if all(row["score"] is not None for row in report["items"].values()) else 1
+    return 0 if all(report["items"][ident]["score"] is not None for ident in canonical_definitions()) else 1
 
 
 if __name__ == "__main__":

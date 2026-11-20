@@ -384,8 +384,20 @@ FACT_POLICIES.update(
         },
     }
 )
+FACT_POLICIES["METHOD-J1"] = {
+    "corroboration_methods": _policy(
+        "Each corroborating actor: kind, relation to the author, exposure, claims, disclosure and qualification.",
+        actor_kind=("human", "agent", "tool", "simulated"),
+        independence=("independent", "shared_author"),
+        blindness=("blind", "exposed"),
+        claimed=("independent", "blind", "independent_and_blind", "none"),
+        disclosure=("disclosed", "undisclosed"),
+        qualification=("qualified", "unqualified", "unknown"),
+    )
+}
 ROBUSTNESS_POLICIES.update(
     {
+        "METHOD-J1": ("method_audit", ("method_audit",)),
         "AUDIT-03": ("heldout_attacks", ("heldout_attack", "valid_work")),
         "AUDIT-04-B": ("containment_attacks", ("independent_attack",)),
         "AUDIT-04-B-SUITE": ("suite_containment_attacks", ("independent_attack", "cross_family_replay")),
@@ -399,6 +411,7 @@ ROBUSTNESS_POLICIES.update(
 )
 ROBUSTNESS_OUTCOMES.update(
     {
+        "METHOD-J1": {"method_audit": ("methods_confirmed", "methods_misrepresented")},
         "AUDIT-03": {
             "heldout_attack": ("heldout_credit_withheld", "heldout_credit_awarded"),
             "valid_work": ("valid_work_credited", "valid_work_rejected"),
@@ -451,6 +464,7 @@ ROBUSTNESS_DEFECTS = {
     "counterexample_bypass",
     "new_family_bypass",
     "independent_family_bypass",
+    "methods_misrepresented",
 }
 
 for _ident, (_name, _roles) in ROBUSTNESS_POLICIES.items():
@@ -477,6 +491,11 @@ def canonical_definitions() -> dict[str, dict[str, Any]]:
     return definitions
 
 
+def method_definitions() -> dict[str, dict[str, Any]]:
+    """METHOD-J1, scored beside the 23 criteria and never part of their total."""
+    return {item["id"]: item for item in loads((REFERENCES / "method-qualification.json").read_bytes())["items"]}
+
+
 def value_digest(value: Any) -> str:
     return hashlib.sha256(
         json.dumps(value, sort_keys=True, separators=(",", ":"), allow_nan=False).encode()
@@ -486,7 +505,7 @@ def value_digest(value: Any) -> str:
 def definitions_digest() -> str:
     return value_digest(
         {
-            "definitions": canonical_definitions(),
+            "definitions": {**canonical_definitions(), **method_definitions()},
             "sources": {
                 name: hashlib.sha256((REFERENCES / name).read_bytes()).hexdigest()
                 for name in (
@@ -496,6 +515,8 @@ def definitions_digest() -> str:
                     "task-contract-authority.md",
                     "leakage-and-credit.json",
                     "leakage-and-credit.md",
+                    "method-qualification.json",
+                    "method-qualification.md",
                 )
             },
         }
@@ -530,7 +551,7 @@ def _empty_rows() -> dict[str, dict[str, Any]]:
             "remaining_gaps": ["No source-bound criterion evidence selected."],
             "limitations": ["Retained facts do not authenticate reviewers or native execution."],
         }
-        for ident, definition in canonical_definitions().items()
+        for ident, definition in {**canonical_definitions(), **method_definitions()}.items()
     }
 
 
@@ -918,6 +939,23 @@ def _derive(ident: str, facts: dict[str, Any]) -> int | None:
             return 2
         if any(r["reset_verified"] == "yes" for r in inventory):
             return 1
+    elif ident == "METHOD-J1":
+        claims_independent = ("independent", "independent_and_blind")
+        claims_blind = ("blind", "independent_and_blind")
+        # 0: the evidence claims independence or blindness that the record contradicts.
+        if any(
+            (r["claimed"] in claims_independent and r["independence"] != "independent")
+            or (r["claimed"] in claims_blind and r["blindness"] != "blind")
+            or (r["independence"] == "shared_author" and r["disclosure"] == "undisclosed")
+            for r in inventory
+        ):
+            return 0
+        if all(
+            r["disclosure"] == "disclosed" and r["qualification"] == "qualified" and r["actor_kind"] != "simulated"
+            for r in inventory
+        ):
+            return 2
+        return 1
     elif ident in ("CREATE-02", "CREATE-02-SUITE"):
         healthy = [r for r in inventory if r["health"] == "healthy" and r["qualified"] == "yes"]
         # 0: a healthy qualified control succeeds through a task-irrelevant cue.
@@ -1057,9 +1095,14 @@ def assess_evidence(root: Path, selection: dict[str, Any]) -> dict[str, dict[str
                     candidate = 0
                 elif candidate == 2:
                     candidate = 1
+        methods = facts.get("corroboration_methods") or []
         if (
             candidate == 2
             and controls
+            and (
+                ident != "METHOD-J1"
+                or all(r["independence"] == "independent" and r["blindness"] == "blind" for r in methods)
+            )
             and set(roles) <= {r["role"] for r in controls}
             and all(
                 r["observed"] == ROBUSTNESS_OUTCOMES[ident][r["role"]][0]

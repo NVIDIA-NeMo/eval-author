@@ -266,6 +266,20 @@ VECTORS = {
         {"outcome": "bypass"},
         {"outcome": "confounded"},
     ),
+    "METHOD-J1": (
+        "corroboration_methods",
+        {
+            "id": "reviewer",
+            "actor_kind": "human",
+            "independence": "independent",
+            "blindness": "blind",
+            "claimed": "none",
+            "disclosure": "disclosed",
+            "qualification": "qualified",
+        },
+        {"claimed": "independent", "independence": "shared_author"},
+        {"qualification": "unknown"},
+    ),
     "CREATE-02-SUITE": (
         "family_cue_controls",
         {"id": "cue_only", "cue_class": "cue_only", "family": "new-a", "authorship": "independent", **CUE},

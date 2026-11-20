@@ -34,11 +34,13 @@ sys.path.insert(0, str(TOOLS))
 sys.path.insert(0, str(ROOT / "skills/eval-author/scripts"))
 sys.path.insert(0, str(ROOT / "skills/eval-author-rubric/scripts"))
 from native import FREEZE, native_facts  # noqa: E402
+from rubric_authority import check_authority  # noqa: E402
 from rubric_evidence_scoring import (  # noqa: E402
     ROBUSTNESS_OUTCOMES,
     ROBUSTNESS_POLICIES,
     canonical_definitions,
     definitions_digest,
+    method_definitions,
     value_digest,
 )
 from rubric_leakage import scan_task  # noqa: E402
@@ -62,6 +64,7 @@ EVIDENCE_MUTATIONS = {
     "misreported-config": "The report states a 300 s agent timeout; task.toml declares 30 s.",
     "unmatched-comparison": "The split-refund policy gets a larger action budget, with no rationale.",
     "family-cue-bypass": "In the interval-reservation family, a cue-only control earns credit.",
+    "undisclosed-self-corroboration": "Claude's corroboration is presented as independent review.",
 }
 # Edits applied to the materialized task after its controls run (the verifier does not read these files).
 LOCAL_EDITS = {
@@ -151,8 +154,8 @@ ATTACK_PANEL = {
     "realistic_wrong": "wrong-amount",
 }
 AUDIT03_HELDOUT = ("duplicate-ledger", "late-approval", "missing-approval", "protected-mutation")
-# In this simulation the task author is simulated and Claude acts as the independent reviewer.
-AUTHOR, INDEPENDENT = "task-author-sim", "claude-opus-5-5-independent-reviewer"
+# The task author is simulated. Claude corroborates where no panel or recorded review does.
+AUTHOR, INDEPENDENT = "task-author-sim", "claude-opus-5-5-reviewer"
 
 
 TABLE = ROOT / "skills/eval-author-rubric/scripts/rubric_table.py"
@@ -309,6 +312,47 @@ def reset_probe(case_dir: Path, task: Path) -> dict[str, bool | None]:
     return result
 
 
+AUTHORITY_RECORD = ROOT / "evals/scorer-controls"
+RECORD_REVIEWER = "human:recorded-review-2026-11-19"
+
+
+def authority_check(case_dir: Path) -> dict[str, Any]:
+    """Run the authority check on the refund authority record, with this case's reference verifier result."""
+    work = case_dir / "authority"
+    (work / "evals/scorer-controls").mkdir(parents=True)
+    for name in ("authority.json", "contract.json"):
+        (work / "evals/scorer-controls" / name).write_bytes((AUTHORITY_RECORD / name).read_bytes())
+    artifacts = [
+        artifact_record(
+            work,
+            "plan",
+            "evals/scorer-controls/authority.json",
+            "construction",
+            revision="authority-record",
+            source="authority-record",
+        ),
+        artifact_record(
+            work,
+            "spec",
+            "evals/scorer-controls/contract.json",
+            "specification",
+            revision="authority-record",
+            source="authority-record",
+        ),
+    ]
+    selected = {"plan_artifact_id": "plan"}
+    result = case_dir / "controls/reference/logs/checks.json"
+    if result.is_file():
+        (work / "result.json").write_bytes(result.read_bytes())
+        artifacts.append(artifact_record(work, "result", "result.json", "result", revision="case", source="verifier"))
+        selected["result_artifact_id"] = "result"
+    report = check_authority(work, artifacts, selected)
+    return {
+        "requirements": {row["id"]: row["status"] for row in report["requirements"]},
+        "checks": {row["id"]: row["status"] for row in report["checks"]},
+    }
+
+
 def observe(case_dir: Path, mutation: str | None) -> dict[str, Any]:
     """Materialize the task and run every declared control through the real verifier."""
     case_dir.mkdir(exist_ok=True)
@@ -358,6 +402,7 @@ def observe(case_dir: Path, mutation: str | None) -> dict[str, Any]:
         "overlaps": overlaps,
         "cue_controls": cue_controls(case_dir, task, instruction),
         "reset_probe": reset_probe(case_dir, task),
+        "authority": authority_check(case_dir),
         "contract": json.loads(contract_path.read_bytes()) if contract_path.is_file() else None,
         "controls": {
             name: {
@@ -589,7 +634,8 @@ def derive(
             {
                 "id": check,
                 "condition": PUBLIC_PHRASES[check],
-                "authority": "/app/contract.json scoring" if contract_ok else None,
+                # The refund authority record resolves each scored condition to its specification.
+                "authority": o["authority"]["requirements"].get(check) == "resolved" and contract_ok and check or None,
                 "solver_access": "accessible"
                 if contract_ok and "contract.json" in " ".join(docker["copies"])
                 else "denied",
@@ -844,16 +890,63 @@ def derive(
         },
         "task-contract.scoring-authority": {
             "reference": matches("reference"),
-            "scoring_contract": all(matches(n) for n in ctl),
+            "scoring_contract": all(matches(n) for n in ctl)
+            and all(status == "observed" for status in o["authority"]["checks"].values()),
         },
     }
+    # The refund authority record carries a recorded human review of the scoring contract.
+    for ident in ("task-contract.scoring-authority", "task-contract.discoverable-requirements"):
+        actors.setdefault(ident, RECORD_REVIEWER)
+    sim["task-contract.scoring-authority"] = (
+        "Refund authority record checked by rubric_authority; recorded human review."
+    )
     for ident in f:
         name, _ = ROBUSTNESS_POLICIES[ident]
         f[ident][name] = robust(ident, corroboration.get(ident, {}), evidence or "", actors.get(ident, INDEPENDENT))
-    sim["*"] = (
-        "Corroborating controls by an independent actor are simulated premises unless derived from controls above."
-    )
+    f["METHOD-J1"] = method_facts(f, evidence)
+    sim["METHOD-J1"] = "Corroborating actors recorded from the evidence above; no method audit has run."
+    sim["*"] = "Corroborating controls are simulated premises unless derived from controls above."
     return f, sim
+
+
+def method_facts(f: dict[str, dict[str, Any]], evidence: str | None) -> dict[str, Any]:
+    """METHOD-J1: one row per corroborating actor in the evidence, as the record describes it."""
+    freeze = json.loads(FREEZE.read_text())["author"]
+    profiles = {
+        INDEPENDENT: ("agent", "shared_author", "exposed", "unknown"),  # Claude wrote this simulation
+        RECORD_REVIEWER: ("human", "shared_author", "exposed", "qualified"),  # the task owner's recorded review
+        AUTHOR: ("simulated", "shared_author", "exposed", "unknown"),
+    }
+    actors = sorted(
+        {
+            row["corroborating_actor"]
+            for criterion in f.values()
+            for rows in criterion.values()
+            for row in rows or []
+            if isinstance(row, dict) and "corroborating_actor" in row
+        }
+    )
+    rows = []
+    for actor in actors:
+        kind, independence, blindness, qualification = profiles.get(
+            actor,
+            # Held-out attacks: a separate session that designed cases before opening the scorer.
+            ("agent", "independent", "blind", "qualified" if freeze["independence_qualified"] else "unqualified"),
+        )
+        rows.append(
+            {
+                "id": actor,
+                "actor_kind": kind,
+                "independence": independence,
+                "blindness": blindness,
+                "claimed": "independent"
+                if evidence == "undisclosed-self-corroboration" and actor == INDEPENDENT
+                else "none",
+                "disclosure": "disclosed",
+                "qualification": qualification,
+            }
+        )
+    return {"corroboration_methods": rows, "method_audit": robust("METHOD-J1", {"method_audit": None}, "", INDEPENDENT)}
 
 
 def build(case_dir: Path, facts: dict[str, dict[str, Any]], o: dict[str, Any]) -> dict[str, Any]:
@@ -872,6 +965,7 @@ def build(case_dir: Path, facts: dict[str, dict[str, Any]], o: dict[str, Any]) -
                 "overlaps",
                 "cue_controls",
                 "reset_probe",
+                "authority",
             )
         },
         sort_keys=True,
@@ -948,6 +1042,8 @@ def report_html(out: Path, scores: dict[str, dict[str, int | None]], summary: di
 
     definitions = canonical_definitions()
     rubric = summary["rubric_criteria"]
+    columns = rubric + summary["method_criteria"]
+    definitions = {**definitions, **method_definitions()}
     esc = html.escape
 
     def cell(score: int | None) -> str:
@@ -963,7 +1059,7 @@ def report_html(out: Path, scores: dict[str, dict[str, int | None]], summary: di
         f"<tr><td><code>{esc(i)}</code></td><td>{esc(definitions[i]['title'])}</td>"
         f"<td>{esc(definitions[i].get('level', 'task'))}</td>{cell(base.get(i))}"
         f"<td>{esc(premises.get(i, 'Derived from the task bytes and real verifier runs.'))}</td></tr>"
-        for i in rubric
+        for i in columns
     )
     mutation_rows = ""
     for case, row in scores.items():
@@ -971,21 +1067,23 @@ def report_html(out: Path, scores: dict[str, dict[str, int | None]], summary: di
             continue
         kind, text = describe(case)
         drops = ", ".join(
-            f"<code>{esc(i)}</code> {'U' if row[i] is None else row[i]}" for i in rubric if row[i] != base.get(i)
+            f"<code>{esc(i)}</code> {'U' if row[i] is None else row[i]}" for i in columns if row[i] != base.get(i)
         )
         lower = "yes" if summary["mutations_below_base"].get(case) else "NO"
         mutation_rows += (
             f'<tr><td><a href="{esc(case)}/table/results.html">{esc(case)}</a></td><td>{kind}</td>'
             f"<td>{esc(text)}</td><td>{total(row)}/{3 * len(rubric)}</td><td>{drops}</td><td>{lower}</td></tr>"
         )
-    grid_head = "".join(f'<th title="{esc(i)}">{n + 1}</th>' for n, i in enumerate(rubric))
+    grid_head = "".join(f'<th title="{esc(i)}">{n + 1}</th>' for n, i in enumerate(rubric)) + "<th>M</th>"
     grid = "".join(
         f'<tr><td><a href="{esc(case)}/table/results.html">{esc(case)}</a></td><td>{total(row)}</td>'
-        + "".join(cell(row[i]) for i in rubric)
+        + "".join(cell(row[i]) for i in columns)
         + "</tr>"
         for case, row in scores.items()
     )
-    key = "".join(f"<li><code>{n + 1}</code> {esc(i)}</li>" for n, i in enumerate(rubric))
+    key = "".join(f"<li><code>{n + 1}</code> {esc(i)}</li>" for n, i in enumerate(rubric)) + (
+        "<li><code>M</code> METHOD-J1, not in the total</li>"
+    )
     lowered = sum(summary["mutations_below_base"].values())
     style = """
 :root{--bg:#fff;--fg:#1d1d1f;--muted:#666;--line:#ddd;--s3:#d9f2e3;--s2:#fff3c4;--s1:#ffe0c2;--s0:#ffd0d0;--su:#e8e8ee}
@@ -1002,6 +1100,8 @@ td,th{border:1px solid var(--line);padding:5px 7px;text-align:left;vertical-alig
 <style>{style}</style></head><body>
 <h1>Rubric simulation</h1>
 <p class="lead">Base: <strong>{total(base)}/{3 * len(rubric)}</strong> on {len(rubric)} criteria.
+METHOD-J1, the qualification of the corroboration behind those scores, is
+<strong>{"U" if base.get("METHOD-J1") is None else base.get("METHOD-J1")}</strong>.
 {lowered} of {len(scores) - 1} mutations score lower than the base. Every score comes from
 <code>rubric_table.py</code>.</p>
 <h2>Base task</h2>
@@ -1033,7 +1133,7 @@ def main() -> int:
         parser.error("output must be outside the checkout")
     out.mkdir(mode=0o700)
     rubric = list(canonical_definitions())
-    columns = rubric
+    columns = rubric + ["METHOD-J1"]
     native = None
     if args.collect_native:
         from native import collect
@@ -1065,12 +1165,13 @@ def main() -> int:
     summary = {
         "scorer": "skills/eval-author-rubric/scripts/measure.py, criterion_evidence synthetic scope",
         "rubric_criteria": rubric,
+        "method_criteria": ["METHOD-J1"],
         "scores": scores,
-        "base_perfect": base is not None and all(base[i] == 3 for i in columns),
+        "base_perfect": base is not None and all(base[i] == 3 for i in rubric),
         "mutations_below_base": {
             case: base is not None
             and all(rank(row[i]) <= rank(base[i]) for i in columns)
-            and any(rank(row[i]) < rank(base[i]) for i in rubric)
+            and any(rank(row[i]) < rank(base[i]) for i in columns)
             for case, row in scores.items()
             if case != "base"
         },

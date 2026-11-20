@@ -62,6 +62,12 @@ The rubric has 23 criteria, all scored in one table:
 19 criteria are task-level and 4 are suite-level. Suite criteria are scored from
 suite evidence: other task families and selection history.
 
+The table also reports **METHOD-J1**, defined in
+[method qualification](references/method-qualification.md). It scores the
+corroboration behind the 3s: who corroborated, whether they were independent and
+blind, and whether that is disclosed and qualified. It is not part of the
+23-criterion total and never lowers a criterion score.
+
 ## How a score is derived
 
 `scripts/rubric_evidence_scoring.py` is the only scorer. `FACT_POLICIES` names the
@@ -87,7 +93,9 @@ Simulated evidence has strength E1.
    measurements in [identity](references/identity.md) for artifact, route and
    configuration identity, and the leakage scan for private/public overlap. Run
    only the controls the user has authorized. Never invent a receipt or a review.
-3. **Write the evidence.** Write one fact source (`rubric-fact-source-v1`) and one
+3. **Write the evidence.** Record each corroborating actor as it is: name it, and
+   do not call it independent or blind unless it is. That record is METHOD-J1's
+   fact. Write one fact source (`rubric-fact-source-v1`) and one
    criterion evidence packet (`rubric-criterion-evidence-v1`) as described in the
    `rubric_evidence_scoring.py` module docstring. Use scope
    `recorded-evidence-assessment` for real evidence.
@@ -96,7 +104,7 @@ Simulated evidence has strength E1.
    It writes `results.md`, `results.html` and `assessment.json`. Exit 1 means some
    criteria are Unassessed.
 5. **Present the table.** Show all 23 rows with level, score, evidence strength
-   and reason. For each U row, name the missing facts and the check that would
+   and reason, then METHOD-J1. For each U row, name the missing facts and the check that would
    supply them. For each row below 3, name the corroboration or fix that would
    raise it.
 

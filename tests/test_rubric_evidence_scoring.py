@@ -78,11 +78,13 @@ def test_all_rubric_definitions_preserve_canonical_anchors(tmp_path):
         source = json.loads((SCRIPT.parents[1] / f"references/{name}.json").read_text())
         for item in source["items"]:
             assert definitions[item["id"]] == item
-    assert set(scorer.FACT_POLICIES) == set(definitions)
-    assert set(scorer.ROBUSTNESS_POLICIES) == set(definitions)
-    assert set(scorer.ROBUSTNESS_OUTCOMES) == set(definitions)
+    scored = set(definitions) | set(scorer.method_definitions())
+    assert scorer.method_definitions().keys() == {"METHOD-J1"}
+    assert set(scorer.FACT_POLICIES) == scored
+    assert set(scorer.ROBUSTNESS_POLICIES) == scored
+    assert set(scorer.ROBUSTNESS_OUTCOMES) == scored
     rows = scorer.assess_evidence(tmp_path, {})
-    assert set(rows) == set(definitions)
+    assert set(rows) == scored
     assert all(row["status"] == "NOT_ASSESSED" and row["score"] is None for row in rows.values())
     assert all(row["check_results"] and row["remaining_gaps"] for row in rows.values())
 

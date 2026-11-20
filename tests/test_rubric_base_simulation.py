@@ -40,6 +40,7 @@ EXPECTED_DROPS = {
     "misreported-config": {"provenance.declared-configuration": 0},
     "unmatched-comparison": {"provenance.comparison-fairness": 0},
     "family-cue-bypass": {"CREATE-02-SUITE": 0},
+    "undisclosed-self-corroboration": {"METHOD-J1": 0},
 }
 
 
@@ -60,7 +61,9 @@ def summary(tmp_path_factory: pytest.TempPathFactory) -> dict:
 def test_base_is_perfect_and_each_mutation_drops_its_target(summary: dict) -> None:
     scores = summary["scores"]
     assert len(summary["rubric_criteria"]) == 23
-    assert all(score == 3 for score in scores["base"].values())
+    assert all(scores["base"][ident] == 3 for ident in summary["rubric_criteria"])
+    # Claude's corroboration is not qualified and the held-out session is unqualified.
+    assert scores["base"]["METHOD-J1"] == 1
     assert set(scores) == {"base", *EXPECTED_DROPS}
     assert all(summary["mutations_below_base"].values())
     for case, drops in EXPECTED_DROPS.items():

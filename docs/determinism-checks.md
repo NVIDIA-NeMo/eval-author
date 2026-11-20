@@ -30,7 +30,7 @@ that presentation guarantee does not establish deterministic workflow execution.
 
 ## Rubric base simulation
 
-The [rubric base simulation](../tools/rubric_base_simulation/run.py) scores the refund Harbor task and 25 mutations through `rubric_table.py`. It covers all 23 rubric criteria: 19 task-level and 4 suite-level. The base must score 3 on every criterion. Each mutation must score lower on at least one criterion and raise none.
+The [rubric base simulation](../tools/rubric_base_simulation/run.py) scores the refund Harbor task and 26 mutations through `rubric_table.py`. It covers all 23 rubric criteria, 19 task-level and 4 suite-level, and reports METHOD-J1 beside them. The base must score 3 on every criterion. Each mutation must score lower on at least one criterion and raise none.
 
 ```bash
 .venv/bin/python -B tools/rubric_base_simulation/run.py --output "$HOME/rubric-simulation-1" --collect-native
@@ -39,9 +39,10 @@ The [rubric base simulation](../tools/rubric_base_simulation/run.py) scores the 
 Choose a new directory outside the checkout. Open `summary.html` first: it shows the base table, each mutation with the criteria it lowered, and every score side by side. Each case also has its own 23-row table under `<case>/table/`. The command exits 0 only when the base is perfect and every mutation scores lower.
 
 - **Native Harbor panels:** `--collect-native` runs the refund task's attack, access-boundary, reset-boundary and held-out attack panels in Docker through Harbor. Their admitted results supply AUDIT-03, ENV-03-S01, solver tool access and observed-configuration facts for the base task bytes. On Docker Desktop, add `--docker-plugins /Applications/Docker.app/Contents/Resources/cli-plugins`. `--native DIR` reuses panels from an earlier run's `native/` directory. Without either flag, those facts come from local verifier runs.
-- **Local runs:** every case runs all declared controls through the task's verifier, scans private files against public files, grades four cue-class candidates, and runs target episodes on the real ledger service. The completion-only exploit is confirmed by running that revision.
-- **Simulated inputs:** owner decisions, trace review, selection history and companion task families. Claude is the independent reviewer for corroboration that no panel supplies. Each case lists its simulated inputs in `simulated-premises.json`.
-- **Mutations:** 11 change task bytes; 14 change one input, such as withheld held-out attacks or an exploit accepted without containment.
+- **Local runs:** every case runs all declared controls through the task's verifier, scans private files against public files, grades four cue-class candidates, runs target episodes on the real ledger service, and checks the refund authority record (`evals/scorer-controls/authority.json`) against the case's verifier result with `rubric_authority`. The completion-only exploit is confirmed by running that revision.
+- **Simulated inputs:** owner decisions, trace review, selection history and companion task families. Each case lists its simulated inputs in `simulated-premises.json`.
+- **Corroboration:** the held-out panel, the refund authority record and its recorded human review, and Claude corroborate the 3s. METHOD-J1 records each as it is. Claude wrote the simulation, so its corroboration is shared-author and of unknown qualification, and the base METHOD-J1 is 1.
+- **Mutations:** 11 change task bytes; 15 change one input, such as withheld held-out attacks or an exploit accepted without containment.
 
 The `rubric-simulation` CI job runs this command with `--collect-native` and uploads `summary.html`.
 
