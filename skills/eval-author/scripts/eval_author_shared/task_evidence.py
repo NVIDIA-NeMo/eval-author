@@ -1381,6 +1381,10 @@ def _regrade_inputs(
     if source["task_tree_without_tests_sha256"] != current["task_tree_without_tests_sha256"]:
         raise _workspace.ContractError("files outside tests/ changed since the source job; fresh jobs required")
     if source["tests_tree_sha256"] == current["tests_tree_sha256"]:
+        if source["construction_sha256"] != context["sha256"]:
+            raise _workspace.ContractError(
+                "tests/ is unchanged since the source job; construction contract changed; fresh jobs required"
+            )
         raise _workspace.ContractError("tests/ is unchanged since the source job; cite the source job instead")
     _require_fresh_trial(source_result, _workspace.ContractError)
     if (

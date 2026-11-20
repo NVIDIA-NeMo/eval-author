@@ -3124,13 +3124,23 @@ def test_tests_only_change_is_proven_by_regrading_retained_jobs(tmp_path: Path, 
     [
         ("outside_tests", "outside tests/ changed"),
         ("construction", "construction contract changed"),
-        ("unchanged", "tests/ is unchanged"),
+        ("unchanged", "tests/ is unchanged since the source job; cite the source job instead"),
+        (
+            "added_control",
+            "tests/ is unchanged since the source job; construction contract changed; fresh jobs required",
+        ),
     ],
 )
 def test_regrade_requires_a_tests_only_change(tmp_path: Path, change: str, error: str) -> None:
     task_dir, _ = _workspace(tmp_path)
     _ready_environment(task_dir)
-    _revise(task_dir, change)
+    _revise(task_dir, "unchanged" if change == "added_control" else change)
+    if change == "added_control":
+        plan = task_dir / _TRACE_ENVIRONMENT.construction.PATH
+        document = json.loads(plan.read_text())
+        negative = next(case for case in document["cases"] if case["kind"] == "negative")
+        document["cases"].append({**negative, "case": "new-negative", "rationale": "Omit a different repair."})
+        _write_json(plan, document)
     code, result = _regrade(task_dir, "nop-1", "nop-1-regraded")
     assert code == 1
     assert error in result["error"]
