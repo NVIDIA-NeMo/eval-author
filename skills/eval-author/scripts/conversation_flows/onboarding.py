@@ -463,6 +463,23 @@ def render(payload: dict) -> str:
     if (
         expansion is not None
         and not state_only
+        and expansion["checkpoint"] == "scope"
+        and expansion.get("review") is not None
+        and expansion["decision"]
+        and expansion["decision"]["kind"] == "approved"
+        and not state["scopes"]["expand"].get("needs_review")
+        and expansion_state.review_ready(state)
+    ):
+        saved_question = expansion_state.pending(expansion)
+        if (
+            state["pending_question"] is None
+            or saved_question
+            and state["pending_question"] == saved_question["question"]
+        ):
+            raise ValueError("Use expansion_review for saved task review and execution settings")
+    if (
+        expansion is not None
+        and not state_only
         and (expansion["checkpoint"] == "entry" or not expansion_state.checkpoint_ready(state))
     ):
         checkpoint = "expansion_continue"

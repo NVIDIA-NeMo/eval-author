@@ -322,7 +322,13 @@ verifier checks passed, failed, or remain incomplete. It preserves partial work
 and blockers when you return. Changes to task files or evidence reopen affected
 validation; passing verifier checks does not measure your agent's performance.
 Once all agreed tasks have current passing checks, the authored tasks are ready
-for review. Running the agent requires its own authorization.
+for review. Review the task inputs, expected behavior, and grading in the existing
+reports and task READMEs, then approve the complete agreed set or request draft
+changes. Eval Author presents execution settings after task approval; running
+the agent requires separate permission. The run plan includes each task’s scenario
+and expected result alongside its selected examples and attempts. Returning
+preserves applicable answers; task or validation changes reopen affected review, while changed execution
+settings reopen run permission without repeating unchanged validation.
 
 ### What Eval Author can create or improve
 

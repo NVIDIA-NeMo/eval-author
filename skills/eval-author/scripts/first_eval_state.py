@@ -12,7 +12,7 @@ import re
 from collections import Counter
 from itertools import chain
 from pathlib import Path, PurePosixPath
-from typing import TYPE_CHECKING, Literal, TypedDict
+from typing import TYPE_CHECKING, Literal, NotRequired, TypedDict, cast
 
 from interaction_types import USER_SIM_SCENARIO_FILENAME, user_simulation_enabled, validate_interaction_plan
 
@@ -33,6 +33,50 @@ LEGACY_ARTIFACT_EVIDENCE = {".eval-author/report.html", ".eval-author/README.md"
 class EvidenceReference(TypedDict):
     path: str
     digest: str
+
+
+class BoundSource(TypedDict):
+    digest: str
+    source: str
+
+
+class UserSimSettings(TypedDict):
+    agent_model: str
+    conversation_limits: str
+
+
+class ExecutionSettings(TypedDict):
+    agent_model: str
+    attempts: str
+    validation: str
+    limits: str
+    open_questions: list[str]
+    user_sim: NotRequired[UserSimSettings]
+
+
+class SelectedCase(TypedDict):
+    task_id: str
+    example_ids: list[str]
+    attempts: int
+    rows: NotRequired[list[int]]
+
+
+class SelectionBridge(TypedDict):
+    source: str
+    evidence: list[EvidenceReference]
+
+
+class ExecutionSelection(TypedDict):
+    agent: str
+    model: str
+    source: str
+    config: EvidenceReference
+    cases: list[SelectedCase]
+    inputs: NotRequired[list[EvidenceReference]]
+    authorization: NotRequired[BoundSource | None]
+    settings_digest: NotRequired[str]
+    bridge: NotRequired[SelectionBridge | None]
+    user_sim: NotRequired[UserSimSelection | None]
 
 
 class UserSimScenarioIdentity(EvidenceReference):
@@ -108,6 +152,65 @@ def _settings_fields(settings: object) -> bool:
         and all(isinstance(item, str) and item.strip() for item in settings["open_questions"])
         and ("user_sim" not in settings or _user_sim_settings(settings["user_sim"]))
     )
+
+
+def validate_execution_settings(settings: object) -> None:
+    try:
+        if not _settings_fields(settings):
+            raise ValueError(
+                "Execution settings require agent_model, attempts, validation, limits, and a list of open_questions"
+            )
+    except (KeyError, TypeError, AttributeError) as exc:
+        raise ValueError("Malformed structured creation record") from exc
+
+
+def validate_selection(provider: str, selection: object) -> None:
+    selection = cast(dict | None, selection)
+    try:
+        if selection is not None:
+            _evidence([selection["config"], *selection.get("inputs", [])])
+            simulation = selection.get("user_sim")
+            if simulation is not None:
+                if not isinstance(simulation, dict) or set(simulation) != {
+                    "task_id",
+                    "user_type",
+                    "scenario",
+                    "working_directory",
+                }:
+                    raise ValueError("User-sim selection requires a neutral scenario and working directory")
+                _text(simulation["task_id"])
+                if simulation["user_type"] != "neutral":
+                    raise ValueError("Only neutral user-simulation inputs are supported")
+                _evidence([simulation["scenario"]])
+                if simulation["scenario"] not in selection.get("inputs", []):
+                    raise ValueError("Retain the user-sim scenario in selection.inputs")
+                if simulation["working_directory"] != ".":
+                    _path(simulation["working_directory"])
+            for key in ("agent", "model", "source"):
+                _text(selection[key])
+            _decision(selection.get("authorization"))
+            if "settings_digest" in selection:
+                _digest(selection["settings_digest"])
+            if selection.get("bridge"):
+                _text(selection["bridge"]["source"])
+                _evidence(selection["bridge"]["evidence"])
+            _strings([case["task_id"] for case in selection["cases"]])
+            for case in selection["cases"]:
+                _strings(case["example_ids"])
+                if type(case["attempts"]) is not int or case["attempts"] < 1:
+                    raise ValueError("Attempts must be positive integers")
+                if provider == "gym":
+                    rows = case.get("rows", [])
+                    if (
+                        not selection.get("inputs")
+                        or len(rows) != len(case["example_ids"])
+                        or len(set(rows)) != len(rows)
+                    ):
+                        raise ValueError("Gym requires selected complete input rows and their retained inputs")
+                    if any(type(row) is not int or row < 1 for row in rows):
+                        raise ValueError("Gym rows must be unique one-based row numbers")
+    except (KeyError, TypeError, AttributeError) as exc:
+        raise ValueError("Malformed structured creation record") from exc
 
 
 def _user_sim_settings(value: object) -> bool:
@@ -348,49 +451,7 @@ def validate(value: dict) -> None:
                     _evidence(check["evidence"])
                     if check["status"] not in {"passed", "failed", "blocked"}:
                         raise ValueError("Unknown task check status")
-        selection = value["selection"]
-        if selection is not None:
-            _evidence([selection["config"], *selection.get("inputs", [])])
-            simulation = selection.get("user_sim")
-            if simulation is not None:
-                if not isinstance(simulation, dict) or set(simulation) != {
-                    "task_id",
-                    "user_type",
-                    "scenario",
-                    "working_directory",
-                }:
-                    raise ValueError("User-sim selection requires a neutral scenario and working directory")
-                _text(simulation["task_id"])
-                if simulation["user_type"] != "neutral":
-                    raise ValueError("Only neutral user-simulation inputs are supported")
-                _evidence([simulation["scenario"]])
-                if simulation["scenario"] not in selection.get("inputs", []):
-                    raise ValueError("Retain the user-sim scenario in selection.inputs")
-                if simulation["working_directory"] != ".":
-                    _path(simulation["working_directory"])
-            for key in ("agent", "model", "source"):
-                _text(selection[key])
-            _decision(selection.get("authorization"))
-            if "settings_digest" in selection:
-                _digest(selection["settings_digest"])
-            if selection.get("bridge"):
-                _text(selection["bridge"]["source"])
-                _evidence(selection["bridge"]["evidence"])
-            _strings([case["task_id"] for case in selection["cases"]])
-            for case in selection["cases"]:
-                _strings(case["example_ids"])
-                if type(case["attempts"]) is not int or case["attempts"] < 1:
-                    raise ValueError("Attempts must be positive integers")
-                if value["provider"] == "gym":
-                    rows = case.get("rows", [])
-                    if (
-                        not selection.get("inputs")
-                        or len(rows) != len(case["example_ids"])
-                        or len(set(rows)) != len(rows)
-                    ):
-                        raise ValueError("Gym requires selected complete input rows and their retained inputs")
-                    if any(type(row) is not int or row < 1 for row in rows):
-                        raise ValueError("Gym rows must be unique one-based row numbers")
+        validate_selection(value["provider"], value["selection"])
         runs = value["runs"]
         if runs:
             _strings([run["id"] for run in runs])
@@ -468,10 +529,8 @@ def validate(value: dict) -> None:
         _decision(value.get("execution_settings_presented"))
         _decision(value.get("suite_review_presented"))
         _decision(value.get("suite_approval"))
-        if "execution_settings" in value and not _settings_fields(value["execution_settings"]):
-            raise ValueError(
-                "Execution settings require agent_model, attempts, validation, limits, and a list of open_questions"
-            )
+        if "execution_settings" in value:
+            validate_execution_settings(value["execution_settings"])
     except (KeyError, TypeError, AttributeError) as exc:
         raise ValueError("Malformed structured creation record") from exc
 
