@@ -6,7 +6,8 @@
 Use the [shared rendering entry point](../../scripts/conversation_renderer.py)
 with `stage: expansion_continue` for an unresolved entry decision or
 `stage: expansion_scope` for the selected authoring flow's existing scope review,
-then `stage: expansion_progress` during agreed creation and validation.
+then `stage: expansion_progress` during agreed creation and validation and
+`stage: expansion_review` for task review and execution approval.
 Rendering does not construct tasks, validate verifiers, or authorize execution.
 For an unselected improvement path, use the core's
 [expansion entry](../../SKILL.md#expansion-handoff) before shared checks;
@@ -99,6 +100,12 @@ after a decline, leave `creation.pending` saved and set `pending_question` to nu
 Reuse a prior applicable answer rather than asking again to populate this record.
 Changes to the plan require the user's decision on those changes.
 
+After agreement, use the [expansion templates](../../scripts/conversation_flows/expansion_templates.py)
+to explain the remaining work before task review and agent execution. Preserve
+completed work and current evidence on resume, retain unresolved inputs, and
+honor explicit pauses. Describe planned work as future work; run approval does
+not mean a run has started.
+
 Resume an unanswered scope question through `expansion_scope`. After an answer,
 continue the existing authoring workflow and leave its later questions with that
 owner. Shared prerequisite and Ethos recovery take precedence. Task-create keeps
@@ -126,7 +133,8 @@ evidence so it can update the shared progress.
 Continue authorized work in the same turn after progress updates; do not add an
 approval pause. Use the rendered response as the final reply when its actual
 unresolved question requires the user's answer. Shared prerequisite and Ethos
-recovery still take precedence; pause only work that depends on a blocker.
+recovery still take precedence. Honor explicit pauses; otherwise pause only work
+that depends on a blocker.
 
 Save `creation` in the existing scope-checkpoint lifecycle through the latest
 revision-checked update. Its `tasks` map uses `expansion_state.task_key(row)` for
@@ -152,6 +160,9 @@ actual unresolved question, keeping top-level `pending_question` in sync; otherw
 save `null`. Reload normal state and pass current `facts.expansion_observations`
 to the renderer. Fixed copy belongs to the
 [expansion templates](../../scripts/conversation_flows/expansion_templates.py).
+Keep activity details concise: name the actual task, the work or blocker, and
+the next step. Distinguish completed work from remaining work instead of
+replaying completed steps on resume.
 
 Account for every agreed task, including tasks not yet created. Keep partial
 artifacts and failed evidence, and repair drafts only through the existing
@@ -172,6 +183,84 @@ Derived `creation.ready_for_review` requires current passing validation for the
 complete agreed set. It permits the owning workflow's authored-task review;
 it does not accept tasks, approve their review, authorize agent execution, or
 complete the journey.
+
+## Task review and execution approval
+
+Use `expansion_review` after creation to review the complete agreed set, including
+partial or blocked tasks. Reuse the current report's Tasks view and each task's
+[Input, Behavior under test, Expected result, and Verifier sections](../suite-readme.md#task-documentation);
+do not create another review report or change their formats. Refresh the existing
+HTML and Markdown reports before review and bind the refresh to the current
+derived `review.digest`. Link the Markdown task report first and the HTML report
+second, without a fragment; Tasks is the default report view. Passing controls
+establish verifier validity, not agent performance. Missing artifacts or required
+validation prevent approval, not an
+honest display of unfinished work. Never substitute a ready subset for the
+agreed set without an explicit scope revision.
+
+Save optional `review` in the lifecycle through the revision-checked state
+interface. `artifacts` contains `{digest, source, evidence}`, with retained
+`{path, digest}` references to the existing `.eval-author/report.html` and
+`.eval-author/report_markdown/tasks.md`. `presented` contains `{digest, source}`
+for the actual delivered review. `decision` contains
+`{digest, decision: approved|changes_requested|declined, source}` for the user's
+actual answer. Bind these records to the current derived `review.digest`; fields
+may be `null` while unresolved. Keep `pending: {question, source}` synchronized
+with top-level `pending_question`, or `null` when no question is pending.
+Present the review and wait for the actual decision before preparing execution.
+Reuse applicable prior review and agreement with their real message sources.
+
+A changes request repairs only newly authored drafts through their existing
+owner and [repair procedure](../task-validation.md#repair-and-retain), followed
+by affected native revalidation and renewed review. Requests outside the agreed
+scope return to the scope checkpoint; this stage does not add an editor for
+arbitrary existing suite cases or verifiers. Decline preserves the drafts and
+evidence without treating them as approved or executed.
+
+After current task approval, use the same stage to present concrete execution
+settings and obtain separate bounded permission. Save optional `execution` with
+`execution_settings` and `selection` using the existing
+[selection contract](first-eval.md#saving-the-agreed-design-and-evidence) and
+[execution settings fields](first-eval.md#stages-and-review-boundaries).
+Set each selected case's `task_id` to `expansion_state.task_key(agreed_row)`,
+including every agreed task. A retained execution record may include `provider`
+(`harbor` or `gym`); when absent it uses the scope's `setup`. Scope recovery
+preserves the original provider on historical execution records. After changing
+providers, retain that history and save a fresh selection for the current provider
+only after renewing task review; previous run permission does not transfer.
+Use the saved task scenarios and expected results to explain what the agent will
+do and what counts as success. Write `execution_settings.validation` in plain
+language, distinguishing completed task/verifier checks from remaining checks
+on actual agent performance. Keep completed checks in the past tense. In
+`limits`, retain the actual retry policy, step/time limits, and allowed or blocked
+actions when known; resolve missing limits that affect permission instead of
+inventing defaults. Keep schema/adapter diagnostics in the configuration evidence
+unless they affect the run decision. Configuration links follow the run plan.
+Keep `selection.authorization: {digest, source}` separate from task approval.
+Save actual delivery as `execution_settings_presented: {digest, source}` and an
+execution decline as `declined: {digest, source}`; these fields may be `null`.
+Bind display, authorization, and decline to the current derived
+`execution.selection_digest`. Save its actual unresolved `pending` question in
+both lifecycle and top-level state. Reuse applicable authorization rather than
+asking again; presenting or rendering settings never grants permission.
+
+Render with only normal state, its exact revision, and current
+`facts.expansion_observations`, as for the prior checkpoints. Task or native
+validation-evidence changes reopen dependent review and execution authorization.
+Execution settings, config, or input changes reopen authorization while retaining
+unchanged task validation. On resume, show the current unanswered decision or
+blocker without repeating settled questions. Current review and authorization
+permit the existing authoring owner to execute within that permission; they do
+not establish a run, results, acceptance, or journey completion.
+Normal state suppresses stale approval questions until their evidence is current;
+reopening scope clears later questions while retaining their decision history.
+
+Finish report refreshes and state reconciliation before the final renderer call.
+Send its returned Markdown as the entire final reply, preserving both report
+links, the run plan, and its actual pending question. Do not replace it with a
+hand-written recap or append configuration-check results after rendering. Follow
+the [shared delivery contract](../conversation-rendering.md) for every review and
+execution-settings response, including resume.
 
 ## Shared checkpoint contract
 
@@ -212,7 +301,8 @@ are accepted; regenerate obsolete local records instead of migrating them.
 The scope record saves the selected authoring workflow's existing coverage-planning checkpoint
 through `expansion_state.new_scope`: a plan for display, its actual user decision,
 and an optional unresolved question, with optional
-[creation and validation progress](#creation-and-validation-progress). The
+[creation and validation progress](#creation-and-validation-progress) and
+[task review and execution approval](#task-review-and-execution-approval). The
 [validator](../../scripts/expansion_state.py) owns the exact presentation fields.
 Follow [Existing scope checkpoint](#existing-scope-checkpoint) for workflow
 ownership, recovery priority, and continuation after scope review. Preserve the

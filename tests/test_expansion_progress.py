@@ -86,6 +86,10 @@ def test_starting_activity_is_visible_before_task_files_and_survives_resume(modu
 def test_two_task_creation_failure_repair_and_resume_match_fixtures(modules, tmp_path):
     state, expansion, _ = modules
     saved, value = begin(modules, tmp_path)
+    opening = render(modules, saved)
+    assert "The next steps are to reuse or prepare the test setup" in opening
+    assert "your permission to run the evaluation" in opening
+    assert not value["creation"]["tasks"]
     author(modules, tmp_path, value, 0)
     saved = save(modules, tmp_path, saved, value)
     current = progress(modules, tmp_path, saved)

@@ -10,4 +10,4 @@
 
 **Limits:** At most two construction attempts; running the agent requires separate approval
 
-All agreed tasks passed their checks and are ready for task review.
+All agreed tasks passed their task and verifier checks. Next, I’ll show you the tasks and their validation evidence for review. After task approval, we’ll confirm the agent and run settings.

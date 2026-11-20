@@ -693,6 +693,7 @@ def view(state: dict, *, state_only: bool = False) -> dict:
     )
     expansion = expansion_state.derive(state, expansion_observations) if expansion_observations is not None else None
     state = audit_presentation_state(state, audit)
+    state = expansion_state.presentation_state(state, expansion)
     if (
         creation is not None
         and not creation["complete"]

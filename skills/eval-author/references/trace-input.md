@@ -107,6 +107,8 @@ commands with the provider result contract. Gym keeps its native scaffold and
 [validation handoff](../../eval-author-environment/references/gym-output.md);
 Harbor workspace ledgers do not stand in for Gym evidence. A trace task's
 qualification is reported separately from real-agent performance and audit closure.
+Before real-agent runs in journey `expand`, use the
+[task review and execution approval checkpoint](conversations/expansion.md#task-review-and-execution-approval).
 
 ## Finalize and check Harbor workspaces
 
