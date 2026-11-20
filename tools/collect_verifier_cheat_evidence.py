@@ -19,6 +19,7 @@ import time
 import tomllib
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
 FIXTURES = ROOT / "evals/verifier-cheats"
@@ -53,38 +54,54 @@ def read_boundary(stderr):
     return {"denied": "protected", "allowed": "exposed"}.get(reads.get("private_read"), "unknown")
 
 
-def native_check(job, name):
-    grader, control = name.split("--")
-    aggregate = load_json(job / "result.json")
-    require(type(aggregate["n_total_trials"]) is int and aggregate["n_total_trials"] == 1, "incorrect total trials")
-    expected_counts = {
+def completed_job(
+    aggregate: dict[str, Any],
+    *,
+    errors: tuple[str, str, str] = ("incorrect total trials", "incorrect native counts", "unfinished job"),
+) -> None:
+    require(type(aggregate["n_total_trials"]) is int and aggregate["n_total_trials"] == 1, errors[0])
+    for key, value in {
         "n_completed_trials": 1,
         "n_errored_trials": 0,
         "n_pending_trials": 0,
         "n_running_trials": 0,
         "n_cancelled_trials": 0,
         "n_retries": 0,
-    }
-    require(
-        all(
-            type(aggregate["stats"][key]) is int and aggregate["stats"][key] == value
-            for key, value in expected_counts.items()
-        ),
-        "incorrect native counts",
-    )
-    require(bool(aggregate["finished_at"]), "unfinished job")
+    }.items():
+        require(type(aggregate["stats"][key]) is int and aggregate["stats"][key] == value, errors[1])
+    require(bool(aggregate["finished_at"]), errors[2])
+
+
+def completed_trial(
+    trial: dict[str, Any],
+    task_name: str,
+    trial_name: str,
+    *,
+    errors: tuple[str, str] = ("wrong trial identity", "failed or unfinished native trial"),
+) -> None:
+    require(trial["task_name"] == task_name and trial["trial_name"] == trial_name, errors[0])
+    require(trial["exception_info"] is None and bool(trial["finished_at"]), errors[1])
+
+
+def completed_phases(trial: dict[str, Any], *, error: str = "missing {phase} timing") -> None:
+    for phase in ("agent_execution", "verifier"):
+        require(bool(trial[phase]["started_at"]) and bool(trial[phase]["finished_at"]), error.format(phase=phase))
+
+
+def native_check(job, name):
+    grader, control = name.split("--")
+    aggregate = load_json(job / "result.json")
+    completed_job(aggregate)
     paths = list(job.glob("*/result.json"))
     require(len(paths) == 1, "missing or duplicate trial")
     trial_path = paths[0].parent
     trial = load_json(paths[0])
-    require(trial["task_name"] == "normalizer" and trial["trial_name"] == trial_path.name, "wrong trial identity")
-    require(trial["exception_info"] is None and bool(trial["finished_at"]), "failed or unfinished native trial")
+    completed_trial(trial, "normalizer", trial_path.name)
     require(
         trial["agent_info"]["name"] == "verifier-cheat-control" and trial["agent_info"]["model_info"] is None,
         "unexpected agent",
     )
-    for phase in ("agent_execution", "verifier"):
-        require(bool(trial[phase]["started_at"]) and bool(trial[phase]["finished_at"]), f"missing {phase} timing")
+    completed_phases(trial)
     rewards = trial["verifier_result"]["rewards"]
     require(set(rewards) == {"reward"}, "unexpected reward keys")
     reward = rewards["reward"]
@@ -390,17 +407,10 @@ def run(output):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", type=Path, required=True, help="new directory for exact native evidence")
-    parser.add_argument("--panel", choices=("normalizer", "refund"), default="normalizer")
     args = parser.parse_args()
     summary_name = "verifier-cheat-summary.json"
     try:
-        if args.panel == "refund":
-            from scorer_native import run as run_refund
-
-            code = run_refund(args.output)
-            summary_name = "scorer-native-summary.json"
-        else:
-            code = run(args.output)
+        code = run(args.output)
     except FileExistsError:
         parser.error("output directory already exists; use a fresh path")
     print(json.dumps({"summary": str(args.output.resolve() / summary_name), "exit_code": code}))

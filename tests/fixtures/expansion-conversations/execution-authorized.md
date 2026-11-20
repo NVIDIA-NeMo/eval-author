@@ -9,10 +9,10 @@ The task and verifier checks have passed. Running your agent will test its perfo
 
 Agent to test: **refund-agent**, using **configured-target**.
 
-| Task | Examples | Attempts per example | Dataset rows |
-|---|---|---|---|
-| Partial refund | refund-0 | 2 | 1 |
-| Duplicate refund request | refund-1 | 2 | 2 |
+| Task | Scenario | Expected result | Examples | Attempts per example | Dataset rows |
+|---|---|---|---|---|---|
+| Partial refund | A customer requests part of an eligible order's price | Refund the requested amount and retain the remaining balance | refund-0 | 2 | 1 |
+| Duplicate refund request | A customer requests part of an eligible order's price | Refund the requested amount and retain the remaining balance | refund-1 | 2 | 2 |
 
 **Checks:** The verifier controls passed. I’ll check the agent’s refund amount and remaining balance in each attempt.
 

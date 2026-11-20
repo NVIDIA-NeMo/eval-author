@@ -27,6 +27,10 @@ checklist labels, status labels, and generic headings live in
 [conversation_templates.py](../scripts/conversation_templates.py). Flow-specific
 copy belongs to that flow's template module, not a second prose template.
 
+The formatter keeps table cells on one Markdown line, joining multiline prose
+with spaces. Labels and separate details use inline Markdown and text separators
+so the same output renders in terminal interfaces without HTML support.
+
 The renderer presents decisions; it never makes them. It does not inspect the
 repository, load or save journey state, probe prerequisites, validate files,
 delegate work, choose sources, run evaluations, or grant approval. Reading its
@@ -138,8 +142,9 @@ Use `expansion_audit_opening` in commentary immediately after audit selection,
 then continue without a pause. Use `expansion_continue` for an unresolved entry
 decision and `expansion_scope` for the existing authoring workflow's saved planning
 checkpoint. Use `expansion_progress` for creation and validation of that agreed
-task set. Use `expansion_results` for post-run attempt evidence and the final
-user acceptance decision.
+task set. Use `expansion_review` for generated-task review and execution approval.
+Use `expansion_results` for post-run attempt evidence and the final user acceptance
+decision.
 
 [conversation_renderer.py](../scripts/conversation_renderer.py) dispatches through
 an explicit [journey/stage registry](../scripts/conversation_flows/__init__.py)

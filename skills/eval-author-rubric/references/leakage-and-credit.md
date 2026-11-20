@@ -11,7 +11,7 @@ aggregate score.
 ## Canonical definitions
 
 The [canonical subset](leakage-and-credit.json) is the single source for the
-seven criterion IDs, questions, measurements, 23 checks, score anchors, evidence
+nine criterion IDs, questions, measurements, 29 checks, score anchors, evidence
 requirements, and boundaries. Read each selected `items` entry in full before
 assessment. Rubric-wide `policies` and the `result_template` row format are
 defined once in [the provenance subset](artifact-configuration-provenance.json);
@@ -24,16 +24,21 @@ boundaries) belongs to this area but has no
 canonical definition yet; report it as unassessed and name the missing
 definition.
 
-The [anti-cheat criteria](anti-cheat.md) AC-01 to AC-04 predate these IDs and
-remain the evidence-floor guidance for the scorer-control panel. Map them as
-follows and report the canonical ID:
+## Task and suite levels
 
-| Anti-cheat criterion | Canonical criteria |
+Each item has a `level`. A **task** criterion is scored for one evaluation from that
+evaluation's own evidence. A **suite** criterion needs evidence from other tasks,
+task families or selection history, so it is assessed for a suite and never
+contributes to a single task's score. Items without `level`, including every
+item in the other areas, are task criteria.
+
+| Level | Criteria |
 | --- | --- |
-| AC-01, protected information | AUDIT-05-B, CREATE-02, and AUDIT-03's forbidden-answer-access control |
-| AC-02, shortcuts | AUDIT-03 |
-| AC-03, current trusted results | AUDIT-03 |
-| AC-04, prior trials | ENV-03-S01 |
+| task | AUDIT-03, AUDIT-04-B, TRACE-04-A, ENV-03-S01, CREATE-02 |
+| suite | AUDIT-04-B-SUITE, AUDIT-05-B, AUDIT-05-S03, CREATE-02-SUITE |
+
+AUDIT-04-B and CREATE-02 were split: their cross-task clauses (retained and new
+tasks, cross-family replay, new task families) moved to the `-SUITE` items.
 
 ## Measurements
 
@@ -96,7 +101,7 @@ rather than copying controls or rewards.
 
 **Methods and evidence:** Select attack classes with the shared
 [simple-cheat screen](../../eval-author/references/task-validation.md#screen-simple-cheats)
-and the AC-02 and AC-03 guidance. For forbidden answer access, use `leakage`'s
+and the attack classes named in this criterion. For forbidden answer access, use `leakage`'s
 `hidden_cases` for each task and the hidden-case read with its paired read as the
 executed control.
 
@@ -113,9 +118,19 @@ findings from the other criteria as candidates for containment.
 
 **Assessment limit:** Leave it `NOT_ASSESSED`; don't propose a repair as verified.
 
-## AUDIT-05-B — Exposure disclosure
+## AUDIT-04-B-SUITE — Exploit containment across the suite
 
 [Canonical definition](leakage-and-credit.json#/items/2)
+
+**Methods and evidence:** No measurement or control yet. List the retained tasks
+affected by each confirmed exploit from the task-level AUDIT-04-B results.
+
+**Assessment limit:** Leave it `NOT_ASSESSED` until affected retained and new
+tasks have replay results.
+
+## AUDIT-05-B — Exposure disclosure
+
+[Canonical definition](leakage-and-credit.json#/items/3)
 
 **Methods and evidence:** Use `layout`, `leakage`, `overlap`, and `external` for
 the deterministic inventory of accessible answer artifacts. Recomputing outcomes
@@ -126,7 +141,7 @@ settings. They can't support a claim about training-data exposure.
 
 ## AUDIT-05-S03 — Adaptive selection and confirmation
 
-[Canonical definition](leakage-and-credit.json#/items/3)
+[Canonical definition](leakage-and-credit.json#/items/4)
 
 **Methods and evidence:** Use `reuse` for private task content anywhere in the
 agent's prompts, skills, or harness code, and `overlap` for split lineage.
@@ -136,7 +151,7 @@ doesn't show that results weren't used to tune the agent.
 
 ## TRACE-04-A — Review secrets and proprietary information
 
-[Canonical definition](leakage-and-credit.json#/items/4)
+[Canonical definition](leakage-and-credit.json#/items/5)
 
 **Methods and evidence:** No measurement yet. Report secrets found while
 reviewing other criteria under sensitive-data exposure.
@@ -145,7 +160,7 @@ reviewing other criteria under sensitive-data exposure.
 
 ## ENV-03-S01 — Verify reset closure and episode isolation
 
-[Canonical definition](leakage-and-credit.json#/items/5)
+[Canonical definition](leakage-and-credit.json#/items/6)
 
 **Methods and evidence:** Harbor starts each trial in a fresh container. Review
 state that outlives the container: extra mounts, Compose volumes, and external
@@ -157,9 +172,19 @@ the fresh-container argument doesn't apply to them.
 
 ## CREATE-02 — Task-irrelevant shortcuts
 
-[Canonical definition](leakage-and-credit.json#/items/6)
+[Canonical definition](leakage-and-credit.json#/items/7)
 
 **Methods and evidence:** Use `leakage` for local answer-bearing artifacts.
 
 **Assessment limit:** Cue-bearing filenames, answer positions, and formatting
 cues have no measurement yet; keep them unresolved.
+
+## CREATE-02-SUITE — Task-irrelevant shortcuts across task families
+
+[Canonical definition](leakage-and-credit.json#/items/8)
+
+**Methods and evidence:** No measurement yet. Reuse the task-level CREATE-02
+controls on each independently authored family.
+
+**Assessment limit:** Leave it `NOT_ASSESSED` until at least one new family has
+qualified cue controls.

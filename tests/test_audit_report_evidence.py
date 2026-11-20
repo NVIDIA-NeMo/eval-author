@@ -6,8 +6,6 @@ from __future__ import annotations
 import importlib
 import json
 import shutil
-import subprocess
-import sys
 from pathlib import Path
 
 import pytest
@@ -177,39 +175,7 @@ def test_bound_measurements_compute_coverage_and_stale_evidence_blocks_render(
     renderer = content.load_module("audit_markdown_renderer", SCRIPTS / "render_report.py")
     shutil.copytree(EXAMPLE / "report-sources", tmp_path / "report-sources")
     shutil.copy2(EXAMPLE / "report-content.json", tmp_path / "report-content.json")
-    aggregate = bound_gap(tmp_path, tmp_path / "coverage.json", "customer.lookup")
-    if run_alias or methods:
-        shutil.rmtree(tmp_path / "baseline-measurements")
-        for script, arguments in [
-            (
-                "measure.py",
-                [
-                    "--trace",
-                    tmp_path / "baseline.atif.json",
-                    "--task-id",
-                    "baseline",
-                    "--evidence-class",
-                    "agent_under_test",
-                    "--out-dir",
-                    tmp_path / "baseline-measurements",
-                    *(["--run-id", run_alias] if run_alias else []),
-                    *([part for method in methods for part in ("--measure", method)] if methods else []),
-                ],
-            ),
-            ("report.py", ["--coverage-dir", tmp_path / "baseline-measurements", "--out", aggregate]),
-        ]:
-            result = subprocess.run(
-                [
-                    sys.executable,
-                    str(SCRIPTS / script),
-                    "--audit",
-                    str(tmp_path / ".eval-author/audit.md"),
-                    *map(str, arguments),
-                ],
-                text=True,
-                capture_output=True,
-            )
-            assert result.returncode == 0, result.stdout + result.stderr
+    aggregate = bound_gap(tmp_path, tmp_path / "coverage.json", "customer.lookup", run_id=run_alias, methods=methods)
     data = example_data(tmp_path)
     files = [
         tmp_path / "ETHOS.md",

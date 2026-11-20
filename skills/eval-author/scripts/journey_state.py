@@ -22,12 +22,20 @@ import stat
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import TypedDict
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import audit_state  # noqa: E402
 import expansion_state  # noqa: E402
 import first_eval_state  # noqa: E402
-from conversation_templates import CHECKLIST_LABELS, JOURNEYS  # noqa: E402
+from conversation_templates import (  # noqa: E402
+    CHECKLIST_LABELS,
+    ETHOS_CHANGED_QUESTION,
+    ETHOS_DRAFT_CHANGED_QUESTION,
+    ETHOS_SELECTED_QUESTION,
+    JOURNEYS,
+)
+from interaction_types import user_simulation_enabled, validate_user_simulation  # noqa: E402
 from runtime_policy import load as runtime_policy  # noqa: E402
 from working_paths import (  # noqa: E402
     atomic_write_json,
@@ -266,6 +274,8 @@ def validate(state: dict, *, check_size: bool = True) -> None:
     for field in ("scopes", "journey_status"):
         if not isinstance(state[field], dict) or set(state[field]) - set(JOURNEYS):
             raise ValueError(f"Invalid {field}")
+    for journey in ("create", "expand"):
+        user_simulation_enabled(state, journey)
     creation_scope = state["scopes"].get("create", {})
     if isinstance(creation_scope, dict) and "first_eval" in creation_scope:
         first_eval_state.validate(creation_scope["first_eval"])
@@ -419,7 +429,7 @@ def load_state(repo: Path, *, state_only: bool = False) -> dict:
             )
             invalidate_scopes(state)
             state["next_handoff"] = "ethos-orchestrate"
-            state["pending_question"] = "ETHOS.md changed or is unavailable; review its intended behavior again."
+            state["pending_question"] = ETHOS_CHANGED_QUESTION
     if (
         state["ethos"]["draft_confirmed"]
         and state["ethos"]["stage"] != "complete"
@@ -433,7 +443,7 @@ def load_state(repo: Path, *, state_only: bool = False) -> dict:
         if current != draft["digest"]:
             state["ethos"].update(stage="draft", draft_confirmed=False, draft_source=None)
             state["next_handoff"] = "ethos-orchestrate"
-            state["pending_question"] = "The agreed draft changed or is unavailable; review the draft before writing."
+            state["pending_question"] = ETHOS_DRAFT_CHANGED_QUESTION
     if (
         state["journey"] != "audit"
         and state["ethos"]["stage"] == "complete"
@@ -505,9 +515,14 @@ def task_digest(repo: Path, task: str) -> str:
     return digest(json.dumps(sorted(entries)).encode())
 
 
-def observe_artifacts(repo: Path, tasks: dict[str, str], files: set[str]) -> dict:
+class ArtifactObservations(TypedDict):
+    tasks: dict[str, str | None]
+    files: dict[str, str | None]
+
+
+def observe_artifacts(repo: Path, tasks: dict[str, str], files: set[str]) -> ArtifactObservations:
     """Read declared task trees and evidence without interpreting native results."""
-    observed: dict = {"tasks": {}, "files": {}}
+    observed: ArtifactObservations = {"tasks": {}, "files": {}}
     for key, path in tasks.items():
         try:
             observed["tasks"][key] = task_digest(repo, path)
@@ -623,9 +638,9 @@ def _unused_audit_traces(state: dict, blocker: dict) -> bool:
     return audit_state.traces_unused(state) and blocker["id"] == "data" and blocker["phase"] in {"setup", "audit"}
 
 
-def active_blockers(state: dict, *, state_only: bool = False) -> list[dict]:
+def active_blockers(state: dict, *, state_only: bool = False, ethos_optional: bool = False) -> list[dict]:
     """Present dependencies at the action they block, retaining all saved evidence."""
-    shared_done = all(row["complete"] for row in checklist(state, state_only=state_only)[:2])
+    shared_done = all(row["complete"] for row in checklist(state, state_only=state_only)[: 1 if ethos_optional else 2])
     started = state["journey_status"].get(state["journey"]) in {"in_progress", "complete"}
     later_requirements = {"environment", "services", "data", *DEFERRED}
     return [
@@ -859,9 +874,27 @@ def update(repo: Path, patch: dict, *, expected_revision: int | None = None, sta
         or ("ethos" in patch and patch["ethos"] != {"stage": "review"})
     ):
         raise ValueError("State-only updates accept prerequisites, blockers, routing, and ethos.stage=review only")
+    simulation_scope: str | None = None
+    scopes = patch.get("scopes")
+    if isinstance(scopes, dict):
+        for selected in ("create", "expand"):
+            scope = scopes.get(selected)
+            if isinstance(scope, dict) and "user_simulation" in scope:
+                if simulation_scope is not None:
+                    raise ValueError("Update user simulation for one authoring journey at a time")
+                validate_user_simulation(scope["user_simulation"])
+                simulation_scope = selected
+                if expected_revision is None:
+                    raise ValueError("User simulation updates require --expected-revision from the latest show")
     if state_only and "scopes" in patch:
         scopes = patch["scopes"]
         if (
+            simulation_scope is not None
+            and set(scopes) == {simulation_scope}
+            and set(scopes[simulation_scope]) == {"user_simulation"}
+        ):
+            pass
+        elif (
             isinstance(scopes, dict)
             and set(scopes) == {"expand"}
             and isinstance(scopes["expand"], dict)
@@ -878,7 +911,7 @@ def update(repo: Path, patch: dict, *, expected_revision: int | None = None, sta
             ):
                 raise ValueError(
                     "State-only updates accept only audit framework and framework_source observations or mode decisions, "
-                    "or expansion entry_choice"
+                    "or expansion entry_choice or a user_simulation decision"
                 )
             for field, value in scopes["audit"].items():
                 if field == "mode":
@@ -905,6 +938,8 @@ def update(repo: Path, patch: dict, *, expected_revision: int | None = None, sta
     with working_lock(working_path(repo, "journey-state.lock")):
         state = load_state(repo, state_only=state_only)
         previous = copy.deepcopy(state)
+        if simulation_scope is not None and state["journey"] != simulation_scope:
+            raise ValueError("Select the authoring journey before changing user simulation")
         create_patch = patch.get("scopes", {}).get("create") if isinstance(patch.get("scopes"), dict) else None
         if state["journey"] == "audit" and any(
             isinstance(patch.get(field), dict) and {"create", "expand"} & patch[field].keys()
@@ -999,7 +1034,7 @@ def update(repo: Path, patch: dict, *, expected_revision: int | None = None, sta
         for field, value in patch.items():
             if state_only and field == "scopes":
                 # Metadata changes preserve source selections and historical decisions.
-                selected = "expand" if "expand" in value else "audit"
+                selected = next(iter(value))
                 prior_scope = state["scopes"].get(selected, {})
                 if not isinstance(prior_scope, dict):
                     prior_scope = {"legacy_context": prior_scope}
@@ -1008,7 +1043,7 @@ def update(repo: Path, patch: dict, *, expected_revision: int | None = None, sta
                 if not isinstance(value, dict):
                     raise ValueError(f"{field} must be a mapping")
                 changes = copy.deepcopy(value)
-                if field == "scopes" and typed_create:
+                if field == "scopes" and isinstance(create_patch, dict) and isinstance(prior_create, dict):
                     changes["create"] = {**copy.deepcopy(prior_create), **changes["create"]}
                 if field == "scopes" and isinstance(audit_patch, dict) and isinstance(prior_audit, dict):
                     changes["audit"] = {**copy.deepcopy(prior_audit), **changes["audit"]}
@@ -1016,13 +1051,13 @@ def update(repo: Path, patch: dict, *, expected_revision: int | None = None, sta
                     field == "scopes"
                     and isinstance(expand_patch, dict)
                     and isinstance(prior_expand, dict)
-                    and (typed_expansion or "entry_choice" in expand_patch)
+                    and (typed_expansion or "entry_choice" in expand_patch or "user_simulation" in expand_patch)
                 ):
                     changes["expand"] = {**copy.deepcopy(prior_expand), **changes["expand"]}
                 if (
                     field == "scopes"
                     and isinstance(expand_patch, dict)
-                    and (typed_expansion or "entry_choice" in expand_patch)
+                    and (typed_expansion or "entry_choice" in expand_patch or "user_simulation" in expand_patch)
                     and not isinstance(prior_expand, dict)
                 ):
                     changes["expand"] = {"legacy_context": copy.deepcopy(prior_expand), **changes["expand"]}
@@ -1062,7 +1097,7 @@ def update(repo: Path, patch: dict, *, expected_revision: int | None = None, sta
             )
             invalidate_scopes(state)
             if "pending_question" not in patch:
-                state["pending_question"] = "Review the selected ETHOS.md and confirm its intended behavior."
+                state["pending_question"] = ETHOS_SELECTED_QUESTION
             if "next_handoff" not in patch:
                 state["next_handoff"] = "ethos-orchestrate"
         revising_intent = proposed.get("stage", "complete") not in {"complete", "review"}
@@ -1080,6 +1115,17 @@ def update(repo: Path, patch: dict, *, expected_revision: int | None = None, sta
         if not state_only and state["journey"] != "audit":
             first_eval_state.transition(repo, previous, state)
             expansion_state.transition(repo, previous, state)
+        if (simulation_scope == "create" or user_simulation_enabled(previous) != user_simulation_enabled(state)) and (
+            not user_simulation_enabled(previous) or not user_simulation_enabled(state)
+        ):
+            creation = first_eval_state.record(state)
+            if creation is not None and (
+                first_eval_state.user_sim_tasks(creation) or (creation["selection"] or {}).get("user_sim")
+            ):
+                creation["execution_settings_presented"] = None
+                if creation["selection"] is not None:
+                    creation["selection"].pop("authorization", None)
+        if not state_only and state["journey"] != "audit":
             creation = first_eval_state.progress(repo, state)
             if patch.get("journey_status", {}).get("create") == "complete" and creation and not creation["complete"]:
                 raise ValueError("Creation completion requires current selected native runs and their exact review")

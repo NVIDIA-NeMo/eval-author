@@ -18,6 +18,10 @@ from pathlib import Path
 POLICY_PATH = Path(__file__).with_name("runtime-policy.json")
 
 
+class RuntimePolicyError(ValueError):
+    """The installed release does not meet the shared runtime policy."""
+
+
 def load() -> dict:
     policy = json.loads(POLICY_PATH.read_text())
     if policy["schema_version"] != 1:
@@ -57,6 +61,17 @@ def satisfies(value: str, constraint: str) -> bool:
 def install_spec(provider: str) -> str:
     entry = load()["providers"][provider]
     return f"{entry['package']}=={entry['test_profiles'][entry['install_profile']]['version']}"
+
+
+def require_supported(provider: str, flow: str, installed: str) -> None:
+    entry = load()["providers"][provider]
+    constraint = entry["supported"][flow]
+    try:
+        supported = satisfies(installed, constraint)
+    except ValueError:
+        supported = False
+    if not supported:
+        raise RuntimePolicyError(f"{flow.capitalize()} requires {entry['package']} {constraint} (stable release)")
 
 
 def main() -> None:

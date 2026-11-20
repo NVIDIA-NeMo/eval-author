@@ -2,7 +2,9 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import copy
+import json
 import shutil
+import sys
 
 import pytest
 from journey_state_support import ethos_ready, expansion_payload, setup_ready
@@ -23,8 +25,8 @@ def bound(modules, repo, saved, checkpoint, source):
     return {"digest": current["digest" if checkpoint == "review" else "selection_digest"], "source": source}
 
 
-def ready(modules, repo, statuses=("passed", "passed"), *, setup="gym", same_title=False):
-    saved, value = begin(modules, repo)
+def ready(modules, repo, statuses=("passed", "passed"), *, setup="gym", same_title=False, path="starter_suite"):
+    saved, value = begin(modules, repo, path)
     if setup == "harbor":
         setup_ready(modules[0], repo, journey="expand", setup=setup)
         saved = ethos_ready(modules[0], repo)
@@ -148,6 +150,8 @@ def test_review_and_distinct_run_decision_resume_deterministically(modules, tmp_
     assert not progress(modules, tmp_path, saved)["execution"]["authorized"]
     plan = render(modules, saved)
     assert plan.count(RUN_QUESTION) == 1
+    for task in value["plan"]["tasks"]:
+        assert task["scenario"] in plan and task["outcome"] in plan
     assert "Running your agent will test its performance" in plan
     assert plan.index("**Run limits:**") < plan.index("**Run configuration:**") < plan.index(RUN_QUESTION)
     target = value["execution"]["selection"] if decision == "authorize" else value["execution"]
@@ -207,7 +211,8 @@ def test_requested_draft_changes_revalidate_only_affected_task_and_require_revie
     assert not progress(modules, tmp_path, saved)["review"]["approved"]
     author(modules, tmp_path, value, 1)
     saved = save(modules, tmp_path, saved, value)
-    assert value["creation"]["tasks"][modules[1].task_key(value["plan"]["tasks"][0])] == unchanged
+    persisted = modules[1].record(modules[0].load_state(tmp_path))
+    assert persisted["creation"]["tasks"][modules[1].task_key(value["plan"]["tasks"][0])] == unchanged
     assert not progress(modules, tmp_path, saved)["review"]["ready"]
     value["review"]["artifacts"]["digest"] = bound(modules, tmp_path, saved, "review", "Refresh")["digest"]
     saved = save(modules, tmp_path, saved, value)
@@ -379,8 +384,8 @@ def test_scope_revision_retains_history_and_clears_later_questions(modules, tmp_
     assert revised["creation"]["tasks"] == value["creation"]["tasks"]
     assert revised["review"]["decision"] == value["review"]["decision"]
     assert revised["review"]["pending"] is revised["execution"]["pending"] is None
-    with pytest.raises(ValueError, match="Use expansion_scope"):
-        modules[2].render({"stage": "resume", "state": saved, "revision": saved["revision"]})
+    output = modules[2].render({**expansion_payload(modules, saved), "stage": "resume"})
+    assert output.count(revised["pending"]["question"]) == 1
     revised.update(decision={"kind": "approved", "source": "User agrees to revised scope"}, pending=None)
     saved = save(modules, tmp_path, saved, revised)
     assert saved["pending_question"] is None and RUN_QUESTION not in render(modules, saved)
@@ -759,8 +764,9 @@ def test_reviewed_run_resumes_without_pre_run_copy_or_settled_questions(modules,
 
 @pytest.mark.parametrize("setup", ["gym", "harbor"])
 @pytest.mark.parametrize("question_first", [False, True])
+@pytest.mark.parametrize("blocker", ["services", "verifier"])
 def test_execution_blocker_keeps_partial_results_visible_without_permitting_advancement(
-    modules, tmp_path, setup, question_first
+    modules, tmp_path, setup, question_first, blocker
 ):
     state, _, renderer = modules
     saved, value, data = result_payload(modules, tmp_path, setup=setup)
@@ -770,7 +776,7 @@ def test_execution_blocker_keeps_partial_results_visible_without_permitting_adva
         saved = save(modules, tmp_path, saved, value)
     saved = state.update(
         tmp_path,
-        {"blockers": [{"id": "services", "phase": "expand", "message": "Refund service unavailable"}]},
+        {"blockers": [{"id": blocker, "phase": "expand", "message": "Refund service unavailable"}]},
         expected_revision=saved["revision"],
     )
     if not question_first:
@@ -858,3 +864,307 @@ def test_execution_blocker_does_not_allow_displaying_results_with_stale_bindings
     data["facts"]["attempts"] = attempts
     with pytest.raises(ValueError, match="Reconcile the current tasks, settings, and run authorization"):
         modules[2].render(data)
+
+
+@pytest.mark.parametrize("run_pending", [False, True])
+def test_updated_task_review_replaces_stale_run_question_on_resume(modules, tmp_path, run_pending):
+    saved, value = authorized(modules, tmp_path)
+    if run_pending:
+        value["execution"]["pending"] = {"question": RUN_QUESTION, "source": "Unanswered run decision"}
+        saved = save(modules, tmp_path, saved, value)
+    evidence(tmp_path, ".eval-author/tasks/refund-1/verifier.py", "Reject duplicate refunds")
+    author(modules, tmp_path, value, 1)
+    saved = save(modules, tmp_path, saved, value)
+    value["review"]["artifacts"]["digest"] = bound(modules, tmp_path, saved, "review", "Refresh")["digest"]
+    question = "Approve the updated tasks?"
+    value["review"]["pending"] = {"question": question, "source": "Updated task review"}
+    saved = save(modules, tmp_path, saved, value)
+    assert progress(modules, tmp_path, saved)["pending_question"] == saved["pending_question"] == question
+    resumed = modules[0].initialize(tmp_path, journey="expand")
+    with pytest.raises(ValueError, match="Use expansion_review"):
+        modules[2].render({"stage": "resume", "state": resumed, "revision": resumed["revision"]})
+    output = render(modules, resumed)
+    assert output.count(question) == 1 and RUN_QUESTION not in output
+    assert "The updated tasks have passed their checks and need your approval" in output
+    assert "refund-1/README.md" in output and "refund-1-passed.json" in output
+
+
+@pytest.mark.parametrize("repairing", [False, True])
+def test_review_record_preserves_expand_blocker_recovery(modules, tmp_path, repairing):
+    saved, value = ready(modules, tmp_path)
+    if repairing:
+        saved = present_review(modules, tmp_path, saved, value)
+        value["review"]["decision"] = {
+            **bound(modules, tmp_path, saved, "review", "User requests corrections"),
+            "decision": "changes_requested",
+        }
+        value["review"]["pending"] = None
+        value["creation"]["pending"] = {"question": "Which duplicate refund should be repaired?", "source": "Repair"}
+        saved = save(modules, tmp_path, saved, value)
+    question = "Restore verifier access?" if repairing else None
+    blocked = modules[0].update(
+        tmp_path,
+        {
+            "blockers": [{"id": "verifier", "phase": "expand", "message": "Verifier dependency unavailable"}],
+            "pending_question": question,
+        },
+        expected_revision=saved["revision"],
+    )
+    resumed = modules[0].initialize(tmp_path, journey="expand")
+    assert resumed["pending_question"] == blocked["pending_question"] == question
+    output = modules[2].render(
+        {
+            "stage": "resume",
+            "state": resumed,
+            "revision": resumed["revision"],
+            "facts": {
+                "blockers": [
+                    {
+                        "id": "verifier",
+                        "step": "Task review",
+                        "reason": "Verifier dependency unavailable",
+                        "needed": "Restore access",
+                    }
+                ]
+            },
+        }
+    )
+    assert "Verifier dependency unavailable" in output and "Restore access" in output
+    if question:
+        assert question in output
+    restored = modules[0].update(
+        tmp_path, {"blockers": [], "pending_question": None}, expected_revision=resumed["revision"]
+    )
+    expected = value["creation"]["pending"]["question"] if repairing else REVIEW_QUESTION
+    assert restored["pending_question"] == expected
+
+
+@pytest.mark.parametrize("decision", ["approved", "declined"])
+def test_current_review_decision_does_not_request_reapproval_after_report_change(modules, tmp_path, decision):
+    saved, value = ready(modules, tmp_path)
+    saved = present_review(modules, tmp_path, saved, value)
+    value["review"]["decision"] = {
+        **bound(modules, tmp_path, saved, "review", "User task-review reply"),
+        "decision": decision,
+    }
+    value["review"]["pending"] = None
+    saved = save(modules, tmp_path, saved, value)
+    (tmp_path / ".eval-author/report.html").write_text("Updated report")
+    resumed = modules[0].initialize(tmp_path, journey="expand")
+    output = render(modules, resumed)
+    assert "The complete agreed set is not ready for approval" not in output
+    expected = "This task set is approved" if decision == "approved" else "You declined this task set"
+    assert expected in output
+
+
+@pytest.mark.parametrize("path", ["starter_suite", "recorded_interaction"])
+@pytest.mark.parametrize("blocker", ["agent_connection", "model_credentials"])
+@pytest.mark.parametrize("checkpoint", ["review", "execution", "authorized"])
+def test_run_only_blockers_preserve_review_routing_and_questions(modules, tmp_path, path, blocker, checkpoint):
+    saved, value = ready(modules, tmp_path, path=path)
+    question = REVIEW_QUESTION
+    if checkpoint != "review":
+        saved = approve(modules, tmp_path, present_review(modules, tmp_path, saved, value), value)
+        saved = execution(modules, tmp_path, saved, value)
+        question = RUN_QUESTION
+        if checkpoint == "authorized":
+            value["execution"]["selection"]["authorization"] = bound(
+                modules, tmp_path, saved, "execution", "User authorizes four attempts"
+            )
+            value["execution"]["pending"] = None
+            saved = save(modules, tmp_path, saved, value)
+            question = None
+    saved = modules[0].update(
+        tmp_path, {"journey_status": {"expand": "in_progress"}}, expected_revision=saved["revision"]
+    )
+    blockers = [{"id": blocker, "phase": "expand", "message": "Agent run dependency unavailable"}]
+    if question:
+        before = modules[0].state_path(tmp_path).read_bytes()
+        with pytest.raises(ValueError, match="Save the actual unresolved scope question"):
+            modules[0].update(
+                tmp_path, {"blockers": blockers, "pending_question": None}, expected_revision=saved["revision"]
+            )
+        assert modules[0].state_path(tmp_path).read_bytes() == before
+    blocked = modules[0].update(tmp_path, {"blockers": blockers}, expected_revision=saved["revision"])
+    assert progress(modules, tmp_path, blocked)["review"]["ready"]
+    assert blocked["pending_question"] == question
+    modules[0].save(tmp_path, {**blocked, "pending_question": None})
+    reloaded = modules[0].load_state(tmp_path)
+    assert modules[0].view(reloaded)["state"]["pending_question"] == question
+    resumed = modules[0].initialize(tmp_path, journey="expand")
+    assert resumed["pending_question"] == question and resumed["blockers"] == blockers
+    with pytest.raises(ValueError, match="Use expansion_review"):
+        modules[2].render({"stage": "resume", "state": resumed, "revision": resumed["revision"]})
+    output = render(modules, resumed)
+    if question:
+        assert output.count(question) == 1
+    else:
+        assert progress(modules, tmp_path, resumed)["execution"]["authorized"]
+
+
+@pytest.mark.parametrize("path", ["starter_suite", "recorded_interaction"])
+@pytest.mark.parametrize("blocker", ["agent_connection", "model_credentials"])
+def test_revised_scope_with_review_history_preserves_blocker_recovery(modules, tmp_path, path, blocker):
+    if path == "recorded_interaction":
+        setup_ready(modules[0], tmp_path, journey="expand")
+        ethos_ready(modules[0], tmp_path)
+    saved, value = ready(modules, tmp_path, path=path)
+    saved = approve(modules, tmp_path, present_review(modules, tmp_path, saved, value), value)
+    saved = execution(modules, tmp_path, saved, value)
+    revised = modules[1].new_scope(
+        saved,
+        path=path,
+        plan={**value["plan"], "summary": "Revised refund scope"},
+        question="Agree to this revised plan?",
+        source="User revises scope after task review",
+    )
+    saved = save(modules, tmp_path, saved, revised)
+    question = "Restore agent access before continuing with the plan?"
+    blocked = modules[0].update(
+        tmp_path,
+        {
+            "journey_status": {"expand": "in_progress"},
+            "blockers": [{"id": blocker, "phase": "expand", "message": "Agent access unavailable"}],
+            "pending_question": question,
+        },
+        expected_revision=saved["revision"],
+    )
+    assert progress(modules, tmp_path, blocked)["stage"] == "scope"
+    assert modules[0].view(blocked)["state"]["pending_question"] == question
+    resumed = modules[0].initialize(tmp_path, journey="expand")
+    assert resumed["pending_question"] == question
+    output = modules[2].render(
+        {
+            "stage": "resume",
+            "state": resumed,
+            "revision": resumed["revision"],
+            "facts": {
+                "blockers": [
+                    {
+                        "id": blocker,
+                        "step": "Scope planning",
+                        "reason": "Agent access unavailable",
+                        "needed": "Restore access",
+                    }
+                ]
+            },
+        }
+    )
+    assert question in output and "Restore access" in output
+    restored = modules[0].update(
+        tmp_path, {"blockers": [], "pending_question": None}, expected_revision=resumed["revision"]
+    )
+    assert restored["pending_question"] == revised["pending"]["question"]
+    assert (
+        modules[2]
+        .render({**expansion_payload(modules, restored), "stage": "expansion_scope"})
+        .count(revised["pending"]["question"])
+        == 1
+    )
+
+
+@pytest.mark.parametrize("blocker", ["agent_connection", "model_credentials"])
+@pytest.mark.parametrize("checkpoint", ["review", "execution"])
+def test_ethos_reconfirmation_restores_review_question_with_run_only_blocker(modules, tmp_path, blocker, checkpoint):
+    saved, value = ready(modules, tmp_path)
+    question = REVIEW_QUESTION
+    if checkpoint == "execution":
+        saved = approve(modules, tmp_path, present_review(modules, tmp_path, saved, value), value)
+        saved = execution(modules, tmp_path, saved, value)
+        question = RUN_QUESTION
+    saved = modules[0].update(
+        tmp_path, {"journey_status": {"expand": "in_progress"}}, expected_revision=saved["revision"]
+    )
+    ethos_question = "Is this still the correct document and intended behavior?"
+    modules[0].update(
+        tmp_path,
+        {
+            "ethos": {"stage": "review"},
+            "blockers": [{"id": blocker, "phase": "expand", "message": "Agent access unavailable"}],
+            "pending_question": ethos_question,
+        },
+        expected_revision=saved["revision"],
+        state_only=True,
+    )
+    confirmed = modules[0].confirm_ethos(
+        tmp_path,
+        reviewed_digest=modules[0].ethos_digest(tmp_path),
+        source="User reconfirms unchanged intent",
+        validation="Saved-file validation passed",
+    )
+    assert confirmed["pending_question"] == question
+    resumed = modules[0].initialize(tmp_path, journey="expand")
+    assert resumed["pending_question"] == question
+    output = render(modules, resumed)
+    assert output.count(question) == 1 and ethos_question not in output
+
+
+@pytest.mark.parametrize("journey", ["audit", "create"])
+def test_show_with_retained_expansion_never_observes_its_artifacts(modules, tmp_path, monkeypatch, capsys, journey):
+    saved, _ = authorized(modules, tmp_path)
+    retained = copy.deepcopy(modules[1].record(saved))
+    modules[0].initialize(tmp_path, journey=journey, state_only=True)
+
+    def forbidden(*args, **kwargs):
+        pytest.fail("An inactive expansion must not observe authoring evidence")
+
+    monkeypatch.setattr(modules[1], "observe", forbidden)
+    monkeypatch.setattr(modules[0], "observe_artifacts", forbidden)
+    monkeypatch.setattr(sys, "argv", ["journey_state.py", "--repo", str(tmp_path), "show"])
+    before = modules[0].state_path(tmp_path).read_bytes()
+    assert modules[0].main() == 0
+    shown = json.loads(capsys.readouterr().out)
+    assert shown["expansion_observations"] is shown["expansion"] is None
+    assert modules[1].record(shown["state"]) == retained
+    assert modules[0].state_path(tmp_path).read_bytes() == before
+
+
+def test_harbor_execution_survives_gym_scope_recovery_without_invented_fields(modules, tmp_path):
+    saved, value = ready(modules, tmp_path, setup="harbor")
+    saved = approve(modules, tmp_path, present_review(modules, tmp_path, saved, value), value)
+    saved = execution(modules, tmp_path, saved, value, present=False)
+    value["execution"]["selection"].pop("inputs")
+    for case in value["execution"]["selection"]["cases"]:
+        case.pop("rows")
+    saved = save(modules, tmp_path, saved, value)
+    value["execution"]["execution_settings_presented"] = bound(modules, tmp_path, saved, "execution", "Harbor plan")
+    saved = save(modules, tmp_path, saved, value)
+    value["execution"]["selection"]["authorization"] = bound(
+        modules, tmp_path, saved, "execution", "User approves Harbor run"
+    )
+    value["execution"]["pending"] = None
+    saved = save(modules, tmp_path, saved, value)
+    original = copy.deepcopy(value["execution"])
+    modules[0].initialize(tmp_path, setup="gym")
+    saved = setup_ready(modules[0], tmp_path, journey="expand", setup="gym")
+    value = modules[1].new_scope(
+        saved,
+        path=value["path"],
+        plan=value["plan"],
+        question="Use Gym for these tasks?",
+        source="User changes runtime",
+    )
+    saved = save(modules, tmp_path, saved, value)
+    assert modules[1].record(saved)["execution"] == {**original, "provider": "harbor"}
+    assert not progress(modules, tmp_path, saved)["execution"]["authorized"]
+    value.update(decision={"kind": "approved", "source": "User agrees to Gym scope"}, pending=None)
+    saved = save(modules, tmp_path, saved, value)
+    value["review"]["artifacts"]["digest"] = bound(modules, tmp_path, saved, "review", "Gym review")["digest"]
+    saved = save(modules, tmp_path, saved, value)
+    saved = approve(modules, tmp_path, present_review(modules, tmp_path, saved, value), value)
+    assert not progress(modules, tmp_path, saved)["execution"]["selection_current"]
+    assert "update the selected cases" in render(modules, saved)
+    assert modules[1].record(modules[0].initialize(tmp_path, journey="expand"))["execution"] == {
+        **original,
+        "provider": "harbor",
+    }
+    saved = modules[0].load_state(tmp_path)
+    saved = execution(modules, tmp_path, saved, value)
+    assert progress(modules, tmp_path, saved)["execution"]["selection_current"]
+    assert not progress(modules, tmp_path, saved)["execution"]["authorized"]
+    value["execution"]["selection"]["authorization"] = bound(
+        modules, tmp_path, saved, "execution", "User approves Gym run"
+    )
+    value["execution"]["pending"] = None
+    saved = save(modules, tmp_path, saved, value)
+    assert progress(modules, tmp_path, saved)["execution"]["authorized"]

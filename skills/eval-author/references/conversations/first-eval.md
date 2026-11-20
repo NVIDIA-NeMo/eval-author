@@ -441,7 +441,9 @@ files, and evidence. A state-only prerequisite snapshot is insufficient.
 
 The caller obtains fresh `first_eval_observations` from the state helper and
 passes them as `facts.observations`. They contain actual task digests under
-`tasks` and actual retained-file digests under `files`; missing artifacts are
+`tasks` and actual retained-file digests under `files`. For a bound user-sim
+selection, `directories` maps its working directory to a boolean proving that
+it still exists inside the repository without a symlink boundary. Missing artifacts are
 `null`. The renderer derives applicability from these observations and the saved
 `scopes.create.first_eval` record. It never accepts supplied approval, validation,
 completion, or progress booleans. Save decisions and actual results before
@@ -554,6 +556,35 @@ retains complete input references under `selection.inputs`. Actual bounded
 permission is recorded separately in `selection.authorization` using the derived
 `selection_digest` and the authorizing reply reference.
 
+For a User-sim task, use
+`first_eval_state.bind_user_sim_translation(repo, translation.to_dict())` to bind
+the translator's retained configuration and every consumed input. Merge its
+`config`, `inputs`, and `user_sim` fields into the existing selection. The helper
+requires the translator's original `input_digests` receipt and rejects changed
+sources or generated files. Regenerate the translation after any input change.
+Do not replace receipt digests with freshly computed values to reuse old prompts.
+It also requires paths inside the target repository and preserves the native working
+directory. If a consumed prompt is outside the repository, retain a local copy
+and regenerate the native configuration to consume that copy before binding.
+Keep each run's translated files outside the task tree and retain them with its
+evidence. Do not overwrite earlier inputs when preparing another run.
+
+Save `execution_settings.user_sim` with `agent_model` and `conversation_limits`
+as explicit display text grounded in the selected native configuration. The
+native configuration owns runtime settings. Conversation limits must describe
+the whole exchange, not a simulator timeout that the runtime does not enforce.
+Bind observed interactive-runner proof through `selection.bridge` using its
+existing `{source, evidence}` shape. This proof must show opening-request
+fidelity, session continuity, participant identity, and the required information
+visibility. Translated files, interface declarations, and synthetic controls do
+not establish this proof. Missing settings or proof keeps execution blocked.
+
+This release executes one approved task per User-sim suite. A suite with multiple
+User-sim tasks or a mix of User-sim and other task types may still be authored and
+reviewed, but it cannot become an execution selection. Explain this limit and
+use a separate or explicitly revised one-task suite. Do not silently omit tasks
+from the approved plan or convert their interaction types to fit the runtime.
+
 Retain native `runs` with their stable IDs, selected task revisions, native
 attempt identities, statuses, rewards, and evidence. Explicitly save
 `selected_run_ids`; directory membership, append order, and a reviewed attempt do
@@ -589,6 +620,7 @@ that reply's source. The existing handoff state controls entering the audit.
 | `first_eval_run_progress` | Observed native launch or queued status with current authorized selection and digest-bound current status evidence. Render the standard checklist without skill labels, evidence-derived completed/planned attempts, recorded execution errors, and only actually observed activity. No run-only approval pause or inferred activity. |
 | `first_eval_results` | Review an exact retained current actual-agent attempt when its evidence is available; otherwise present the incomplete inventory and missing-evidence blocker. Separate completed, quality-failing, infrastructure-failing, missing, and unavailable-evidence outcomes. Link verified evidence and rerun instructions, reconcile delivered work, and show completion only when justified. |
 | `first_eval_resume` | Derive the pending creation stage from saved decisions and fresh artifact observations, including an unresolved saved-design choice. Reuse applicable answers and authorization after that choice. It emits no welcome or initial readiness question. |
+| `first_eval_simulation_disabled` | Explain the saved suite's disabled simulation status using the shared [opt-in gate](../coverage-planning.md#enable-experimental-user-simulation). Retain tasks and results. |
 | `first_eval_blockers` | One or more saved blockers preventing the current action, with specific reasons and needed actions. Preserve independent progress. |
 
 The proposal uses the saved plan's `presentation.coverage_note` for its usefulness,
@@ -606,6 +638,7 @@ document.
 Late execution settings come from the saved record's `execution_settings`, with
 existing plan-presentation fields retained as a compatibility fallback. They
 contain `agent_model`, `attempts`, `validation`, `limits`, and `open_questions`.
+User-sim selections also include the simulator display settings described above.
 Retain target/model and selection details for reproducibility without repeating
 them as settings bullets. Ask a focused question only when a target-agent model choice is
 still missing. Record the actual display
@@ -729,7 +762,13 @@ task review rather than appending the handoff to those checkpoints.
 
 The prompt takes its context from the saved repository, actual agent, confirmed
 `ETHOS.md` path, selected provider or configured Gym–Harbor path, and agreed task
-and example IDs. Include the actual retained paths for already created selected
+and example IDs, plus each agreed interaction type, state requirements,
+prerequisite checks, and conversation scenario. Expected scenario paths are
+locations to verify, not proof that files exist. For user-sim, carry the saved
+simulator settings and the execution input bindings when they belong to the
+current plan. The handoff retains the requirements for opening-message fidelity,
+continuing sessions, information visibility, termination, reset, and separate
+target/simulator evidence. Include the actual retained paths for already created selected
 tasks; planned tasks have no invented paths. Unrelated task directories are not
 selected by membership. Keep existing tasks, graders, source selections,
 construction declarations, and evidence intact. The user can copy the prompt

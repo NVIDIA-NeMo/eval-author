@@ -10,9 +10,13 @@ preview: workflows, skills, and saved artifacts may change between releases.
 
 ### Added
 
-- Rubric `native` selections automatically include verification-integrity
-  measurements, a receipt-consistency predicate, and group scores. Required
-  verification stays unassessed because rubric task freshness is unknown.
+- The experimental rubric scores 23 criteria in one table through one scorer,
+  with METHOD-J1 (corroboration method qualification) beside them. Recorded and
+  simulated criterion evidence use the same predicates. The
+  [rubric base simulation](docs/determinism-checks.md#rubric-base-simulation)
+  scores a perfect refund task and its mutations, optionally with the task's
+  native Harbor panels.
+- Rubric `native` selections include verification-integrity measurements.
   Audit and saved-acceptance checks require `--integrity`. Retry auditing uses a
   separate command. Repair manifests record the digest they supersede. See
   [verification-integrity checks](docs/determinism-checks.md#verification-integrity-checks).
@@ -26,6 +30,13 @@ preview: workflows, skills, and saved artifacts may change between releases.
 
 ### Removed
 
+- **Breaking: rubric side scorers and demos.** The AC-01..AC-04 rows and
+  `anti-cheat.md`, the per-area rubric selection, the per-area scoring emitters
+  and 2-to-3 promotion modules, the verification-integrity group scores, the
+  rubric showcase and fixture demos, the fictional task scenario, the separate
+  mutation demo, and the `--panel refund` option of
+  `collect_verifier_cheat_evidence.py` are gone. The rubric base simulation
+  replaces the demos.
 - **Breaking: ATIF converters.** The `gym-to-atif` and `mlflow-to-atif` skills,
   their `nemo.eval_author.gym_to_atif.v1` receipts, `--emit-atif`, and the NeMo
   Gym `ng-trajectory` CI route are gone. Eval Author never converts traces to
@@ -47,6 +58,11 @@ preview: workflows, skills, and saved artifacts may change between releases.
 
 ### Changed
 
+- **Harbor minimum is now 0.24.0.** All Harbor-backed skills use the shared
+  runtime policy. Discovery and authoring reject older releases before loading
+  native validators. Translation accepts newer stable releases and rejects
+  target settings that stock ACP adapters ignore. User-sim preflight also checks
+  version conflicts when either agent is selected by import path.
 - **Generated reports are not audit evidence.** Content validation now refuses to
   bind `.eval-author/README.md`, `report.html`, `report_markdown/*`, or the legacy
   `audit-coverage-report.md` as a source, because publishing the audit rewrites

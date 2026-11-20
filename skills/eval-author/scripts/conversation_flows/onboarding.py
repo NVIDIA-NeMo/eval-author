@@ -145,7 +145,7 @@ def prerequisite_table(journey: str, facts: dict, *, state: dict | None = None, 
             raise ValueError("Row links must be a list")
         for item in links:
             item = mapping(item, "row link", {"label", "target"})
-            finding += "<br>" + link(item.get("target"), text(item.get("label"), "link label"))
+            finding += " " + link(item.get("target"), text(item.get("label"), "link label"))
         lines.append(f"| {label} | {status} | {finding} |")
     return "\n".join(lines)
 
@@ -165,7 +165,9 @@ def recommendations(facts: dict) -> str | None:
 
 
 def blocker_section(state: dict, facts: dict, *, confirmed: bool, state_only: bool = False) -> str | None:
-    active = journey_state.active_blockers(state, state_only=state_only)
+    active = journey_state.active_blockers(
+        state, state_only=state_only, ethos_optional=not state_only and expansion_state.trace_ethos_optional(state)
+    )
     explanations = facts.get("blockers", [])
     if not isinstance(explanations, list):
         raise ValueError("Blockers must be a list")
@@ -264,6 +266,30 @@ def next_steps(state: dict, facts: dict, stage: str, *, audit: dict | None = Non
     if stage == "confirmed" and question not in confirmation_questions:
         raise ValueError("Clear the answered review question before presenting the confirmation pause")
     paragraphs = [shared.NEXT_STEPS, checklist(journey, state, audit=audit)]
+    expansion = expansion_state.record(state) if journey == "expand" else None
+    if expansion is not None and expansion["checkpoint"] == "scope" and expansion_state.checkpoint_ready(state):
+        scope_progress = expansion_state.derive(state, facts.get("expansion_observations"))
+        assert scope_progress is not None
+        saved_question = expansion_state.pending(expansion)
+        scope_question = saved_question["question"] if saved_question else None
+        if (not scope_progress["context_current"] or state["scopes"]["expand"].get("needs_review")) and (
+            not state["pending_question"] or state["pending_question"] == scope_question
+        ):
+            raise ValueError("Expansion context changed; save a context-review question before resuming")
+        if scope_progress["stage"] == "creation":
+            from . import expansion
+
+            return expansion.render(
+                {
+                    "stage": "expansion_progress",
+                    "state": state,
+                    "revision": state["revision"],
+                    "facts": {"expansion_observations": facts.get("expansion_observations")},
+                }
+            ).rstrip("\n")
+        if question:
+            paragraphs.append(literal(question, "pending question"))
+        return "\n\n".join(paragraphs)
     if confirmed:
         if state["ethos"]["remaining_questions"]:
             raise ValueError("Resolve the saved intent questions before presenting confirmed ETHOS.md")
@@ -420,10 +446,10 @@ def render(payload: dict) -> str:
     fact_keys = {"rows", "recommendations", "blockers"}
     if not state_only:
         fact_keys |= {"ethos", "question", "draft"}
+        if state["journey"] == "expand":
+            fact_keys.add("expansion_observations")
     if state["journey"] == "audit" and stage in {"resume", "results", "confirmed"}:
         fact_keys.add("audit_observations")
-    if state["journey"] == "expand" and not state_only:
-        fact_keys.add("expansion_observations")
     facts = mapping(payload.get("facts", {}), "facts", fact_keys)
     if (
         stage == "resume"
@@ -434,35 +460,48 @@ def render(payload: dict) -> str:
     ):
         raise ValueError("Use audit_resume for saved audit checkpoints after shared onboarding is complete")
     expansion = expansion_state.record(state) if state["journey"] == "expand" else None
-    if expansion is not None and not state_only:
-        checkpoint = "expansion_scope" if expansion["schema_version"] == 2 else "expansion_continue"
-        if (
-            expansion["schema_version"] == 2
-            and expansion.get("creation") is not None
-            and expansion["decision"]
-            and expansion["decision"]["kind"] == "approved"
-            and not state["scopes"]["expand"].get("needs_review")
+    if (
+        expansion is not None
+        and not state_only
+        and expansion["checkpoint"] == "scope"
+        and expansion.get("review") is not None
+        and expansion["decision"]
+        and expansion["decision"]["kind"] == "approved"
+        and not state["scopes"]["expand"].get("needs_review")
+    ):
+        expansion_progress = (
+            expansion_state.derive(state, facts["expansion_observations"])
+            if "expansion_observations" in facts
+            else None
+        )
+        saved_question = expansion_state.pending(expansion)
+        if (expansion_state.review_ready(state) or expansion_state.results_pending(expansion_progress)) and (
+            state["pending_question"] is None
+            or saved_question
+            and state["pending_question"] == saved_question["question"]
         ):
-            checkpoint = "expansion_progress"
-        reviewing = checkpoint == "expansion_progress" and expansion.get("review") is not None
-        if reviewing:
-            expansion_progress = (
-                expansion_state.derive(state, facts["expansion_observations"])
-                if "expansion_observations" in facts
-                else None
-            )
             checkpoint = (
                 "expansion_results" if expansion_state.results_pending(expansion_progress) else "expansion_review"
             )
-        pending = expansion_state.pending(expansion)
-        ready = expansion_state.review_ready(state) if reviewing else expansion_state.checkpoint_ready(state)
-        if ready and (
-            state["pending_question"] is None or pending and state["pending_question"] == pending["question"]
+            raise ValueError(f"Use {checkpoint} for saved task review and execution settings")
+    if (
+        expansion is not None
+        and not state_only
+        and (expansion["checkpoint"] == "entry" or not expansion_state.checkpoint_ready(state))
+    ):
+        checkpoint = "expansion_continue"
+        saved_question = expansion_state.pending(expansion)
+        if (
+            expansion["checkpoint"] == "entry"
+            and expansion_state.checkpoint_ready(state)
+            and (expansion["pending"] is not None or state["pending_question"] is None)
         ):
             raise ValueError(f"Use {checkpoint} for saved expansion checkpoints after shared onboarding is complete")
-        if pending is not None:
-            question = literal(pending["question"], "expansion question")
+        if saved_question is not None:
+            question = literal(saved_question["question"], "expansion question")
             if facts.get("question") is not None and literal(facts["question"], "question") == question:
+                if expansion["checkpoint"] == "scope":
+                    raise ValueError("Resolve shared prerequisites before rendering the scope question")
                 raise ValueError(f"Use {checkpoint} for the saved expansion question after shared recovery")
             if (
                 state["pending_question"] is not None
