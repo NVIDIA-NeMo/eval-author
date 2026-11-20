@@ -12,7 +12,6 @@ import os
 import shutil
 import subprocess
 import sys
-from copy import deepcopy
 from pathlib import Path
 from typing import Any
 
@@ -115,7 +114,6 @@ def producer_identity() -> dict[str, Any]:
             SCRIPTS / "rubric_refund_panel.py",
             SCRIPTS.parent / "examples/refund/controls.json",
             SCRIPTS.parent / "examples/refund/expectations/controls.json",
-            SCRIPTS.parent / "references/anti-cheat.md",
         )
     ]
     return identity
@@ -439,20 +437,12 @@ def validate(
     by_case = {c["case"]: c for c in controls}
     consumer = [by_case[c] for c in inventory["consumer_cases"]]
     reset = [by_case[c] for c in cases if c.startswith(("target-", "sentinel-"))]
-    score3 = (
-        0
-        if any(c["status"] == "behavior_failed" for c in consumer)
-        else 2
-        if all(c["status"] == "passed" for c in consumer)
-        else None
-    )
-    score4 = 2 if all(c["status"] == "passed" for c in reset) else None
+    consumer_failed = any(c["status"] == "behavior_failed" for c in consumer)
+    complete = all(c["status"] == "passed" for c in (*consumer, *reset))
     return {
         "scope": SCHEMA,
-        "status": "passed" if score3 == score4 == 2 else "partial",
+        "status": "consumer_failed" if consumer_failed else "passed" if complete else "partial",
         "task_freshness": "current",
-        "ac03_score": score3,
-        "ac04_score": score4,
         "native_execution": True,
         "human_review": False,
         "independence": False,
@@ -470,50 +460,14 @@ def validate(
     }
 
 
-def apply(rows: dict[str, Any], panel: dict[str, Any]) -> None:
-    selected = [("AC-03", "ac03_score"), ("AC-04", "ac04_score")]
-    if panel["ac03_score"] == 0:
-        selected.append(("AC-02", "ac03_score"))
-    for ident, field in selected:
-        score = panel[field]
-        if score is None:
-            continue
-        row = rows[ident]
-        score = 0 if row["score"] == 0 else score
-        ref = {"measurement": "example_assessment.native", "digest": panel["index_digest"]}
-        gap = "Independent consumer/reset controls remain absent. This evidence covers the declared local Docker runtime only."
-        if score == 0:
-            gap = "The actual Harbor consumer accepted solver-authored reward.json over current reward.txt. " + gap
-        row.update(
-            score=score,
-            status="ASSESSED",
-            assessment_state="ASSESSED",
-            execution_state="COMPLETE",
-            evidence_strength="E2",
-        )
-        row["remaining_gaps"] = [gap]
-        row["limitations"].append(gap)
-        row["evidence_refs"].append(ref)
-        row["findings"].append(
-            {"code": "native.solver_reward_json" if score == 0 else "native.ac04_boundary", "message": gap}
-        )
-        for check in row["check_results"]:
-            check.update(
-                outcome="FAIL" if score == 0 else "PASS",
-                remaining_gap=gap,
-                evidence_boundary="Current native consumer and sentinel trial controls; local host registry, no independence claim.",
-            )
-            check["evidence_refs"].append(deepcopy(ref))
-
-
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--docker-cli-plugins", type=Path)
     args = parser.parse_args()
     result = collect(args.output, args.docker_cli_plugins)
-    print(json.dumps({k: result[k] for k in ("counts", "ac03_score", "ac04_score")}))
-    return 0 if result["ac03_score"] == result["ac04_score"] == 2 else 2
+    print(json.dumps({k: result[k] for k in ("counts", "status")}))
+    return 0 if result["status"] == "passed" else 2
 
 
 if __name__ == "__main__":

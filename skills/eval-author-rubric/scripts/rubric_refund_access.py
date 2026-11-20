@@ -44,10 +44,11 @@ def control_inventory() -> dict[str, Any]:
     }
 
 
-def assess_reads(observed: dict[str, bool]) -> int | None:
+def assess_reads(observed: dict[str, bool]) -> str | None:
+    """'denied' when protected reads fail and public reads work, 'exposed' when a protected read succeeds."""
     if observed["public"] is not True:
         return None
-    return 2 if observed["protected"] is True else 0
+    return "denied" if observed["protected"] is True else "exposed"
 
 
 def producer_identity() -> dict[str, Any]:
@@ -58,7 +59,6 @@ def producer_identity() -> dict[str, Any]:
             Path(__file__),
             SCRIPTS / "rubric_refund_access_runtime.py",
             SCRIPTS / "rubric_refund_boundary_runtime.py",
-            SCRIPTS.parent / "references/anti-cheat.md",
         )
     ]
     return value
@@ -334,12 +334,14 @@ def validate(
         )
         controls.append({"case": case, "status": "passed", "reward": 0, "checks": checks, "owning": owning})
     require(panel.object(bundle / "teardown.json")["runs"] == [{"case": c, "removed": True} for c in cases])
-    score = 0 if 0 in outcomes else 2 if all(s == 2 for s in outcomes) else None
     return {
         "scope": SCHEMA,
         "task_freshness": "current",
-        "status": "passed" if score == 2 else "partial",
-        "ac01_score": score,
+        "status": "exposed"
+        if "exposed" in outcomes
+        else "passed"
+        if all(o == "denied" for o in outcomes)
+        else "partial",
         "native_execution": True,
         "human_review": False,
         "independence": False,
@@ -355,30 +357,3 @@ def validate(
         },
         "evidence_refs": [{"path": p, "digest": d} for p, d in sorted(panel.evidence.items())],
     }
-
-
-def apply(rows: dict[str, Any], panel: dict[str, Any]) -> None:
-    row = rows["AC-01"]
-    score = panel["ac01_score"]
-    if score is None:
-        return
-    gap = control_inventory()["remaining"] + " " + control_inventory()["owner_question"]
-    ref = {"measurement": "example_assessment.native", "digest": panel["index_digest"]}
-    row.update(
-        score=0 if row["score"] == 0 else score,
-        status="ASSESSED",
-        assessment_state="ASSESSED",
-        execution_state="COMPLETE",
-        evidence_strength="E2",
-    )
-    row["remaining_gaps"] = [gap]
-    row["limitations"].append(gap)
-    row["evidence_refs"].append(ref)
-    for check in row["check_results"]:
-        if check["outcome"] != "FAIL":
-            check.update(
-                outcome="PASS" if score == 2 else "FAIL",
-                remaining_gap=gap,
-                evidence_boundary="Native solver UID reads and agent source review. Public scoring and socket state are intentional inputs. No independence claim.",
-            )
-        check["evidence_refs"].append(ref)

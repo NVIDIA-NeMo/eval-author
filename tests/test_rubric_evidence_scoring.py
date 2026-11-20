@@ -70,54 +70,9 @@ def test_same_source_as_support_rejects_aliases(tmp_path, target, alias_kind):
         scorer.assess_evidence(tmp_path, selection)
 
 
-@pytest.mark.parametrize("spacing", ["", "\n", " \n\n"])
-def test_anti_cheat_scoring_parser_tolerates_marker_whitespace(tmp_path, monkeypatch, spacing):
-    import shutil
-
-    scorer = module()
-    baseline = scorer.canonical_definitions()
-    refs = tmp_path / "references"
-    shutil.copytree(scorer.REFERENCES, refs)
-    path = refs / "anti-cheat.md"
-    path.write_text(path.read_text().replace("**Scoring:** ", "**Scoring:**" + spacing))
-    monkeypatch.setattr(scorer, "REFERENCES", refs)
-    assert scorer.canonical_definitions() == baseline
-
-
-def test_anti_cheat_checks_use_lowercase_unique_method_ids(tmp_path, monkeypatch):
-    import shutil
-
-    scorer = module()
-    expected = {
-        "AC-01": ["deterministic", "review", "probe"],
-        "AC-02": ["review", "probe", "deterministic"],
-        "AC-03": ["review", "deterministic", "probe"],
-        "AC-04": ["review", "deterministic", "probe"],
-    }
-    definitions = scorer.canonical_definitions()
-    for ident, methods in expected.items():
-        assert [check["method"] for check in definitions[ident]["checks"]] == methods
-        assert [check["id"] for check in definitions[ident]["checks"]] == [f"{ident}.{m}" for m in methods]
-    refs = tmp_path / "references"
-    shutil.copytree(scorer.REFERENCES, refs)
-    path = refs / "anti-cheat.md"
-    path.write_text(
-        path.read_text().replace("- Deterministic:", "- Deterministic: first comparison.\n- Deterministic:", 1)
-    )
-    monkeypatch.setattr(scorer, "REFERENCES", refs)
-    checks = scorer.canonical_definitions()["AC-01"]["checks"]
-    assert [check["id"] for check in checks] == [
-        "AC-01.deterministic-1",
-        "AC-01.deterministic-2",
-        "AC-01.review",
-        "AC-01.probe",
-    ]
-    assert checks[0]["action"] == "first comparison."
-
-
 def test_all_rubric_definitions_preserve_canonical_anchors(tmp_path):
     scorer = module()
-    definitions = scorer.evidence_definitions()
+    definitions = scorer.canonical_definitions()
     assert len(definitions) == 23
     for name in ("artifact-configuration-provenance", "task-contract-authority", "leakage-and-credit"):
         source = json.loads((SCRIPT.parents[1] / f"references/{name}.json").read_text())
@@ -296,9 +251,8 @@ def measure_cli(root: Path, selection: dict) -> dict:
 
 
 def assert_cli_score_boundary(report: dict, ident: str, synthetic: bool, expected: int | None) -> None:
-    group = "criterion_demonstration" if synthetic else "recorded_criterion_evidence"
-    row = report[group][ident]
     # Simulated and recorded evidence get the same score; only the label and strength differ.
+    row = report["items"][ident]
     assert row["score"] == expected
     assert row["evidence_strength"] == (None if expected is None else "E1" if synthetic else "E2")
     assert row["native_execution_verified"] is False
@@ -306,12 +260,6 @@ def assert_cli_score_boundary(report: dict, ident: str, synthetic: bool, expecte
     assert row["score_provenance"]["kind"] == (
         "synthetic-anchor-application" if synthetic else "recorded-anchor-application"
     )
-    if synthetic:
-        assert ident not in report["items"] or report["items"][ident]["score"] is None
-    else:
-        assert "criterion_demonstration" not in report
-        assert report["items"][ident]["score"] == expected
-    assert report["preflight_success"] is False
 
 
 @pytest.mark.parametrize("synthetic", [True, False])
@@ -320,16 +268,10 @@ def test_measure_cli_separates_demonstration_from_task_scores(tmp_path, syntheti
     scorer = module()
     selection = packet(tmp_path, scorer, ident, facts_for(ident, 0), synthetic=synthetic)
     report = measure_cli(tmp_path, selection)
-    if synthetic:
-        row = report["criterion_demonstration"][ident]
-        assert row["score"] == 0
-        assert ident not in report["items"] or report["items"][ident]["score"] is None
-    else:
-        assert "criterion_demonstration" not in report
-        row = report["recorded_criterion_evidence"][ident]
-        assert report["items"][ident]["score"] == row["score"] == 0
-        assert row["evidence_strength"] == "E2"
-    definition = scorer.evidence_definitions()[ident]
+    row = report["items"][ident]
+    assert row["score"] == 0
+    assert row["evidence_strength"] == ("E1" if synthetic else "E2")
+    definition = scorer.canonical_definitions()[ident]
     if "source" in definition:
         assert row["source"] == definition["source"]
         assert "skill_id" not in row
@@ -337,7 +279,6 @@ def test_measure_cli_separates_demonstration_from_task_scores(tmp_path, syntheti
             check["source_id"] for check in definition["checks"]
         ]
     assert [check["check_id"] for check in row["check_results"]] == [check["id"] for check in definition["checks"]]
-    assert report["preflight_success"] is False
 
 
 @pytest.mark.parametrize("target", ["packet", "task", "facts"])
@@ -393,7 +334,7 @@ def test_source_bound_access_rows_have_explicit_demo_scope(tmp_path):
 
 # Literal source-row vectors share the demo fixture, not production policy.
 sys.path.insert(0, str(ROOT))
-from tools.run_criterion_scoring_demo import VECTORS, facts_for, robustness_for  # noqa: E402
+from tests.rubric_vectors import VECTORS, facts_for, robustness_for  # noqa: E402
 
 
 @pytest.mark.parametrize("ident", VECTORS)

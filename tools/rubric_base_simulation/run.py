@@ -33,12 +33,12 @@ ROOT = TOOLS.parent
 sys.path.insert(0, str(TOOLS))
 sys.path.insert(0, str(ROOT / "skills/eval-author/scripts"))
 sys.path.insert(0, str(ROOT / "skills/eval-author-rubric/scripts"))
-from rubric_demo_common import artifact_record, run_measure, write_json  # noqa: E402
+from native import FREEZE, native_facts  # noqa: E402
 from rubric_evidence_scoring import (  # noqa: E402
     ROBUSTNESS_OUTCOMES,
     ROBUSTNESS_POLICIES,
+    canonical_definitions,
     definitions_digest,
-    evidence_definitions,
     value_digest,
 )
 from rubric_leakage import scan_task  # noqa: E402
@@ -104,7 +104,25 @@ REVIEWED_OVERLAP = {
     '"mandatory": ["association", "amount", "destination", "approval_present", "approval_before_effect", '
     '"ledger", "protected_state", "fresh_effect"],',
 }
+LOCAL_EDIT_DESCRIPTIONS = {
+    "unpinned-image": "The Dockerfile uses an unpinned python:3.12-slim base image.",
+    "answer-in-instruction": "The instruction includes the reference solution's refund arithmetic.",
+    "no-reset-on-start": "A fresh ledger start resumes the previous episode's record.",
+    "amount-cue-in-instruction": "The instruction states the expected refund amount.",
+}
 CASES = ["base", *TASK_MUTATIONS, *LOCAL_EDITS, *EVIDENCE_MUTATIONS]
+
+
+def describe(case: str) -> tuple[str, str]:
+    """Return (kind, one-line description) for a case."""
+    if case in TASK_MUTATIONS:
+        return "task", json.loads((EXAMPLE / "expectations" / f"{case}.json").read_text())["finding"]
+    if case in LOCAL_EDITS:
+        return "task", LOCAL_EDIT_DESCRIPTIONS[case]
+    if case in EVIDENCE_MUTATIONS:
+        return "evidence", EVIDENCE_MUTATIONS[case]
+    return "base", "The refund task with complete evidence."
+
 
 # Declared by the task author for the base design; mutations are compared against it.
 DECLARED_GRADER = "reviewed"
@@ -137,8 +155,36 @@ AUDIT03_HELDOUT = ("duplicate-ledger", "late-approval", "missing-approval", "pro
 AUTHOR, INDEPENDENT = "task-author-sim", "claude-opus-5-5-independent-reviewer"
 
 
+TABLE = ROOT / "skills/eval-author-rubric/scripts/rubric_table.py"
+
+
 def sha(raw: bytes) -> str:
     return hashlib.sha256(raw).hexdigest()
+
+
+def write_json(path: Path, value: Any, *, sort_keys: bool = True) -> None:
+    path.write_text(json.dumps(value, sort_keys=sort_keys, indent=2, allow_nan=False) + "\n")
+
+
+def artifact_record(directory: Path, ident: str, path: str, role: str, *, revision: str, source: str) -> dict:
+    digest = sha((directory / path).read_bytes())
+    return {
+        "id": ident,
+        "path": path,
+        "digest": digest,
+        "role": role,
+        "revision": revision,
+        "access": "available",
+        "source": source,
+        "selection_origin": "explicit",
+        "evidence": [{"path": path, "digest": digest}],
+    }
+
+
+def table(case_dir: Path, *args: str) -> subprocess.CompletedProcess:
+    command = [sys.executable, "-B", str(TABLE), "--root", str(case_dir), *args]
+    env = {**os.environ, "PYTHONDONTWRITEBYTECODE": "1"}
+    return subprocess.run(command, capture_output=True, text=True, timeout=120, env=env)
 
 
 def fixtures(*args: str) -> None:
@@ -327,7 +373,7 @@ def observe(case_dir: Path, mutation: str | None) -> dict[str, Any]:
     }
 
 
-def robust(ident: str, observed: dict[str, bool | None], evidence: str) -> list[dict[str, Any]]:
+def robust(ident: str, observed: dict[str, bool | None], evidence: str, actor: str) -> list[dict[str, Any]]:
     """Corroborating controls. ``observed`` maps role -> success (True), failure (False) or unrun (None)."""
     _, roles = ROBUSTNESS_POLICIES[ident]
     rows = []
@@ -342,7 +388,7 @@ def robust(ident: str, observed: dict[str, bool | None], evidence: str) -> list[
                 "expected": success,
                 "observed": None if unrun else success if outcome else failure,
                 "original_actor": AUTHOR,
-                "corroborating_actor": AUTHOR if evidence == "no-independent-corroboration" else INDEPENDENT,
+                "corroborating_actor": AUTHOR if evidence == "no-independent-corroboration" else actor,
                 "source_identity": f"sim-{ident}-{role}",
                 "execution": "unrun" if unrun else "completed",
                 "scope": "same-task-revision",
@@ -351,7 +397,13 @@ def robust(ident: str, observed: dict[str, bool | None], evidence: str) -> list[
     return rows
 
 
-def derive(o: dict[str, Any], base: dict[str, Any], prior: dict[str, Any], evidence: str | None) -> tuple[dict, dict]:
+def derive(
+    o: dict[str, Any],
+    base: dict[str, Any],
+    prior: dict[str, Any],
+    evidence: str | None,
+    native: dict[str, dict[str, Any]] | None = None,
+) -> tuple[dict, dict]:
     """Return (facts by criterion, simulated-premise notes by criterion)."""
     f: dict[str, dict[str, Any]] = {}
     sim: dict[str, str] = {}
@@ -751,11 +803,32 @@ def derive(o: dict[str, Any], base: dict[str, Any], prior: dict[str, Any], evide
     sim["CREATE-02"] = "Cue controls are real verifier runs; companion families are simulated."
     sim["CREATE-02-SUITE"] = "Cue controls on two companion families are simulated."
 
+    actors: dict[str, str] = {}
+    native_outcomes: dict[str, bool] = {}
+    if native is not None and o["task_sha256"] == base["task_sha256"]:
+        # Native Harbor panels ran on these exact task bytes; their admitted controls replace local ones.
+        primary, native_outcomes = native_facts(native)
+        f["AUDIT-03"] = primary["AUDIT-03"]
+        isolation = primary["ENV-03-S01"]["isolation_surfaces"]
+        if carried:
+            isolation[0].update(target_after=str(not float(isolation[0]["target_alone"])), consequence="credit_change")
+        f["ENV-03-S01"] = {"isolation_surfaces": isolation}
+        f["provenance.solver-tool-access"]["tool_probes"] += primary["provenance.solver-tool-access"]["tool_probes"]
+        if run is not None:
+            for row in f["provenance.observed-configuration"]["run_settings"]:
+                row["run_identity"] = primary["run_identity"]
+        freeze = json.loads(FREEZE.read_text())["author"]
+        actors["AUDIT-03"] = f"heldout-author:{freeze['kind']}:{freeze['model']}"
+        sim["AUDIT-03"] = "Native Harbor attack, access and boundary panels; held-out attacks from the frozen set."
+        sim["ENV-03-S01"] = "Native Harbor sentinel/target/reset episodes; parallel and delayed effects are simulated."
+        sim["provenance.solver-tool-access"] = "Native Harbor read-boundary probes plus simulated socket calls."
+        sim["provenance.observed-configuration"] = "Run identity from the native Harbor panels."
     corroboration = {
         "AUDIT-03": {
-            "heldout_attack": all(matches(n) for n in AUDIT03_HELDOUT),
-            "valid_work": matches("split-alternative"),
+            "heldout_attack": native_outcomes.get("heldout_attack", all(matches(n) for n in AUDIT03_HELDOUT)),
+            "valid_work": native_outcomes.get("valid_work", matches("split-alternative")),
         },
+        "ENV-03-S01": {"heldout_order": native_outcomes.get("heldout_order", True)},
         "AUDIT-04-B": {"independent_attack": not replay_awarded},
         "AUDIT-04-B-SUITE": {"independent_attack": not replay_awarded, "cross_family_replay": not replay_awarded},
         "provenance.grading-path": {"selection": o["grader"] == DECLARED_GRADER},
@@ -776,7 +849,7 @@ def derive(o: dict[str, Any], base: dict[str, Any], prior: dict[str, Any], evide
     }
     for ident in f:
         name, _ = ROBUSTNESS_POLICIES[ident]
-        f[ident][name] = robust(ident, corroboration.get(ident, {}), evidence or "")
+        f[ident][name] = robust(ident, corroboration.get(ident, {}), evidence or "", actors.get(ident, INDEPENDENT))
     sim["*"] = (
         "Corroborating controls by an independent actor are simulated premises unless derived from controls above."
     )
@@ -861,24 +934,115 @@ def build(case_dir: Path, facts: dict[str, dict[str, Any]], o: dict[str, Any]) -
         {"artifacts": [task, source, packet], "criterion_evidence": {"artifact_id": "packet"}},
         sort_keys=True,
     )
-    report, _ = run_measure(
-        case_dir, record_invocation=True, sort_keys=True, error_message=f"measure.py rejected {case_dir.name}"
+    selection = str(case_dir / "selection.json")
+    scored = table(case_dir, "--selection", selection, "--output", str(case_dir / "table"), "--title", case_dir.name)
+    scored = scored if scored.returncode in (0, 1) else None
+    if scored is None or table(case_dir, "--verify-existing", str(case_dir / "table")).returncode not in (0, 1):
+        raise ValueError(f"rubric_table rejected or could not replay {case_dir.name}")
+    return json.loads((case_dir / "table/assessment.json").read_text())["report"]
+
+
+def report_html(out: Path, scores: dict[str, dict[str, int | None]], summary: dict[str, Any]) -> str:
+    """One page: the base table, every mutation against the base, and the full score grid."""
+    import html
+
+    definitions = canonical_definitions()
+    rubric = summary["rubric_criteria"]
+    esc = html.escape
+
+    def cell(score: int | None) -> str:
+        label = "U" if score is None else str(score)
+        return f'<td class="s s{label}">{label}</td>'
+
+    def total(row: dict[str, int | None]) -> int:
+        return sum(row[i] or 0 for i in rubric)
+
+    base = scores.get("base", {})
+    premises = json.loads((out / "base/simulated-premises.json").read_text()) if base else {}
+    base_rows = "".join(
+        f"<tr><td><code>{esc(i)}</code></td><td>{esc(definitions[i]['title'])}</td>"
+        f"<td>{esc(definitions[i].get('level', 'task'))}</td>{cell(base.get(i))}"
+        f"<td>{esc(premises.get(i, 'Derived from the task bytes and real verifier runs.'))}</td></tr>"
+        for i in rubric
     )
-    run_measure(case_dir, verify=True, error_message=f"measure.py replay differs for {case_dir.name}")
-    return report
+    mutation_rows = ""
+    for case, row in scores.items():
+        if case == "base":
+            continue
+        kind, text = describe(case)
+        drops = ", ".join(
+            f"<code>{esc(i)}</code> {'U' if row[i] is None else row[i]}" for i in rubric if row[i] != base.get(i)
+        )
+        lower = "yes" if summary["mutations_below_base"].get(case) else "NO"
+        mutation_rows += (
+            f'<tr><td><a href="{esc(case)}/table/results.html">{esc(case)}</a></td><td>{kind}</td>'
+            f"<td>{esc(text)}</td><td>{total(row)}/{3 * len(rubric)}</td><td>{drops}</td><td>{lower}</td></tr>"
+        )
+    grid_head = "".join(f'<th title="{esc(i)}">{n + 1}</th>' for n, i in enumerate(rubric))
+    grid = "".join(
+        f'<tr><td><a href="{esc(case)}/table/results.html">{esc(case)}</a></td><td>{total(row)}</td>'
+        + "".join(cell(row[i]) for i in rubric)
+        + "</tr>"
+        for case, row in scores.items()
+    )
+    key = "".join(f"<li><code>{n + 1}</code> {esc(i)}</li>" for n, i in enumerate(rubric))
+    lowered = sum(summary["mutations_below_base"].values())
+    style = """
+:root{--bg:#fff;--fg:#1d1d1f;--muted:#666;--line:#ddd;--s3:#d9f2e3;--s2:#fff3c4;--s1:#ffe0c2;--s0:#ffd0d0;--su:#e8e8ee}
+@media (prefers-color-scheme:dark){:root{--bg:#141416;--fg:#ececf0;--muted:#a0a0a8;--line:#333;
+--s3:#1f4d33;--s2:#5a4b12;--s1:#5c3414;--s0:#5e1f1f;--su:#2c2c34}}
+body{background:var(--bg);color:var(--fg);font:14px/1.5 system-ui,sans-serif;margin:24px auto;max-width:1200px;padding:0 16px}
+h1{margin-bottom:4px}.lead{color:var(--muted)}table{border-collapse:collapse;width:100%;margin:12px 0 28px}
+td,th{border:1px solid var(--line);padding:5px 7px;text-align:left;vertical-align:top}
+.s{text-align:center;font-weight:600}.s3{background:var(--s3)}.s2{background:var(--s2)}.s1{background:var(--s1)}
+.s0{background:var(--s0)}.sU{background:var(--su)}.scroll{overflow-x:auto}ul.key{columns:2;color:var(--muted)}a{color:inherit}
+"""
+    return f"""<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1"><title>Rubric simulation</title>
+<style>{style}</style></head><body>
+<h1>Rubric simulation</h1>
+<p class="lead">Base: <strong>{total(base)}/{3 * len(rubric)}</strong> on {len(rubric)} criteria.
+{lowered} of {len(scores) - 1} mutations score lower than the base. Every score comes from
+<code>rubric_table.py</code>.</p>
+<h2>Base task</h2>
+<table><thead><tr><th>Criterion</th><th>Title</th><th>Level</th><th>Score</th><th>Evidence basis</th></tr></thead>
+<tbody>{base_rows}</tbody></table>
+<h2>Mutations</h2>
+<table><thead><tr><th>Case</th><th>Kind</th><th>Change</th><th>Total</th><th>Criteria that changed</th>
+<th>Below base</th></tr></thead><tbody>{mutation_rows}</tbody></table>
+<h2>All scores</h2>
+<div class="scroll"><table><thead><tr><th>Case</th><th>Total</th>{grid_head}</tr></thead><tbody>{grid}</tbody></table></div>
+<ul class="key">{key}</ul>
+</body></html>
+"""
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--case", action="append", choices=CASES)
+    native_mode = parser.add_mutually_exclusive_group()
+    native_mode.add_argument(
+        "--collect-native", action="store_true", help="Run the native Harbor panels in Docker for the base task."
+    )
+    native_mode.add_argument("--native", type=Path, help="Reuse native panels collected by an earlier run.")
+    parser.add_argument("--docker-plugins", type=Path, help="Docker CLI plugin directory (Compose, Buildx).")
     args = parser.parse_args()
     out = args.output.absolute()
     if out.is_relative_to(ROOT):
         parser.error("output must be outside the checkout")
     out.mkdir(mode=0o700)
-    rubric = list(evidence_definitions())
+    rubric = list(canonical_definitions())
     columns = rubric
+    native = None
+    if args.collect_native:
+        from native import collect
+
+        native = collect(out / "native", args.docker_plugins)
+    elif args.native:
+        from native import load
+
+        native = load(args.native.absolute())
     base_obs = observe(out / "_base-observation", None)
     prior = observe(out / "_prior-exploit-revision", "completion-only")
     scores: dict[str, dict[str, int | None]] = {}
@@ -888,10 +1052,10 @@ def main() -> int:
         mutation = case if case in TASK_MUTATIONS else None
         evidence = case if case in EVIDENCE_MUTATIONS else None
         o = observe(case_dir, mutation)
-        facts, sim = derive(o, base_obs, prior, evidence)
+        facts, sim = derive(o, base_obs, prior, evidence, native)
         write_json(case_dir / "simulated-premises.json", sim, sort_keys=True)
         report = build(case_dir, facts, o)
-        rows = report["criterion_demonstration"]
+        rows = report["items"]
         scores[case] = {ident: rows[ident]["score"] for ident in columns}
 
     def rank(score: int | None) -> int:
@@ -919,6 +1083,7 @@ def main() -> int:
         cells = ["U" if row[i] is None else str(row[i]) for i in columns]
         lines.append(f"| {case} | {sum(row[i] or 0 for i in rubric)} | " + " | ".join(cells) + " |")
     (out / "summary.md").write_text("\n".join(lines) + "\n")
+    (out / "summary.html").write_text(report_html(out, scores, summary))
     print("\n".join(lines))
     print(json.dumps({k: summary[k] for k in ("base_perfect", "mutations_below_base")}, indent=1))
     return 0 if summary["base_perfect"] and all(summary["mutations_below_base"].values()) else 1

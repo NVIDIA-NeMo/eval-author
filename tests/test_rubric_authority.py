@@ -252,10 +252,9 @@ def test_result_selection_fails_closed_through_cli(tmp_path, mutation):
     exit_code, report = run_authority_cli(tmp_path, (artifacts, selected))
     assert exit_code == 2
     assert report == {
-        "schema": "rubric-measurements-v3",
+        "schema": "rubric-measurements-v4",
         "status": "invalid",
         "code": "selection.invalid",
-        "preflight_success": False,
     }
 
 

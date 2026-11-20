@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Source-bound canonical scoring; selected documents are data, never code.
+"""The rubric scorer: criterion predicates applied to source-bound facts.
 
 API: assess_evidence(root: Path, selection: dict) -> item-ID-keyed rich rows.
 selection['criterion_evidence'] = {'artifact_id': ID}; ID names an ordinary
@@ -35,11 +35,9 @@ unrun/error/other-revision controls neither corroborate nor establish defects.
 
 Both scopes apply the same criterion predicates. A score of 2 needs the
 criterion's observed facts; 3 also needs completed corroborating controls by a
-different actor. Synthetic (simulated) rows get E1 and stay in a separate
-demonstration group. Recorded rows get E2, or E3 when corroborated, and enter
-task rows. Facts are content-bound to selected artifacts; reviewer identities are
-recorded, not authenticated. The integrating caller rejects conflicting scores
-from other emitters.
+different actor. Simulated rows get E1; recorded rows get E2, or E3 when
+corroborated. Facts are content-bound to selected artifacts; reviewer identities
+are recorded, not authenticated.
 """
 
 from __future__ import annotations
@@ -54,7 +52,6 @@ from typing import Any, TypedDict
 from eval_author_shared.task_evidence import loads
 from rubric_identity import MAX_FILES, MAX_TOTAL_BYTES, SelectedAccess, read_selected
 from rubric_identity import text as _text
-from rubric_scorer_controls import anti_cheat_definitions
 
 
 class FactPolicy(TypedDict):
@@ -473,17 +470,6 @@ REFERENCES = Path(__file__).resolve().parents[1] / "references"
 
 
 def canonical_definitions() -> dict[str, dict[str, Any]]:
-    """Provenance, task-contract and AC definitions, as consumed by the ordinary task-row emitters."""
-    definitions = {}
-    for name in ("artifact-configuration-provenance", "task-contract-authority"):
-        document = loads((REFERENCES / f"{name}.json").read_bytes())
-        definitions.update({item["id"]: item for item in document["items"]})
-    for ident, definition in anti_cheat_definitions(REFERENCES / "anti-cheat.md").items():
-        definitions[ident] = {key: value for key, value in definition.items() if key != "canonical_scoring"}
-    return definitions
-
-
-def evidence_definitions() -> dict[str, dict[str, Any]]:
     """The 23 criteria of the current rubric that criterion evidence scores."""
     definitions = {}
     for name in ("artifact-configuration-provenance", "task-contract-authority", "leakage-and-credit"):
@@ -500,7 +486,7 @@ def value_digest(value: Any) -> str:
 def definitions_digest() -> str:
     return value_digest(
         {
-            "definitions": evidence_definitions(),
+            "definitions": canonical_definitions(),
             "sources": {
                 name: hashlib.sha256((REFERENCES / name).read_bytes()).hexdigest()
                 for name in (
@@ -520,6 +506,8 @@ def _empty_rows() -> dict[str, dict[str, Any]]:
     return {
         ident: {
             "item_id": ident,
+            "title": definition["title"],
+            "level": definition.get("level", "task"),
             **({"source": deepcopy(definition["source"])} if "source" in definition else {}),
             "selected": False,
             "assessment_scope": None,
@@ -542,7 +530,7 @@ def _empty_rows() -> dict[str, dict[str, Any]]:
             "remaining_gaps": ["No source-bound criterion evidence selected."],
             "limitations": ["Retained facts do not authenticate reviewers or native execution."],
         }
-        for ident, definition in evidence_definitions().items()
+        for ident, definition in canonical_definitions().items()
     }
 
 

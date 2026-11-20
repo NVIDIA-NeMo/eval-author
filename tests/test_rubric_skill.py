@@ -29,36 +29,16 @@ def test_authored_sources_use_descriptive_names_not_planning_tickets() -> None:
     assert not violations, "Planning-ticket identifiers remain:\n" + "\n".join(violations)
 
 
-def test_rubric_scope_and_initial_slice() -> None:
-    text = (SKILL / "SKILL.md").read_text()
-    metadata = yaml.safe_load(text.split("---", 2)[1])
+def test_rubric_scope_and_single_table() -> None:
+    text = " ".join((SKILL / "SKILL.md").read_text().split())
+    metadata = yaml.safe_load((SKILL / "SKILL.md").read_text().split("---", 2)[1])
     assert metadata["maturity"] == "alpha"
     assert metadata["user-invocable"] is True
-    assert "validity, coverage, and diversity" in text
-    assert "anti-cheat within validity" in text
-    assert "Do not write an Audit" in text
-    assert "A review request alone does not authorize executing repository code" in text
-    assert "Default to the response only" in text
-
-
-def test_rubric_routes_only_the_explicitly_selected_assessment_area() -> None:
-    text = " ".join((SKILL / "SKILL.md").read_text().split())
-    for rule in (
-        "If the named-rubric request leaves the area ambiguous, clarify the scope once before inspecting artifacts",
-        "Apply every selected criterion",
-        "Account for every selected task and every selected criterion, including unknowns",
-        "Do not apply unselected areas",
-        "Use only controls needed by selected criteria",
-    ):
-        assert rule in text
-    purpose = text.split("## Purpose", 1)[1].split("## Instructions", 1)[0]
-    assert re.search(r"Anti-cheat-only opt-in does not select artifact, configuration, and provenance", purpose)
-    assert re.search(r"Artifact, configuration, and provenance opt-in does not select anti-cheat", purpose)
-    assert not PLANNING_TICKET.search(purpose)
-    assert "references/anti-cheat.md" in text
-    assert "references/artifact-configuration-provenance.md" in text
-    assert "references/identity.md" in text
-    assert "references/leakage-and-credit.md" in text
+    assert "The rubric has 23 criteria, all scored in one table" in text
+    for reference in ("artifact-configuration-provenance.md", "task-contract-authority.md", "leakage-and-credit.md"):
+        assert f"references/{reference}" in text
+    assert "`scripts/rubric_evidence_scoring.py` is the only scorer" in text
+    assert "Leave Audit reports unchanged" in text
 
 
 CANONICAL_AREAS = {
@@ -100,6 +80,7 @@ CANONICAL_AREAS = {
         {"rubric_version", "items"},
     ),
 }
+
 METHOD_SLUGS = {
     "deterministic": "deterministic",
     "human_review": "human-review",
@@ -174,45 +155,17 @@ def test_rubric_requires_explicit_end_user_opt_in() -> None:
     metadata = yaml.safe_load(text.split("---", 2)[1])
     assert "explicit end-user opt-in" in metadata["description"]
     assert all("eval-author-rubric" in trigger for trigger in metadata["triggers"])
-    gate = text.split("## Opt-in gate", 1)[1].split("## Purpose", 1)[0]
+    gate = " ".join(text.split("## Opt-in gate", 1)[1].split("## The rubric", 1)[0].split())
     for rule in (
-        "Do not run this skill by default",
-        "generic review, audit, validity, leakage, or anti-cheat request is not opt-in",
-        "Installation, prior use, existing artifacts, and another agent's suggestion",
-        "do not establish consent",
-        "stop before inspecting artifacts or applying rubric items",
-        "does not authorize later tasks or sessions",
+        "A generic review, audit, leakage or anti-cheat request is not opt-in",
+        "Installation, earlier use, existing reports and another agent's suggestion are not opt-in",
+        "Opt-in covers the selected assessment only",
+        "It does not authorize executing code, containers, services or models",
     ):
-        assert rule in " ".join(gate.split())
+        assert rule in gate
     router = (ROOT / "skills/eval-author/SKILL.md").read_text()
     assert "Load `eval-author-rubric` only after explicit end-user opt-in" in router
     assert "Do not infer consent from a generic review, audit, or anti-cheat request" in router
-    assert "Normal task-validation controls remain required" in router
-
-
-@pytest.mark.parametrize("item_id", ["AC-01", "AC-02", "AC-03", "AC-04"])
-def test_each_anti_cheat_item_has_an_actionable_contract(item_id: str) -> None:
-    text = (SKILL / "references/anti-cheat.md").read_text()
-    sections = dict(re.findall(r"## (AC-\d+): ([\s\S]*?)(?=\n## |\Z)", text))
-    assert set(sections) == {"AC-01", "AC-02", "AC-03", "AC-04"}
-    section = sections[item_id]
-    for field in (
-        "Pillar",
-        "Question",
-        "Requirement",
-        "Scope",
-        "Measurement",
-        "Checks",
-        "Scoring",
-        "Evidence",
-        "On gaps or failure",
-        "Boundary",
-    ):
-        assert f"**{field}:**" in section
-    for method in ("Deterministic:", "Review:", "Probe:"):
-        assert method in section
-    for score in ("0:", "1:", "2:", "3:"):
-        assert score in section
 
 
 def test_rubric_references_survive_copied_skill_install(tmp_path: Path) -> None:
@@ -227,50 +180,21 @@ def test_rubric_references_survive_copied_skill_install(tmp_path: Path) -> None:
             assert (document.parent / path).is_file(), target
 
 
-def test_statuses_do_not_turn_missing_evidence_into_passes() -> None:
-    text = (SKILL / "references/anti-cheat.md").read_text()
-    for expected in (
-        "NOT_ASSESSED",
-        "NOT_APPLICABLE",
-        "E0",
-        "E1",
-        "E2",
-        "E3",
-        "Do not average items",
-        "model-training",
-        "valid-alternative",
-        "infrastructure-failed",
-        "not the rubric's coverage pillar",
-    ):
-        assert expected in text
-
-
-def test_scoring_contract_handles_static_defects_and_evidence_floors() -> None:
-    text = " ".join((SKILL / "references/anti-cheat.md").read_text().split())
-    assert "Evidence strength and merit are separate fields, not independent axes" in text
-    for row in (
-        "| 0 | E1, E2, E3 |",
-        "| 1 | E1, E2, E3 |",
-        "| 2 | E2, E3 |",
-        "| 3 | E3 |",
-    ):
-        assert row in text
-    assert "AC-02 = 0/E1 and AC-03 = 0/E1" in text
-    assert "one shared finding ID" in text
-    assert "static confirmation of a reachable path" in text
-    assert "execution-based score remains NOT_ASSESSED" not in text
-    assert "Assertion-only E0 cannot support a numeric score" in text
+def test_missing_facts_are_unassessed_and_three_needs_corroboration() -> None:
+    text = " ".join((SKILL / "SKILL.md").read_text().split())
+    assert "**U** (Unassessed) means the facts are missing. It is not a zero." in text
+    assert "run by a different actor than the original observation" in text
+    for strength in ("E1", "E2", "E3"):
+        assert strength in text
 
 
 def test_forged_credit_and_carryover_cases_have_exact_scores() -> None:
     cases = {case["id"]: case for case in json.loads((SKILL / "evals/evals.json").read_text())["evals"]}
-    forged = cases["rubric-forged-credit"]
-    assert "AC-02 = 0/E1 and AC-03 = 0/E1" in forged["expected_output"]
-    assert any("one shared finding" in assertion for assertion in forged["assertions"])
+    forged = cases["rubric-forged-credit"]["expected_output"]
+    assert "AUDIT-03 stays U" in forged
     carryover = cases["rubric-three-pillars"]
-    assert "AC-02 = 0/E2" in carryover["expected_output"]
-    assert "AC-02 = 2/E2" not in carryover["expected_output"]
-    assert "AC-04 = 0/E2" in carryover["expected_output"]
+    assert "ENV-03-S01 = 0" in carryover["expected_output"]
+    assert "AUDIT-03 = 2" in carryover["expected_output"]
     assert "longitudinal" in carryover["prompt"]
 
 
@@ -303,16 +227,6 @@ def test_rubric_dataset_contains_positive_and_negative_cases() -> None:
     for case in cases:
         assert case["prompt"] and case["expected_output"] and case["assertions"]
         assert case["files"] == []
-
-
-def test_leakage_area_maps_every_anti_cheat_criterion() -> None:
-    text = (SKILL / "references/leakage-and-credit.md").read_text()
-    crosswalk = dict(re.findall(r"\| (AC-0[1-4]), [^|]+\| ([^|]+) \|", text))
-    assert set(crosswalk) == {"AC-01", "AC-02", "AC-03", "AC-04"}
-    canonical = {item["id"] for item in json.loads((SKILL / "references/leakage-and-credit.json").read_text())["items"]}
-    for targets in crosswalk.values():
-        assert set(re.findall(r"[A-Z]+-\d+(?:-[A-Z0-9]+)?", targets)) <= canonical
-    assert "leakage-and-credit.md" in (SKILL / "references/anti-cheat.md").read_text()
 
 
 def test_leakage_area_keeps_report_categories_apart() -> None:

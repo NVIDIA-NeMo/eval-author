@@ -1,7 +1,12 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Experimental read-only rubric measurements of an explicit selection."""
+"""Score the 23 rubric criteria for an explicit selection.
+
+Measurement producers record observations. Every criterion score comes from the
+criterion predicates in rubric_evidence_scoring, applied to the selected
+criterion evidence. Simulated and recorded evidence use the same predicates.
+"""
 
 from __future__ import annotations
 
@@ -9,13 +14,13 @@ import argparse
 import json
 import sys
 from pathlib import Path
-from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "eval-author/scripts"))
 from eval_author_shared.task_evidence import loads  # noqa: E402
 from rubric_authority import check_authority  # noqa: E402
 from rubric_configuration import compare_sourced_config  # noqa: E402
 from rubric_ethos import check_ethos  # noqa: E402
+from rubric_evidence_scoring import assess_evidence  # noqa: E402
 from rubric_external import check_external  # noqa: E402
 from rubric_freshness import check_freshness  # noqa: E402
 from rubric_identity import compare_config, finish, identify, read_selected, resolve_route, text  # noqa: E402
@@ -25,19 +30,10 @@ from rubric_links import check_approvals, check_links, check_sourced_approvals  
 from rubric_native import project_native  # noqa: E402
 from rubric_overlap import check_overlap  # noqa: E402
 from rubric_reconstruction import project_reconstruction  # noqa: E402
-from rubric_report import build_report  # noqa: E402
 from rubric_reuse import check_reuse  # noqa: E402
-from rubric_scoring import assess  # noqa: E402
 
 
 def measure(root, selection, ethos_validator=None):
-    selected_root = Path(root).absolute()
-    root_identity = None
-    if isinstance(selection, dict) and ("scorer_controls" in selection or "example_assessment" in selection):
-        if any(path.is_symlink() for path in (selected_root, *selected_root.parents)):
-            raise ValueError("selected evidence root is a symlink")
-        stat = selected_root.stat()
-        root_identity = (stat.st_dev, stat.st_ino)
     root = Path(root).resolve(strict=True)
     json.dumps(selection, allow_nan=False)
     if not isinstance(selection, dict):
@@ -46,17 +42,14 @@ def measure(root, selection, ethos_validator=None):
         "approval_sources",
         "approvals",
         "artifacts",
-        "audit_companion",
         "authority",
         "decisions",
-        "contract_controls",
         "criterion_evidence",
         "declared_config",
         "entrypoint",
         "ethos",
         "expected_scorer",
         "evidence_scope",
-        "example_assessment",
         "freshness",
         "external",
         "layout",
@@ -70,7 +63,6 @@ def measure(root, selection, ethos_validator=None):
         "reuse",
         "route",
         "rubric_scope",
-        "scorer_controls",
         "sourced_config",
     }
     if selection.keys() - supported:
@@ -144,156 +136,16 @@ def measure(root, selection, ethos_validator=None):
         if not all(isinstance(ids, list) and all(text(ident) for ident in ids) for ids in selected_native.values()):
             raise ValueError("invalid native selection")
         measurements["native"] = project_native(root, identity, **selected_native)
-    if "scorer_controls" in selection:
-        from rubric_scorer_controls import project
-
-        measurements["scorer_controls"] = project(root, selection)
-    items = build_report(assess(measurements, selection, root=root), measurements, selection, root)
-    if "example_assessment" in selection:
-        from rubric_example_assessment import apply, project
-
-        measurements["example_assessment"] = project(root, selection)
-        apply(items, measurements["example_assessment"])
-        from rubric_example_native import apply as apply_native
-
-        native = measurements["example_assessment"].get("native")
-        if native and "panels" in native:
-            from rubric_combined import apply_panels
-
-            apply_panels(items, native["panels"], apply_native)
-        else:
-            apply_native(items, native)
-        current_example = project(root, selection)
-        stat = selected_root.stat()
-        if (
-            current_example != measurements["example_assessment"]
-            or identify(root, artifacts) != identity
-            or root_identity != (stat.st_dev, stat.st_ino)
-            or any(path.is_symlink() for path in (selected_root, *selected_root.parents))
-        ):
-            raise ValueError("selected evidence changed during assessment")
-    if "scorer_controls" in selection:
-        from rubric_scorer_controls import project
-
-        current = project(root, selection)
-        stat = selected_root.stat()
-        if (
-            current != measurements["scorer_controls"]
-            or identify(root, artifacts) != identity
-            or root_identity != (stat.st_dev, stat.st_ino)
-            or any(path.is_symlink() for path in (selected_root, *selected_root.parents))
-        ):
-            raise ValueError("selected evidence changed during assessment")
-    if "contract_controls" in selection:
-        from rubric_contract_controls import assess_contract_controls
-
-        contract_rows = assess_contract_controls(root, selection)
-        for ident, row in contract_rows.items():
-            if ident in items and items[ident]["score"] is not None:
-                if row["score"] != items[ident]["score"]:
-                    raise ValueError("conflicting canonical scores")
-            else:
-                items[ident] = row
-        if assess_contract_controls(root, selection) != contract_rows or identify(root, artifacts) != identity:
-            raise ValueError("selected evidence changed during assessment")
-    demonstration = {}
-    recorded = {}
-    if "criterion_evidence" in selection:
-        from rubric_evidence_scoring import assess_evidence
-
-        evidence_rows = assess_evidence(root, selection)
-        for ident, row in evidence_rows.items():
-            if not row["selected"]:
-                continue
-            if row["assessment_scope"] == "synthetic-scoring-demonstration":
-                demonstration[ident] = row
-            else:
-                recorded[ident] = row
-                measured = items.get(ident, {}).get("score")
-                if row["score"] is None or measured == row["score"]:
-                    items.setdefault(ident, row)
-                    continue
-                # Corroboration may raise a measured 2 to 3; otherwise the lower score holds.
-                upgrade = measured == 2 and row["score"] == 3
-                kept = row if measured is None or upgrade or row["score"] < measured else items[ident]
-                other = items.get(ident) if kept is row else row
-                items[ident] = {**kept, "superseded_score": None if other is None else other["score"]}
-        if assess_evidence(root, selection) != evidence_rows or identify(root, artifacts) != identity:
-            raise ValueError("selected evidence changed during assessment")
-    refund_contract = None
-    if "example_assessment" in selection:
-        from rubric_refund_contract_evidence import apply as apply_refund_contract
-        from rubric_refund_contract_evidence import project as project_refund_contract
-
-        refund_contract = project_refund_contract(root, selection)
-        if refund_contract is not None:
-            measurements["refund_contract"] = refund_contract
-            apply_refund_contract(items, refund_contract)
-    if "example_assessment" in measurements:
-        from rubric_source_reviews import apply as apply_reviews
-
-        apply_reviews(items, measurements["example_assessment"]["source_reviews"])
-    general_review = None
-    if "example_assessment" in measurements:
-        from rubric_general_review import apply as apply_general_review
-        from rubric_general_review import project as project_general_review
-
-        general_review = project_general_review(root, selection, measurements)
-        if general_review is not None:
-            measurements["general_review"] = general_review
-            apply_general_review(items, general_review)
-    report: dict[str, Any] = {
-        **({"criterion_demonstration": demonstration} if demonstration else {}),
-        **({"recorded_criterion_evidence": recorded} if recorded else {}),
-        "schema": "rubric-measurements-v3",
+    items = assess_evidence(root, selection)
+    if assess_evidence(root, selection) != items or identify(root, artifacts) != identity:
+        raise ValueError("selected evidence changed during assessment")
+    return {
+        "schema": "rubric-measurements-v4",
         "experimental": True,
         "scope": "explicit-local-selection",
-        "preflight_success": False,
-        "anti_cheat_scores": {key: items[key]["score"] for key in ("AC-01", "AC-02", "AC-03", "AC-04")}
-        if "scorer_controls" in selection
-        else None,
         "measurements": measurements,
         "items": items,
     }
-    audit = None
-    if "audit_companion" in selection:
-        from rubric_audit_companion import project_report, selected
-
-        audit = selected(root, selection)
-        report = project_report(report, audit)
-    from rubric_general_review import apply_scoped, project_scoped
-
-    scoped = project_scoped(root, selection, report["measurements"], audit)
-    if scoped:
-        report["measurements"]["scoped_reviews"] = scoped
-        for projection in scoped.values():
-            apply_scoped(report["items"], projection)
-    if refund_contract is not None:
-        from rubric_refund_contract_evidence import project as project_refund_contract
-
-        stat = selected_root.stat()
-        if (
-            project_refund_contract(root, selection) != refund_contract
-            or identify(root, artifacts) != identity
-            or root_identity != (stat.st_dev, stat.st_ino)
-            or any(path.is_symlink() for path in (selected_root, *selected_root.parents))
-        ):
-            raise ValueError("selected evidence changed during assessment")
-    if general_review is not None:
-        from rubric_general_review import project as project_general_review
-
-        if project_general_review(root, selection, measurements) != general_review:
-            raise ValueError("scoped operator review changed during assessment")
-    if project_scoped(root, selection, report["measurements"], audit) != scoped:
-        raise ValueError("scoped owner adjudication changed during assessment")
-    from rubric_evidence_scope_mutations import apply_numeric, project_numeric
-
-    numeric = project_numeric(root, selection, report)
-    if numeric:
-        apply_numeric(report, numeric)
-        if project_numeric(root, selection, report) != numeric:
-            raise ValueError("numeric scope evidence changed during assessment")
-    return report
 
 
 def main(argv=None):
@@ -322,10 +174,9 @@ def main(argv=None):
         print(
             json.dumps(
                 {
-                    "schema": "rubric-measurements-v3",
+                    "schema": "rubric-measurements-v4",
                     "status": "invalid",
                     "code": "selection.invalid",
-                    "preflight_success": False,
                 }
             )
         )

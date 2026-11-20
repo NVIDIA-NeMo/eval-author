@@ -96,24 +96,6 @@ outputs are synthetic examples, not task scores. They never replace `items`,
 establish human adjudication, or satisfy native evidence floors. Removing the
 synthetic scope does not promote their scores into a real assessment.
 
-## Bounded task-contract source inspection
-
-The `contract_controls` selector names a digest-bound manifest through
-`{"artifact_id": "manifest"}`. Its schema is `rubric-contract-controls-v1`.
-The fields `instruction_id`, `dockerfile_id`, `scorer_id`, `test_data_id` and `task_config_id`
-reference selected artifacts. The [source adapter](../scripts/rubric_contract_controls.py)
-accepts only the frozen supported order-total fixture and its clean scorer neighbor.
-Unknown or changed source shapes fail closed rather than receiving a generic
-semantic assessment.
-
-For the planted fixture, the CLI emits task-contract.discoverable-requirements = 0/E1.
-The supported public instruction and declared COPY inventory supply no authority
-for the scorer's `summary.json` requirement. This is bounded static source inspection,
-not native solver-access proof. task-contract.clear-contract and
-task-contract.scoring-authority remain unassessed. The clean neighbor also remains
-unassessed: removing this condition does not establish every contract anchor or
-human adjudication.
-
 ## Selected Ethos structure
 
 `ethos` is `{"artifact_id": <id>}` naming one selected artifact with role `ethos`.
