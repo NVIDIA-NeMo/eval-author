@@ -22,6 +22,22 @@ If a new request finds a saved task design, Eval Author shows its scope and
 progress and asks whether to continue it, revise it, or start a new proposal.
 Confirming `ETHOS.md` alone does not resume that design. Earlier artifacts stay saved.
 
+## Enable experimental user simulation
+
+User simulation is off by default. Say “enable user simulation” or
+“enable experimental user simulation for this evaluation suite” to make adaptive
+conversation tasks available for the selected suite. The choice persists when
+you resume that suite. New suites start with simulation off.
+
+Say “disable user simulation” to turn it off again. Saved tasks and results stay
+available, while simulation authoring and execution pause. Enabling it keeps the
+usual design review, environment checks, and run authorization steps. After
+disabling and re-enabling it, authorize simulation runs again before execution.
+
+With simulation off, Eval Author proposes Single Turn and Scripted Multi-step
+where they fit the behavior. It reports behaviors needing adaptive user replies
+as gaps rather than converting them into a fixed script.
+
 ## Review the design and first task
 
 Source selection and the task proposal show your overall progress, with setup

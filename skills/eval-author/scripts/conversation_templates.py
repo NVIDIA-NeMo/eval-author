@@ -27,3 +27,7 @@ BLOCKER_PAUSE = "The {skill} requires “{quote}”. This prerequisite must be r
 NEXT_STEPS = "### Next Steps"
 CURRENT_STEP = "We're here"
 REPORTS = "Review your evaluations in {report} or {readme}."
+
+ETHOS_CHANGED_QUESTION = "ETHOS.md changed or is unavailable; review its intended behavior again."
+ETHOS_SELECTED_QUESTION = "Review the selected ETHOS.md and confirm its intended behavior."
+ETHOS_DRAFT_CHANGED_QUESTION = "The agreed draft changed or is unavailable; review the draft before writing."

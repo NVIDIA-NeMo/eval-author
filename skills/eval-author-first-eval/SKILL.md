@@ -37,6 +37,9 @@ metadata:
 
 # Eval Author: first evaluations
 
+Apply the shared [simulation opt-in gate](../eval-author/references/coverage-planning.md#enable-experimental-user-simulation)
+when selecting interaction types and before simulation authoring or execution.
+
 ## A recorded trace as a starting source
 
 For a user-selected recorded trace, follow the shared [trace source handoff](../eval-author/references/trace-input.md).
@@ -129,6 +132,9 @@ truth or replace subjective quality with brittle wording checks.
 Follow the [first_eval task table contract](../eval-author/references/conversations/first_eval_templates.md)
 when saving each proposed task's verifier type and scoring rule, before resolving
 its validation setup.
+Choose and retain each task's interaction type using
+[coverage planning](../eval-author/references/coverage-planning.md#choose-the-interaction-type)
+before saving the proposal.
 
 Reuse prerequisite findings and the selected source to make the proposal.
 Read only the additional agent interface or selected evidence needed to describe
@@ -184,6 +190,12 @@ data, observable state, isolation, and smoke evidence establish environment
 readiness; task controls never prove the kit. Build on that proven kit and keep reference
 answers and verifier-only information outside the agent's initial environment.
 
+Prepare the task-specific fixtures and README Verifier section before the scenario handoff.
+For an approved `user_sim` task, call
+[`eval-author-user-sim`](../eval-author-user-sim/SKILL.md) after environment proof
+to author the neutral scenario and conversation-dependent checks. Preserve its
+runtime blockers and this flow's first-task review and native validation gates.
+
 Use [private construction declarations](../eval-author/references/construction-plan.md)
 for grading authority, authored or copied inputs, and observable checks. Validate
 and bind the construction plan before recording native controls. Preserve
@@ -224,6 +236,8 @@ reviewed approach; it does not claim individual review of every later task.
 Only after current first-task approval, render `first_eval_prepare_remaining`
 and build the remaining agreed tasks with the approved pattern. Reuse applicable
 proof and controls, refreshing the report after authoring, revisions, and validation.
+For every remaining `user_sim` task, use the same scenario-authoring handoff after
+its environment proof, prepared fixtures, and README Verifier section are ready.
 Read every authored row with `first_eval_table_data.py --stage review_suite`
 after the refresh and pass the returned `task_rows` to the renderer.
 Keep task paths stable; a blocked first task never unlocks remaining authoring.

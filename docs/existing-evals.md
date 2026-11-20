@@ -296,6 +296,9 @@ evidence. Each recommendation explains its priority, expected behavior, how a
 verifier would check it, and supporting evidence.
 Recommendations distinguish agent failures from verifier defects and ungraded
 runs. Applicable controls must be executed before a task is described as screened.
+The audit's closing recommendations identify which actions Eval Author supports
+and which require separate work. Its closing question offers supported actions;
+the completed findings do not repeat the journey checklist.
 Missing evidence leaves screening unproven. Proposals expand the existing
 next actions in the Audit coverage report. Request this directly when you want
 additional planning; it is not a required follow-up to an audit.
@@ -304,8 +307,10 @@ See [audit results](results.md#coverage-audits) for where protections and later
 findings belong.
 An explicit planning request produces recommendations. Selecting an existing
 audit recommendation reuses it. Construction design, validation, and execution
-keep their applicable scope and authorization requirements. The supported
-authoring paths are summarized below.
+keep their applicable scope and authorization requirements. See
+[selected audit improvements](results.md#selected-audit-improvements) for saved
+planning checkpoints and review requirements. The supported authoring paths are
+summarized below.
 
 For supported additions, Eval Author saves the task plan and your answer at the
 existing scope review. Returning to the conversation keeps that plan and any

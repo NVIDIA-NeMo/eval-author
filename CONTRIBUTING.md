@@ -21,7 +21,7 @@ uv sync --locked
 make hooks
 uv run --locked ruff check .
 uv run --locked ruff format --check .
-uv run --locked pytest -q -rs -n auto
+PYTHONDONTWRITEBYTECODE=1 uv run --locked pytest -q -rs -n auto
 make check-copyright-headers
 make check-licenses
 git diff --check
@@ -145,7 +145,35 @@ administrator bypass. PR checks do not receive this credential. These controls
 must be configured in GitHub settings, not only in workflow YAML. Fork PRs are
 excluded. Keep unrelated secrets, cloud credentials, self-hosted runners, and
 internal application access out of these jobs. Do not use
-`pull_request_target` or a privileged `workflow_run` to execute PR code.
+`pull_request_target` or a privileged `workflow_run` to execute PR code, except
+in the omp review workflow below.
+
+The omp review workflow (`.github/workflows/omp-review.yml`) runs on
+`pull_request_target` for same-repository PRs when a PR is opened, reopened, or
+marked ready for review, and again when someone adds the `omp-review` label.
+It runs only when the person who triggered it has the maintain or admin role
+and the PR author has write access, both checked with GitHub's permission API.
+PR code runs only inside the `tools/omp-review/` sandbox: a non-root,
+read-only, CPU- and memory-limited gVisor container on a copy of the checkout, whose
+writable storage is a fixed-size filesystem and whose only network exits are a
+model proxy and a proxy that allows only PyPI and GitHub. The model proxy holds
+the inference key, forwards only Anthropic Messages calls for the configured
+model, and stops forwarding once a run's metered spend reaches its budget
+(currently $15). Only the review's `review.json` leaves the sandbox;
+transcripts and logs are discarded. A separate job without secrets posts one
+comment-only review, with the run's phase, exit code, duration, and model spend
+when the review did not complete. PR code can write `review.json` itself, so a
+posted review is advisory; it never approves or requests changes.
+
+The workflow needs the `omp-review` environment limited to `main`, the
+`OMP_REVIEW_INFERENCE_HUB_API_KEY` secret, and the `OMP_REVIEW_MODEL`,
+`OMP_REVIEW_CONTEXT_WINDOW`, `OMP_REVIEW_MAX_TOKENS`, and `OMP_REVIEW_PRICES`
+variables. `OMP_REVIEW_PRICES` gives the model's USD prices per million tokens,
+for example `input=4,output=20,cache_write_5m=5,cache_write_1h=8,cache_read=0.2`.
+GitHub blocks `pull_request_target` in public repositories from December 2,
+2026 unless an Actions event policy allows it, so the repository needs a policy
+that allows it for this workflow file. To debug a review, run
+`tools/omp-review/run.sh --keep-work` locally.
 
 The same-repository job condition is defense in depth, not an access control:
 a PR can modify workflow YAML. CODEOWNERS routes review requests to ASE; it

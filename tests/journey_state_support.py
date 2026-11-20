@@ -1,6 +1,7 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
+import copy
 import importlib
 
 
@@ -64,3 +65,23 @@ def expansion_payload(modules, saved):
         "revision": saved["revision"],
         "facts": {"expansion_observations": view["expansion_observations"]},
     }
+
+
+def expansion_scope_save(modules, repo, saved, value):
+    return modules[0].update(
+        repo,
+        {
+            "scopes": {"expand": {"lifecycle": value}},
+            "pending_question": value["pending"]["question"] if value["pending"] else None,
+        },
+        expected_revision=saved["revision"],
+    )
+
+
+def expansion_scope_decide(modules, repo, saved, kind):
+    value = copy.deepcopy(modules[1].record(saved))
+    value["decision"] = {"kind": kind, "source": f"User reply: {kind}"}
+    value["pending"] = (
+        {"question": "Which refund scenario instead?", "source": "User requests revision"} if kind == "revise" else None
+    )
+    return expansion_scope_save(modules, repo, saved, value)

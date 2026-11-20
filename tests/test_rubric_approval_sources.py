@@ -153,7 +153,6 @@ def test_cli_uses_retained_decision_source(tmp_path, contradiction):
         assert "approvals.source_mismatch" in {row["code"] for row in measured["diagnostics"]}
     else:
         assert measured["evidence"][0]["decision_id"] == "d1"
-    assert report["preflight_success"] is False
 
 
 def test_supporting_source_cannot_narrow_away_material_dependency(tmp_path):

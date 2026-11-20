@@ -5,8 +5,8 @@
 
 Read this when Harbor is the provider. It implements Steps 3 and 5 through 7 of
 [the environment sub-flow](../SKILL.md) with Harbor's task format. Check the
-installed Harbor's help and task schema before using a field; this guide was
-checked against Harbor 0.20.0, and the
+[current runtime prerequisites](../../eval-author/references/runtime-prerequisites.md)
+and the installed Harbor's help and task schema before using a field. The
 [Harbor environment documentation](https://docs.harborframework.com/core-concepts/tasks/environment)
 describes the current release.
 
@@ -20,7 +20,6 @@ describes the current release.
 - [Export the end state](#export-the-end-state)
 - [Reset](#reset)
 - [Smoke task](#smoke-task)
-- [Version notes](#version-notes)
 
 ## Layout and reuse
 
@@ -155,7 +154,7 @@ network_mode = "no-network"
 
 Phase overrides need a sandbox that can switch network policy at runtime, and
 several remote providers support allowlists only for single-container tasks.
-On Docker, Harbor (0.20.0 and still 0.23.0) enforces both `no-network` and
+On Docker, Harbor enforces both `no-network` and
 `allowlist` through an egress-control sidecar that needs the kernel's nftables
 `fib inet` support (`CONFIG_NFT_FIB_INET`). Docker Desktop's kernel can lack it; Harbor then
 rejects the task with "network_mode='no-network' is not supported by
@@ -260,16 +259,3 @@ environment or the smoke script is broken; fix the environment rather than
 loosening the checks. Record each job path and result in the plan; these runs
 are environment proof, not task evidence receipts. The plan's status is `proven`
 only when it names these three jobs.
-
-## Version notes
-
-Harbor 0.20.0 supports `[environment.env]`, `[[environment.mcp_servers]]`,
-`[environment.healthcheck]`, `[environment].workdir`, per-phase network policy,
-`[[verifier.collect]]`, and artifacts with a `service`. On Harbor 0.20.0 with
-local Docker, this recipe was exercised end to end: a Postgres sidecar with a
-healthcheck and baked seed data, `[environment.env]` settings reaching it by
-service name, a collect hook and `service` artifact feeding a separate
-verifier built from `tests/Dockerfile`, NOP exporting the untouched seed, and
-two reference-solution runs each seeing exactly one smoke write. Later releases
-add trial regrading (0.21) and simulated users and task-level trajectory loading
-(0.22). Use a field only when the installed version's schema accepts it.

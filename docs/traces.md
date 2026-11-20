@@ -25,7 +25,10 @@ Save the report locally.
 The agent reads the selected trace and relevant evaluator evidence, then writes
 `.eval-author/traces/intake-TRACE_ID.md`. Each important finding cites its
 supporting evidence. An outcome can be `success`, `failure`, or `unknown`;
-an error span alone does not establish that the overall task failed.
+an error span alone does not establish that the overall task failed. Because
+some producers mark failed tool calls successful, the agent also checks every
+tool result for the tool's own failure report, such as an error field, a
+non-zero exit code, or a traceback, and states which method found failures.
 
 This workflow requires an existing, working `nemo` CLI and read access to Intake.
 It does not set up the platform or ingest new traces. See the

@@ -61,16 +61,17 @@
         1,
         5
       ],
-      "implementation_task": "Build an anti-cheat control panel and reward comparator that blocks qualification on healthy forbidden credit."
+      "implementation_task": "Build an anti-cheat control panel and reward comparator that blocks qualification on healthy forbidden credit.",
+      "level": "task"
     },
     {
       "id": "AUDIT-04-B",
       "skill_id": "audit",
       "title": "Exploit containment",
-      "question": "Are confirmed exploits contained and fixes verified on retained affected tasks?",
-      "requirement": "When an exploit is confirmed, isolate affected results and verify repairs on affected retained tasks and new tasks.",
-      "scope": "task; When an exploit is confirmed, isolate affected results and verify repairs on affected retained tasks and new tasks.",
-      "measurement": "Containment dispositions / confirmed affected revisions; expected-versus-actual rewards after repair; regression coverage across retained affected and new tasks.",
+      "question": "Is a confirmed exploit in this task contained and its repair verified on this task?",
+      "requirement": "When an exploit is confirmed in this task, isolate the affected results and verify the repair on this task.",
+      "scope": "task; When an exploit is confirmed in this task, isolate the affected results and verify the repair on this task.",
+      "measurement": "Containment disposition for the confirmed affected revision; expected-versus-actual rewards after repair on this task.",
       "methods": [
         "human_review",
         "probe",
@@ -86,8 +87,8 @@
         },
         {
           "method": "probe",
-          "action": "Replay known mechanisms against repaired retained affected tasks and new tasks; include independent attacks for stronger assurance.",
-          "expected_evidence": "Revision-bound containment and regression results",
+          "action": "Replay the known mechanisms against the repaired task; include independent attacks for stronger assurance.",
+          "expected_evidence": "Revision-bound containment and regression results for this task",
           "when": "After authorized repair in an isolated execution scope",
           "id": "AUDIT-04-B-C02"
         },
@@ -101,16 +102,16 @@
       ],
       "scoring": {
         "0": "A confirmed exploit remains accepted without containment, or a healthy repair replay still obtains forbidden credit.",
-        "1": "Containment or repair coverage addresses only part of the confirmed affected scope.",
-        "2": "Affected revisions are isolated and applicable retained/new-task repairs have verified outcomes; residual limits are disclosed.",
-        "3": "Independent attacks and cross-family replay corroborate containment."
+        "1": "Containment or repair covers only part of this task's confirmed exploit scope.",
+        "2": "The affected revision is isolated and the repaired task has verified outcomes; residual limits are disclosed.",
+        "3": "Independent attacks against the repaired task corroborate containment."
       },
       "evidence": [
         "Containment decisions",
         "Affected and repaired identities",
-        "Retained/new-task regression results"
+        "Repaired-task regression results"
       ],
-      "on_gap": "Quarantine affected results or qualify their use; repair shared causes and reassess affected tasks",
+      "on_gap": "Quarantine affected results or qualify their use; repair the cause and reassess this task. Cross-task containment is AUDIT-04-B-SUITE.",
       "boundary": "Fixing only newly generated tasks does not contain existing affected results. Missing or unrun evidence is NOT_ASSESSED, not 0; justified exclusions are NOT_APPLICABLE. Referenced code is supporting material, not verified runnable integration. Execute interventions only with approval; qualify any material judge/classifier and routing dependency before using its verdict.",
       "code_references": [
         "skills/eval-author/references/task-validation.md",
@@ -121,7 +122,69 @@
         5,
         9
       ],
-      "implementation_task": "Build a containment acceptance checklist and replay regression panel that retains previously affected tasks."
+      "implementation_task": "Build a containment checklist and a replay panel for the repaired task.",
+      "level": "task"
+    },
+    {
+      "id": "AUDIT-04-B-SUITE",
+      "skill_id": "audit",
+      "title": "Exploit containment across the suite",
+      "question": "Are confirmed exploits contained and fixes verified on retained affected tasks?",
+      "requirement": "When an exploit is confirmed, isolate affected results and verify repairs on affected retained tasks and new tasks.",
+      "scope": "suite; When an exploit is confirmed, isolate affected results and verify repairs on affected retained tasks and new tasks.",
+      "measurement": "Containment dispositions / confirmed affected revisions; expected-versus-actual rewards after repair; regression coverage across retained affected and new tasks.",
+      "methods": [
+        "human_review",
+        "probe",
+        "deterministic"
+      ],
+      "checks": [
+        {
+          "method": "human_review",
+          "action": "Approve quarantine or bounded use of affected results and record residual risk for each confirmed mechanism.",
+          "expected_evidence": "Containment/disposition register",
+          "when": "During assessment of the declared revision",
+          "id": "AUDIT-04-B-SUITE-C01"
+        },
+        {
+          "method": "probe",
+          "action": "Replay known mechanisms against repaired retained affected tasks and new tasks; include independent attacks for stronger assurance.",
+          "expected_evidence": "Revision-bound containment and regression results",
+          "when": "After authorized repair in an isolated execution scope",
+          "id": "AUDIT-04-B-SUITE-C02"
+        },
+        {
+          "method": "deterministic",
+          "action": "Reconcile confirmed affected revisions with isolation and replay outcomes; flag accepted uncontained exploits.",
+          "expected_evidence": "Unresolved containment report",
+          "when": "During assessment of the declared revision",
+          "id": "AUDIT-04-B-SUITE-C03"
+        }
+      ],
+      "scoring": {
+        "0": "A confirmed exploit remains accepted without containment, or a healthy repair replay still obtains forbidden credit.",
+        "1": "Containment or repair coverage addresses only part of the confirmed affected scope.",
+        "2": "Affected revisions are isolated and applicable retained/new-task repairs have verified outcomes; residual limits are disclosed.",
+        "3": "Independent attacks and cross-family replay corroborate containment across the suite."
+      },
+      "evidence": [
+        "Containment decisions",
+        "Affected and repaired identities",
+        "Retained/new-task regression results"
+      ],
+      "on_gap": "Quarantine affected results across the suite or qualify their use; repair shared causes and reassess every affected task.",
+      "boundary": "Fixing only newly generated tasks does not contain existing affected results. Missing or unrun evidence is NOT_ASSESSED, not 0; justified exclusions are NOT_APPLICABLE. Referenced code is supporting material, not verified runnable integration. Execute interventions only with approval; qualify any material judge/classifier and routing dependency before using its verdict.",
+      "code_references": [
+        "skills/eval-author/references/task-validation.md",
+        "skills/eval-author/scripts/eval_author_shared/solution_review.py",
+        "skills/eval-author-environment/references/task-fidelity.md"
+      ],
+      "source_ids": [
+        5,
+        9
+      ],
+      "implementation_task": "Build a suite containment register and a replay regression panel that retains previously affected tasks.",
+      "level": "suite"
     },
     {
       "id": "AUDIT-05-B",
@@ -179,7 +242,8 @@
       "source_ids": [
         1
       ],
-      "implementation_task": "Build an exposure disclosure register and sensitivity report with explicit unknown-training fields."
+      "implementation_task": "Build an exposure disclosure register and sensitivity report with explicit unknown-training fields.",
+      "level": "suite"
     },
     {
       "id": "AUDIT-05-S03",
@@ -236,7 +300,8 @@
         35,
         36
       ],
-      "implementation_task": "Build an adaptive-selection audit packet and family-aware confirmation or justified reuse protocol."
+      "implementation_task": "Build an adaptive-selection audit packet and family-aware confirmation or justified reuse protocol.",
+      "level": "suite"
     },
     {
       "id": "TRACE-04-A",
@@ -292,7 +357,8 @@
         "skills/eval-author/references/publication-review.md"
       ],
       "source_ids": [],
-      "implementation_task": "Deliver a secrets/proprietary review and exact-material authorization packet distinct from export-control review."
+      "implementation_task": "Deliver a secrets/proprietary review and exact-material authorization packet distinct from export-control review.",
+      "level": "task"
     },
     {
       "id": "ENV-03-S01",
@@ -357,7 +423,8 @@
         28,
         29
       ],
-      "implementation_task": "Deliver a complete reset-surface inventory and episode-isolation control packet."
+      "implementation_task": "Deliver a complete reset-surface inventory and episode-isolation control packet.",
+      "level": "task"
     },
     {
       "id": "CREATE-02",
@@ -365,7 +432,7 @@
       "title": "Task-irrelevant shortcuts",
       "question": "Can incidental cues satisfy the score without the claimed capability?",
       "requirement": "For plausible template/fixture/trace cue dependence and generalizable reasoning/workflow claims, declare candidate cue classes and qualify their tests.",
-      "scope": "task_and_suite; For plausible template/fixture/trace cue dependence and generalizable reasoning/workflow claims, declare candidate cue classes and qualify their tests.",
+      "scope": "task; For plausible template/fixture/trace cue dependence and generalizable reasoning/workflow claims, declare candidate cue classes and qualify their tests.",
       "measurement": "Cue-class coverage; paired outcome transitions and cluster-aware uncertainty for cue-only, nuisance-swap, misleading-cue and style-only controls; healthy material bypasses versus confounded effects.",
       "methods": [
         "deterministic",
@@ -406,7 +473,7 @@
         "0": "a healthy qualified control obtains material success via a task-irrelevant cue that contradicts the claimed capability",
         "1": "initial controls exist but a demonstrated candidate cue remains insufficiently isolated",
         "2": "declared plausible cue classes have qualified tests and no material unresolved bypass within scope",
-        "3": "independently authored held-out counterexamples and new task families corroborate robustness."
+        "3": "independently authored held-out counterexamples corroborate robustness on this task."
       },
       "evidence": [
         "Cue/applicability register",
@@ -415,14 +482,71 @@
         "Paired outcomes and health",
         "Confound decisions"
       ],
-      "on_gap": "remove cue, repair measure or narrow claim; route prohibited mechanisms to AUDIT-03/AUDIT-04-A / AUDIT-04-B without double-counting.",
+      "on_gap": "remove cue, repair measure or narrow claim; route prohibited mechanisms to AUDIT-03/AUDIT-04-A / AUDIT-04-B without double-counting. Cross-family robustness is CREATE-02-SUITE.",
       "boundary": "Correlation alone is not proof. Preserve task-relevant evidence and legitimate shortcuts; a score drop may reflect changed difficulty. Route forbidden mechanisms to AUDIT-03/AUDIT-04-A / AUDIT-04-B without duplicate credit. Missing or unrun evidence is NOT_ASSESSED, not 0; justified exclusions are NOT_APPLICABLE. Referenced code is supporting material, not verified runnable integration. Execute interventions only with approval; qualify any material judge/classifier and routing dependency before using its verdict.",
       "code_references": [],
       "source_ids": [
         31,
         33
       ],
-      "implementation_task": "Build a qualified four-control cue-dependence panel and paired-transition report."
+      "implementation_task": "Build a qualified four-control cue-dependence panel and paired-transition report.",
+      "level": "task"
+    },
+    {
+      "id": "CREATE-02-SUITE",
+      "skill_id": "first_eval_create",
+      "title": "Task-irrelevant shortcuts across task families",
+      "question": "Does cue robustness hold on new task families, not only the tasks it was developed on?",
+      "requirement": "For generalizable reasoning or workflow claims, corroborate cue robustness on independently authored new task families.",
+      "scope": "suite; For generalizable reasoning or workflow claims, corroborate cue robustness on independently authored new task families.",
+      "measurement": "Per-family cue-only and nuisance-swap transitions on new task families; consistency of task-level CREATE-02 results across families.",
+      "methods": [
+        "deterministic",
+        "probe"
+      ],
+      "checks": [
+        {
+          "method": "deterministic",
+          "action": "Select new task families authored independently of the development families, and record their identities.",
+          "expected_evidence": "Family register with authorship and identities",
+          "when": "During assessment of the declared suite revision",
+          "id": "CREATE-02-SUITE-C01"
+        },
+        {
+          "method": "probe",
+          "action": "Run the task-level CREATE-02 cue controls on each new family at pinned revisions.",
+          "expected_evidence": "Per-family outcomes and health receipts",
+          "when": "Only for authorized cue-isolation experiments",
+          "id": "CREATE-02-SUITE-C02"
+        },
+        {
+          "method": "deterministic",
+          "action": "Compare paired transitions across families; flag a cue bypass that appears only outside the development families.",
+          "expected_evidence": "Cross-family cue-dependence results",
+          "when": "During assessment of the declared suite revision",
+          "id": "CREATE-02-SUITE-C03"
+        }
+      ],
+      "scoring": {
+        "0": "a healthy qualified cue control succeeds in a new family through a task-irrelevant cue",
+        "1": "new families exist but their cue controls are incomplete or unresolved",
+        "2": "new families have qualified cue controls and no material bypass within scope",
+        "3": "independently authored new families and held-out counterexamples corroborate robustness across families."
+      },
+      "evidence": [
+        "Family register",
+        "Per-family paired outcomes and health",
+        "Cross-family comparison"
+      ],
+      "on_gap": "remove the cue or narrow the generalization claim to the families tested.",
+      "boundary": "Correlation alone is not proof. Preserve task-relevant evidence and legitimate shortcuts; a score drop may reflect changed difficulty. Route forbidden mechanisms to AUDIT-03/AUDIT-04-A / AUDIT-04-B without duplicate credit. Missing or unrun evidence is NOT_ASSESSED, not 0; justified exclusions are NOT_APPLICABLE. Referenced code is supporting material, not verified runnable integration. Execute interventions only with approval; qualify any material judge/classifier and routing dependency before using its verdict.",
+      "code_references": [],
+      "source_ids": [
+        31,
+        33
+      ],
+      "implementation_task": "Run the task-level cue panel across independently authored task families and compare transitions.",
+      "level": "suite"
     }
   ]
 }

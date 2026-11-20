@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Fixed copy for expansion entry, planning, and creation checkpoints."""
+"""Fixed copy for the supported expansion entry checkpoint."""
 
 OPTIONS_INTRO = "Let’s work on improving your existing evaluations. I can help you:"
 OPTIONS = (
@@ -11,7 +11,7 @@ OPTIONS = (
 )
 OPTIONS_QUESTION = "What would you like to work on?"
 UNSUPPORTED_GRADER_REPAIR = (
-    "This grader change isn’t supported inside Eval Author yet. "
+    "This verifier change isn’t supported inside Eval Author yet. "
     "You can make the repair in a coding-agent chat using the audit recommendation."
 )
 AUDIT_SELECTION_ACKNOWLEDGMENTS = {
@@ -24,7 +24,8 @@ AUDIT_NEXT_STEPS = (
     "I’ll check which changes Eval Author supports and explain any limits. "
     "For supported additions, I’ll show you the task plan and resolve any missing scope "
     "before creating and validating the tasks for your review. "
-    "I’ll reuse existing decisions and confirm any missing settings and permission before running your agent."
+    "For supported work, I’ll reuse existing decisions and confirm any missing settings and permission "
+    "before running your agent."
 )
 AUDIT_LIMITS = "**Known support limits:** {value}"
 
@@ -43,6 +44,7 @@ SCOPE_STATUS = {
     "scope_declined": "You declined this task plan.",
     "scope_revision": "",
 }
+
 
 CREATION_HEADING = "### Creation and validation"
 CREATION_TABLE = "| Task | Status |\n|---|---|"

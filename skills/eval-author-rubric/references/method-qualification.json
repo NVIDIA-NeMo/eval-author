@@ -1,0 +1,61 @@
+{
+  "rubric_version": "4.0-draft",
+  "items": [
+    {
+      "id": "METHOD-J1",
+      "skill_id": "audit",
+      "title": "Corroboration method qualification",
+      "level": "method",
+      "question": "Are the methods and actors that corroborate rubric scores identified, disclosed and qualified for their role?",
+      "requirement": "For every corroborating control behind a score of 3, record who corroborated, how they relate to the original author, what they were exposed to, and whether the method is qualified for that role.",
+      "scope": "method; every corroborating control in the assessed evidence",
+      "measurement": "Corroborating methods by actor kind, independence, blindness, disclosure and qualification; methods whose stated independence or blindness contradicts the record.",
+      "methods": [
+        "deterministic",
+        "human_review",
+        "probe"
+      ],
+      "checks": [
+        {
+          "method": "deterministic",
+          "action": "Inventory every corroborating actor and method with its relation to the original author and its exposure to scorer, reference and expected outcomes.",
+          "expected_evidence": "Corroboration method inventory",
+          "when": "During assessment of the declared revision",
+          "id": "METHOD-J1-C01"
+        },
+        {
+          "method": "human_review",
+          "action": "Qualify each method for its role and confirm that independence and blindness claims match the record.",
+          "expected_evidence": "Method qualification decisions",
+          "when": "During assessment of the declared revision",
+          "id": "METHOD-J1-C02"
+        },
+        {
+          "method": "probe",
+          "action": "Audit a sample of corroborating results with a separate actor and compare them with the original corroboration.",
+          "expected_evidence": "Method audit results",
+          "when": "Only when an audit is authorized",
+          "id": "METHOD-J1-C03"
+        }
+      ],
+      "scoring": {
+        "0": "A corroborating method is presented as independent or blind when the record shows it is not.",
+        "1": "Some corroborating methods are unidentified, unqualified or undisclosed.",
+        "2": "Every corroborating method is identified, disclosed and qualified for its role; shared authorship and exposure are stated.",
+        "3": "Corroboration comes from independent, blind and qualified actors, and an audit of the methods confirms them."
+      },
+      "evidence": [
+        "Corroboration method inventory",
+        "Method qualification decisions",
+        "Method audit results"
+      ],
+      "on_gap": "Qualify or replace the corroborating method, or state the limitation beside each score it supports.",
+      "boundary": "Scores the corroboration behind the rubric, not the task. It does not change any of the 23 criterion scores. Missing evidence is NOT_ASSESSED, not 0.",
+      "code_references": [
+        "skills/eval-author-rubric/scripts/rubric_evidence_scoring.py"
+      ],
+      "source_ids": [],
+      "implementation_task": "Record each corroborating actor and method in the criterion evidence."
+    }
+  ]
+}

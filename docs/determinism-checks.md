@@ -3,18 +3,18 @@
 
 # Running the determinism checks
 
-Use these tools to compare workflow decisions, verify retained evidence, and
-check reports against their sources. Run commands from the repository checkout.
-Developer tools in `tools/` are not included in skill-only installations.
+- Compare workflow decisions and check reports against their sources.
+- Use the [rubric base simulation](#rubric-base-simulation) to score a perfect base task and its mutations.
+
+Run commands from the repository checkout. Developer tools in `tools/` are not included in skill-only installations.
 
 | Check | What it verifies |
 | --- | --- |
+| [Rubric base simulation](#rubric-base-simulation) | A perfect refund task scores 3 on all 23 rubric criteria and every mutation scores lower. |
 | [Workflow scope](#workflow-scope) | Reviewed actions, writes and handoffs match a request contract. |
 | [Discovery comparisons](#discovery-comparisons) | Repeated discovery reports agree under frozen inputs. |
-| [Rubric identity measurements](#rubric-identity-measurements) | Handcrafted mutations produce exact scoped identity diagnostics and scores. |
-| [Provenance demo](#provenance-demo) | Selected source bytes, record links, and revision changes produce expected diagnostics. |
 | [Audit and task evidence](#audit-and-task-evidence) | Acceptance still matches its retained source and execution evidence. |
-| [Deterministic refund scorer controls](#deterministic-refund-scorer-controls) | Compare task credit, gate totals on required checks, and check native interface health. |
+| [Verification-integrity checks](#verification-integrity-checks) | Saved receipts, required controls and acceptance claims agree with retained evidence. |
 | [Verifier-cheat panel](#verifier-cheat-panel) | Real Harbor controls distinguish a sound grader from a planted vulnerable grader. |
 | [Live anti-cheat experiment](#live-anti-cheat-experiment) | Model-backed Harbor task attempts separate real behavior from vulnerable reward signals. |
 | [Factual and semantic reports](#factual-and-semantic-reports) | Reports preserve source facts and semantic comparisons use compatible evidence. |
@@ -28,249 +28,27 @@ trajectories or free-form prose. The
 separately requires byte-identical messages for identical rendering inputs;
 that presentation guarantee does not establish deterministic workflow execution.
 
-## Overall rubric showcase
+## Rubric base simulation
 
-Run the identity, provenance, scorer, verification-integrity, task-contract/Ethos
-and synthetic criterion-rule demos. Then inspect their retained results in one HTML page:
-
-```bash
-uv run --locked python tools/run_rubric_showcase.py \
-  --output "$PWD/.eval-author/showcase-new"
-uv run --locked python tools/run_rubric_showcase.py \
-  --verify-existing "$PWD/.eval-author/showcase-new"
-```
-
-Use a new directory. Open its `index.html`. The page links each score to the
-emitted rubric report. It shows all paired refund controls, including operational
-and ambiguous cases. AC-02 scores come from the actual reports, not task-credit
-counts. Receipt-consistency group scores remain separate from canonical scores.
-
-This command starts no models or Docker containers. It runs fixture scorers,
-synthetic native-result producers, the existing rubric commands, and scorer replay.
-Missing evidence stays unassessed. The page lists the controls needed for stronger
-AC-02 scores and the saved-envelope acceptance/recovery path that is not yet shown.
-It does not turn partial acceptance claims into complete workflow acceptance.
-
-The criterion-rule panel exercises 0, 1, 2, 3 and missing-evidence cases for all
-18 populated criteria. The separate `criterion_demonstration` field labels these
-as synthetic examples, not measured task scores. The real fixture panels emit
-`provenance.task-artifact-access`, `provenance.grading-path`,
-`provenance.grading-dependency-access`, AC-02, AC-03's forged-success defect and
-task-contract.discoverable-requirements's hidden requirement. Remaining real-task
-scores still need criterion-specific evidence adapters, scoped human adjudication,
-native probes or independent corroboration.
-The coverage and diversity pillars remain unimplemented.
-
-Run only the task-contract source controls with:
+The [rubric base simulation](../tools/rubric_base_simulation/run.py) scores the refund Harbor task and 26 mutations through `rubric_table.py`. It covers all 23 rubric criteria, 19 task-level and 4 suite-level, and reports METHOD-J1 beside them. The base must score 3 on every criterion. Each mutation must score lower on at least one criterion and raise none.
 
 ```bash
-uv run --locked python tools/run_task_contract_demo.py \
-  --output "$PWD/.eval-author/task-contract-new"
+.venv/bin/python -B tools/rubric_base_simulation/run.py --output "$HOME/rubric-simulation-1" --collect-native
 ```
 
-This writes `panel.json` and `report.md`. The source controls expose a planted
-hidden requirement and retain unassessed judgments; they do not establish owner
-confirmation. Use the overall showcase's `--verify-existing` command to validate
-its retained task-contract panel alongside the other reports.
+Choose a new directory outside the checkout. Open `summary.html` first: it shows the base table, each mutation with the criteria it lowered, and every score side by side. Each case also has its own 23-row table under `<case>/table/`. The command exits 0 only when the base is perfect and every mutation scores lower.
 
-Run only the scoring-rule panel with:
+- **Native Harbor panels:** `--collect-native` runs the refund task's attack, access-boundary, reset-boundary and held-out attack panels in Docker through Harbor. Their admitted results supply AUDIT-03, ENV-03-S01 and solver tool access facts, and the run identity for observed configuration, for the base task bytes. The observed setting values stay simulated. `--native DIR` re-admits each panel through its own validator and registry before use. On Docker Desktop, add `--docker-plugins /Applications/Docker.app/Contents/Resources/cli-plugins`. `--native DIR` reuses an earlier run's `native/` directory. Without either flag, those facts come from local verifier runs.
+- **Local runs:** every case runs all declared controls through the task's verifier, scans private files against public files, grades four cue-class candidates, runs target episodes on the real ledger service, and checks the refund authority record (`evals/scorer-controls/authority.json`) against the case's verifier result with `rubric_authority`. The completion-only exploit is confirmed by running that revision.
+- **Simulated inputs:** owner decisions, trace review, selection history and companion task families. Each case lists its simulated inputs in `simulated-premises.json`.
+- **Corroboration:** the held-out panel, the refund authority record and its recorded human review, and Claude corroborate the 3s. METHOD-J1 records each as it is. Claude wrote the simulation, so its corroboration is shared-author and of unknown qualification, and the base METHOD-J1 is 1.
+- **Mutations:** 11 change task bytes; 15 change one input, such as withheld held-out attacks or an exploit accepted without containment.
 
-```bash
-uv run --locked python tools/run_criterion_scoring_demo.py \
-  --output "$PWD/.eval-author/criterion-rules-new"
-uv run --locked python tools/run_criterion_scoring_demo.py \
-  --verify-existing "$PWD/.eval-author/criterion-rules-new"
-```
+The `rubric-simulation` CI job runs this command with `--collect-native` and uploads `summary.html`.
 
-Fresh-root comparisons retain raw path-bound evidence and compare explicitly
-scoped semantic results. Matching repeated fixtures establish neither independent
-corroboration nor identical behavior across machines. Bundle verification checks
-retained data against current rules. Its hashes are not authenticated attestations.
-
-## Rubric identity measurements
-
-The experimental rubric demo assesses source-bound task access (`provenance.task-artifact-access`),
-explicit grading-path identification (`provenance.grading-path`), and grading-dependency access
-with a retained completeness review (`provenance.grading-dependency-access`). Raw identity, route,
-configuration, relationship, and approval measurements remain separate from
-canonical criterion scores. See the
-[rubric measurement contract](../skills/eval-author-rubric/references/identity.md)
-for input fields and supported evidence.
-
-Run the credential-free handcrafted demo from the checkout:
-
-```bash
-uv run --locked python tools/run_rubric_measurements.py --format text
-uv run --locked python tools/run_rubric_measurements.py
-```
-
-The default output is `rubric-mutation-panel-v4` JSON. It contains 14 raw-measurement
-regressions, five canonical score variants, and 13 source configuration, freshness,
-Ethos, and authority-reference variants in `evidence_cases`. Both
-assessment panels invoke the actual measurement CLI without mocking helper outputs.
-Each includes
-independently authored expected outcomes, observed items and raw measurements,
-input identity, CLI exit code, and whether expectations matched. All cases check
-the complete canonical result fields and all 38 check IDs. CLI cases also
-compare every check outcome with the panel's explicit expectation map. Counts
-separate `cases`, `assessments`, and `evidence_cases`.
-
-The panel exits nonzero on an unexpected outcome. The text summary lists mismatched
-case IDs and omits success claims when any case mismatches. Correctly detecting a
-planted defect does not cause a nonzero exit.
-It also checks that CLI assessment leaves the selected input bytes unchanged.
-
-| Variant | provenance.task-artifact-access | provenance.grading-path | provenance.grading-dependency-access |
-| --- | --- | --- | --- |
-| Valid declared inventory | 2 | 2 | 2 |
-| Wrong scorer | 2 | 0 | 2 |
-| Ambiguous route | 2 | null | 2 |
-| Confirmed missing task file | 0 | 2 | 2 |
-| Partial inventory and dependency route | 1 | 1 | 1 |
-
-`null` means `NOT_ASSESSED`, never zero. The other eight canonical criteria remain
-null in every variant because the required review and native evidence is missing. The handcrafted retained
-review is not independent corroboration, so no variant earns level 3.
-
-Inventories cover only declared local references and known grading branches.
-They do not establish arbitrary-code dependency closure, solver permissions,
-provider compatibility, or grading correctness.
-The partial review preserves its unresolved material dependency instead of
-certifying completeness. The confirmed-missing variant removes the task
-file before the checker reads it. A caller's missing-access declaration alone
-remains unknown.
-
-The source configuration and freshness variants use handcrafted refund-task inputs,
-JSON configuration records, and retained review notes. The Ethos and
-authority-reference variants reuse the `ethos-write` router-help fixture
-`ETHOS.md`, and the authority variants add a handcrafted construction plan. They
-use no native receipts:
-
-| Variant | Expected bounded observation |
-| --- | --- |
-| Sourced equal | Seven selected fields equal and bound to synthetic run/task/configuration identities. |
-| Sourced different | Only `/runtime_pins/harbor` differs. |
-| Sourced provider-hidden | That pin is unknown with reason `provider_not_disclosed`. Six fields remain comparable. |
-| Fresh bindings | Refund note and independently bound neighbor note are current. |
-| Material task change | Refund note is stale after changing its instruction. |
-| Material scorer change | Refund note is stale after changing its approval check. |
-| Material dependency change | Refund note is stale after changing its selected judge prompt. |
-| Unknown ETHOS change | Refund note is unresolved after changing intent. Semantic impact remains unknown. |
-| Ethos valid | `ETHOS.md` passes the installed `ethos-write` validator. |
-| Ethos malformed | The validator rejects a renamed required section. |
-| Authority resolved | A construction plan's `ETHOS.md#Constraints` and `task.json#/task_id` references both name selected content. |
-| Authority broken reference | A cited `ETHOS.md` heading is missing. The neighbor requirement still resolves. |
-| Authority prose | A prose reference is reported as not checkable, not broken. The neighbor still resolves. |
-
-Every freshness variant also checks that the unaffected neighbor remains current
-and usable. Each compares old and new lineage against the retained binding and
-current selected bytes. The inputs explicitly declare materiality for the task,
-scorer and prompt. ETHOS impact is unknown. These bindings cover only the selected
-references, not an inferred complete dependency graph.
-
-A current note is usable
-**for review**, not proof of a passing task. The demo does not rewrite or regrade
-stale notes, use fabricated rewards, or use native-success receipts.
-
-All eight measurements retain `2/2/2` on the inventory/path criteria and null elsewhere. They earn no numeric credit on other criteria.
-Source equality does not establish configuration acceptability, native attestation
-or fair comparison. Run-bound fields here assert only what the selected records say.
-
-When complete evidence is missing, deterministic checks retain `PARTIAL` or
-`BLOCKED`, even when a helper passes. Human review, LLM judging, and probes remain
-`NOT_RUN`. Provider validation and solver-permission execution remain blocked.
-The raw details about sources and freshness do not add a score anchor or claim
-that all 38 checks passed.
-
-The wrong-scorer variant changes an explicit JSON selector to a weak route that
-names only a claimed-success check. This is a **weak-route defect, not demonstrated
-exploitation**: no scorer, solver, cheat, model, or native task executes. These are
-synthetic local selections, not customer tasks.
-[Package acceptance](#package-acceptance-same-command) measures retained-credit and
-identity-aware coverage CLI integration separately.
-The existing native verifier-cheat panel below remains the executed cheat control.
-
-The demo removes temporary inputs after each case. If you need to retain the
-report, redirect default JSON stdout. That report is not a retained executable
-task package.
-
-### Package acceptance (same command)
-
-The separate `package_acceptance` section runs 14 additional CLI cases with its
-own counts and pass/fail status, separate from the three panels above.
-Expectations come from `evals/rubric-measurements/cases.json`, not
-observed output or imported test fixtures. An unexpected package outcome also
-makes the overall command exit nonzero.
-
-Eight cases send **the same selection file** through both actual consumers:
-`audit_verifier_evidence.py --selection` and audit `measure.py
---identity-root --identity-selection`. They compare complete identity records,
-digests, diagnostics, and exit codes. The valid case checks retained-credit control
-classification and coverage's trace digest and identity envelope. Missing,
-denied, unresolved, unknown-route, wrong-scorer, caller-only dependency mapping,
-and source/mapping contradiction cases cannot become successful measurements.
-The valid route binds its dependency graph to selected dispatch JSON bytes.
-That finite declaration does not establish arbitrary-code dependency closure.
-
-Two cases run the rubric CLI with `approval_sources`. An exact retained approved
-decision passes. A retained denial fails when it contradicts the caller's approval
-projection. These cases check retained content, not the decision author's identity
-or authority. Four more cases separate configuration comparison from binding.
-They test equal values with valid run/task/configuration binding, then equal
-values with each binding independently mismatched.
-
-The mismatched cases remain `equal` and may exit zero from the rubric CLI.
-However, `binding_accepted` is false with the exact mismatch reason.
-The panel checks that rejection separately rather than treating equality as accepted binding.
-
-These are explicitly synthetic, native-shaped receipt/ATIF **parser fixtures**,
-not captured native executions. Package acceptance is local CLI integration,
-not task merit, provider compatibility, solver permissions, anti-cheat success,
-or end-to-end conversational workflow acceptance. `runtime_acceptance` stays
-`not_measured`, `merit_acceptance` stays `not_assessed`, and the existing top-level
-`workflow_integration: false` denotes that unmeasured full workflow boundary.
-The three rubric panels contain no native-shaped receipts.
-
-Every package case verifies that all fixture input bytes remain unchanged,
-including its selection. Only coverage's dedicated output subtree may be created.
-Temporary roots never enter the package fixture's retained identities.
-Thus, repeated commands produce byte-identical JSON when source and runtime are
-unchanged. The regression test runs the full command twice and compares stdout.
-
-Package subprocesses use a private scratch HOME and credential-free environment.
-They launch no scorer, task, model, or network call. The panel removes temporary
-packages and outputs. Retain stdout for review, not as an executable or
-independently attested task package.
-
-For an explicitly selected private package, the installed rubric provides:
-
-```bash
-python skills/eval-author-rubric/scripts/measure.py \
-  --root /path/to/package --selection /path/to/private-selection.json
-```
-
-It emits `rubric-measurements-v3` JSON without modifying workflow state. Exit 1
-means failed/unknown raw predicates or comparisons still requiring review. Exit 2
-means invalid input. Exit 0 does not mean every canonical item is assessed or that
-native preflight passed. Configuration acceptability remains unassessed.
-To check a selected `ETHOS.md`, add an `ethos` selection naming its artifact and
-pass `--ethos-validator` with the installed `ethos-write/scripts/validate_ethos.py`.
-The result records the document and validator digests and the validator's
-verdict. A valid result checks structure only, not confirmed or adequate intent.
-
-To check a construction plan's grading-authority references, add an `authority`
-selection naming the plan and run from the repository root. A reference written
-as `path`, `path#Heading`, `path#L3-L5`, or `path#/json/pointer` must name
-selected content. A path that doesn't exist or a heading that isn't in the file
-fails. Prose references are reported as not checkable rather than broken.
-
-Keep selections and output private because they can contain local evidence locations.
-
-### Verification-integrity checks
+## Verification-integrity checks
 
 These checks find contradictions between saved records and gaps in the evidence.
-Every rubric `native` selection now includes the integrity measurements,
-`selected_receipt_status_consistent` predicate, and `group_scores` automatically.
 Audit and `check-acceptance` require `--integrity`. Their default outputs stay
 unchanged. Retry auditing uses a separate command.
 
@@ -280,40 +58,27 @@ Keep the output private.
 
 | Check | How to run it | Output |
 | --- | --- | --- |
-| Receipt status claims | Existing rubric `native` selection | `receipt_integrity` |
-| Required controls | Rubric `native` selection, or `audit_verifier_evidence.py --integrity` | `required_verification` |
-| Superseded manifests | Rubric `native` selection, or `audit_verifier_evidence.py --integrity` | `superseded_references` |
+| Required controls | `audit_verifier_evidence.py --integrity` | `required_verification` |
+| Superseded manifests | `audit_verifier_evidence.py --integrity` | `superseded_references` |
 | Saved acceptance claim | `task_pipeline.py check-acceptance --report <acceptance.json> --integrity` | `acceptance_integrity` |
 | Repeats after tool errors | `trace_privacy.py audit-retries --task-dir <task-dir>` | `private/retry-audit.json` |
 
-#### Receipt status claims
-
-Only a passed claim on a closure control is eligible. A claim is a contradiction
-when the receipt's return code is nonzero. It is also a contradiction when its
-bound native result fails a health or behavior assertion. The contradiction rate
-is contradictions divided by eligible claims.
-
-A correctly recorded failure or infrastructure error is not an eligible claim.
-Agent, diagnostic, and baseline receipts are excluded. Unknown receipts stay
-separate and block the rubric predicate.
-
-#### Required controls
+### Required controls
 
 Each required control has one state: `pass`, `fail`, `missing`, `mismatched`,
 `execution_error`, `unknown`, or `stale`. Only a current pass for every control
 sets `verified`. A missing control is an evidence
-gap. The check does not read the attempt ledger. The rubric does not read the task
-tree, so its freshness is `unknown`. The Audit checker hashes the selected task
+gap. The check does not read the attempt ledger. The Audit checker hashes the selected task
 tree and reports `current` or `stale`.
 
-#### Superseded manifests
+### Superseded manifests
 
 `prepare --previous` records the replaced manifest's digest as `supersedes`.
 A receipt bound to a superseded manifest is a review candidate, because receipts
 have no trustworthy time. Repair manifests
 prepared earlier have no link.
 
-#### Saved acceptance claims
+### Saved acceptance claims
 
 A passed `task_validation` claim is a violation in these cases:
 
@@ -329,7 +94,7 @@ For a custom evidence layout, add `--repo-root <repository>` to the integrity
 command. See the [saved-acceptance check](../skills/eval-author/references/task-validation.md#revalidate-saved-acceptance)
 for root selection and path restrictions.
 
-#### Repeats after tool errors
+### Repeats after tool errors
 
 The retry audit reports unchanged calls after explicit tool errors as review
 candidates. It does not confirm violations or establish which feedback reached
@@ -337,218 +102,15 @@ the model. See the installed skill's
 [retry audit contract](../skills/eval-author-inspect-trace/references/evidence-audit.md#repeats-after-tool-errors)
 for eligibility, exclusions, unknowns, exact denominators, and token-count limits.
 
-#### Scores for each check group
-
-Verification-integrity scores apply to each supported check group separately.
-They do not replace canonical rubric scores or form an aggregate score.
-
-In rubric reports, only `receipt_consistency` can receive a numeric score.
-`required_verification` remains visible but is always **Unassessed** because the
-native projection cannot establish current task freshness. Its null score records
-that evidence gap. The numeric scale below does not assess required verification
-in rubric runs.
-
-| Score | Meaning |
-| --- | --- |
-| 0 | No applicable checks pass. |
-| 1 | Some checks pass, but half or fewer. |
-| 2 | More than half pass, but not all. |
-| 3 | All applicable checks pass. |
-| Unassessed | Evidence is missing, stale, or unknown, or no checks apply. |
-
-Show the pass, fail, unknown, and excluded counts beside each score. Unknown
-evidence blocks a score even when some results are known. Review candidates
-remain separate and do not count as failed checks. Use the cited evidence to
-explain the result and the next action.
-
-#### Run the scoring demo
-
-From the repository root, use a new private output directory:
-
-```bash
-uv run --locked python tools/run_verification_integrity_demo.py \
-  --format text --run-dir /absolute/path/to/new-demo-directory
-```
-
-The demo shows expected and observed receipt-consistency scores of 0, 1, 2, and 3.
-Required verification stays Unassessed in every rubric case. The demo also shows
-unassessed missing and stale evidence, a contradictory saved claim, a consistent
-saved claim, and retry candidates that receive no score. Acceptance examples use
-partial claim fixtures to test integrity, not complete workflow acceptance. Each
-case includes a next action and links to its evidence.
-
-The command runs the real receipt producer, rubric and acceptance commands, and
-production scoring code with synthetic native results. It retains inputs,
-command outputs, Markdown, JSON, and file hashes. It replays unchanged sources
-and compares normalized measurements from a fresh directory. Path-bound raw
-reports need not match across directories. Existing output directories are rejected.
-
-This demonstrates the checks and scoring rules. It does not demonstrate model
-performance or complete workflow qualification.
-
-Regenerate the saved, derived rubric reports to include the new fields. Retained
-receipts do not change. The report builder revalidates against the selected
-source bytes.
-
 Run the credential-free integration panels:
 
 ```bash
-uv run --locked pytest tests/test_rubric_receipt_integrity.py \
-  tests/test_acceptance_integrity.py tests/test_retry_audit.py -q
+uv run --locked pytest tests/test_acceptance_integrity.py tests/test_retry_audit.py -q
 ```
 
 The panels use the real receipt recorder, trace loader, and command entry
 points with scripted synthetic results. They are not evidence from live Harbor
-runs or of model performance. Rubric task freshness stays unknown, so the rubric
-CLI still exits 1 even when all selected status claims agree.
-
-## Provenance demo
-
-Run the separate provenance panel from the checkout:
-
-```bash
-uv run --locked python tools/run_rubric_provenance_demo.py --format text
-uv run --locked python tools/run_rubric_provenance_demo.py --run-dir /absolute/path/to/new-demo-directory
-```
-
-The first command prints expected and observed outcomes. The second retains the
-synthetic inputs, selections, CLI reports, and `panel.json` for inspection and
-replay. The output directory must not exist. Without `--run-dir`, temporary inputs
-are removed after the run. JSON is the default output format.
-
-The panel checks selected generation records, candidate changes, validation
-references, configuration bindings, and selected-set changes. Calibration cases
-check retained dependencies on dataset, scorer, and runtime revisions. They do
-not fit a calibration model or decide whether calibration transfers.
-
-Reconstruction cases bind candidate files to their owning prepared summary and
-selected trace steps. Exact source bytes can support a recovered declaration.
-Wrong steps and changed bytes fail. Partial, generated, and unavailable sources
-retain unknown source proof. These checks do not reconstruct a workspace or
-establish that it can run.
-
-Expectations are authored separately in
-`evals/rubric-measurements/provenance.json`. Each case invokes the real rubric
-CLI and checks its diagnostics and exit status. Relevant mutations also check
-that an unaffected neighbor remains current. The panel verifies unchanged input
-bytes and retains every canonical criterion and check in the reports.
-
-These cases add deterministic evidence checks, not scoring anchors. Their scores
-remain null. Supplied failed and rejected candidates retain their identities and
-reasons, but this does not establish that every attempt was recorded or that each
-reason is valid. The fixtures execute no generator, scorer, model, or native task.
-
-## Deterministic refund scorer controls
-
-The refund panel compares a deliberately weak completion-only scorer with a
-reviewed-rule scorer. Both scorers receive the same scripted events and task
-inputs. The contract and expected credit vectors live in `evals/scorer-controls/`.
-These synthetic contract examples are neither authenticated task-owner approvals
-nor canonical rubric scores.
-
-Run the fixture-only panel and replay its retained inputs:
-
-```bash
-uv run --locked python tools/run_scorer_controls.py \
-  --output "$PWD/.eval-author/refund-controls/run-1"
-uv run --locked python tools/run_scorer_controls.py \
-  --verify-existing "$PWD/.eval-author/refund-controls/run-1"
-```
-
-Each output directory must be new. `panel.json` retains expected and observed
-per-check credit, raw credit, gated total credit, and acceptance for both arms.
-A failed mandatory check sets gated total credit to zero. Each check keeps its
-credit. When required work succeeds, the optional completion signal permits
-partial credit. Helper failures and insufficient evidence leave credit and
-acceptance null. They do not count as successful negative controls.
-
-The panel preserves the refund association, amount, approval ordering, ledger,
-protected-state and freshness requirements. Its explicit destination requirement
-applies identically to both arms. Approval-boundary and permitted no-action cases
-use declared task-input variants. Both arms receive the same variant. These
-variants do not repair the scorer. A no-work submission against the
-positive-balance contract remains invalid.
-
-The actual rubric measurement CLI checks the retained selection and declared
-scorer dependencies. Replay recomputes outcomes and compares them with the saved
-report. It never executes Python from the retained evidence directory. Changed
-source bytes or a changed selected runtime invalidate replay. A declared
-dependency map does not establish that it covers every dependency of arbitrary
-code.
-
-To produce rubric scores as well as task credit, add `--rubric`:
-
-```bash
-uv run --locked python tools/run_scorer_controls.py --rubric \
-  --output "$PWD/.eval-author/refund-rubric/run-1"
-uv run --locked python tools/run_scorer_controls.py --rubric \
-  --verify-existing "$PWD/.eval-author/refund-rubric/run-1"
-```
-
-This calls the rubric measurement CLI for each arm. The reports
-`rubric-baseline.json` and `rubric-reviewed.json` contain canonical AC-02 scores,
-check outcomes, evidence references and remaining gaps. Standard output compares
-expected and observed rubric scores. The frozen fixture demonstrates AC-02 moving
-from 0/E2 for forbidden credit to 1/E2 for partial defenses with known gaps.
-These rubric scores use the existing scale from 0 to 3, separate from each arm's task
-credit. Scores are not averaged into an overall quality score.
-
-The assessment also emits AC-03 = 0/E2 when the verified `no-work` control earns
-credit from solver-authored success. AC-02 and AC-03 cite one shared finding.
-They are not independent defects. The reviewed arm's AC-03 remains unassessed
-because these controls do not establish its full consumer-ownership boundary.
-AC-01 and AC-04 remain unassessed. A validated native run adds execution evidence
-but does not by itself close missing attack controls or justify a score of 2.
-Human authority and independent corroboration are not inferred from fixture
-expectations or matching hashes.
-
-For native execution, use the existing Harbor collector with its refund panel:
-
-```bash
-uv run --locked python tools/collect_verifier_cheat_evidence.py \
-  --panel refund --output "$PWD/.eval-author/refund-native/run-1"
-```
-
-This requires the locked Harbor runtime and a Docker host that enforces
-`no-network`. Native execution runs the scripted event fixture through the real
-Harbor agent/verifier interface. It does not perform an external payment or
-measure model behavior. Keep its native receipts separate from fixture-only
-results.
-
-After collection, assess both scorers from those native receipts:
-
-```bash
-uv run --locked python tools/run_scorer_controls.py \
-  --native-evidence "$PWD/.eval-author/refund-native/run-1"
-uv run --locked python tools/run_scorer_controls.py \
-  --verify-existing "$PWD/.eval-author/refund-native/run-1" --evidence-mode native
-```
-
-These commands do not launch Harbor. The first writes the rubric selections and
-reports beside the native evidence without overwriting existing reports. Replay
-revalidates the receipts and compares both retained assessments. Exit 0 means
-the expected rubric comparison matched. It does not mean all criteria passed.
-The canonical measurement CLI can return exit 1 for remaining measurement gaps.
-
-The current native panel supports AC-02 scores of 0/E2 and 1/E2. Missing controls
-include an all-failure submission, native early exit, stale success after a later
-failure, and scorer/test/output tampering. Passing the existing controls does not
-close these gaps.
-
-`scorer-native-private.json` retains per-case results and native receipts.
-`scorer-native-summary.json` is an allowlisted aggregate. Harbor's scalar reward
-measures only transport health here. The per-case results carry task credit.
-
-The refund command also runs the unchanged
-[verifier-cheat panel](#verifier-cheat-panel). It keeps that panel's leakage
-controls and results separate. This command configures no new CI job or artifact
-upload.
-
-Until applicable contract authority and current task evidence are supplied, task
-qualification remains `NOT_ASSESSED`. Passing this finite panel does not prove
-general scorer correctness. It also does not prove that rubric-guided authoring
-caused an improvement.
-Independent acceptance cases and human contract review remain separate gates.
+runs or of model performance.
 
 ## Verifier-cheat panel
 

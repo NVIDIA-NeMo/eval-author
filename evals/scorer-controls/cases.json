@@ -1,6 +1,8 @@
 {
   "schema": "refund-scorer-cases-v1",
   "contract_authority": "unassessed-synthetic-fixture-not-authenticated",
+  "contract_authority_record": "evals/scorer-controls/authority.json",
+  "contract_authority_review": "evals/scorer-controls/authority-review.md",
   "cases": [
     {
       "id": "reference",

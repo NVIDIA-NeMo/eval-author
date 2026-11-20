@@ -52,22 +52,18 @@ Raw measurements are named `identity`, `route`, `config`, `links`, and `approval
 Explicit `sourced_config`, `freshness`, `native`, `reconstruction`, `ethos`, and `authority` selections add their
 corresponding measurements. Absent optional selections do not establish coverage.
 These measurements have statuses and diagnostics, not numeric scores.
-Unknown top-level selection fields and unknown `rubric_scope` sections return
-`selection.invalid` (exit 2) rather than silently skipping a requested measurement.
-The supported `rubric_scope` sections are `task_artifacts` and `grading_dependencies`.
-The eleven canonical
-criteria consume this evidence under their own anchors; a helper passing is not
-automatically criterion acceptance. Configuration differences require interpretation;
-equality is not adequacy. Declared missing/denied access differs from a performed
-check confirming a missing material required artifact. Preserve that distinction
-when choosing a zero versus `NOT_ASSESSED`.
-`preflight_success` is always false: this consumer cannot certify a workflow.
-Every canonical item includes the complete result template and one `check_results`
-entry per canonical check. Keep the check's method, condition, evidence boundary,
-remaining gap and next action with its outcome. `PARTIAL` is not a deterministic
-pass; `NOT_RUN` review/probe checks cannot inherit helper successes. Item-level
-`measurements` uses the canonical list format; former counter maps are retained
-as `legacy_measurements`. Subject revisions use validated content digests.
+Unknown top-level selection fields return `selection.invalid` (exit 2) rather than
+silently skipping a requested measurement. Measurements never score a criterion:
+every score comes from the selected criterion evidence. Record what a measurement
+shows as a criterion fact; a helper passing is not criterion acceptance.
+Configuration differences require interpretation; equality is not adequacy.
+Declared missing/denied access differs from a performed check confirming a missing
+material required artifact. Preserve that distinction when recording the fact.
+
+The report (`rubric-measurements-v4`) has `schema`, `experimental`, `scope`,
+`measurements` and `items`. `items` holds the 23 rubric criteria and METHOD-J1.
+Each row has a score, evidence strength, remaining gaps and one `check_results`
+entry per canonical check. Subject revisions use validated content digests.
 
 ## Selected artifact identity and access
 
@@ -86,33 +82,12 @@ criterion-specific inventories, JSON-pointer bindings and provenance fields.
 Unsupported IDs, malformed facts, changed sources and contradictory records fail
 closed. Select each criterion explicitly.
 
-Recorded judgments remain `NOT_ASSESSED` with null evidence strength unless an owning measurement adapter
-establishes the required evidence. A bound JSON record does not authenticate a
-reviewer, establish solver permissions or prove native execution.
-
-Packets with `assessment_scope: synthetic-scoring-demonstration` exercise the
-anchor rules in a separate `criterion_demonstration` report field. Their numeric
-outputs are synthetic examples, not task scores. They never replace `items`,
-establish human adjudication, or satisfy native evidence floors. Removing the
-synthetic scope does not promote their scores into a real assessment.
-
-## Bounded task-contract source inspection
-
-The `contract_controls` selector names a digest-bound manifest through
-`{"artifact_id": "manifest"}`. Its schema is `rubric-contract-controls-v1`.
-The fields `instruction_id`, `dockerfile_id`, `scorer_id`, `test_data_id` and `task_config_id`
-reference selected artifacts. The [source adapter](../scripts/rubric_contract_controls.py)
-accepts only the frozen supported order-total fixture and its clean scorer neighbor.
-Unknown or changed source shapes fail closed rather than receiving a generic
-semantic assessment.
-
-For the planted fixture, the CLI emits task-contract.discoverable-requirements = 0/E1.
-The supported public instruction and declared COPY inventory supply no authority
-for the scorer's `summary.json` requirement. This is bounded static source inspection,
-not native solver-access proof. task-contract.clear-contract and
-task-contract.scoring-authority remain unassessed. The clean neighbor also remains
-unassessed: removing this condition does not establish every contract anchor or
-human adjudication.
+Recorded (`recorded-evidence-assessment`) and simulated
+(`synthetic-scoring-demonstration`) packets use the same criterion predicates, and
+both score rows in `items`. Simulated rows have strength E1. Recorded rows have E2,
+or E3 when every corroborating control has a different actor than the original
+observation. A bound JSON record does not authenticate a reviewer, establish solver
+permissions or prove native execution.
 
 ## Selected Ethos structure
 
@@ -267,8 +242,8 @@ grader checks for, is not detected.
 
 ## Construction authority references
 
-`authority` is `{"plan_artifact_id": <id>}` naming one selected construction plan
-with role `construction`. Every artifact a reference cites must also be selected.
+`authority` is `{"plan_artifact_id": <id>, "result_artifact_id": <optional id>}`.
+The plan has role `construction`. The optional selected native result has role `result`. Every artifact a reference cites must also be selected.
 A whitespace-free reference is a locator when its path names a selected artifact
 or contains `/` or `.`; its path is relative to the measurement root. Each locator
 is resolved against the selected bytes: `path` names the artifact, `path#Heading`
@@ -287,6 +262,12 @@ don't count.
 | `authority.unresolved` | unknown | The requirement's basis is `unresolved`. |
 | `authority.requirement_unmapped` | unknown | No check maps the requirement; proposal plans may allow this. |
 | `authority.check_dangling` | fail | A check cites an undeclared requirement. |
+| `authority.reference_implementation` | fail | The authority locator resolves to a selected scorer artifact. |
+| `authority.check_unobserved` | fail | The selected result lacks a check's success pointer. |
+| `authority.check_unknown` | unknown | No result is selected, available, or usable, or the partial plan omits success. |
+| `authority.check_pointer_invalid` | fail | A selected-result check declares an invalid JSON pointer. |
+| `authority.result_malformed` | fail | The selected result is not valid JSON. |
+| `authority.result_changed`, `authority.result_invalid`, `authority.result_unreadable` | fail, fail, unknown | The same source checks apply to the selected result. |
 | `authority.plan_malformed` | fail | The plan lacks the requirement and check shape this measurement reads. |
 | `authority.plan_changed`, `authority.plan_invalid`, `authority.plan_unreadable` | fail, fail, unknown | The same as the `reference_` codes, for the plan itself. |
 
@@ -295,48 +276,13 @@ mapped requirements. Full plan validation stays with `construction_contract.py`.
 A resolved reference shows that the cited content exists, not that it supports
 the requirement.
 
-## Source-backed inventory assessment
+A requirement citation that resolves to an artifact with role `scorer` fails with `authority.reference_implementation`. Implementation does not establish authority for the intended requirement.
 
-`rubric_scope`, when present, must be an object; other JSON types produce the sanitized
-`selection.invalid` CLI response (exit 2, empty stderr). Its optional `task_artifacts`
-and `grading_dependencies` objects contain `source` (selected inventory artifact ID),
-`required` (nonempty distinct artifact IDs), and `unresolved_material` (string gaps).
-Grading dependencies also name `review_source` (selected review artifact ID).
-Each required artifact's `source` must equal the inventory artifact's path.
+The result's `checks` rows resolve each plan check's `success.pointer` in the selected result. A present value is `observed`, including false, zero, or null. A missing pointer is `unobserved`. It fails with `authority.check_unobserved`. Without a selected result, observations stay `unknown`.
 
-For content findings, the selected inventory file must be a JSON object with the
-relevant section in this exact shape (both sections may share one source):
+Selected result bytes must pass the same path and digest checks as other selected evidence. These checks do not compare the observed value with the expected value. They do not authenticate native execution.
 
-```json
-{
-  "task_artifacts": {"required": ["task"], "unresolved_material": []},
-  "grading_dependencies": {"required": ["test"], "unresolved_material": []}
-}
-```
-
-The relevant section must exactly match the selection's `required` and
-`unresolved_material`, including list order, with no extra section fields.
-A full provenance.grading-dependency-access additionally requires a `review`-role artifact whose `source` is
-the inventory path and whose JSON object has exactly these fields:
-
-```json
-{"source": "inventory-id", "required": ["test"], "unresolved_material": [], "complete": true}
-```
-
-Here `source` is the inventory artifact **ID**, `required` matches the selected
-list, and `complete` must be the JSON boolean true. Extra review fields, omitted
-IDs, contradictory conclusions/gaps, unsupported formats, or unreadable/stale
-sources cannot establish full credit; retain `NOT_ASSESSED` and null score rather
-than infer semantics. Existing measured missing/denied evidence (0) and measured
-partial identity evidence (1) remain usable. A materiality-gap declaration alone
-cannot establish 1; its source projection must match too.
-
-`assess(measurements, selection, root=None)` uses only the explicitly selected
-sources; `measure.py` supplies `root`. Without it, direct observations cannot
-establish inventory content findings. Source reads are capped at 1 MiB, use the
-shared local-path and strict JSON checks, and hash the exact bytes parsed against
-the measured digest. This verifies a bounded source projection, not undeclared
-reference discovery, independent review, reviewer authentication, or runtime proof.
+Requirement rows with `prose`, `unresolved`, or `unselected` status carry a `question` with `requirement_id`, `reference`, and `decision_needed`. The fixed wording is in `rubric_authority.py`. See [unresolved mappings for review packets](task-contract-authority.md#unresolved-mappings-for-review-packets) for agent crosswalk ambiguities and contradictions. Honest unknowns remain valid measurements. They do not establish passing observations or resolved decisions.
 
 ## Declared grading route and dependencies
 
@@ -461,20 +407,16 @@ evidence gap. It does not show that verification was skipped. Retain earlier
 contradictions when another selected receipt passes. Ordering alone does not
 establish recovery.
 
-Keep both verification-integrity groups visible in `group_scores`.
-Only `receipt_consistency` can receive a numeric score in rubric reports.
-`required_verification` is always unassessed because this native projection cannot
-establish current task freshness. Display its null score as `Unassessed` and
-retain its evidence gaps. These group scores do not replace canonical scores.
+The native measurement reports `receipt_integrity`, `required_verification` and
+`superseded_references` as observations. They do not score a criterion.
+`required_verification` freshness is unknown here because this native projection
+cannot establish current task freshness.
 
 Treat each superseded reference as a review candidate. Receipts have no
 trustworthy time, so `confirmed` stays 0. Use `task_pipeline.py
 check-acceptance --integrity` to test whether a saved claim relies on a
 superseded result.
 
-After source revalidation, `provenance.evidence-revision-consistency.deterministic-1` includes `selected_receipt_status_consistent`
-as a bounded predicate with outcome `PASS`, `FAIL`, or `BLOCKED`. Its canonical
-check remains `PARTIAL`, and this evidence alone leaves the criterion score null.
 `context_rot_score` stays null. Use the existing freshness checks for selected
 dependencies separately. Do not transfer a historical pass to a changed task.
 These remain unassessed here:

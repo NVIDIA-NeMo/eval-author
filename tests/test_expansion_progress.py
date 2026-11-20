@@ -78,6 +78,7 @@ def test_starting_activity_is_visible_before_task_files_and_survives_resume(modu
     assert not (tmp_path / ".eval-author/tasks").exists()
     resumed = state.initialize(tmp_path, journey="expand")
     assert render(modules, resumed) == message
+    assert modules[2].render({**expansion_payload(modules, resumed), "stage": "resume"}) == message
     assert resumed["journey_status"].get("expand") != "complete"
     assert resumed["pending_question"] is None
 
@@ -219,8 +220,8 @@ def test_scope_agreement_cannot_be_reactivated_by_recording_creation_activity(mo
     if change == "provider_round_trip":
         state.initialize(tmp_path, setup="harbor")
         saved = setup_ready(state, tmp_path, journey="expand")
-        with pytest.raises(ValueError, match="Use expansion_scope"):
-            modules[2].render({"stage": "resume", "state": saved, "revision": saved["revision"]})
+        with pytest.raises(ValueError, match="context changed"):
+            modules[2].render({**expansion_payload(modules, saved), "stage": "resume"})
     else:
         value["decision"] = {"kind": "declined", "source": "User declines"} if change == "declined" else None
         saved = save(modules, tmp_path, saved, value)
@@ -400,3 +401,35 @@ def test_budget_revision_preserves_creation_question_through_reapproval(modules,
     assert render(modules, saved).count(question["question"]) == 1
     resumed = state.initialize(tmp_path, journey="expand")
     assert resumed["pending_question"] == question["question"]
+
+
+@pytest.mark.parametrize("path", ["starter_suite", "audit_tool_gap", "recorded_interaction"])
+def test_shared_recovery_hides_the_retained_creation_question(modules, tmp_path, path):
+    state, _, renderer = modules
+    saved, value = begin(modules, tmp_path, path)
+    question = "Which refund policy applies?"
+    value["creation"]["pending"] = {"question": question, "source": "Missing policy"}
+    saved = save(modules, tmp_path, saved, value)
+    saved = state.update(
+        tmp_path,
+        {
+            "prerequisites": {"runtime": {"status": "missing", "source": "Runtime probe failed"}},
+            "blockers": [{"id": "fixture_access", "phase": "setup", "message": "Runtime unavailable"}],
+        },
+        expected_revision=saved["revision"],
+    )
+    payload: dict = {**expansion_payload(modules, saved), "stage": "resume"}
+    payload["facts"]["blockers"] = [
+        {
+            "id": "fixture_access",
+            "step": "Restore runtime",
+            "reason": "Runtime unavailable",
+            "needed": "Install runtime",
+        }
+    ]
+    before = state.state_path(tmp_path).read_bytes()
+    message = renderer.render(payload)
+    assert "Runtime unavailable" in message
+    assert question not in message
+    assert state.state_path(tmp_path).read_bytes() == before
+    assert saved["pending_question"] == question

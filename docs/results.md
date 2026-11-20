@@ -3,35 +3,17 @@
 
 # Read your results
 
-Eval Author saves reports and evaluation artifacts in the repository you are
-working on. Start with the report for your requested workflow, and read its
-limitations before deciding what to change.
+- Start with the report for your requested workflow.
+- Read its evidence and limitations before deciding what to change.
+- Use the [rubric table](#rubric-table) section to read the experimental rubric's output.
 
-## Experimental rubric artifacts
+Eval Author normally saves reports and evaluation artifacts in the repository you are working on. The rubric simulation writes to a private output directory that you choose.
 
-Rubric selections use `rubric_scope` for source-backed inventories. Package demo
-observations use `retained_credit`, `retained_credit_controls`, and `coverage` to
-identify their consumers. The provenance panel uses `rubric-provenance-demo-v2`
-with `rubric-provenance-expectations-v1` expectations.
-Criterion IDs name their area, such as `provenance.grading-path` or
-`task-contract.scoring-authority`. Each check ID adds its method, such as
-`.deterministic-1` or `.llm-judge`. Result rows and check results keep the source
-rubric's IDs in `source` and `source_id`. Result rows omit the former top-level
-`skill_id` field; source metadata retains the original skill attribution.
-Rubric definitions use `4.1-draft`, measurement reports use
-`rubric-measurements-v3`, and identity mutation panels use
-`rubric-mutation-panel-v4`. The overall showcase, criterion scoring demo and task
-contract demo use `rubric-showcase-v2`, `criterion-scoring-demo-v2` and
-`task-contract-demo-v2`. Reports preserve canonical criterion and check order.
-The three demos are new in this change; their version numbers distinguish
-pre-merge development formats, not previously shipped releases. Existing
-measurement, identity-mutation and provenance outputs must be rebuilt when their
-schemas change. Update integrations to the current names; no compatibility aliases
-are kept.
-Keep old source-bound receipts under their original identifiers instead of
-renaming or resealing them as evidence for the new source bytes.
-See the [rubric measurements](determinism-checks.md#rubric-identity-measurements)
-and [provenance demo](determinism-checks.md#provenance-demo) for commands.
+## Rubric table
+
+`rubric_table.py` writes one table with all 23 rubric criteria: `results.md`, `results.html` and `assessment.json`. Each row has its level (task or suite), score, evidence strength and the anchor its evidence met. Simulated evidence has strength E1. Recorded evidence has E2, or E3 when a different actor corroborates. `U` means Unassessed: the criterion's facts are missing.
+
+The [rubric base simulation](determinism-checks.md#rubric-base-simulation) writes this table for the refund base and each mutation under `<case>/table/`. Its `summary.html` shows the base table, what each mutation lowered and every score side by side; `summary.md` and `summary.json` hold the same scores. Each case's `simulated-premises.json` lists its simulated inputs.
 
 ## Case and run catalog
 
@@ -39,8 +21,8 @@ Open `.eval-author/report.html` in a browser. It is a single offline file with
 four tabs:
 
 - **Tasks** lists every task with its status, the behavior it tests, its expected
-  outcome, and its verifier. A summary above the table counts **Proposed**,
-  **Draft**, **Accepted**, and **Unknown** tasks. Open a task's README, or its
+  outcome, and its verifier, with **Draft** tasks first. A summary above the table
+  counts **Proposed**, **Draft**, **Accepted**, and **Unknown** tasks. Open a task's README, or its
   Harbor task viewer where available.
 - **Runs** lists each evaluation job with its role, completion, and combined reward.
 - **Audit** shows the latest [audit coverage report](#coverage-audits). Task names
@@ -51,7 +33,11 @@ four tabs:
 helps you decide, and links to every report. The Harbor task and job viewers each
 serve one folder at a time, so if your tasks or jobs span several folders, start a
 viewer on one folder and change its address in **Settings** before moving to the
-next. The same content is in Markdown under
+next. If the browser blocks the report's cross-origin viewer check, the link opens
+Harbor directly without checking the viewer's mode, catalog, or source folder.
+Confirm that Harbor shows the intended task or run; a stopped viewer shows the
+browser's connection error.
+The same content is in Markdown under
 `.eval-author/report_markdown/` for agents and reviews: `tasks.md`, `runs.md`,
 and `audits.md`. Point a coding agent at these files when it needs to work with
 the suite's tasks, runs, or audit findings.
@@ -75,8 +61,33 @@ counts appear separately; an incomplete job's score is labeled partial. Missing
 rewards do not become zeroes. Without a documented reward range, the numeric
 total appears without a graph. Native scores without a documented pass rule
 are not labeled passed or failed. Standalone controls and other individual trials
-remain accessible in the separate Legacy trials section and are not combined
+remain accessible in the separate Individual attempts section and are not combined
 into inferred jobs.
+
+Markdown tables use inline labels and text separators, so they render in
+terminal interfaces without HTML support.
+
+## User-simulation scenarios
+
+For an approved Harbor **User-sim** task with
+[experimental user simulation enabled](first-evals.md#enable-experimental-user-simulation),
+Eval Author writes `user-sim.yaml` in the task directory. It describes the neutral user's goal, opening request, known
+facts, and any task-specific conversation rules. The task README links this file
+and explains which parts of the exchange the verifier checks.
+
+After you select execution settings, Eval Author can translate one scenario into
+a native Harbor `run.yaml` and private simulator prompt files in a separate
+directory under `.eval-author/.working/`. It preserves the selected target,
+environment, and verifier settings. Each scenario gets a separate configuration.
+Translation rejects tasks with `trajectory.json` and target
+`kwargs.prompt_template_path` settings because Harbor's ACP flow cannot preserve
+their behavior with user simulation.
+
+An interactive runner and checked information boundaries are still required
+before execution. The generated prompt requests the exact opening message, but
+the conversation evidence must confirm that the simulator sent it. Valid files
+and passing synthetic controls do not establish an actual-agent run or measured
+coverage. Native NeMo Gym User-sim authoring is not supported yet.
 
 ## Discovery and readiness
 
@@ -129,10 +140,32 @@ item rerun commands, and known execution blockers.
 
 ## First evaluations
 
+Your first evaluations give you a small starting suite that you can expand over
+time. You agree on one to three evaluation tasks, then Eval Author builds one
+draft for you to review. Check that it tests the behavior you care about and
+grades the outcome fairly. Once you're happy with that first task, Eval Author
+builds and validates the remaining tasks in your agreed set. You review the
+suite before running it, then use the results to decide whether to add coverage.
+
 The HTML report and `report_markdown/tasks.md` show proposed, authored, validated, and
 executed task totals for your full saved plan. Use the
 [generated case review guide](#review-generated-cases) to inspect cases and their
 available evidence.
+
+Each proposed task identifies its **interaction type**:
+
+- **Single Turn** uses one user request. The agent can make several tool calls
+  to complete it.
+- **Scripted Multi-step** uses predefined requests and checks intermediate
+  outcomes before continuing. For example, add an item to a cart, check that
+  it's there, then request its removal.
+- **User Simulation** adapts later user messages to the agent's responses. For example,
+  a simulated customer chooses among the replacement items the agent actually
+  offers, then confirms the selected item.
+
+The interaction type describes the task's design. Runtime readiness and actual
+execution are tracked separately. Older saved plans can remain without a
+documented type until reviewed.
 
 Task controls check the task and its verifier: NeMo Gym's known-correct and negative
 verifier fixtures, or Harbor's no-op baseline and reference solution. Results
@@ -201,7 +234,8 @@ confirmed and the Evaluation coverage table), then Key findings. Recommended
 next actions is a single table, highest priority first, with **Priority**,
 **Finding / Advisory**, **Affected coverage** (the tool, capability, or failure
 case involved), and **Description** columns; the description gives the action and
-the proposed task.
+the proposed task. The closing conversation lists every recommendation in the
+same priority order, including each action’s implementation limits and support status.
 The Coverage report maps each audit item to its tasks and run evidence, followed by the task
 catalog, verifier cheat screening, scope and execution evidence, and
 definitions.
@@ -303,7 +337,9 @@ Progress and available evidence appear beneath the same recommendation in the
 Audit coverage report.
 Journey state retains the existing authoring workflow's planning checkpoint,
 including its plan, actual scope decision, and unresolved question. This allows
-planning to resume without repeating settled choices or authorizing agent runs.
+planning to resume without repeating settled choices. Once scope is agreed,
+Eval Author does not ask you to approve the plan again; review of the created
+tasks and permission to run the agent remain separate.
 An implemented change does not by itself establish successful validation or
 better coverage. If task files change, earlier audit measurements need review
 before they can describe the changed tasks. Eval Author retains the original

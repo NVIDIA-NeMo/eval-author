@@ -64,6 +64,7 @@ _FIRST_EVAL_DIR = _SKILLS_DIR / "eval-author-first-eval"
 _INSPECT_DIR = _SKILLS_DIR / "eval-author-inspect-trace"
 _TRACE_ENVIRONMENT_DIR = _SKILLS_DIR / "eval-author-trace-environment"
 _ENVIRONMENT_DIR = _SKILLS_DIR / "eval-author-environment"
+_USER_SIM_DIR = _SKILLS_DIR / "eval-author-user-sim"
 _RUBRIC_DIR = _SKILLS_DIR / "eval-author-rubric"
 _ETHOS_SKILLS_DIR = _SKILLS_DIR.parent / "team-skills" / "ethos"
 _ETHOS_DIR = _ETHOS_SKILLS_DIR / "ethos-write"
@@ -95,6 +96,7 @@ _SKILL_DIRS = (
     _INSPECT_DIR,
     _TRACE_ENVIRONMENT_DIR,
     _ENVIRONMENT_DIR,
+    _USER_SIM_DIR,
     _RUBRIC_DIR,
 )
 _SUB_FLOW_DIRS = (
@@ -105,6 +107,7 @@ _SUB_FLOW_DIRS = (
     _INSPECT_DIR,
     _TRACE_ENVIRONMENT_DIR,
     _ENVIRONMENT_DIR,
+    _USER_SIM_DIR,
     _RUBRIC_DIR,
 )
 _DISCOVER_SCRIPTS_DIR = _DISCOVER_DIR / "scripts"
@@ -486,7 +489,9 @@ def _run_json_script(
 def _import_audit_measure(monkeypatch: pytest.MonkeyPatch) -> Any:
     """Import a fresh copy of measure.py so monkeypatches stay local to one test."""
     monkeypatch.syspath_prepend(str(_AUDIT_SPEC_DIR))
-    sys.modules.pop("measure", None)
+    # Record the prior top-level "measure" so teardown restores it; the rubric scripts own that name too.
+    monkeypatch.setitem(sys.modules, "measure", sys.modules.get("measure"))
+    del sys.modules["measure"]
     return importlib.import_module("measure")
 
 
@@ -990,6 +995,16 @@ def test_environment_flow_is_reached_only_through_authoring_flows() -> None:
     assert "never open `.env` files" in body
 
 
+def test_user_sim_is_an_internal_authoring_flow() -> None:
+    frontmatter, _ = _frontmatter_and_body(_USER_SIM_DIR)
+    assert frontmatter["user-invocable"] is False
+    for parent in (_FIRST_EVAL_DIR, _TASK_CREATE_DIR):
+        _, body = _frontmatter_and_body(parent)
+        assert "../eval-author-user-sim/SKILL.md" in body
+    core, _ = _frontmatter_and_body(_CORE_DIR)
+    assert _USER_SIM_DIR.name in _not_for_names(core)
+
+
 def test_every_environment_path_the_skill_names_exists() -> None:
     _, body = _frontmatter_and_body(_ENVIRONMENT_DIR)
     for relative in (
@@ -1003,12 +1018,13 @@ def test_every_environment_path_the_skill_names_exists() -> None:
         assert (_ENVIRONMENT_DIR / relative).exists(), f"SKILL.md names {relative}, which is missing on disk"
 
 
-def test_environment_flow_relative_links_resolve() -> None:
-    """Every relative link in the environment skill reaches a file that ships with the skills."""
+@pytest.mark.parametrize("skill_dir", [_ENVIRONMENT_DIR, _USER_SIM_DIR], ids=lambda path: path.name)
+def test_internal_authoring_flow_relative_links_resolve(skill_dir: Path) -> None:
+    """Internal authoring flows link only to files that ship with the skills."""
     documents = [
-        _ENVIRONMENT_DIR / "SKILL.md",
-        *sorted((_ENVIRONMENT_DIR / "references").glob("*.md")),
-        *sorted((_ENVIRONMENT_DIR / "templates").glob("*.md")),
+        skill_dir / "SKILL.md",
+        *sorted((skill_dir / "references").glob("*.md")),
+        *sorted((skill_dir / "templates").glob("*.md")),
     ]
     for document in documents:
         for target in re.findall(r"\]\(([^)\s]+)\)", document.read_text(encoding="utf-8")):

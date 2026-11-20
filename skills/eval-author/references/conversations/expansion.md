@@ -22,8 +22,12 @@ Immediately after retaining the selection and entering `expand`, render
 `expansion_audit_opening` with the complete saved state and exact revision.
 Supply `facts.selected_improvements` as an object mapping exactly the handoff's
 selected recommendation IDs to their current report labels, plus `facts.limits`
-when a support limit is already known. Show the returned Markdown unchanged in
-commentary before eligibility checks, adapter investigation, or task-plan details,
+when a support limit is already known. Set `facts.all_selected_unsupported: true`
+only when the caller has established that those limits cover every selected
+improvement; supply `facts.limits` explaining them. The renderer then omits the
+support-check, planning, and execution next steps. Leave the flag absent or false
+when support remains unresolved for any selection. Show the returned Markdown
+unchanged in commentary before eligibility checks, adapter investigation, or task-plan details,
 then continue in the same turn. This opening needs no ready prerequisites or
 planning lifecycle and asks no new question. It acknowledges only the saved
 selection, without approving construction or execution. Resolve changed or
@@ -98,8 +102,9 @@ Changes to the plan require the user's decision on those changes.
 Resume an unanswered scope question through `expansion_scope`. After an answer,
 continue the existing authoring workflow and leave its later questions with that
 owner. Shared prerequisite and Ethos recovery take precedence. Task-create keeps
-selection, eligibility, authoring, validation, and execution-authorization rules;
-this checkpoint adds no construction command or evidence-validation layer.
+gap selection, eligibility, authoring, native validation, acceptance, and
+execution-authorization rules; this checkpoint adds no construction approval,
+command, or evidence-validation layer.
 
 ## Creation and validation progress
 
@@ -123,7 +128,7 @@ approval pause. Use the rendered response as the final reply when its actual
 unresolved question requires the user's answer. Shared prerequisite and Ethos
 recovery still take precedence; pause only work that depends on a blocker.
 
-Save `creation` in the existing schema-2 lifecycle through the latest
+Save `creation` in the existing scope-checkpoint lifecycle through the latest
 revision-checked update. Its `tasks` map uses `expansion_state.task_key(row)` for
 each agreed task row. Each entry retains the native task `path`, current `sha256`,
 and `validation`, initially `null`. A validation record contains
@@ -195,25 +200,26 @@ All checkpoints use the existing state and rendering interfaces:
 
 | Interface | Responsibility |
 | --- | --- |
-| `expansion_state.record` / `validate` | Read and validate the versioned lifecycle under `scopes.expand.lifecycle`; preserve sibling scope fields and legacy context |
+| `expansion_state.record` / `validate` | Read and validate the current checkpoint under `scopes.expand.lifecycle`; preserve sibling scope fields and legacy context |
 | `expansion_state.observe` | Inspect only artifacts required by the implemented checkpoint, outside rendering, with bounded observations tied to repository and revision |
 | `expansion_state.derive` | Compute current progress, unresolved decisions, and evidence validity from supplied state and observations without I/O or mutation |
 | `expansion_state.transition` through `journey_state.update` | Validate a proposed transition against current context and the exact expected revision before saving a real user decision |
 | `conversation_renderer.render` | Dispatch a registered checkpoint and render its complete response from the reconciled snapshot, exact revision, and permitted facts |
 
-The lifecycle schema version identifies the persisted record shape so unsupported
-records fail validation instead of being interpreted as current decisions.
-Schema version 1 retains the entry record described below. Schema version 2
-saves the selected authoring workflow's existing coverage-planning checkpoint
+The `checkpoint` tag distinguishes the current `entry` and `scope` records;
+these are separate decisions, not format versions. Only the current field sets
+are accepted; regenerate obsolete local records instead of migrating them.
+The scope record saves the selected authoring workflow's existing coverage-planning checkpoint
 through `expansion_state.new_scope`: a plan for display, its actual user decision,
 and an optional unresolved question, with optional
 [creation and validation progress](#creation-and-validation-progress). The
 [validator](../../scripts/expansion_state.py) owns the exact presentation fields.
-Task-create continues to own gap selection, authoring, native validation, and
-acceptance; starter expansion and trace mode retain their existing workflows.
-There is no additional construction approval or command. Once its question is
-answered, this checkpoint leaves later authoring questions with their owner.
-Preserve shared prerequisite/Ethos recovery and the existing context bindings.
+Follow [Existing scope checkpoint](#existing-scope-checkpoint) for workflow
+ownership, recovery priority, and continuation after scope review. Preserve the
+existing context bindings.
+All stateful onboarding stages follow the [scope observation contract](onboarding.md#stateful-responses).
+Stale bindings require a saved context-review question; shared blockers suppress
+the retained scope question until recovery.
 Do not save a parallel checklist, introduce another state file, or register
 future-stage placeholders. Reuse shared formatting and labels.
 
@@ -255,10 +261,8 @@ Neither establishes deterministic task generation or evaluation results.
 ## State authority
 
 Reuse the normal reconciled state from `journey_state.py show`, never
-`--state-only`. Entry requires complete shared prerequisites and Ethos. Scope
-review uses the selected authoring flow's requirements, including trace-source
-mode's existing scoped Ethos exception; resolve its applicable blockers first.
-The expansion lifecycle is versioned
+`--state-only`. Shared prerequisites and Ethos must be complete and active
+blockers resolved before this checkpoint. The expansion checkpoint is saved
 under `scopes.expand.lifecycle`; existing audit handoff, legacy context, and
 other scope fields remain available alongside it. No additional state file is
 introduced.
@@ -287,9 +291,8 @@ Preserve those flags during entry planning; they do not invalidate the entry
 record's provider, Ethos, and handoff bindings or establish scope agreement.
 
 The record binds the selected provider (`setup`), confirmed Ethos content, and
-the saved audit handoff. Older entry records without a provider binding remain
-readable but require explicit reconciliation through `new_record` before
-continuation; never infer their provider from the current setup. Consume the
+the saved audit handoff. Both checkpoint types require a provider binding;
+never infer it from the current setup when reading a saved record. Consume the
 handoff supplied by the audit workflow; do not edit its selection from the
 expansion workflow. The binding identifies saved handoff context, not fresh
 audit measurements or report validity. Consult the originating audit records
