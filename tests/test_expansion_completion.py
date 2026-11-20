@@ -67,16 +67,43 @@ def test_completion_offers_audit_or_finish_and_resumes_without_starting_work(mod
     )
     assert modules[0].view(finished)["checklist"][2]["complete"]
     resumed = modules[0].initialize(tmp_path, journey="expand")
-    from conversation_flows import expansion_templates as templates
-
-    expected_finished = (
-        "\n\n".join(
-            [templates.COMPLETION_FINISHED_HEADING, templates.COMPLETION_ACCEPTED, templates.COMPLETION_FINISHED]
-        )
-        + "\n"
-    )
+    expected_finished = (FIXTURES / "completion-finished.md").read_text().split("\n\n", 1)[1]
     assert_completion_resume(modules, resumed, expected_finished)
     assert "Would you like" not in expected_finished
+
+
+@pytest.mark.parametrize("path", ["starter_suite", "audit_tool_gap", "recorded_interaction"])
+@pytest.mark.parametrize("finished", [False, True])
+def test_explicit_finish_requires_completion_to_own_the_current_checkpoint(modules, tmp_path, path, finished):
+    state, expansion, renderer = modules
+    saved, value = accepted(modules, tmp_path, path=path)
+    saved, _, completion_output = render(modules, tmp_path, saved, value)
+    value["execution"]["pending"] = None
+    saved = save(modules, tmp_path, saved, value)
+    if finished:
+        saved = state.update(tmp_path, {"journey_status": {"expand": "complete"}}, expected_revision=saved["revision"])
+    question = "Which evidence should we inspect?"
+    recovery = state.update(tmp_path, {"pending_question": question}, expected_revision=saved["revision"])
+    recovery = state.initialize(tmp_path, journey="expand")
+    snapshot = state.view(recovery)
+    assert snapshot["expansion"]["complete"]
+    assert expansion.checkpoint(snapshot["state"], snapshot["expansion"])["stage"] == "resume"
+    assert (recovery["journey_status"].get("expand") == "complete") is finished
+    before = state.state_path(tmp_path).read_bytes()
+    with pytest.raises(ValueError, match="Use resume .* before finishing"):
+        state.update(tmp_path, {"journey_status": {"expand": "complete"}}, expected_revision=recovery["revision"])
+    assert state.state_path(tmp_path).read_bytes() == before
+    output = renderer.render({**expansion_payload(modules, recovery), "stage": "resume"})
+    assert question in output and "finish here" not in output
+    restored = state.update(tmp_path, {"pending_question": None}, expected_revision=recovery["revision"])
+    restored = state.initialize(tmp_path, journey="expand")
+    assert (restored["journey_status"].get("expand") == "complete") is finished
+    if finished:
+        expected = (FIXTURES / "completion-finished.md").read_text().split("\n\n", 1)[1]
+        assert_completion_resume(modules, restored, expected)
+    else:
+        _, _, output = render(modules, tmp_path, restored, value)
+        assert output == completion_output
 
 
 @pytest.mark.parametrize("finished", [False, True])

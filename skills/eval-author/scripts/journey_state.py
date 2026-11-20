@@ -1095,8 +1095,14 @@ def update(repo: Path, patch: dict, *, expected_revision: int | None = None, sta
             expansion_state.transition(repo, previous, state)
             if patch.get("journey_status", {}).get("expand") == "complete":
                 expansion = expansion_state.derive(state, expansion_state.observe(repo, state))
-                if expansion is not None and not expansion["complete"]:
-                    raise ValueError("Expansion completion requires current user acceptance of every agreed task")
+                if expansion is not None:
+                    if not expansion["complete"]:
+                        raise ValueError("Expansion completion requires current user acceptance of every agreed task")
+                    checkpoint = expansion_state.checkpoint(state, expansion)["stage"]
+                    if checkpoint != "expansion_completion":
+                        raise ValueError(
+                            f"Use {checkpoint} to resolve the current expansion checkpoint before finishing"
+                        )
             creation = first_eval_state.progress(repo, state)
             if patch.get("journey_status", {}).get("create") == "complete" and creation and not creation["complete"]:
                 raise ValueError("Creation completion requires current selected native runs and their exact review")
