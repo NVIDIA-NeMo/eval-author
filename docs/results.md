@@ -13,20 +13,13 @@ Eval Author normally saves reports and evaluation artifacts in the repository yo
 
 ### Rubric demo reports
 
-The demos cover 23 defined criteria across 19 task-level and 4 suite-level rows. Task rows assess one task. Suite rows need other tasks or selection history and never contribute to a single task's score. METHOD-J1 has no canonical definition and is outside this defined-row count. Neither demo certifies overall evaluation quality. Applying the experimental rubric to your own task requires [explicit opt-in](../skills/eval-author-rubric/SKILL.md#opt-in-gate).
+The simulation covers 23 defined criteria across 19 task-level and 4 suite-level rows. Suite rows use simulated companion task families and selection history. METHOD-J1 has no canonical definition and is outside this defined-row count. Applying the experimental rubric to your own task requires [explicit opt-in](../skills/eval-author-rubric/SKILL.md#opt-in-gate).
 
 | Demo | Open first | Supporting files | Scope |
 | --- | --- | --- | --- |
-| [Refund task assessment](determinism-checks.md#fictional-task-scenario) | `source/execution/report.html` | `report.md`, `assessment.json`, and `FINAL-VERIFICATION.json` in the same directory | Full criterion and check report for the refund task and its companion suite, with supplied example review records. |
-| [Rubric mutation demo](determinism-checks.md#rubric-mutation-demo) | `summary.md` | `summary.json` and `runs.json` in the chosen output directory | Base and mutation comparison with separate task-level and suite-level tables. No full per-check HTML report. |
+| [Rubric base simulation](determinism-checks.md#rubric-base-simulation) | `summary.md` | `summary.json`, and per-case `measure-report.json` and `simulated-premises.json` | All 23 criterion scores for the refund base and each mutation. |
 
-In the assessment, start with the observed rubric score and reason. Open the matching evidence details to see the checks and their scope. Task credit records what the refund controls earned. It is separate from the rubric score. The source title "Fictional-world canonical assessment" identifies the example's supplied review and approval records. The rubric definitions are unchanged.
-
-Read `FINAL-VERIFICATION.json` for the observed row counts, citation checks, and reassessment result. `canonical_rows` includes N/A rows. `applicable_rows` excludes them. `top_anchor_rows` counts rows scored 3. These are coverage counts for this scenario, not a quality percentage. A successful run validates local measurements and their bindings while `empirical_qualification` remains false.
-
-In the mutation summary, compare the intended change with the observed score and reason. Check collateral changes before attributing a result to one criterion. `summary.json` records `base_ok`, `consistent_across_runs`, and `every_mutation_lower`. These are checks of this finite demo. A row marked `U` is Unassessed because evidence is missing, unrun, or blocked. It is not a measured zero. N/A requires an applicability reason.
-
-The mutation demo's `provenance.runtime-route` score of 3 uses a weaker reading than the canonical anchor. It validates a Harbor manifest and an invalid-manifest control, but performs no clean environment setup or adapter run. Keep that limit with any shared result. Offline runs replay cached model judgments while rerunning local controls. They do not obtain fresh model reviews.
+In `summary.md`, the base row must be 3 on every criterion. Each mutation row shows which criteria dropped. A `U` is Unassessed because evidence is missing or unrun. It is not a measured zero. `summary.json` records `base_perfect` and `mutations_below_base`. Open a case's `measure-report.json` for the facts and checks behind each score, and its `simulated-premises.json` for the inputs that were simulated.
 
 Use the linked command sections above for setup and execution. Keep generated runtime metadata private and review screenshots before sharing them.
 

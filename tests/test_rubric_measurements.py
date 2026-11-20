@@ -108,7 +108,7 @@ def test_cli_consumes_authority_evidence(
         assert [check["check_id"] for check in row["check_results"]] == [check["id"] for check in definition["checks"]]
 
 
-def test_recorded_evidence_preserves_existing_measurements(tmp_path):
+def test_recorded_evidence_merges_with_existing_measurements(tmp_path):
     import importlib.util
 
     spec = importlib.util.spec_from_file_location("evidence_fixtures", ROOT / "tests/test_rubric_evidence_scoring.py")
@@ -140,8 +140,10 @@ def test_recorded_evidence_preserves_existing_measurements(tmp_path):
         assert result.returncode == 1
         reports.append(json.loads(result.stdout))
     before, after = [report["items"]["provenance.observed-configuration"] for report in reports]
-    assert after == before
-    assert reports[1]["recorded_criterion_evidence"]["provenance.observed-configuration"]["score"] is None
+    evidence = reports[1]["recorded_criterion_evidence"]["provenance.observed-configuration"]["score"]
+    assert evidence == 1
+    # The lower of the measured and evidence scores holds; the other is retained.
+    assert after["score"] == min(score for score in (before["score"], evidence) if score is not None)
 
 
 PANEL_RUNS = pytest.StashKey[tuple]()

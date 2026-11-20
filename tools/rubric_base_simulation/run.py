@@ -23,6 +23,7 @@ import os
 import re
 import subprocess
 import sys
+import time
 import tomllib
 from pathlib import Path
 from typing import Any
@@ -40,6 +41,7 @@ from rubric_evidence_scoring import (  # noqa: E402
     evidence_definitions,
     value_digest,
 )
+from rubric_leakage import scan_task  # noqa: E402
 
 EXAMPLE = ROOT / "skills/eval-author-rubric/examples/refund"
 FIXTURES = ROOT / "skills/eval-author-rubric/scripts/example_fixtures.py"
@@ -64,6 +66,43 @@ EVIDENCE_MUTATIONS = {
 # Edits applied to the materialized task after its controls run (the verifier does not read these files).
 LOCAL_EDITS = {
     "unpinned-image": ("environment/Dockerfile", "FROM python@sha256:", "FROM python:3.12-slim #"),
+    "answer-in-instruction": (
+        "instruction.md",
+        "Exclude\nshipping.",
+        "Exclude\nshipping. Compute it as:\n\n"
+        '    amount = order["merchandise_cents"] - order["discount_cents"] - prior\n'
+        '    if policy["refund_tax"]:\n        amount += order["tax_cents"]\n',
+    ),
+    # A fresh service start resumes the previous episode's record instead of resetting it.
+    "no-reset-on-start": (
+        "environment/ledger.py",
+        "        self.reset()\n",
+        "        if self.record.exists():\n"
+        "            self.value = json.loads(self.record.read_text())\n"
+        "        else:\n"
+        "            self.reset()\n",
+    ),
+    "amount-cue-in-instruction": (
+        "instruction.md",
+        "Exclude\nshipping.",
+        "Exclude\nshipping. The expected refund is 8000 cents.",
+    ),
+}
+# Public lines shared with private files, reviewed by the independent reviewer: license headers,
+# imports and the public event and scoring schema. None carries the refund computation.
+REVIEWED_OVERLAP = {
+    "# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.",
+    "# SPDX-License-Identifier: Apache-2.0",
+    "from pathlib import Path",
+    'if __name__ == "__main__":',
+    "parser = argparse.ArgumentParser()",
+    'kind = event.get("kind")',
+    'if event["kind"] == "refund":',
+    'elif event["kind"] == "ledger":',
+    'for row in event["entries"]:',
+    "fcntl.flock(lock, fcntl.LOCK_EX)",
+    '"mandatory": ["association", "amount", "destination", "approval_present", "approval_before_effect", '
+    '"ledger", "protected_state", "fresh_effect"],',
 }
 CASES = ["base", *TASK_MUTATIONS, *LOCAL_EDITS, *EVIDENCE_MUTATIONS]
 
@@ -94,7 +133,8 @@ ATTACK_PANEL = {
     "realistic_wrong": "wrong-amount",
 }
 AUDIT03_HELDOUT = ("duplicate-ledger", "late-approval", "missing-approval", "protected-mutation")
-AUTHOR, INDEPENDENT = "task-author-sim", "independent-reviewer-sim"
+# In this simulation the task author is simulated and Claude acts as the independent reviewer.
+AUTHOR, INDEPENDENT = "task-author-sim", "claude-opus-5-5-independent-reviewer"
 
 
 def sha(raw: bytes) -> str:
@@ -104,6 +144,123 @@ def sha(raw: bytes) -> str:
 def fixtures(*args: str) -> None:
     env = {**os.environ, "PYTHONDONTWRITEBYTECODE": "1"}
     subprocess.run([sys.executable, "-B", str(FIXTURES), *args], check=True, capture_output=True, env=env, timeout=300)
+
+
+def grade(case_dir: Path, task: Path, name: str, candidate: dict[str, Any]) -> bool | None:
+    """Grade one candidate with the task's own verifier, as the local controls do."""
+    folder = case_dir / "cue-controls" / name
+    folder.mkdir(parents=True)
+    for source in ("tests/verify.py", "tests/refund_scorer.py", "environment/contract.json"):
+        if not (task / source).is_file():
+            return None
+        (folder / Path(source).name).write_bytes((task / source).read_bytes())
+    (folder / "submission.json").write_text(json.dumps(candidate))
+    subprocess.run(
+        [sys.executable, "-B", "verify.py", "--contract", "contract.json", "--submission", "submission.json"]
+        + ["--output", "logs"],
+        cwd=folder,
+        capture_output=True,
+        timeout=10,
+        env={"PATH": os.defpath, "HOME": str(folder), "PYTHONDONTWRITEBYTECODE": "1"},
+    )
+    checks = folder / "logs/checks.json"
+    return json.loads(checks.read_bytes()).get("accepted") if checks.is_file() else None
+
+
+def cue_controls(case_dir: Path, task: Path, instruction: str) -> dict[str, bool | None]:
+    """Run the four CREATE-02 cue classes through the verifier. Returns accepted per class."""
+    reference = next(c for c in json.loads((EXAMPLE / "controls.json").read_bytes())["cases"] if c["id"] == "reference")
+    contract_path = task / "environment/contract.json"
+    order = json.loads(contract_path.read_bytes())["sources"]["order"] if contract_path.is_file() else {}
+
+    def with_amount(amount: int) -> dict[str, Any]:
+        text = json.dumps(reference["candidate"]).replace('"amount_cents": 8000', f'"amount_cents": {amount}')
+        return json.loads(text)
+
+    cue = re.search(r"expected refund is (\d+) cents", instruction)
+    renamed = json.loads(json.dumps(reference["candidate"]).replace('"new-0"', '"refund-renamed"'))
+    candidates = {
+        # Uses only a public cue for the amount, without computing it.
+        "cue_only": with_amount(int(cue.group(1)) if cue else 0),
+        # Semantics-preserving rename of the solver-chosen refund ID.
+        "nuisance_swap": renamed,
+        # Follows the order's merchandise total, which ignores discount, tax and prior refunds.
+        "misleading_cue": with_amount(order.get("merchandise_cents", 0)),
+        # Same events serialized with reversed key order.
+        "style_only": json.loads(json.dumps(reference["candidate"], sort_keys=True)),
+    }
+    return {name: grade(case_dir, task, name, candidate) for name, candidate in candidates.items()}
+
+
+CLIENT = (
+    "import json,socket,sys; s=socket.socket(socket.AF_UNIX,socket.SOCK_STREAM); s.settimeout(3); "
+    "s.connect('ledger.sock'); s.sendall((sys.argv[1]+'\\n').encode()); print(s.makefile('rb').readline().decode())"
+)
+
+
+def episode(folder: Path, record: Path, candidate: dict[str, Any]) -> None:
+    """Start the task's ledger service fresh on ``record`` and perform one candidate's actions."""
+    env = {"PATH": os.defpath, "HOME": str(folder), "PYTHONDONTWRITEBYTECODE": "1"}
+    server = subprocess.Popen(
+        [sys.executable, "-B", "server.py", "--contract", "contract.json", "--socket", "ledger.sock"]
+        + ["--record", str(record)],
+        cwd=folder,
+        env=env,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    try:
+        deadline = time.monotonic() + 5
+        while not (folder / "ledger.sock").exists() and time.monotonic() < deadline:
+            time.sleep(0.01)
+        requests = [{"operation": "act", "event": event} for event in candidate["events"]]
+        for request in [*requests, {"operation": "complete", "success": candidate["success"]}]:
+            subprocess.run(
+                [sys.executable, "-I", "-S", "-B", "-c", CLIENT, json.dumps(request)],
+                cwd=folder,
+                env=env,
+                capture_output=True,
+                timeout=5,
+            )
+    finally:
+        server.terminate()
+        server.wait(timeout=5)
+        (folder / "ledger.sock").unlink(missing_ok=True)
+
+
+def reset_probe(case_dir: Path, task: Path) -> dict[str, bool | None]:
+    """ENV-03-S01: grade the target alone and after a predecessor episode on the same record."""
+    reference = next(c for c in json.loads((EXAMPLE / "controls.json").read_bytes())["cases"] if c["id"] == "reference")
+    folder = case_dir / "reset-probe"
+    folder.mkdir()
+    sources = (
+        "environment/ledger.py",
+        "environment/server.py",
+        "environment/contract.json",
+        "tests/verify.py",
+        "tests/refund_scorer.py",
+    )
+    if not all((task / source).is_file() for source in sources):
+        return {"alone": None, "after": None}
+    for source in sources:
+        (folder / Path(source).name).write_bytes((task / source).read_bytes())
+    result = {}
+    for name, episodes in (("alone", 1), ("after", 2)):
+        record = folder / f"{name}.json"
+        for _ in range(episodes):
+            episode(folder, record, reference["candidate"])
+        logs = folder / f"{name}-logs"
+        subprocess.run(
+            [sys.executable, "-B", "verify.py", "--contract", "contract.json", "--record", str(record)]
+            + ["--output", str(logs)],
+            cwd=folder,
+            capture_output=True,
+            timeout=10,
+            env={"PATH": os.defpath, "HOME": str(folder), "PYTHONDONTWRITEBYTECODE": "1"},
+        )
+        checks = logs / "checks.json"
+        result[name] = json.loads(checks.read_bytes()).get("accepted") if checks.is_file() else None
+    return result
 
 
 def observe(case_dir: Path, mutation: str | None) -> dict[str, Any]:
@@ -124,6 +281,19 @@ def observe(case_dir: Path, mutation: str | None) -> dict[str, Any]:
         assert old in text, case_dir.name
         (task / path).write_text(text.replace(old, new, 1))
     files = {str(p.relative_to(task)): sha(p.read_bytes()) for p in sorted(task.rglob("*")) if p.is_file()}
+    scan = scan_task(task.parent, {"task": "task"})
+    overlaps = sorted(
+        {
+            (f["kind"], f["private"], f["public"], line)
+            for f in scan["findings"]
+            for line in (
+                [(task.parent / f["public"]).read_text().splitlines()[f["lines"][0] - 1].strip()]
+                if f["lines"]
+                else [""]
+            )
+        }
+    )
+    instruction = (task / "instruction.md").read_text()
     dockerfile = (task / "environment/Dockerfile").read_text()
     verify = (task / "tests/verify.py").read_text()
     contract_path = task / "environment/contract.json"
@@ -138,7 +308,10 @@ def observe(case_dir: Path, mutation: str | None) -> dict[str, Any]:
         },
         "grader": re.search(r'^GRADER = "(\w+)"', verify, re.M).group(1),
         "task_dir": str(task),
-        "instruction": (task / "instruction.md").read_text(),
+        "instruction": instruction,
+        "overlaps": overlaps,
+        "cue_controls": cue_controls(case_dir, task, instruction),
+        "reset_probe": reset_probe(case_dir, task),
         "contract": json.loads(contract_path.read_bytes()) if contract_path.is_file() else None,
         "controls": {
             name: {
@@ -443,20 +616,24 @@ def derive(o: dict[str, Any], base: dict[str, Any], prior: dict[str, Any], evide
     sim["AUDIT-04-B"] = "Quarantine decision is a simulated owner premise; confirmation and replay are real runs."
     sim["AUDIT-04-B-SUITE"] = "The new-family replay is simulated as matching the refund replay."
     overclaim = evidence == "exposure-overclaimed"
+    # The task states that reference solutions are not solver-readable; overlap that is not reviewed
+    # as benign contradicts that statement.
     f["AUDIT-05-B"] = {
         "exposure_inventory": [
             {
-                "id": path,
+                "id": f"{private}->{public}:{index}",
                 "exposure": "public",
-                "overlap": "verified" if overclaim else "unknown",
+                "overlap": "verified" if overclaim or kind == "full" or line not in REVIEWED_OVERLAP else "none",
                 "disclosed": "no" if overclaim else "yes",
-                "statement": "overclaims" if overclaim else "within_support",
+                "statement": "overclaims"
+                if overclaim or kind == "full" or line not in REVIEWED_OVERLAP
+                else "within_support",
                 "sensitivity": "computed",
             }
-            for path in ("solution/reference.py", "solution/solve.sh")
+            for index, (kind, private, public, line) in enumerate(o["overlaps"])
         ]
     }
-    sim["AUDIT-05-B"] = "The task is in a public repository; training overlap is unknown (simulated review)."
+    sim["AUDIT-05-B"] = "Overlap comes from the real private/public scan; benign lines are reviewer dispositions."
     exposed = evidence == "confirmation-exposed"
     f["AUDIT-05-S03"] = {
         "selection_ledger": [
@@ -517,40 +694,44 @@ def derive(o: dict[str, Any], base: dict[str, Any], prior: dict[str, Any], evide
         ]
     }
     sim["TRACE-04-A"] = "Task files are screened for secrets for real; trace review and approvals are simulated."
-    target = str(ctl["reference"]["accepted"])
+    probe = o["reset_probe"]
     carried = evidence == "state-carryover"
+    alone = None if probe["alone"] is None else str(probe["alone"])
+    after = None if probe["after"] is None else str(probe["after"])
+    if carried and alone is not None:
+        after = str(not probe["alone"])
     f["ENV-03-S01"] = {
         "isolation_surfaces": [
             {
                 "id": "ledger-record",
                 "sharing": "isolated",
-                "reset_verified": "yes",
-                "target_alone": target,
-                "target_after": str(not ctl["reference"]["accepted"]) if carried else target,
-                "consequence": "credit_change" if carried else "none",
-            },
-            {
-                "id": "work-directory",
-                "sharing": "isolated",
-                "reset_verified": "yes",
-                "target_alone": target,
-                "target_after": target,
-                "consequence": "none",
-            },
+                "reset_verified": "unrun" if alone is None else "yes" if alone == after else "no",
+                "target_alone": alone,
+                "target_after": after,
+                "consequence": "none" if alone == after else "credit_change",
+            }
         ]
     }
-    sim["ENV-03-S01"] = "Predecessor/target episodes on a fresh service are simulated."
+    sim["ENV-03-S01"] = "Real ledger service episodes; parallel and delayed-effect corroboration is simulated."
     cue = {
         "qualified": "yes",
         "health": "healthy",
     }
+    accepted = o["cue_controls"]
     f["CREATE-02"] = {
         "cue_controls": [
             {
                 "id": cls,
                 "cue_class": cls,
                 **cue,
-                "outcome": "bypass" if evidence == "cue-bypass" and cls == "style_only" else "no_bypass",
+                "health": "unrun" if accepted[cls] is None else "healthy",
+                # Cue-only and misleading-cue controls must fail; semantics-preserving swaps must pass.
+                "outcome": "bypass"
+                if (evidence == "cue-bypass" and cls == "style_only")
+                or (cls in ("cue_only", "misleading_cue") and accepted[cls])
+                else "confounded"
+                if cls in ("nuisance_swap", "style_only") and accepted[cls] is False
+                else "no_bypass",
             }
             for cls in ("cue_only", "nuisance_swap", "misleading_cue", "style_only")
         ]
@@ -567,7 +748,7 @@ def derive(o: dict[str, Any], base: dict[str, Any], prior: dict[str, Any], evide
             for cls in ("cue_only", "nuisance_swap", "misleading_cue", "style_only")
         ]
     }
-    sim["CREATE-02"] = "Cue-control outcomes are simulated."
+    sim["CREATE-02"] = "Cue controls are real verifier runs; companion families are simulated."
     sim["CREATE-02-SUITE"] = "Cue controls on two companion families are simulated."
 
     corroboration = {
@@ -606,7 +787,20 @@ def build(case_dir: Path, facts: dict[str, dict[str, Any]], o: dict[str, Any]) -
     observations = case_dir / "observations.json"
     write_json(
         observations,
-        {k: o[k] for k in ("task_sha256", "files", "grader", "dockerfile", "controls", "expected")},
+        {
+            k: o[k]
+            for k in (
+                "task_sha256",
+                "files",
+                "grader",
+                "dockerfile",
+                "controls",
+                "expected",
+                "overlaps",
+                "cue_controls",
+                "reset_probe",
+            )
+        },
         sort_keys=True,
     )
     task = artifact_record(

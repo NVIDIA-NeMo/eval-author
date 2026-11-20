@@ -209,10 +209,15 @@ def measure(root, selection, ethos_validator=None):
                 demonstration[ident] = row
             else:
                 recorded[ident] = row
-                if ident not in items:
-                    items[ident] = row
-                elif row["score"] is not None and row["score"] != items[ident]["score"]:
-                    raise ValueError("conflicting canonical scores")
+                measured = items.get(ident, {}).get("score")
+                if row["score"] is None or measured == row["score"]:
+                    items.setdefault(ident, row)
+                    continue
+                # Corroboration may raise a measured 2 to 3; otherwise the lower score holds.
+                upgrade = measured == 2 and row["score"] == 3
+                kept = row if measured is None or upgrade or row["score"] < measured else items[ident]
+                other = items.get(ident) if kept is row else row
+                items[ident] = {**kept, "superseded_score": None if other is None else other["score"]}
         if assess_evidence(root, selection) != evidence_rows or identify(root, artifacts) != identity:
             raise ValueError("selected evidence changed during assessment")
     refund_contract = None

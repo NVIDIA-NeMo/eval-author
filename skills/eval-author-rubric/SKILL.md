@@ -80,19 +80,10 @@ check-count ladder when their criterion-specific predicates are not implemented.
 Report task credit/control verdicts separately from rubric scores, and account for
 N/A separately within the full selected catalog and applicable denominator.
 
-The repository checkout has two supported examples, described in
-`docs/determinism-checks.md`. These repository-only tools are not shipped in
-skill-only installations.
-
-- `tools/rubric_task_scenario/run.py` renders the full canonical report for one
-  fictional base. Its scope is `FICTIONAL_WORLD_CANONICAL_ASSESSMENT-v1` with
-  `empirical_qualification=false`. It is not an empirical receipt or an owner-store event.
-- `tools/rubric_sim_demo/run_demo.py` scores the same base and its task, evidence and
-  review mutations. Each row has one owning check in `checks.py`. Independent review
-  comes from restricted-input agents. Owner decisions come from a simulated `policy.json`.
-
-Use the demo to show that mutations rank below the base. Use the scenario for the
-per-check canonical report.
+The repository checkout has one simulation, `tools/rubric_base_simulation/run.py`,
+described in `docs/determinism-checks.md`. It is not shipped in skill-only
+installations. It scores a refund base and its mutations through the unchanged
+`measure.py` scorer and lists its simulated inputs per case.
 
 The opt-in gate and empirical evidence/approval protections below remain unchanged
 for actual task assessment. Never feed fictional dispositions into that path or

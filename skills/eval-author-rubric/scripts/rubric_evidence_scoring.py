@@ -33,21 +33,13 @@ must be success, failure, or null. Arbitrary equal text is rejected. Completed,
 same-revision failures lower acceptance (confirmed defect outcomes to zero);
 unrun/error/other-revision controls neither corroborate nor establish defects.
 
-Retained review inventories currently produce NOT_ASSESSED with null strength for real tasks:
-no numeric production score is inferred from their asserted semantics. Only the
-explicit synthetic scope exercises numeric rules (0-3). Thus this is a scoring
-rule demonstrator and source-bound review recorder, NOT fourteen new native
-measurement emitters. Integrators must keep demonstration rows outside task
-qualification and must not replace legacy task rows with them.
-
-Recorded judgments are conditional source records, not authenticated reviews.
-JSON extraction proves the retained value, not native execution or semantic
-truth. Synthetic vectors exercise anchor application with E1 and a separate
-demonstration scope; they NEVER establish E2 execution or E3 independence.
-Real anti-cheat acceptance retains its E2/E3 floors; native acceptance must come
-from an owning validated emitter, not this recording protocol. This module does
-not override legacy emitters; the integrating caller must reject numeric
-conflicts and retain legacy measured provenance on agreement.
+Both scopes apply the same criterion predicates. A score of 2 needs the
+criterion's observed facts; 3 also needs completed corroborating controls by a
+different actor. Synthetic (simulated) rows get E1 and stay in a separate
+demonstration group. Recorded rows get E2, or E3 when corroborated, and enter
+task rows. Facts are content-bound to selected artifacts; reviewer identities are
+recorded, not authenticated. The integrating caller rejects conflicting scores
+from other emitters.
 """
 
 from __future__ import annotations
@@ -1094,7 +1086,8 @@ def assess_evidence(root: Path, selection: dict[str, Any]) -> dict[str, dict[str
         ):
             candidate = 3
         synthetic = scope == "synthetic-scoring-demonstration"
-        score = candidate if synthetic else None
+        # One rule for simulated and recorded evidence; only the label and strength differ.
+        score = candidate
         row = rows[ident]
         row.update(
             status="ASSESSED" if score is not None else "NOT_ASSESSED",
@@ -1105,12 +1098,12 @@ def assess_evidence(root: Path, selection: dict[str, Any]) -> dict[str, dict[str
             selected=True,
             subject_id=subject["artifact_id"],
             subject_revision="sha256:" + subject["digest"],
-            evidence_strength="E1" if score is not None else None,
+            evidence_strength=None if score is None else "E1" if synthetic else "E3" if score == 3 else "E2",
             fact_results=fact_results,
             reviewer_authenticated=False,
             native_execution_verified=False,
             score_provenance={
-                "kind": "synthetic-anchor-application" if synthetic else "recorded-review-only",
+                "kind": "synthetic-anchor-application" if synthetic else "recorded-anchor-application",
                 "definitions_digest": packet["definitions_digest"],
                 "packet_artifact_id": selector["artifact_id"],
             },
@@ -1128,12 +1121,12 @@ def assess_evidence(root: Path, selection: dict[str, Any]) -> dict[str, dict[str
                 subject["artifact_id"],
                 *sorted({f["source"]["artifact_id"] for f in fact_results}),
             ],
-            remaining_gaps=[] if score is not None else ["Recorded rows do not establish a verified canonical anchor."],
+            remaining_gaps=[] if score is not None else ["Required facts are missing; no anchor applies."],
         )
         row["limitations"].append(
-            "Synthetic anchor application is not task qualification."
+            "Simulated evidence."
             if synthetic
-            else "Content binding does not verify recorded semantic judgments, permissions or runtime truth."
+            else "Facts are content-bound to selected artifacts; recorded reviewer identities are not authenticated."
         )
         for check in row["check_results"]:
             check.update(

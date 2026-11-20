@@ -4,8 +4,7 @@
 # Running the determinism checks
 
 - Compare workflow decisions and check reports against their sources.
-- Start with the [fictional task scenario](#fictional-task-scenario) to read a full rubric report.
-- Use the [rubric mutation demo](#rubric-mutation-demo) to compare a base task with deliberate changes.
+- Use the [rubric base simulation](#rubric-base-simulation) to score a perfect base task and its mutations.
 
 Run commands from the repository checkout. Developer tools in `tools/` are not included in skill-only installations.
 
@@ -32,156 +31,22 @@ trajectories or free-form prose. The
 separately requires byte-identical messages for identical rendering inputs;
 that presentation guarantee does not establish deterministic workflow execution.
 
-## Fictional task scenario
+## Rubric base simulation
 
-The [fictional task scenario](../tools/rubric_task_scenario/run.py) renders a full HTML and Markdown assessment with 23 canonical criterion rows. Its 19 task-level rows assess the refund task. Its 4 suite-level rows use the refund task and two companion task families. These are separate scopes, not an overall quality score. To compare the base with mutations, use the [rubric mutation demo](#rubric-mutation-demo).
-
-The rubric is experimental. Applying it to your own task requires [explicit opt-in](../skills/eval-author-rubric/SKILL.md#opt-in-gate). Running this fictional example does not approve another assessment or any model or native-runtime work.
-
-Use an already installed Python 3.12 or 3.13 on macOS or Linux (the local ledger
-uses `fcntl`). From the checkout root, choose a **new directory outside the
-checkout**, with an existing parent and no symlink ancestors:
+The [rubric base simulation](../tools/rubric_base_simulation/run.py) scores the refund Harbor task and 25 mutations through the `measure.py` scorer. It covers all 23 rubric criteria: 19 task-level and 4 suite-level rows. The base must score 3 on every criterion. Each mutation must score lower on at least one criterion and raise none.
 
 ```bash
-python3 -I -S -B tools/rubric_task_scenario/run.py --output "$HOME/rubric-task-scenario-1"
+.venv/bin/python -B tools/rubric_base_simulation/run.py --output "$HOME/rubric-simulation-1"
 ```
 
-Optional base-only Harbor assessment consumes an already approved Oracle/NOP bundle through its unchanged owning admission and validator. Supply the original external registry and exact recorded Harbor interpreter. This does not launch native trials:
+Choose a new directory outside the checkout. The command writes `summary.md` and `summary.json`, with one folder per case. It exits 0 only when the base is perfect and every mutation scores lower.
 
-```bash
-python3 -I -S -B tools/rubric_task_scenario/run.py \
-  --output "$HOME/rubric-harbor-base-1" \
-  --harbor-bundle /path/to/approved/native-pair \
-  --native-registry /path/to/owning/registry \
-  --harbor-python /path/to/recorded/harbor/bin/python3
-```
+- **Real inputs:** each case materializes the refund task, or applies one mutation, and runs every declared control through the real refund verifier. It also scans private files against public files for answer exposure, grades four cue-class candidates, and runs the target episode alone and after a predecessor on the real ledger service. The completion-only exploit is confirmed by running that revision.
+- **Simulated inputs:** native Harbor runs, owner decisions, trace review, selection history and companion task families. Claude is the independent reviewer for corroboration. Each case lists its simulated inputs in `simulated-premises.json`.
+- **One scorer:** the simulation never assigns a score. `measure.py` derives every number from the facts through `criterion_evidence`.
+- **Mutation kinds:** 11 task mutations change task bytes; 14 evidence mutations change one simulated input, such as withheld held-out attacks or an exploit accepted without containment.
 
-The adapter preserves all eleven refund task files and their modes. It retains original task, configuration, result and verifier receipt bytes under `source/harbor-input/`. `source/execution/harbor.json` distinguishes actual retained native credit from supplemental local controls. `containment.json` supplies fictional affected revisions, quarantined results and already-completed repair lineage, then binds known-mechanism and independent-attack recipes to current local regression vectors across retained and new family instances. Historical credit, repair authorization, independent actors and additional runtime observations are fictional premises, not newly measured Harbor facts. This route can assess both containment anchors without changing the rubric or running a repair stage. Without the optional inputs, the existing local-only scenario remains separate and retains its trigger-based containment N/A.
-
-This single command verifies the source map, materializes its exact allowlisted
-sources under `source/`, executes fresh local task and custody controls, instantiates
-explicit fictional review dispositions, assesses unchanged canonical definitions,
-and writes `source/execution/report.md`, `report.html`, `assessment.json` and
-`FINAL-VERIFICATION.json`. It prints freshly observed row/status/control counts,
-not a predetermined score target. `execution.log` and all generated evidence remain
-in the private output directory. Existing output is rejected; use a new directory
-to repeat. A failed run retains its partial output and diagnostic log.
-
-The package reuses byte-identical repository rubric definitions, renderer and refund
-task sources. `source-map.json` records each source, its current and original hash,
-and the packaging adaptations. Bundled source identity is checked before and after
-execution; this is **not** the original host's historical-integrity check. Historical runs, failed attempts and approval records are not bundled by default.
-The optional Harbor route copies only its validated retained input inventory and keeps original receipts unchanged.
-A source-map mismatch requires review of changed sources, not automatic repinning.
-
-Actual measurements include task credit, full per-check outcomes, deliberate invalid
-input, reset/order/parallel controls, source drift checks, and finite paired gains.
-Style-only controls change JSON whitespace in consumed policy inputs and candidate
-representations while preserving parsed semantics and other cues; they do not test
-language-model style sensitivity. The checker compares semantic outcomes separately
-from the file scorer's deliberately changed candidate-byte digest.
-
-**Fiction is not evidence of real-world qualification.** Reviewer identities,
-independence, untouched history, owner dispositions and OS enforcement are supplied
-story premises. Their structured acceptance, scope, conditions, contradictions and
-source/evidence bindings are validated; rationale prose is retained for review, not
-semantically adjudicated by this deterministic adapter. Each criterion has its own
-top-anchor predicate. This finite package supports those predicates and justified
-N/A only; failures remain Unassessed rather than receiving a generic 0/1/2 based
-on check counts. Task-control accepted/rejected/error outcomes remain separate
-from rubric scores. N/A rows stay in the total catalog and are excluded only from
-the applicable top-anchor denominator. Binding the fictional
-premises to a fresh run creates no real approval. Affirmative fiction cannot override
-the implemented measurement gates. This is a separate fictional assessment adapter,
-not the ordinary empirical assessment CLI or an empirical operator-store admission.
-No network, models, credentials, Docker, installs or account changes are used.
-
-Repeats establish this finite local workflow's reproducibility, not broad rubric
-qualification, blinded review, arbitrary-program isolation, model performance or
-native Harbor compatibility. Timestamps, runtime origins, output paths and resulting
-manifest hashes may differ; byte-identical full output is not promised. Generated
-runtime metadata can identify the local machine: keep outputs private. Independent
-review of the packaged assessment remains separate from a successful command.
-
-Open `source/execution/report.html` in your browser first. Use `report.md` for text review and `assessment.json` for the complete structured rows. The [sample-report guide](results.md#rubric-demo-reports) explains the scores, evidence, and verification summary.
-
-Focused regressions, using the existing development environment:
-
-```bash
-PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -B -m pytest -q tests/test_rubric_task_scenario.py
-```
-
-These tests exercise consumed style isolation, rejected/contradictory/out-of-scope
-fictional dispositions, parallel outcome/state mismatches, unauthorized trace use,
-stale-packet invalidation and bundled-source drift. They are not the full suite.
-
-## Rubric mutation demo
-
-The [mutation demo](../tools/rubric_sim_demo/run_demo.py) compares the refund base and 21 mutations on all 23 rubric rows. It produces a comparison summary, not the full per-check HTML report above. Its base target is 3 on 18 task-level rows, with AUDIT-04-B N/A because no exploit is confirmed. The 4 suite-level rows need other tasks, so they stay Unassessed or N/A unless a mutation exposes a defect. The runner checks that every mutation ranks below the base. No row may rise, and at least one row must drop or become Unassessed. It does not combine the rows into an overall quality score.
-
-Use the existing [development environment](../DEVELOPMENT.md#environment-and-skill-layout), which includes Harbor, and choose a new private output directory. Keep `--offline` to replay recorded model responses without fresh model calls. A cache miss fails rather than contacting the model.
-
-```bash
-.venv/bin/python tools/rubric_sim_demo/run_demo.py --output "$HOME/rubric-sim-1" --offline
-```
-
-The command writes `summary.md`, `summary.json` and `runs.json`. Open `summary.md` first. The [sample-report guide](results.md#rubric-demo-reports) explains what to compare. `summary.md` starts
-with one row per mutation: its intended change, target criterion, base and observed
-scores, the reason, and any collateral changes. Task-level and suite-level tables follow.
-The command scores everything three times. It fails if the results differ, if the
-base misses its target, or if a mutation does not rank lower.
-
-- **Real execution:** the refund scorer, the socket ledger and the Harbor task parser
-  run locally. No Docker or network access is needed.
-- **One check per row:** `checks.py` names one tool for each criterion. The 22 declared
-  refund controls are split so each feeds one row. Some evidence is shared on purpose:
-  held-out results, the reference control, the independent reviewer and the socket
-  service run. `SHARED` in `checks.py` lists which rows read each one. Only a row's own
-  tool can give a 0.
-- **Missing evidence is `U` (Unassessed), not a low score.** A withheld, unrun or
-  blocked input leaves the row Unassessed. `U` ranks below an established score, but
-  the report keeps it apart from a measured drop.
-- **Scores come from observations, not recipes.** For example, a reworded
-  contradiction scores the same as the original wording, because the contract
-  reviewer has to find the contradiction in the text.
-- **Independent review:** restricted `claude -p` sessions with no tools, no MCP
-  servers and no settings. They are the blind solver, held-out attack author,
-  independent reviewer, contract reviewer, adjudicator, trace labeler and exposure
-  reviewer. Each session receives only the files that `agents.py` passes inline,
-  and their hashes are recorded. Answers are cached in `agent_cache/`. `--offline`
-  replays the cache. These are recorded model judgments, not fresh reviews or human approval. Without `--offline`, a cache miss calls the model. Removing that flag does not force fresh calls for cached inputs and requires separate model-use permission.
-  `--no-agents` caps the independent rows at 2.
-- **Owner decisions:** `policy.json` is a simulated one-time owner declaration.
-  `heldout.freeze.json` freezes the agent-authored held-out attacks. The freeze lets the
-  demo detect post-freeze tuning (AUDIT-05-S03 scores 0); otherwise AUDIT-05-S03 stays
-  Unassessed because it is suite-level.
-
-Mutation kinds:
-
-- Task mutations (15): the 7 recipes in `examples/refund/mutations/`, plus
-  trace-secret, answer-exposure, unpinned-image, invalid-manifest,
-  contradictory-contract, its reworded variant, ambiguous-contract and
-  style-advantage.
-- Evidence mutations (4): withhold-reference, withhold-heldout, heldout-tuned and
-  stale-evidence.
-- Review mutations (2): no-independent-review and no-owner-review.
-
-One base row reaches 3 under a demo reading that is weaker than its canonical anchor,
-and its reason in `summary.md` says so. **provenance.runtime-route:** Harbor
-validates the manifest and rejects an invalid one, but no clean environment setup or
-adapter run is performed.
-
-Suite-level rows ([task and suite levels](../skills/eval-author-rubric/references/leakage-and-credit.md#task-and-suite-levels))
-are assessed in the [fictional task scenario](#fictional-task-scenario), whose suite has
-two companion task families and a selection cohort. Ranking puts Unassessed above a
-demonstrated defect (0) and below any established score.
-
-`--no-agents` skips the independent agents. The base target is then 2 or 3 on every row,
-and the no-independent-review mutation is dropped because the base already equals it.
-The Harbor check uses the running interpreter. Without Harbor installed,
-runtime-route is Unassessed, so the base misses its target and the command exits 1.
-
-The agents and the policy file are not human approval. The demo does not qualify the rubric.
+No Docker, network or model is used.
 
 ## One-skill Harbor assessment
 
@@ -443,7 +308,7 @@ For a same-definition current matrix, `--extend-matrix /absolute/current/matrix.
 
 `/Users/asutermorris/.hermes/cache/scratch/consolidated-numeric-matrix-03/summary.md` and `matrix.json` retain the pre-merge result: 72 numeric cells, 50 transitions, 18 base cells and four deferred upper cells; all 54 lower cells had report/repair links. Its base was 14 scores of 3 and four scores of 2. Its verification covered 43 distinct reports and 39 physical mutations, including 14 exact task repairs. These counts remain historical only. The durable restoration snapshot is `/Users/asutermorris/src/rubric-guided-runs/pr211-numeric-checkpoint`; do not rewrite its records or label them validation of the merged source.
 
-The earlier semantic task/subject cells (contradictory, ambiguous and disputed contracts, hidden authority, revision and comparison variants) were removed. They scored mutants by recognising exact recipe bytes and returning preset scores, so their matrix cells held by construction. Equivalent mutations are scored by observation in the [rubric mutation demo](#rubric-mutation-demo).
+The earlier semantic task/subject cells (contradictory, ambiguous and disputed contracts, hidden authority, revision and comparison variants) were removed. They scored mutants by recognising exact recipe bytes and returning preset scores, so their matrix cells held by construction. Equivalent mutations are scored by observation in the [rubric base simulation](#rubric-base-simulation).
 
 ### Evidence limits
 

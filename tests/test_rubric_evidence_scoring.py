@@ -298,15 +298,19 @@ def measure_cli(root: Path, selection: dict) -> dict:
 def assert_cli_score_boundary(report: dict, ident: str, synthetic: bool, expected: int | None) -> None:
     group = "criterion_demonstration" if synthetic else "recorded_criterion_evidence"
     row = report[group][ident]
-    assert row["score"] == (expected if synthetic else None)
-    assert row["evidence_strength"] == ("E1" if synthetic and expected is not None else None)
+    # Simulated and recorded evidence get the same score; only the label and strength differ.
+    assert row["score"] == expected
+    assert row["evidence_strength"] == (None if expected is None else "E1" if synthetic else "E2")
     assert row["native_execution_verified"] is False
     assert row["reviewer_authenticated"] is False
-    assert row["score_provenance"]["kind"] == ("synthetic-anchor-application" if synthetic else "recorded-review-only")
-    assert ident not in report["items"] or report["items"][ident]["score"] is None
-    if not synthetic:
+    assert row["score_provenance"]["kind"] == (
+        "synthetic-anchor-application" if synthetic else "recorded-anchor-application"
+    )
+    if synthetic:
+        assert ident not in report["items"] or report["items"][ident]["score"] is None
+    else:
         assert "criterion_demonstration" not in report
-        assert row["status"] == "NOT_ASSESSED"
+        assert report["items"][ident]["score"] == expected
     assert report["preflight_success"] is False
 
 
@@ -323,8 +327,8 @@ def test_measure_cli_separates_demonstration_from_task_scores(tmp_path, syntheti
     else:
         assert "criterion_demonstration" not in report
         row = report["recorded_criterion_evidence"][ident]
-        assert report["items"][ident]["score"] is None
-        assert row["evidence_strength"] is None
+        assert report["items"][ident]["score"] == row["score"] == 0
+        assert row["evidence_strength"] == "E2"
     definition = scorer.evidence_definitions()[ident]
     if "source" in definition:
         assert row["source"] == definition["source"]
@@ -615,15 +619,15 @@ def test_invalid_or_unbound_evidence_is_rejected(tmp_path, mutation):
 
 @pytest.mark.parametrize("ident", VECTORS)
 @pytest.mark.parametrize("kind", ["agent", "human", "tool"])
-def test_recorded_authorship_does_not_authenticate_or_grant_real_scores(tmp_path, ident, kind):
+def test_recorded_corroboration_scores_three_without_authenticating(tmp_path, ident, kind):
     scorer = module()
     selection = packet(
         tmp_path, scorer, ident, {**facts_for(ident, 2), **robustness_for(ident)}, synthetic=False, kind=kind
     )
     row = scorer.assess_evidence(tmp_path, selection)[ident]
-    assert row["status"] == "NOT_ASSESSED"
-    assert row["score"] is None
-    assert row["evidence_strength"] is None
+    assert row["status"] == "ASSESSED"
+    assert row["score"] == 3
+    assert row["evidence_strength"] == "E3"
     assert row["reviewer_authenticated"] is False
     assert row["native_execution_verified"] is False
 
