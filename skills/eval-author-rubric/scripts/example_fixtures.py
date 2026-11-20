@@ -9,6 +9,7 @@ import hashlib
 import json
 import os
 import re
+import socket
 import stat
 import subprocess
 import sys
@@ -301,6 +302,84 @@ def run_local_controls(selected: Path, output: Path) -> LocalPanel:
     return result
 
 
+def stop_process(process: subprocess.Popen) -> tuple[bytes | None, bytes | None]:
+    if process.poll() is None:
+        process.terminate()
+    try:
+        return process.communicate(timeout=5)
+    except subprocess.TimeoutExpired:
+        process.kill()
+        return process.communicate(timeout=5)
+
+
+def _probe_ledger(endpoint: str, deadline: float) -> None:
+    while time.monotonic() < deadline:
+        try:
+            with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as client:
+                client.settimeout(max(deadline - time.monotonic(), 0.001))
+                client.connect(endpoint)
+                client.settimeout(max(deadline - time.monotonic(), 0.001))
+                client.sendall(b'{"operation":"read"}\n')
+                data = bytearray()
+                while not data.endswith(b"\n"):
+                    remaining = deadline - time.monotonic()
+                    if remaining <= 0:
+                        raise TimeoutError("ledger_read_timeout")
+                    client.settimeout(remaining)
+                    chunk = client.recv(65536)
+                    if not chunk:
+                        raise ValueError("ledger_read_incomplete")
+                    data.extend(chunk)
+                response = json.loads(data)
+                if not isinstance(response, dict) or response.get("ok") is not True or "value" not in response:
+                    raise ValueError("ledger_read_failed")
+                return
+        except (FileNotFoundError, ConnectionRefusedError):
+            time.sleep(min(0.01, max(deadline - time.monotonic(), 0)))
+    raise TimeoutError("ledger_start_timeout")
+
+
+def wait_for_ledger(endpoint: Path, process: subprocess.Popen, *, timeout: float = 5) -> None:
+    deadline = time.monotonic() + timeout
+    probe = None
+    try:
+        # Connect from the socket directory to avoid the macOS Unix-socket path limit.
+        probe = subprocess.Popen(
+            [
+                sys.executable,
+                "-I",
+                "-S",
+                "-B",
+                "-c",
+                'import runpy,sys; runpy.run_path(sys.argv[1])["_probe_ledger"](sys.argv[2], float(sys.argv[3]))',
+                str(Path(__file__).resolve()),
+                endpoint.name,
+                str(deadline),
+            ],
+            cwd=endpoint.absolute().parent,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        while process.poll() is None:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                break
+            try:
+                probe.communicate(timeout=min(0.01, remaining))
+            except subprocess.TimeoutExpired:
+                continue
+            if probe.returncode == 0 and process.poll() is None:
+                return
+            break
+        stdout, stderr = stop_process(process)
+        raise ValueError(
+            f"ledger_start_failed at {endpoint}: exit={process.returncode}, stdout={stdout!r}, stderr={stderr!r}"
+        )
+    finally:
+        if probe is not None:
+            stop_process(probe)
+
+
 def run_ledger_controls(selected: Path, output: Path) -> dict:
     manifest = verify_materialization(selected)
     files, _ = _selected(manifest["case"])
@@ -360,11 +439,7 @@ def run_ledger_controls(selected: Path, output: Path) -> dict:
                 stderr=stderr,
             )
             try:
-                deadline = time.monotonic() + 5
-                while not (folder / "ledger.sock").exists() and process.poll() is None and time.monotonic() < deadline:
-                    time.sleep(0.01)
-                if not (folder / "ledger.sock").exists():
-                    raise ValueError("ledger_start_failed")
+                wait_for_ledger(folder / "ledger.sock", process)
                 responses = []
                 requests = [{"operation": "act", "event": event} for event in row["candidate"]["events"]]
                 requests.append({"operation": "complete", "success": row["candidate"]["success"]})
@@ -406,12 +481,7 @@ def run_ledger_controls(selected: Path, output: Path) -> dict:
                     "reward": reward.read_text().strip() if reward.is_file() else None,
                 }
             finally:
-                process.terminate()
-                try:
-                    process.wait(timeout=5)
-                except subprocess.TimeoutExpired:
-                    process.kill()
-                    process.wait(timeout=5)
+                stop_process(process)
     (output / "ledger-results.json").write_bytes(_json_bytes(panel))
     return panel
 

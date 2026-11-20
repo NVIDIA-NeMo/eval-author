@@ -3,6 +3,7 @@
 
 import importlib.util
 import json
+import socket
 import sys
 from pathlib import Path
 from types import SimpleNamespace
@@ -12,6 +13,7 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 SCALAR_CONSTANT = "CONTENT_DEDUP_MAX_SCALAR_COMPARISONS"
+CHUNK_CONSTANT = "CONTENT_DEDUP_MAX_CHUNKS"
 MODULE_PREFIX = "skillevaluator.deduplication.intra_skill."
 
 
@@ -31,7 +33,7 @@ def upstream(wrapper, monkeypatch):
     origin = {"vcs_info": {"commit_id": wrapper.EVALUATOR_REVISION}}
     monkeypatch.setattr(wrapper, "distribution", lambda _: SimpleNamespace(read_text=lambda _: json.dumps(origin)))
     modules = {
-        MODULE_PREFIX + name: SimpleNamespace(**{SCALAR_CONSTANT: 25_000_000})
+        MODULE_PREFIX + name: SimpleNamespace(**{SCALAR_CONSTANT: 25_000_000, CHUNK_CONSTANT: 512})
         for name in ("intra_skill_validator", "semantic_clustering")
     }
     recognizer = Mock(return_value=False)
@@ -73,13 +75,17 @@ def test_real_chunker_preserves_content_and_lines(wrapper, upstream, monkeypatch
 
 
 @pytest.mark.parametrize("module_name", ["intra_skill_validator", "semantic_clustering"])
-@pytest.mark.parametrize("value", [24_000_000, 100_000_000, None])
-def test_upstream_contract_drift_fails_without_partial_mutation(wrapper, upstream, module_name, value):
+@pytest.mark.parametrize(
+    "constant,value",
+    [(SCALAR_CONSTANT, value) for value in (24_000_000, 100_000_000, 25_000_000.0, None)]
+    + [(CHUNK_CONSTANT, value) for value in (511, 640, 512.0, None)],
+)
+def test_upstream_contract_drift_fails_without_partial_mutation(wrapper, upstream, module_name, constant, value):
     target = upstream[MODULE_PREFIX + module_name]
     if value is None:
-        delattr(target, SCALAR_CONSTANT)
+        delattr(target, constant)
     else:
-        setattr(target, SCALAR_CONSTANT, value)
+        setattr(target, constant, value)
     before = {name: vars(module).copy() for name, module in upstream.items()}
 
     with pytest.raises(ValueError, match="upstream comparison contract changed"):
@@ -90,11 +96,19 @@ def test_upstream_contract_drift_fails_without_partial_mutation(wrapper, upstrea
 
 
 def test_both_allowances_are_applied_before_cli_dispatch(wrapper, upstream):
+    before = {name: vars(module).copy() for name, module in upstream.items()}
+
     def cli():
-        assert wrapper.CONTEXT_SCALAR_LIMIT == 300_000_000
-        assert wrapper.CONTEXT_POLICY == "full-pairwise-300m-v1"
+        assert wrapper.CONTEXT_SCALAR_LIMIT == 450_000_000
+        assert wrapper.CONTEXT_CHUNK_LIMIT == 640
+        assert wrapper.CONTEXT_POLICY == "full-pairwise-640chunks-450m-v1"
         for name in ("intra_skill_validator", "semantic_clustering"):
-            assert getattr(upstream[MODULE_PREFIX + name], SCALAR_CONSTANT) == wrapper.CONTEXT_SCALAR_LIMIT
+            assert vars(upstream[MODULE_PREFIX + name]) == {
+                **before[MODULE_PREFIX + name],
+                SCALAR_CONSTANT: 450_000_000,
+                CHUNK_CONSTANT: 640,
+            }
+        assert vars(upstream["skillevaluator.spdx"]) == before["skillevaluator.spdx"]
 
     upstream["skillevaluator.cli"].cli.side_effect = cli
     wrapper.main()
@@ -149,6 +163,9 @@ def test_unpinned_origin_fails_before_imports(wrapper, monkeypatch, origin):
 
 @pytest.fixture
 def native(wrapper, monkeypatch):
+    monkeypatch.setenv("PYTHON_DOTENV_DISABLED", "1")
+    for name in ("connect", "connect_ex"):
+        monkeypatch.setattr(socket.socket, name, Mock(side_effect=AssertionError("unexpected network request")))
     pytest.importorskip("skillevaluator", reason="requires the isolated pinned SkillEvaluator runtime")
     validator = wrapper.import_module(MODULE_PREFIX + "intra_skill_validator")
     clustering = wrapper.import_module(MODULE_PREFIX + "semantic_clustering")
@@ -157,7 +174,8 @@ def native(wrapper, monkeypatch):
     monkeypatch.setattr(chunker, "is_spdx_only_html_comment", chunker.is_spdx_only_html_comment)
     # Record the original values for teardown; main must perform the real override.
     for module in (validator, clustering):
-        monkeypatch.setattr(module, SCALAR_CONSTANT, getattr(module, SCALAR_CONSTANT))
+        for constant in (SCALAR_CONSTANT, CHUNK_CONSTANT):
+            monkeypatch.setattr(module, constant, getattr(module, constant))
     callback = Mock()
     monkeypatch.setattr(cli, "cli", callback)
     wrapper.main()  # Uses real installed direct_url.json, imports, and revision guard.
@@ -166,7 +184,9 @@ def native(wrapper, monkeypatch):
     return validator, clustering
 
 
-@pytest.mark.parametrize("count,dimension", [(200, 1536), (417, 2048), (512, 2048), (512, 2293), (512, 2294)])
+@pytest.mark.parametrize(
+    "count,dimension", [(200, 1536), (417, 2048), (512, 2048), (640, 2048), (640, 2200), (640, 2201)]
+)
 def test_native_pairwise_budget_reaches_clustering_and_stays_bounded(native, tmp_path, monkeypatch, count, dimension):
     validator, clustering = native
 
@@ -189,13 +209,13 @@ def test_native_pairwise_budget_reaches_clustering_and_stays_bounded(native, tmp
     assert len(chunks) == count
     for chunk, vector in zip(chunks, vectors, strict=True):
         chunk.embedding = vector
-    if scalar_work > 300_000_000:
+    if scalar_work > 450_000_000:
         finding = next(f for f in result.findings if f.check_name == "scalar_comparison_limit")
         assert finding.metadata == {
             "pair_count": count * (count - 1) // 2,
             "vector_dimension": dimension,
             "scalar_work": scalar_work,
-            "limit": 300_000_000,
+            "limit": 450_000_000,
         }
         assert embed.call_count == 1
         with pytest.raises(ValueError, match="Content scalar comparison work exceeds"):
@@ -242,7 +262,7 @@ def test_native_chunk_limit_is_not_bypassed(native, tmp_path, monkeypatch):
     skill = tmp_path / "skill"
     skill.mkdir()
     count = validator.CONTENT_DEDUP_MAX_CHUNKS + 1
-    assert count == 513
+    assert count == 641
     (skill / "SKILL.md").write_text("\n\n".join(f"## Section {i}\n" + "Content. " * 12 for i in range(count)))
     embed = Mock(side_effect=AssertionError("chunk limit must precede provider construction"))
     monkeypatch.setattr(validator, "EmbeddingClient", embed)
@@ -253,3 +273,30 @@ def test_native_chunk_limit_is_not_bypassed(native, tmp_path, monkeypatch):
     assert len(chunks) == count
     with pytest.raises(ValueError, match="Content chunk count exceeds"):
         clustering.build_clusters(chunks)
+
+
+def test_native_current_tree_admits_every_chunk_and_compares_every_pair(native, monkeypatch):
+    validator, clustering = native
+    skill = ROOT / "skills/eval-author"
+    chunks = [chunk for file in validator.collect_files(skill) for chunk in validator.chunk_file(file)]
+    count = len(chunks)
+    assert 2 <= count <= 640
+    assert count * (count - 1) // 2 * 2048 <= 450_000_000
+    vectors = iter([[float(i == j) for j in range(2048)] for i in range(count)])
+    embed = Mock(side_effect=lambda texts: [next(vectors) for _ in texts])
+    monkeypatch.setattr(validator, "EmbeddingClient", Mock(return_value=SimpleNamespace(embed=embed)))
+    compare = clustering.unit_vector_similarity
+    comparisons = 0
+
+    def similarity(left, right):
+        nonlocal comparisons
+        comparisons += 1
+        return compare(left, right)
+
+    monkeypatch.setattr(clustering, "unit_vector_similarity", similarity)
+    result = validator.IntraSkillValidator().validate(skill)
+    assert result.passed
+    assert not result.incomplete_scans
+    assert any(detail.check_name == "context_dedup" for detail in result.success_details)
+    assert [text for call in embed.call_args_list for text in call.args[0]] == [chunk.text for chunk in chunks]
+    assert comparisons == count * (count - 1) // 2

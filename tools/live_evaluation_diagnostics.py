@@ -9,7 +9,7 @@ import os
 import re
 from urllib.parse import quote
 
-from run_pinned_evaluator import CONTEXT_SCALAR_LIMIT
+from run_pinned_evaluator import CONTEXT_CHUNK_LIMIT, CONTEXT_SCALAR_LIMIT
 
 LIMIT = 12000
 FIELDS = {
@@ -26,17 +26,18 @@ FIELDS = {
 }
 
 
-# Bounds cover the pinned evaluator's 512 chunks and 65,536-value vectors,
+# Bounds cover the wrapper's chunk allowance and upstream 65,536-value vectors,
 # including rejected work above the CI allowance. Never infer missing values.
+MAX_CONTEXT_PAIRS = CONTEXT_CHUNK_LIMIT * (CONTEXT_CHUNK_LIMIT - 1) // 2
 GUARD_METADATA_BOUNDS = {
     "scalar_comparison_limit": {
-        "pair_count": (0, 512 * 511 // 2),
+        "pair_count": (0, MAX_CONTEXT_PAIRS),
         "vector_dimension": (1, 65536),
-        "scalar_work": (0, 512 * 511 // 2 * 65536),
+        "scalar_work": (0, MAX_CONTEXT_PAIRS * 65536),
         "limit": (1, CONTEXT_SCALAR_LIMIT),
     },
     # 65,536 is a diagnostic sanity cap, not a supported chunk count; omit larger actuals.
-    "chunk_count_limit": {"actual": (0, 65536), "limit": (1, 512)},
+    "chunk_count_limit": {"actual": (0, 65536), "limit": (1, CONTEXT_CHUNK_LIMIT)},
 }
 
 

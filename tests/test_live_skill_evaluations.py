@@ -1345,13 +1345,24 @@ def test_native_error_events_survive_nonzero_exit_safely(live, repo, tmp_path, m
         assert "authentication_failed" in text
 
 
-def test_context_guard_metadata_survives_collection(live, repo, tmp_path, monkeypatch, capsys):
+@pytest.mark.parametrize(
+    "ci_budget,policy,chunks,scalars",
+    [(True, "full-pairwise-640chunks-450m-v1", 640, 450_000_000), (False, "upstream", 512, 25_000_000)],
+)
+def test_context_guard_metadata_survives_collection(
+    live, repo, tmp_path, monkeypatch, capsys, ci_budget, policy, chunks, scalars
+):
     monkeypatch.setenv("INFERENCE_HUB_API_KEY", "fixture-only")
-    metadata = {"pair_count": 130816, "vector_dimension": 2294, "scalar_work": 300091904, "limit": 300000000}
+    metadata = {"pair_count": 204480, "vector_dimension": 2201, "scalar_work": 450060480, "limit": 450000000}
+    if not ci_budget:
+        metadata = {"pair_count": 130816, "vector_dimension": 2048, "scalar_work": 267911168, "limit": 25000000}
 
     def execute(argv, cwd, env, log, timeout):
         assert timeout == 300
-        assert Path(argv[1]).name == "run_pinned_evaluator.py"
+        if ci_budget:
+            assert Path(argv[1]).name == "run_pinned_evaluator.py"
+        else:
+            assert argv[:2] == ["skillevaluator", "context-optimization-check"]
         data = tier2()
         row = data["results"][0]
         row.update(status="failed", passed=False)
@@ -1371,10 +1382,12 @@ def test_context_guard_metadata_survives_collection(live, repo, tmp_path, monkey
     monkeypatch.setattr(live, "execute", execute)
     output = tmp_path / "guard"
     report = live.collect(
-        repo, output, run=True, tier="2", skill_name="eval-author", check_name="context", ci_context_budget=True
+        repo, output, run=True, tier="2", skill_name="eval-author", check_name="context", ci_context_budget=ci_budget
     )
-    assert report["policy"]["context_comparison_policy"] == "full-pairwise-300m-v1"
-    assert report["policy"]["context_scalar_limit"] == 300000000
+    assert report["configured_evaluator_revision"] == "3fd2cf57e4a2af01f282e001f7515b6e76f18ec7"
+    assert report["policy"]["context_comparison_policy"] == policy
+    assert report["policy"]["context_chunk_limit"] == chunks
+    assert report["policy"]["context_scalar_limit"] == scalars
     assert report["policy"]["tier2_timeout_seconds"] == 300
     row = next(r for r in report["observations"] if r["status"] != "skipped")
     assert row["status"] == "incomplete" and row["reason"] == "analysis_incomplete"
@@ -1388,6 +1401,19 @@ def test_context_guard_metadata_survives_collection(live, repo, tmp_path, monkey
             assert field in text and str(value) in text
 
 
+def test_ci_runs_native_context_policy_regressions_without_models():
+    workflow = yaml.safe_load((ROOT / ".github/workflows/ci.yml").read_text())
+    job = workflow["jobs"]["context-policy"]
+    assert "github.event.pull_request.head.repo.full_name == github.repository" in job["if"]
+    assert job.get("continue-on-error", False) is False
+    install = next(step["run"] for step in job["steps"] if step.get("name") == "Install pinned context evaluator")
+    assert 'tools/install_evaluator.py --python "$RUNNER_TEMP/context-evaluator/bin/python" --extra tier2' in install
+    test = next(step for step in job["steps"] if step.get("name") == "Check native context policy without models")
+    assert test["env"] == {"PYTHONDONTWRITEBYTECODE": "1", "PYTHON_DOTENV_DISABLED": "1"}
+    assert '"$RUNNER_TEMP/context-evaluator/bin/python" -m pytest tests/test_pinned_evaluator.py' in test["run"]
+    assert "secrets." not in json.dumps(job)
+
+
 @pytest.mark.parametrize(
     "check,metadata,expected",
     [
@@ -1397,20 +1423,21 @@ def test_context_guard_metadata_survives_collection(live, repo, tmp_path, monkey
             {"pair_count": 0, "vector_dimension": 65536, "scalar_work": 0, "limit": 1},
         ),
         ("chunk_count_limit", {"actual": 513, "limit": 512, "source": "PRIVATE"}, {"actual": 513, "limit": 512}),
-        ("chunk_count_limit", {"actual": 65537, "limit": 513}, {}),
+        ("chunk_count_limit", {"actual": 641, "limit": 640, "source": "PRIVATE"}, {"actual": 641, "limit": 640}),
+        ("chunk_count_limit", {"actual": 65537, "limit": 641}, {}),
         ("scalar_comparison_limit", {"vector_dimension": 0, "limit": 0}, {}),
         ("scalar_comparison_limit", {"vector_dimension": 2048, "scalar_work": "PRIVATE"}, {"vector_dimension": 2048}),
         (
             "scalar_comparison_limit",
-            {"pair_count": 130816, "scalar_work": 130816 * 65536},
-            {"pair_count": 130816, "scalar_work": 130816 * 65536},
+            {"pair_count": 204480, "scalar_work": 204480 * 65536, "limit": 450000000},
+            {"pair_count": 204480, "scalar_work": 204480 * 65536, "limit": 450000000},
         ),
         ("duplicate", {"pair_count": 1, "limit": 1}, {}),
         ("scalar_comparison_limit", None, {}),
         ("scalar_comparison_limit", [1, 2], {}),
         (
             "scalar_comparison_limit",
-            {"pair_count": 130817, "vector_dimension": 65537, "scalar_work": 130816 * 65536 + 1, "limit": 300000001},
+            {"pair_count": 204481, "vector_dimension": 65537, "scalar_work": 204480 * 65536 + 1, "limit": 450000001},
             {},
         ),
     ],
