@@ -333,6 +333,10 @@ Recording findings alone does not start improvement work.
 Selected improvements survive a later session with their audit context. Their
 scope still needs agreement before implementation. Progress and available
 evidence appear beneath the same recommendation in the Audit coverage report.
+
+Journey state retains the existing authoring workflow's planning checkpoint,
+including its plan, actual scope decision, and unresolved question. This allows
+planning to resume without repeating settled choices or authorizing agent runs.
 An implemented change does not by itself establish successful validation or
 better coverage. If task files change, earlier audit measurements need review
 before they can describe the changed tasks. Eval Author retains the original
