@@ -27,7 +27,13 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import audit_state  # noqa: E402
 import expansion_state  # noqa: E402
 import first_eval_state  # noqa: E402
-from conversation_templates import CHECKLIST_LABELS, JOURNEYS  # noqa: E402
+from conversation_templates import (  # noqa: E402
+    CHECKLIST_LABELS,
+    ETHOS_CHANGED_QUESTION,
+    ETHOS_DRAFT_CHANGED_QUESTION,
+    ETHOS_SELECTED_QUESTION,
+    JOURNEYS,
+)
 from interaction_types import user_simulation_enabled, validate_user_simulation  # noqa: E402
 from runtime_policy import load as runtime_policy  # noqa: E402
 from working_paths import (  # noqa: E402
@@ -422,7 +428,7 @@ def load_state(repo: Path, *, state_only: bool = False) -> dict:
             )
             invalidate_scopes(state)
             state["next_handoff"] = "ethos-orchestrate"
-            state["pending_question"] = "ETHOS.md changed or is unavailable; review its intended behavior again."
+            state["pending_question"] = ETHOS_CHANGED_QUESTION
     if (
         state["ethos"]["draft_confirmed"]
         and state["ethos"]["stage"] != "complete"
@@ -436,7 +442,7 @@ def load_state(repo: Path, *, state_only: bool = False) -> dict:
         if current != draft["digest"]:
             state["ethos"].update(stage="draft", draft_confirmed=False, draft_source=None)
             state["next_handoff"] = "ethos-orchestrate"
-            state["pending_question"] = "The agreed draft changed or is unavailable; review the draft before writing."
+            state["pending_question"] = ETHOS_DRAFT_CHANGED_QUESTION
     if (
         state["journey"] != "audit"
         and state["ethos"]["stage"] == "complete"
@@ -610,9 +616,9 @@ def _unused_audit_traces(state: dict, blocker: dict) -> bool:
     return audit_state.traces_unused(state) and blocker["id"] == "data" and blocker["phase"] in {"setup", "audit"}
 
 
-def active_blockers(state: dict, *, state_only: bool = False) -> list[dict]:
+def active_blockers(state: dict, *, state_only: bool = False, ethos_optional: bool = False) -> list[dict]:
     """Present dependencies at the action they block, retaining all saved evidence."""
-    shared_done = all(row["complete"] for row in checklist(state, state_only=state_only)[:2])
+    shared_done = all(row["complete"] for row in checklist(state, state_only=state_only)[: 1 if ethos_optional else 2])
     started = state["journey_status"].get(state["journey"]) in {"in_progress", "complete"}
     later_requirements = {"environment", "services", "data", *DEFERRED}
     return [
@@ -1068,7 +1074,7 @@ def update(repo: Path, patch: dict, *, expected_revision: int | None = None, sta
             )
             invalidate_scopes(state)
             if "pending_question" not in patch:
-                state["pending_question"] = "Review the selected ETHOS.md and confirm its intended behavior."
+                state["pending_question"] = ETHOS_SELECTED_QUESTION
             if "next_handoff" not in patch:
                 state["next_handoff"] = "ethos-orchestrate"
         revising_intent = proposed.get("stage", "complete") not in {"complete", "review"}

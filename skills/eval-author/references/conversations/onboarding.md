@@ -265,6 +265,15 @@ When `scopes.expand.lifecycle` is present, use the
 [expansion continuation contract](expansion.md) after shared onboarding or
 recovery is complete. These onboarding stages remain available for unresolved
 prerequisites, Ethos, and active blockers.
+For expand journeys with a saved `scope` checkpoint, `results`, `ethos`,
+`confirmed`, and `resume` require fresh expansion observations whenever they
+reach the ready scope checkpoint. Read `journey_state.py show` without
+`--state-only` and forward its `expansion_observations` as
+`facts.expansion_observations`, alongside its state and exact revision.
+Do not reuse observations from an earlier revision or replace them with derived
+readiness flags. Shared prerequisite or Ethos recovery can render without these
+observations while the scope checkpoint is not ready.
+
 An already-selected improvement path goes directly to its actual downstream
 decision after Ethos confirmation under the
 [shared handoff](../shared-prerequisites.md#pause-after-ethos-confirmation),
@@ -397,6 +406,10 @@ require their actual `step`, `reason`, and `needed` facts, including when they
 appear alongside a canonical blocker. When any canonical blocker appears, the
 renderer does not append the saved `pending_question`; it retains that state
 unchanged and uses the canonical action or question instead.
+
+For custom blockers whose saved recovery question will be rendered, use
+`needed` to name the missing requirement or evidence; let the question carry
+the action. Do not repeat the same recovery instruction in both.
 
 Present the complete rendering unchanged. Do not append another pause explanation,
 quote, skill attribution, question, or Next Steps section: the canonical paragraph

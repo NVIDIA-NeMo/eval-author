@@ -1,0 +1,10 @@
+<!-- SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved. -->
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+
+Both of your improvement selections are saved.
+
+**Selected improvements:** Add a linked-issue inspection case; Repair the existing verifier
+
+I’ll check which changes Eval Author supports and explain any limits. For supported additions, I’ll show you the task plan and resolve any missing scope before creating and validating the tasks for your review. For supported work, I’ll reuse existing decisions and confirm any missing settings and permission before running your agent.
+
+**Known support limits:** This verifier change isn’t supported inside Eval Author yet. You can make the repair in a coding-agent chat using the audit recommendation.

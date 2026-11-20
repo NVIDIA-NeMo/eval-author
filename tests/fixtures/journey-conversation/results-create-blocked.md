@@ -18,6 +18,6 @@ Here’s what the prerequisite checks found, including anything that still needs
 
 These items need to be resolved before we can continue.
 
-- **Continue shared prerequisites:** The selected NeMo Gym runtime is not installed. **Needed:** Provide the supported NeMo Gym runtime before we continue.
+- **Continue shared prerequisites:** The selected NeMo Gym runtime is not installed. **Needed:** An installed supported NeMo Gym runtime.
 
 Provide the supported NeMo Gym runtime before we continue.

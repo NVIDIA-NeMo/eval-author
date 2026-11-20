@@ -331,8 +331,15 @@ several to plan, finish with the findings, or choose an evidence or agent fix.
 Recording findings alone does not start improvement work.
 
 Selected improvements survive a later session with their audit context. Their
-scope still needs agreement before implementation. Progress and available
-evidence appear beneath the same recommendation in the Audit coverage report.
+handoff first recaps your selections and the next steps, including any known
+support limits. Any missing scope agreement is resolved before implementation.
+Progress and available evidence appear beneath the same recommendation in the
+Audit coverage report.
+Journey state retains the existing authoring workflow's planning checkpoint,
+including its plan, actual scope decision, and unresolved question. This allows
+planning to resume without repeating settled choices. Once scope is agreed,
+Eval Author does not ask you to approve the plan again; review of the created
+tasks and permission to run the agent remain separate.
 An implemented change does not by itself establish successful validation or
 better coverage. If task files change, earlier audit measurements need review
 before they can describe the changed tasks. Eval Author retains the original

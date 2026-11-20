@@ -233,6 +233,9 @@ audit continuation above and the applicable authoring eligibility checks.
 If no supported authoring flow matches the supplied suite,
 save the pending handoff in shared state and explain the missing capability.
 An explicitly selected addition or proposal-only request keeps that scope.
+For supported task creation, use the owning flow's existing coverage-planning
+review through the [saved scope checkpoint](references/conversations/expansion.md#existing-scope-checkpoint).
+This adds no separate proposal, approval, or task-creation workflow.
 
 ### Downstream progress
 
