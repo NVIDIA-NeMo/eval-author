@@ -533,7 +533,11 @@ four tabs:
 helps you decide, and links to every report. The Harbor task and job viewers each
 serve one folder at a time, so if your tasks or jobs span several folders, start a
 viewer on one folder and change its address in **Settings** before moving to the
-next. The same content is in Markdown under
+next. If the browser blocks the report's cross-origin viewer check, the link opens
+Harbor directly without checking the viewer's mode, catalog, or source folder.
+Confirm that Harbor shows the intended task or run; a stopped viewer shows the
+browser's connection error.
+The same content is in Markdown under
 `.eval-author/report_markdown/` for agents and reviews: `tasks.md`, `runs.md`,
 and `audits.md`. Point a coding agent at these files when it needs to work with
 the suite's tasks, runs, or audit findings.
