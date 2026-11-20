@@ -27,6 +27,10 @@ checklist labels, status labels, and generic headings live in
 [conversation_templates.py](../scripts/conversation_templates.py). Flow-specific
 copy belongs to that flow's template module, not a second prose template.
 
+The formatter keeps table cells on one Markdown line, joining multiline prose
+with spaces. Labels and separate details use inline Markdown and text separators
+so the same output renders in terminal interfaces without HTML support.
+
 The renderer presents decisions; it never makes them. It does not inspect the
 repository, load or save journey state, probe prerequisites, validate files,
 delegate work, choose sources, run evaluations, or grant approval. Reading its
@@ -128,17 +132,25 @@ settings, results, and the optional audit handoff. Its stages require reconciled
 saved state and use the `first_eval_` prefix; they have no stateless preview.
 
 [Audit rendering](conversations/audit.md) continues an audit with unresolved
-source selections, proposed-check approval, measurement progress, findings review,
+source selections, proposed-check approval, measurement progress, findings,
 and optional next actions. Its `audit_` stages use reconciled audit state and
 observations, with the Audit coverage report as the single review document.
+
+[Expansion continuation](conversations/expansion.md) presents the saved unresolved
+post-onboarding entry decision using current intent and retained handoff bindings.
+Only `expansion_continue` is implemented; later workflow stages are not registered.
 
 [conversation_renderer.py](../scripts/conversation_renderer.py) dispatches through
 an explicit [journey/stage registry](../scripts/conversation_flows/__init__.py)
 to implemented flow renderers. Duplicate registrations are rejected. Implemented
 flows are [onboarding.py](../scripts/conversation_flows/onboarding.py),
-[first_eval.py](../scripts/conversation_flows/first_eval.py), and
-[audit.py](../scripts/conversation_flows/audit.py), with copy in their
-respective `_templates.py` modules.
+[first_eval.py](../scripts/conversation_flows/first_eval.py),
+[audit.py](../scripts/conversation_flows/audit.py), and
+[expansion.py](../scripts/conversation_flows/expansion.py). Flow-specific fixed
+copy lives in the corresponding `_templates.py` modules where needed.
+[expansion_templates.py](../scripts/conversation_flows/expansion_templates.py)
+supplies the improvement entry menu rendered by onboarding; expansion continuation
+uses shared labels and the saved pending question.
 Shared formatting and escaping live in
 [conversation_formatting.py](../scripts/conversation_formatting.py).
 

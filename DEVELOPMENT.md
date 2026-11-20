@@ -103,8 +103,9 @@ instructions. The individual skill files document each workflow in detail.
 | [`eval-author-audit`](skills/eval-author-audit/SKILL.md) | Define intended behavior and measure coverage against trace evidence. |
 | [`eval-author-task-create`](skills/eval-author-task-create/SKILL.md) | Propose improvements from an audit and create a supported task when requested. |
 | [`eval-author-environment`](skills/eval-author-environment/SKILL.md) | Build and prove the environment a Harbor or NeMo Gym task runs in; reached from first-eval and task-create. |
+| [`eval-author-user-sim`](skills/eval-author-user-sim/SKILL.md) | Author and validate neutral scenarios for approved Harbor User-sim tasks; reached through the authoring flows. Execution integration is not yet supplied. |
 | [`eval-author-inspect-trace`](skills/eval-author-inspect-trace/SKILL.md) | Explain an Intake trace selected through the entry skill. |
-| [`eval-author-rubric`](skills/eval-author-rubric/SKILL.md) | **Experimental; explicit end-user opt-in only.** Assess validity, coverage, and diversity; initially anti-cheat within validity. |
+| [`eval-author-rubric`](skills/eval-author-rubric/SKILL.md) | **Experimental; explicit end-user opt-in only.** Score 23 criteria in one table: artifact, configuration and provenance; task contract and scoring authority; and data leakage and forged credit, with METHOD-J1 beside them. |
 | [`eval-author-trace-environment`](skills/eval-author-trace-environment/SKILL.md) | **Experimental.** Derive and validate a private Harbor or native NeMo Gym task from trace evidence. |
 
 ## Validation
@@ -165,6 +166,41 @@ Ethos parser compatibility test skips without the NeMo Agents plugin. Live
 model execution is opt-in outside configured CI workflows; see
 [trace fixture checks](docs/trace-derived-fixtures.md#regression-checks) and
 [skill evaluation CI](docs/skill-evaluation-ci.md).
+
+### Native APT retry controls
+
+The three native APT download controls in `tests/test_live_shard_apt.py` check
+transient HTTP retries, permanent HTTP failure, and hash rejection. An
+unconfigured local host skips them if `apt-helper` is absent or either `apt` or
+`libapt-pkg6.0t64` is missing or below `2.8.4ubuntu0.1` (including Debian 12,
+Ubuntu 22.04, and unpatched Ubuntu 24.04). Skips are not native retry evidence.
+CI (`GITHUB_ACTIONS=true` or `CI=true`) and an explicitly set
+`EVAL_AUTHOR_NATIVE_APT_ROOT` fail closed instead; an empty or broken root never
+falls back to host APT. Both host packages must meet the floor before retries.
+
+To opt in locally, use a compatible Ubuntu 24.04 Linux host (amd64 or arm64)
+with `apt-get`, `dpkg`, `dpkg-deb`, Bash, GNU `timeout`, CA certificates, the Ubuntu
+archive keyring at `/usr/share/keyrings/ubuntu-archive-keyring.gpg`, and network
+access to the signed snapshot. From the checkout root, choose a **new, nonexistent**
+private directory with an existing parent on an executable filesystem:
+
+```bash
+native_apt_root="$HOME/.cache/eval-author-native-apt-$(date +%s)"
+mkdir -p "$HOME/.cache"
+bash tools/bootstrap_native_apt.sh "$native_apt_root" && \
+  EVAL_AUTHOR_NATIVE_APT_ROOT="$native_apt_root" uv run --locked pytest -q \
+    tests/test_live_shard_apt.py -k native_apt_retries_only_transient_downloads
+```
+
+The bootstrap creates that directory, downloads exactly `apt=2.8.4ubuntu0.1`
+and `libapt-pkg6.0t64=2.8.4ubuntu0.1` from the signed
+`20261105T000000Z` noble-security/main snapshot with retries disabled, verifies
+both archives' package/version/architecture, and extracts them unprivileged.
+It does not install packages or change host APT state. The fixture validates the
+private library, archive metadata, and helper version before selecting its
+methods and subprocess-only `LD_LIBRARY_PATH`. Do not set `LD_LIBRARY_PATH`
+globally. Debian 12 and Ubuntu 22.04 can run the default suite with skips; this
+Ubuntu 24.04 bootstrap is not a compatibility installer for older hosts.
 
 ## NeMo Gym compatibility checks
 
@@ -231,6 +267,7 @@ CI retains separate aggregate artifacts:
 | ATIF trace (`gym-trace-ledger-controls-v1`) | `gym-trace-evidence` | 90 days |
 | [Scripted verifier-cheat panel](docs/determinism-checks.md#verifier-cheat-panel) | `verifier-cheat-evidence` | 30 days |
 | [Live anti-cheat experiment](docs/determinism-checks.md#live-anti-cheat-experiment) | `anti-cheat-live` | 90 days |
+| [Rubric base simulation](docs/determinism-checks.md#rubric-base-simulation) | `rubric-simulation` | 30 days |
 
 Each name ends with `-<run-id>-<attempt>`. JUnit, native rollouts, and detailed
 logs use the corresponding `*-native` prefix and are retained for 30 days only
@@ -270,6 +307,20 @@ These checks do not claim live routing acceptance.
 
 See [determinism checks](docs/determinism-checks.md) for discovery comparisons,
 bound audit/task evidence, factual ledgers, and advisory host/semantic accounting.
+
+### Native ACP session check
+
+The deterministic ACP fixture checks exact message delivery, state across turns,
+conversation export, and reset in a fresh session. It uses Harbor's ACPX config
+builder and ACPX 0.11.2, with no model calls or Docker. Put that version of `acpx`
+on `PATH`, or set `EVAL_AUTHOR_ACPX` to its executable, then run:
+
+```bash
+uv run --locked pytest -q tests/test_harbor_acp_session.py
+```
+
+The test skips when ACPX is absent and fails if its version differs. It checks
+local ACP plumbing, not a full Harbor trial or a real agent's behavior.
 
 ## Retained reference compatibility
 

@@ -13,6 +13,28 @@ from test_html_report import report, task, write
 modules = creation.modules
 
 
+def test_proposed_interaction_is_visible_without_claiming_execution(modules, tmp_path):
+    design = [
+        {
+            "id": "refund",
+            "example_ids": ["refund-1"],
+            "behavior": "Require approval before saving a refund.",
+            "interaction_type": "user_sim",
+            "state_requirements": "Keep the customer session.",
+            "conversation_scenario": "Request a refund, choose an offered option, and confirm.",
+        }
+    ]
+    creation.start(modules, tmp_path, examples=design)
+    data = report.refresh(tmp_path)
+    row = data["tasks"][0]
+    assert row["planned_interaction"] == "User Simulation"
+    assert row["status"] == "proposed"
+    assert data["plan_counts"]["executed"] == 0
+    markdown = (tmp_path / ".eval-author/report_markdown/tasks.md").read_text()
+    assert "| **User Simulation:** Require approval before saving a refund. |" in markdown
+    assert "task.planned_interaction" in (tmp_path / ".eval-author/report.html").read_text()
+
+
 @pytest.fixture
 def design():
     return [
@@ -60,7 +82,7 @@ def test_saved_design_is_reported_before_authoring(modules, tmp_path, design, pr
         assert row["proposed_grading"] == planned["grading"]
         assert row["path"] is row["readme_path"] is row["readme_html"] is None
     assert data["plan_counts"] == {"proposed": 2, "authored": 0, "validated": 0, "executed": 0}
-    markdown = (tmp_path / ".eval-author/README.md").read_text()
+    markdown = (tmp_path / ".eval-author/report_markdown/tasks.md").read_text()
     assert "Proposed" in markdown
     assert design[0]["behavior"] in markdown
     assert design[0]["grading"] in markdown
@@ -324,7 +346,7 @@ def test_saved_plan_summaries_are_literal_in_reports(modules, tmp_path, design):
 
     row = next(row for row in data["tasks"] if row["plan_task_id"] == "refund")
     assert row["behavior"] == row["expected_outcome"] == row["proposed_grading"] == source
-    markdown = (tmp_path / ".eval-author/README.md").read_text()
+    markdown = (tmp_path / ".eval-author/report_markdown/tasks.md").read_text()
     assert report.markdown_text(source) in markdown
     assert "<script>alert" not in markdown
     html = (tmp_path / ".eval-author/report.html").read_text()

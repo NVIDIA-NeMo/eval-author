@@ -7,8 +7,10 @@ from __future__ import annotations
 
 import argparse
 import copy
+import hashlib
 import json
 from pathlib import Path
+from typing import Any
 
 from . import legacy_plan as plan_format
 from . import trace_construction as trace_format
@@ -27,6 +29,56 @@ PlanError = plan_format.PlanError
 # Historical API helpers remain available to integrations.
 execution = trace_format.execution
 qualify = trace_format.qualify
+
+
+def snapshot(path: Path, sha256: str) -> str:
+    raw = path.read_bytes()
+    if hashlib.sha256(raw).hexdigest() != sha256:
+        raise PlanError("construction changed while retaining its snapshot")
+    return raw.decode("utf-8")
+
+
+def snapshot_document(raw: Any, sha256: Any) -> dict[str, Any]:
+    from .task_evidence import loads
+
+    if not isinstance(raw, str) or hashlib.sha256(raw.encode("utf-8")).hexdigest() != sha256:
+        raise PlanError("construction snapshot digest mismatch; fresh jobs required")
+    value = loads(raw)
+    if not isinstance(value, dict):
+        raise PlanError("construction snapshot must contain an object")
+    return value
+
+
+def require_additive_cases(previous: dict[str, Any], current: dict[str, Any]) -> None:
+    """Allow only added negative cases. Preserve all existing declarations."""
+    old, new = dict(previous), dict(current)
+    old_cases, new_cases = old.pop("cases"), new.pop("cases")
+    if isinstance(old_cases, list):
+        old_cases = plan_format.indexed(old_cases, "case")
+        new_cases = plan_format.indexed(new_cases, "case")
+    if (
+        plan_format.canonical(old) != plan_format.canonical(new)
+        or not isinstance(old_cases, dict)
+        or not isinstance(new_cases, dict)
+        or not old_cases.keys() <= new_cases.keys()
+        or any(plan_format.canonical(case) != plan_format.canonical(new_cases[key]) for key, case in old_cases.items())
+        or any(
+            new_cases[key].get("kind") not in {"incorrect", "negative"} for key in new_cases.keys() - old_cases.keys()
+        )
+    ):
+        raise PlanError("construction contract changed beyond additive negative cases; fresh jobs required")
+
+
+def require_regrade_compatible(
+    previous_snapshot: Any, previous_sha256: Any, current_snapshot: Any, current_sha256: Any
+) -> None:
+    if previous_sha256 is None and current_sha256 is None:
+        if previous_snapshot is not None or current_snapshot is not None:
+            raise PlanError("unbound construction snapshot")
+        return
+    previous = snapshot_document(previous_snapshot, previous_sha256)
+    current = snapshot_document(current_snapshot, current_sha256)
+    require_additive_cases(previous, current)
 
 
 def load(path):

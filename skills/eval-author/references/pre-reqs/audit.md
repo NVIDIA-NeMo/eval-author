@@ -35,7 +35,7 @@ Use the saved [audit approach](../shared-prerequisites.md#choose-the-audit-appro
 For task review, record `data` as `not_required` with the user's approach choice
 as provenance. Do not ask whether traces exist, select them, or check measurement
 dependencies. The renderer keeps its traces row visible as not required.
-The requirements below apply only to measured audits, including legacy resumes.
+The requirements below apply only to measured audits.
 
 Keep this requirement visible in the initial status table and completed report.
 Reuse any supplied availability answer: use **Confirmed by you** when the user says those

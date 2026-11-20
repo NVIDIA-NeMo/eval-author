@@ -1,0 +1,32 @@
+{
+  "schema": "rubric-example-expectation-v1",
+  "id": "missing-contract",
+  "category": "task_artifact_defect",
+  "target_criteria": [
+    "provenance.task-artifact-access"
+  ],
+  "target_checks": [
+    "provenance.task-artifact-access.deterministic-1"
+  ],
+  "intended_score": 0,
+  "observed_score": null,
+  "status": "planned_expectation_not_measurement",
+  "finding": "The Dockerfile requires contract.json, but that input is absent.",
+  "evidence_basis": {
+    "method": "local_source_or_control_inspection",
+    "limit": "Confirm the missing COPY source. A failed build is operational failure, not a rejected solution."
+  },
+  "collateral_criteria": [
+    "provenance.evidence-revision-consistency"
+  ],
+  "unchanged_neighbors": [
+    "fixed_assessment_request",
+    "unmodified_scorer_source"
+  ],
+  "rerun_controls": [
+    "all_local_controls",
+    "ledger_controls",
+    "all_source_bound_native_controls"
+  ],
+  "repair": "Restore the base in a new directory and generate fresh evidence. Preserve the prior package."
+}

@@ -267,7 +267,7 @@ receipt under `receipts.<step>` only after that checkpoint succeeds, with
 results. Preparation retains the actual environment files and starting data;
 environment checking retains successful smoke/reset evidence; grading retains
 the authored reference and grader files; artifacts retains the finalized task
-README, HTML report, and Markdown mirror. Use scoped file digests, so adding a
+README, HTML report, and Markdown task report. Use scoped file digests, so adding a
 grader does not invalidate environment preparation. Failed or merely started
 checks never receive a completion receipt. Preserve their logs and keep the
 step in progress or explain its blocker.
@@ -326,7 +326,7 @@ After authoring all tasks, proving their environments, and satisfying the
 refresh both report artifacts and save `artifacts` as
 `{digest, source, evidence}`. Its `digest` is the current derived
 `remaining_build_digest`; its evidence names the actual `.eval-author/report.html`
-and `.eval-author/README.md` with their byte digests. This binds the refresh to
+and `.eval-author/report_markdown/tasks.md` with their byte digests. This binds the refresh to
 current task revisions and successful grading controls. Earlier draft refreshes
 do not establish review readiness. Missing or stale artifacts stay pending;
 later refreshes during execution do not restart completed authoring.
@@ -342,7 +342,7 @@ The checklist never supplies validation evidence or agent performance claims.
 
 When every agreed task is authored, its environment is proven, the
 [pre-review validation gate](#grader-validation-before-authored-task-review)
-passes, and the refreshed HTML report and Markdown mirror are current, render
+passes, and the refreshed HTML report and Markdown reports are current, render
 `first_eval_review_suite`.
 Use its grounding in the approved design and `ETHOS.md`, leading review links,
 task summaries, honest validation/execution status, limitations, and final
@@ -441,7 +441,9 @@ files, and evidence. A state-only prerequisite snapshot is insufficient.
 
 The caller obtains fresh `first_eval_observations` from the state helper and
 passes them as `facts.observations`. They contain actual task digests under
-`tasks` and actual retained-file digests under `files`; missing artifacts are
+`tasks` and actual retained-file digests under `files`. For a bound user-sim
+selection, `directories` maps its working directory to a boolean proving that
+it still exists inside the repository without a symlink boundary. Missing artifacts are
 `null`. The renderer derives applicability from these observations and the saved
 `scopes.create.first_eval` record. It never accepts supplied approval, validation,
 completion, or progress booleans. Save decisions and actual results before
@@ -554,6 +556,35 @@ retains complete input references under `selection.inputs`. Actual bounded
 permission is recorded separately in `selection.authorization` using the derived
 `selection_digest` and the authorizing reply reference.
 
+For a User-sim task, use
+`first_eval_state.bind_user_sim_translation(repo, translation.to_dict())` to bind
+the translator's retained configuration and every consumed input. Merge its
+`config`, `inputs`, and `user_sim` fields into the existing selection. The helper
+requires the translator's original `input_digests` receipt and rejects changed
+sources or generated files. Regenerate the translation after any input change.
+Do not replace receipt digests with freshly computed values to reuse old prompts.
+It also requires paths inside the target repository and preserves the native working
+directory. If a consumed prompt is outside the repository, retain a local copy
+and regenerate the native configuration to consume that copy before binding.
+Keep each run's translated files outside the task tree and retain them with its
+evidence. Do not overwrite earlier inputs when preparing another run.
+
+Save `execution_settings.user_sim` with `agent_model` and `conversation_limits`
+as explicit display text grounded in the selected native configuration. The
+native configuration owns runtime settings. Conversation limits must describe
+the whole exchange, not a simulator timeout that the runtime does not enforce.
+Bind observed interactive-runner proof through `selection.bridge` using its
+existing `{source, evidence}` shape. This proof must show opening-request
+fidelity, session continuity, participant identity, and the required information
+visibility. Translated files, interface declarations, and synthetic controls do
+not establish this proof. Missing settings or proof keeps execution blocked.
+
+This release executes one approved task per User-sim suite. A suite with multiple
+User-sim tasks or a mix of User-sim and other task types may still be authored and
+reviewed, but it cannot become an execution selection. Explain this limit and
+use a separate or explicitly revised one-task suite. Do not silently omit tasks
+from the approved plan or convert their interaction types to fit the runtime.
+
 Retain native `runs` with their stable IDs, selected task revisions, native
 attempt identities, statuses, rewards, and evidence. Explicitly save
 `selected_run_ids`; directory membership, append order, and a reviewed attempt do
@@ -580,15 +611,16 @@ that reply's source. The existing handoff state controls entering the audit.
 | `first_eval_validation_setup` | Saved design approval and inspected grading requirements. Show known validation setup and ask only missing judge configuration or access before any task creation. Ready setup continues without an extra approval pause. |
 | `first_eval_prepare_first` | Previously saved design approval and ready validation setup; initial provider explanation and compact build checklist. Author exactly one task in its permanent directory, prove its environment before writing its grader, and satisfy the pre-review validation gate before returning for review. No target-agent execution checklist is required for local authoring. |
 | `first_eval_build_progress` | Saved approved first-task build activity and fresh observations; the same fixed checklist with short completed, active, pending, or blocked statuses. Use commentary during work, without adding narration or requesting approval. |
-| `first_eval_review_first` | Current first-task files, saved environment proof, complete current verifier validation, and refreshed HTML and Markdown artifacts. Lead with the approved task's stable ID and grounding in `ETHOS.md`, then link the HTML report's Tasks view or mirrored README. Follow with one authored task row from the saved report, a verifier limitation, and separate environment, verifier-validation, and execution status. Link the task README and end with the first-task approval question. |
+| `first_eval_review_first` | Current first-task files, saved environment proof, complete current verifier validation, and refreshed HTML and Markdown artifacts. Lead with the approved task's stable ID and grounding in `ETHOS.md`, then link the HTML report's Tasks view or the Markdown task report (`report_markdown/tasks.md`). Follow with one authored task row from the saved report, a verifier limitation, and separate environment, verifier-validation, and execution status. Link the task README and end with the first-task approval question. |
 | `first_eval_prepare_remaining` | Saved approval of the current first-task revision and environment proof. Initial explanation and skill-labeled checklist for building the remainder, checking environments, validating all graders, and refreshing artifacts. |
 | `first_eval_remaining_progress` | Current remaining-build activity after first-task approval; compact checklist with evidence-derived task counts, responsible skills, short statuses, and current build blockers. |
-| `first_eval_review_suite` | Every authored task's current environment and complete verifier-validation evidence plus current report artifacts. Ground the summary in the approved design and `ETHOS.md`, link the HTML Tasks view or mirrored README, show one authored row per saved task in proposal order, summarize current validation/execution evidence, and end with the explicit suite-approval question. No run settings or run-only blockers. |
+| `first_eval_review_suite` | Every authored task's current environment and complete verifier-validation evidence plus current report artifacts. Ground the summary in the approved design and `ETHOS.md`, link the HTML Tasks view or the Markdown task report, show one authored row per saved task in proposal order, summarize current validation/execution evidence, and end with the explicit suite-approval question. No run settings or run-only blockers. |
 | `first_eval_execution_settings` | Current authored-suite approval, when actual agent execution is being prepared. Display attempts, validation work, user-specified limits, and open questions, plus relevant run blockers. Do not repeat agent/model or task/example inventory bullets. This display records settings rather than granting execution scope. |
 | `first_eval_ready_to_run` | Current suite approval, validation of every selected task, and a saved applicable settings display. Explain that graders accepted the known correct results and rejected the incorrect results tested; this validates grading rather than measuring agent performance. Announce execution only with applicable explicit authorization, access, and no blocking dependency; otherwise ask one focused question about the missing setting or authorization. |
 | `first_eval_run_progress` | Observed native launch or queued status with current authorized selection and digest-bound current status evidence. Render the standard checklist without skill labels, evidence-derived completed/planned attempts, recorded execution errors, and only actually observed activity. No run-only approval pause or inferred activity. |
 | `first_eval_results` | Review an exact retained current actual-agent attempt when its evidence is available; otherwise present the incomplete inventory and missing-evidence blocker. Separate completed, quality-failing, infrastructure-failing, missing, and unavailable-evidence outcomes. Link verified evidence and rerun instructions, reconcile delivered work, and show completion only when justified. |
 | `first_eval_resume` | Derive the pending creation stage from saved decisions and fresh artifact observations, including an unresolved saved-design choice. Reuse applicable answers and authorization after that choice. It emits no welcome or initial readiness question. |
+| `first_eval_simulation_disabled` | Explain the saved suite's disabled simulation status using the shared [opt-in gate](../coverage-planning.md#enable-experimental-user-simulation). Retain tasks and results. |
 | `first_eval_blockers` | One or more saved blockers preventing the current action, with specific reasons and needed actions. Preserve independent progress. |
 
 The proposal uses the saved plan's `presentation.coverage_note` for its usefulness,
@@ -606,6 +638,7 @@ document.
 Late execution settings come from the saved record's `execution_settings`, with
 existing plan-presentation fields retained as a compatibility fallback. They
 contain `agent_model`, `attempts`, `validation`, `limits`, and `open_questions`.
+User-sim selections also include the simulator display settings described above.
 Retain target/model and selection details for reproducibility without repeating
 them as settings bullets. Ask a focused question only when a target-agent model choice is
 still missing. Record the actual display
@@ -641,6 +674,8 @@ with an absolute `target` and optional `fragment`:
   "links": {
     "report": {"target": "/absolute/repository/.eval-author/report.html"},
     "readme": {"target": "/absolute/repository/.eval-author/README.md"},
+    "tasks_markdown": {"target": "/absolute/repository/.eval-author/report_markdown/tasks.md"},
+    "runs_markdown": {"target": "/absolute/repository/.eval-author/report_markdown/runs.md"},
     "tasks_view": {
       "target": "/absolute/repository/.eval-author/report.html",
       "fragment": "<verified Tasks navigation ID>"
@@ -675,7 +710,7 @@ Later runs do not replace that saved review identity. Inspect the actual attempt
 before supplying its input, actions, and grading explanation; configured identity
 alone does not establish the observed backend model or model health.
 
-First-task and full-suite review put their report and mirrored README links in the leading
+First-task and full-suite review put their HTML report and Markdown task report links in the leading
 review action, before the item summaries. Do not append the generic report footer
 or routine skill-pause explanation to that rendering; separately required host
 attribution still applies. Incomplete results use the single canonical closing
@@ -686,14 +721,16 @@ Follow [suite review guidance](../suite-readme.md); do not duplicate artifact li
 
 Completed creation results use the flow template's linked run-review guidance
 after the substantive results and completed checklist, immediately before any
-pending audit invitation. Link the verified HTML report and mirrored README
-once each in that guidance; do not append the generic report footer. Keep this
+pending audit invitation. Link the verified HTML report once, and for Harbor the
+Markdown runs report (`report_markdown/runs.md`) once, or for native NeMo Gym the
+suite README once; do not append the generic report footer. Keep this
 guidance when an accepted or declined invitation is no longer shown.
 
 Explain how to inspect the saved run's tasks, attempts, grades, and available
 evidence using the provider's supported navigation. For Harbor, direct the user
 to the report's Runs tab and the selected saved run. Native NeMo Gym run evidence
-is linked from the README; do not imply that its attempts appear in the report's
+is linked from the authored run guidance in the suite README, outside its
+generated section; do not imply that its attempts appear in the report's
 Harbor-only Runs table. Preserve verified evidence links and limitations, and
 follow [review walkthrough requirements](../suite-readme.md#show-the-user-how-to-review)
 without duplicating the report or README links.
@@ -725,7 +762,13 @@ task review rather than appending the handoff to those checkpoints.
 
 The prompt takes its context from the saved repository, actual agent, confirmed
 `ETHOS.md` path, selected provider or configured Gym–Harbor path, and agreed task
-and example IDs. Include the actual retained paths for already created selected
+and example IDs, plus each agreed interaction type, state requirements,
+prerequisite checks, and conversation scenario. Expected scenario paths are
+locations to verify, not proof that files exist. For user-sim, carry the saved
+simulator settings and the execution input bindings when they belong to the
+current plan. The handoff retains the requirements for opening-message fidelity,
+continuing sessions, information visibility, termination, reset, and separate
+target/simulator evidence. Include the actual retained paths for already created selected
 tasks; planned tasks have no invented paths. Unrelated task directories are not
 selected by membership. Keep existing tasks, graders, source selections,
 construction declarations, and evidence intact. The user can copy the prompt

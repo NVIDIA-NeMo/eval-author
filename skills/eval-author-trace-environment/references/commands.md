@@ -19,7 +19,7 @@ JSON object and exits nonzero on contract errors.
 | `probe` | Diagnostic NOP/Oracle run or adoption; never proof | `--task-dir --arm --results-from` |
 | `record-reproducibility` | Hash the task tree and integrity scan | `--task-dir` |
 | `record-run-inputs` | Bind one future Harbor job to arm and task digest | `--task-dir --arm --job-dir` |
-| `record-regrade-inputs` | Bind one future `harbor jobs regrade` job to a fresh job after a tests-only change | `--task-dir --source-job-dir --job-dir` |
+| `record-regrade-inputs` | After a tests-only change, bind one future `harbor jobs regrade` job to its fresh source job | `--task-dir --source-job-dir --job-dir` |
 | `record-validation` | Derive proof from retained Harbor jobs | `--task-dir --*-job-dir --harbor-version [--copy-job-dir]` |
 | `record-repair` | Invalidate current proof and record one bounded repair | `--task-dir --reason-code --note` |
 | `finalize` | Write the candidate decision and summary | `--task-dir --status [--human-reviewed]` |

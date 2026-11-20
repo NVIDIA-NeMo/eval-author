@@ -1201,6 +1201,55 @@ The human reviewer confirmed that this fixture accurately represents the recorde
         assert code == 0, result
 
 
+def _ready_static_environment(task_dir: Path, *, mode: str = "separate") -> None:
+    """Create the static contract without proof jobs; shared mode is intentionally invalid."""
+    _ready_environment(task_dir, mode=mode, setup_only=True)
+    if not (task_dir / "candidate.json").exists():
+        _candidate(task_dir)
+    _construction(task_dir)
+    if mode == "separate":
+        _record_reproducibility(task_dir)
+
+
+@pytest.mark.parametrize("mode", ["separate", "shared"])
+def test_ready_static_environment_creates_no_proof_jobs(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, mode: str
+) -> None:
+    task_dir, _ = _workspace(tmp_path)
+    calls = {"record-run-inputs": 0, "qualification": 0}
+    original_run = _run
+    original_receipt = _qualification_receipt
+
+    def counted_run(*args: str) -> tuple[int, dict[str, Any]]:
+        if args[0] == "record-run-inputs":
+            calls["record-run-inputs"] += 1
+        return original_run(*args)
+
+    def counted_receipt(task_dir: Path, trial: Path, *, reached: bool) -> None:
+        calls["qualification"] += 1
+        original_receipt(task_dir, trial, reached=reached)
+
+    monkeypatch.setitem(globals(), "_run", counted_run)
+    monkeypatch.setitem(globals(), "_qualification_receipt", counted_receipt)
+    _ready_static_environment(task_dir, mode=mode)
+
+    assert calls == {"record-run-inputs": 0, "qualification": 0}
+    assert not (task_dir / "private/jobs").exists()
+    assert not (task_dir / "validation.json").exists()
+    assert (task_dir / "candidate.json").is_file()
+    assert (task_dir / _TRACE_ENVIRONMENT.construction.PATH).is_file()
+    assert (task_dir / "task/tests/qualification-probes.json").is_file()
+    if mode == "shared":
+        assert not (task_dir / "reproducibility.json").exists()
+        assert not (task_dir / "task/tests/Dockerfile").exists()
+        assert 'environment_mode = "shared"' in (task_dir / "task/task.toml").read_text(encoding="utf-8")
+    else:
+        report = json.loads((task_dir / "reproducibility.json").read_text(encoding="utf-8"))
+        assert report["file_count"] == 9
+        assert report["portability"]["state"] == "image_pinned_recipe"
+        assert report == _TRACE_ENVIRONMENT._derive_reproducibility(task_dir)
+
+
 def test_init_creates_private_gitignored_workspace(tmp_path: Path) -> None:
     root = tmp_path / ".eval-author" / ".working" / "trace-environments"
 
@@ -1928,7 +1977,7 @@ def test_ready_candidate_requires_substantive_readme_sections(tmp_path: Path) ->
 def test_reproducibility_records_complete_task_tree_and_portability(tmp_path: Path) -> None:
     task_dir, _ = _workspace(tmp_path)
     _candidate(task_dir)
-    _ready_environment(task_dir, record_validation=False)
+    _ready_static_environment(task_dir)
 
     report = json.loads((task_dir / "reproducibility.json").read_text(encoding="utf-8"))
 
@@ -1943,8 +1992,7 @@ def test_reproducibility_records_complete_task_tree_and_portability(tmp_path: Pa
 
 def test_reproducibility_digest_covers_executable_bits(tmp_path: Path) -> None:
     task_dir, _ = _workspace(tmp_path)
-    _candidate(task_dir)
-    _ready_environment(task_dir, record_validation=False)
+    _ready_static_environment(task_dir)
     _review_privacy(task_dir)
     solve = task_dir / "task" / "solution" / "solve.sh"
     solve.chmod(solve.stat().st_mode | stat.S_IXUSR)
@@ -1958,7 +2006,7 @@ def test_reproducibility_digest_covers_executable_bits(tmp_path: Path) -> None:
 def test_reproducibility_retains_failed_contamination_evidence(tmp_path: Path) -> None:
     task_dir, _ = _workspace(tmp_path)
     _candidate(task_dir)
-    _ready_environment(task_dir, record_validation=False)
+    _ready_static_environment(task_dir)
     target = task_dir / "task/environment/.git/config"
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text('[remote "origin"]\n', encoding="utf-8")
@@ -1975,8 +2023,7 @@ def test_reproducibility_retains_failed_contamination_evidence(tmp_path: Path) -
 
 def test_candidate_requires_no_network_agent_environment(tmp_path: Path) -> None:
     task_dir, _ = _workspace(tmp_path)
-    _candidate(task_dir)
-    _ready_environment(task_dir, record_validation=False)
+    _ready_static_environment(task_dir)
     task_toml = task_dir / "task" / "task.toml"
     task_toml.write_text(
         task_toml.read_text(encoding="utf-8").replace(
@@ -1995,7 +2042,7 @@ def test_candidate_requires_no_network_agent_environment(tmp_path: Path) -> None
 def test_reproducibility_rejects_solution_file_in_agent_context(tmp_path: Path) -> None:
     task_dir, _ = _workspace(tmp_path)
     _candidate(task_dir)
-    _ready_environment(task_dir, record_validation=False)
+    _ready_static_environment(task_dir)
     (task_dir / "task" / "environment" / "answer.sh").write_bytes(
         (task_dir / "task" / "solution" / "solve.sh").read_bytes()
     )
@@ -2228,8 +2275,7 @@ def test_prepare_handles_non_string_metadata_type(
 
 def test_shared_verifier_is_rejected(tmp_path: Path) -> None:
     task_dir, _ = _workspace(tmp_path)
-    _candidate(task_dir)
-    _ready_environment(task_dir, mode="shared", record_validation=False)
+    _ready_static_environment(task_dir, mode="shared")
     _review_privacy(task_dir, reviewer_kind="human")
 
     code, result = _run("finalize", "--task-dir", str(task_dir), "--status", "candidate", "--human-reviewed")
@@ -2240,8 +2286,7 @@ def test_shared_verifier_is_rejected(tmp_path: Path) -> None:
 
 def test_candidate_requires_explicit_verifier_environment_mode(tmp_path: Path) -> None:
     task_dir, _ = _workspace(tmp_path)
-    _candidate(task_dir)
-    _ready_environment(task_dir, record_validation=False)
+    _ready_static_environment(task_dir)
     task_toml = task_dir / "task" / "task.toml"
     task_toml.write_text(
         task_toml.read_text(encoding="utf-8").replace('environment_mode = "separate"\n', ""),
@@ -2257,8 +2302,7 @@ def test_candidate_requires_explicit_verifier_environment_mode(tmp_path: Path) -
 
 def test_candidate_requires_explicit_verifier_environment(tmp_path: Path) -> None:
     task_dir, _ = _workspace(tmp_path)
-    _candidate(task_dir)
-    _ready_environment(task_dir, record_validation=False)
+    _ready_static_environment(task_dir)
     task_toml = task_dir / "task" / "task.toml"
     task_toml.write_text(
         task_toml.read_text(encoding="utf-8").replace(
@@ -2277,8 +2321,7 @@ def test_candidate_requires_explicit_verifier_environment(tmp_path: Path) -> Non
 
 def test_verifier_environment_must_be_no_network(tmp_path: Path) -> None:
     task_dir, _ = _workspace(tmp_path)
-    _candidate(task_dir)
-    _ready_environment(task_dir, record_validation=False)
+    _ready_static_environment(task_dir)
     task_toml = task_dir / "task" / "task.toml"
     task_toml.write_text(
         task_toml.read_text(encoding="utf-8").replace(
@@ -2297,8 +2340,7 @@ def test_verifier_environment_must_be_no_network(tmp_path: Path) -> None:
 
 def test_separate_verifier_can_inherit_image_without_tests_dockerfile(tmp_path: Path) -> None:
     task_dir, _ = _workspace(tmp_path)
-    _candidate(task_dir)
-    _ready_environment(task_dir, record_validation=False)
+    _ready_static_environment(task_dir)
     (task_dir / "task" / "tests" / "Dockerfile").unlink()
     _record_reproducibility(task_dir)
     _review_privacy(task_dir)
@@ -2313,8 +2355,7 @@ def test_separate_verifier_can_inherit_image_without_tests_dockerfile(tmp_path: 
 
 def test_step_verifier_cannot_override_separate_mode(tmp_path: Path) -> None:
     task_dir, _ = _workspace(tmp_path)
-    _candidate(task_dir)
-    _ready_environment(task_dir, record_validation=False)
+    _ready_static_environment(task_dir)
     task_toml = task_dir / "task" / "task.toml"
     task_toml.write_text(
         task_toml.read_text(encoding="utf-8")
@@ -2331,8 +2372,7 @@ def test_step_verifier_cannot_override_separate_mode(tmp_path: Path) -> None:
 
 def test_step_verifier_environment_must_be_no_network(tmp_path: Path) -> None:
     task_dir, _ = _workspace(tmp_path)
-    _candidate(task_dir)
-    _ready_environment(task_dir, record_validation=False)
+    _ready_static_environment(task_dir)
     task_toml = task_dir / "task" / "task.toml"
     task_toml.write_text(
         task_toml.read_text(encoding="utf-8")
@@ -2349,8 +2389,7 @@ def test_step_verifier_environment_must_be_no_network(tmp_path: Path) -> None:
 
 def test_step_can_define_a_separate_no_network_verifier_environment(tmp_path: Path) -> None:
     task_dir, _ = _workspace(tmp_path)
-    _candidate(task_dir)
-    _ready_environment(task_dir, record_validation=False)
+    _ready_static_environment(task_dir)
     task_toml = task_dir / "task" / "task.toml"
     task_toml.write_text(
         task_toml.read_text(encoding="utf-8")
@@ -2525,7 +2564,9 @@ def test_no_candidate_publication_reviews_exact_product(tmp_path: Path, reviewer
 def test_publication_review_is_invalidated_by_changed_export(tmp_path: Path, change: str) -> None:
     task_dir, _ = _workspace(tmp_path)
     _candidate(task_dir)
-    _ready_environment(task_dir, record_validation=False)
+    _ready_static_environment(task_dir)
+    assert not (task_dir / "private/jobs").exists()
+    assert not (task_dir / "validation.json").exists()
     _review_privacy(task_dir)
     code, result = _run("finalize", "--task-dir", str(task_dir), "--status", "candidate")
     assert code == 0, result
@@ -2969,7 +3010,7 @@ def _revise(task_dir: Path, change: str) -> None:
 
 
 def _regrade(task_dir: Path, source: str, name: str) -> tuple[int, dict[str, Any]]:
-    """Record a regrade, then retain the job `harbor jobs regrade` writes: the source agent run, graded again."""
+    """Record regrade inputs and write a synthetic Harbor result for the source agent run."""
     code, result = _run(
         "record-regrade-inputs",
         "--task-dir",
@@ -3002,21 +3043,72 @@ def _record_jobs(task_dir: Path, jobs: list[str]) -> tuple[int, dict[str, Any]]:
     return _run("record-validation", "--task-dir", str(task_dir), *args, "--harbor-version", "0.24.0")
 
 
-def test_tests_only_change_is_proven_by_regrading_retained_jobs(tmp_path: Path) -> None:
+@pytest.mark.parametrize("additive", [False, True])
+def test_tests_only_change_is_proven_by_regrading_retained_jobs(tmp_path: Path, additive: bool) -> None:
     task_dir, _ = _workspace(tmp_path)
     _ready_environment(task_dir)
+    plan_path = task_dir / _TRACE_ENVIRONMENT.construction.PATH
+    original_plan = plan_path.read_bytes()
     _revise(task_dir, "tests")
+    if additive:
+        document = json.loads(original_plan)
+        negative = next(case for case in document["cases"] if case["kind"] == "negative")
+        document["cases"].append({**negative, "case": "new-negative", "rationale": "Omit a different repair."})
+        _write_json(plan_path, document)
     for job in _PROOF_JOBS:
         code, result = _regrade(task_dir, job, f"{job}-regraded")
         assert code == 0, result
 
-    code, result = _record_jobs(task_dir, [f"{job}-regraded" for job in _PROOF_JOBS])
+    jobs = [f"{job}-regraded" for job in _PROOF_JOBS]
+    if additive:
+        source_inputs = json.loads(_run_inputs_path(task_dir, "negative-1").read_text())
+        assert source_inputs["construction_snapshot"].encode() == original_plan
+        source = task_dir / "private/new_negative.py"
+        source.write_text("# Synthetic different incomplete repair.\n")
+        code, result = _run(
+            "record-run-inputs",
+            "--task-dir",
+            str(task_dir),
+            "--job-dir",
+            "private/jobs/negative-new",
+            "--arm",
+            "negative",
+            "--control-id",
+            "new-negative",
+            "--control-agent",
+            "new_negative:Control",
+            "--control-source",
+            str(source),
+            "--control-rationale",
+            "Omit a different repair.",
+        )
+        assert code == 0, result
+        trial = task_dir / "private/jobs/negative-new/task__trial"
+        trial.mkdir(parents=True)
+        _qualification_receipt(task_dir, trial, reached=True)
+        (trial / "verifier/results").write_text("fixture-repaired\tFAIL\n")
+        _write_json(
+            trial / "result.json",
+            {
+                "id": "new-negative-trial",
+                "task_checksum": Task(task_dir / "task").checksum,
+                "verifier_environment_mode": "separate",
+                "verifier_result": {"rewards": {"reward": 0}},
+                "exception_info": None,
+                "config": {"job_id": "new-negative-job", "agent": {"name": "new_negative:Control"}},
+            },
+        )
+        jobs.append("negative-new")
+    code, result = _record_jobs(task_dir, jobs)
 
     assert code == 0 and result["passed"], result
     validation = json.loads((task_dir / "validation.json").read_text())
     runs = [run for arm_runs in validation["runs"].values() for run in arm_runs]
-    assert len(runs) == len(_PROOF_JOBS)
+    assert len(runs) == len(jobs)
     for run in runs:
+        if run["job_dir"] == "private/jobs/negative-new":
+            assert "regrade" not in run
+            continue
         regrade = run["regrade"]
         assert run["job_dir"] == regrade["source_job_dir"] + "-regraded"
         assert regrade["source_tests_tree_sha256"] != regrade["tests_tree_sha256"]
@@ -3049,7 +3141,7 @@ def test_regrade_requires_a_tests_only_change(tmp_path: Path, change: str, error
     "problem,error",
     [
         ("missing", "regrade source pre-run inputs must be a regular file"),
-        ("legacy", "predates tests/ digests"),
+        ("legacy", "run inputs do not match the versioned contract"),
         ("regraded", "not a regraded one"),
         ("tampered", "regrade inputs differ from their source job"),
     ],
@@ -3107,7 +3199,7 @@ def test_regraded_custom_control_stays_bound_to_its_declared_source(tmp_path: Pa
     assert code == 1 and "control source or recorded agent differs" in result["error"]
 
 
-def test_run_input_v3_receipts_still_prove_fresh_jobs(tmp_path: Path) -> None:
+def test_run_input_v3_receipts_require_fresh_jobs(tmp_path: Path) -> None:
     task_dir, _ = _workspace(tmp_path)
     _ready_environment(task_dir, record_validation=False)
     for path in (task_dir / "private/run-inputs").glob("*.json"):
@@ -3115,7 +3207,7 @@ def test_run_input_v3_receipts_still_prove_fresh_jobs(tmp_path: Path) -> None:
         del receipt["tests_tree_sha256"], receipt["task_tree_without_tests_sha256"]
         _write_json(path, {**receipt, "schema": "nemo.eval_author.trace_environment_run_input.v3"})
     code, result = _record_existing_jobs(task_dir)
-    assert code == 0 and result["passed"], result
+    assert code == 1 and "run inputs do not match the versioned contract" in result["error"], result
 
 
 @pytest.mark.parametrize(
@@ -3211,7 +3303,7 @@ def test_builtin_agent_cannot_be_declared_control(tmp_path: Path, agent: str, ar
 )
 def test_portability_tracks_external_copy_sources(tmp_path: Path, copy_source: str, pinned: bool) -> None:
     task_dir, _ = _workspace(tmp_path)
-    _ready_environment(task_dir, record_validation=False)
+    _ready_static_environment(task_dir)
     (task_dir / "task/environment/Dockerfile").write_text(
         f'FROM scratch AS builder\nFROM scratch\nCOPY --from="{copy_source}" /tool /tool\n'
     )
@@ -3236,7 +3328,7 @@ def test_portability_tracks_external_copy_sources(tmp_path: Path, copy_source: s
 )
 def test_portability_tracks_multiple_run_mounts(tmp_path: Path, source: str, pinned: bool, internal: bool) -> None:
     task_dir, _ = _workspace(tmp_path)
-    _ready_environment(task_dir, record_validation=False)
+    _ready_static_environment(task_dir)
     (task_dir / "task/environment/Dockerfile").write_text(
         "FROM scratch AS builder\nFROM scratch\n"
         "RUN --mount=type=bind,from=builder,target=/local \\\n"
@@ -3258,7 +3350,7 @@ def test_portability_inventories_dockerfile_frontend(
     tmp_path: Path, reference: str, pinned: bool, location: str
 ) -> None:
     task_dir, _ = _workspace(tmp_path)
-    _ready_environment(task_dir, record_validation=False)
+    _ready_static_environment(task_dir)
     (task_dir / f"task/{location}/Dockerfile").write_text(f"# syntax={reference}\nFROM scratch\n")
     _record_reproducibility(task_dir)
     report = json.loads((task_dir / "reproducibility.json").read_text())
@@ -3273,7 +3365,7 @@ def test_portability_inventories_dockerfile_frontend(
 @pytest.mark.parametrize("prefix", ["\n", "# ordinary comment\n", "FROM scratch\n"])
 def test_portability_ignores_inactive_syntax_comments(tmp_path: Path, prefix: str) -> None:
     task_dir, _ = _workspace(tmp_path)
-    _ready_environment(task_dir, record_validation=False)
+    _ready_static_environment(task_dir)
     (task_dir / "task/environment/Dockerfile").write_text(prefix + "# syntax=docker/dockerfile:1\nFROM scratch\n")
     _record_reproducibility(task_dir)
     report = json.loads((task_dir / "reproducibility.json").read_text())
@@ -3287,7 +3379,7 @@ def test_portability_ignores_inactive_syntax_comments(tmp_path: Path, prefix: st
 @pytest.mark.parametrize("pinned", [True, False])
 def test_portability_tracks_configured_images(tmp_path: Path, location: str, pinned: bool) -> None:
     task_dir, _ = _workspace(tmp_path)
-    _ready_environment(task_dir, record_validation=False)
+    _ready_static_environment(task_dir)
     path = task_dir / "task/task.toml"
     config = path.read_text()
     image = "example.invalid/runtime@sha256:" + "b" * 64 if pinned else "example.invalid/runtime:latest"

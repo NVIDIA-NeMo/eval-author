@@ -62,6 +62,11 @@ CHECKS_SAVED = (
 )
 REPORT_ACTIONS = {"created": "I created {report}.", "updated": "I updated {report}.", "unchanged": "Review {report}."}
 REPORT_LABEL = "Audit coverage report"
+CANONICAL_REPORT = ".eval-author/report_markdown/audits.md"
+HTML_REPORT_PATH = ".eval-author/report.html"
+HTML_REPORT_LABEL = "HTML report’s Audit tab"
+HTML_REPORT = "You can also read it in the {html}."
+HTML_REPORT_FAILED = "The HTML report could not be refreshed, so it does not yet show this audit."
 SECTION_LABELS = {
     "intended_coverage": "Audit coverage report: Capabilities audited",
     "findings": "Audit coverage report: Key findings",
@@ -102,20 +107,20 @@ FINDING_KINDS = {
 }
 LIMITS_HEADING = "**Evidence limits**"
 RECOMMENDATIONS_HEADING = "**Recommended next actions**"
-FINDINGS_QUESTION = "Do these findings look right? If so, would you like to finish the audit here or plan {choices}?"
-IMPROVEMENT_CHOICE = "the {label}"
-TWO_IMPROVEMENTS = "{choices}, or both"
-MULTIPLE_IMPROVEMENTS = "{choices}, or any combination"
-NO_CHANGE_QUESTION = "Do these findings look right? You can finish the audit here or tell me what needs correcting."
-OTHER_ACTION_QUESTION = (
-    "Do these findings look right? If so, would you like to finish the audit here or choose a recommended next action?"
-)
-REVIEW_ACCEPTED = "You’ve accepted the audit findings."
+RECOMMENDATION_SUPPORT = {
+    "supported": "Supported in Eval Author",
+    "separate_work": "Requires separate work",
+    "unknown": "Support not yet confirmed",
+}
+NEXT_OFFER = "You can finish here."
+SUPPORTED_NEXT_OFFER = "Would you like Eval Author to work on the {actions}, or finish here?"
+REVIEW_ACCEPTED = "The audit findings are recorded."
+MISSING_RECOMMENDATION_SELECTION = "The saved improvement decision does not identify specific report recommendations. Resolve that selection before continuing."
 AUDIT_COMPLETE = "The audit is complete for the reviewed scope."
 AUDIT_LIMITED = "The limited findings review is complete; the full measured audit remains incomplete."
 NEXT_ACTIONS = {
     "finish": "You chose to finish here.",
-    "improve": "You chose to plan evaluation improvements. The next step is to review their scope and grading before implementation.",
+    "improve": "You chose to work on the selected audit recommendations.",
     "create": "You chose to plan your first evaluations from the reviewed findings.",
     "collect_evidence": "You chose to gather the missing evidence. The selected source and any new runs still need their applicable authorization.",
     "fix_agent": "You chose to address the observed agent behavior before changing the evaluations.",
@@ -125,7 +130,7 @@ STAGE_LABELS = {
     "traces": "Select traces",
     "checks": "Review proposed checks",
     "measurement": "Perform the audit",
-    "findings": "Review findings",
-    "next_action": "Findings accepted",
+    "findings": "Summarize findings",
+    "next_action": "Findings recorded",
 }
 CURRENT_MILESTONE = "**Current audit step:** {stage}"

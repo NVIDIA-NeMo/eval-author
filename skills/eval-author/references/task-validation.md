@@ -353,8 +353,9 @@ different task or reinterpret old rewards to make them pass.
 
 After editing, prepare the current manifest with `--previous <current-manifest>
 --reason "<classification and concrete change>"`; `--out` may name that same
-manifest. Then rerun all required controls and agent evidence for acceptance, or
-[regrade them](#regrade-after-a-tests-only-change) when only `tests/` changed.
+manifest. The new manifest records the replaced digest as `supersedes`. Receipts
+bound to that digest belong to the superseded revision. Then rerun all required
+controls and agent evidence for acceptance. When only `tests/` changed, you can [regrade them](#regrade-after-a-tests-only-change).
 The recorder keeps the current repair count and reason, with at most three
 repairs after the initial attempt. Do not reset the count to evade that budget.
 Retain unresolved work when exhausted. Source control owns prior task and grader
@@ -365,10 +366,7 @@ use fresh paths when rerunning the required controls and agent attempts.
 
 ### Regrade after a tests-only change
 
-When a Harbor repair changes only the task's `tests/`, Harbor can rerun just the
-verifier on a recorded trial's agent output. Prepare the repair as above, then
-record each regrade against the repaired manifest, citing the receipt of the
-trial it replays:
+When a repair changes only the task's `tests/`, Harbor can rerun just the verifier on a recorded trial's agent output. Prepare the repair as above. Record each regrade against the repaired manifest. Cite the receipt of the trial it replays.
 
 ```bash
 python <task_create_dir>/scripts/task_evidence.py run \
@@ -381,17 +379,18 @@ python <task_create_dir>/scripts/task_evidence.py run \
   --trial-name reference-1-r1 --trials-dir "$TRIALS"
 ```
 
-For an agent run, also pass `--trace "$TRIALS/<new-trial>/agent/trajectory.json"`,
-then measure the new trial under its new run ID. The receipt's `regrade` record
-binds the source receipt and trial, and the old and new `tests/` digests; keep the
-source receipts, trials and traces unchanged. Cite only completed (`passed` or
-`behavior_failed`) receipts of the immediately previous revision; after a second
-tests-only repair, regrade the previous revision's regraded trials. The recorder
-refuses a regrade when files outside `tests/` changed, `tests/` is unchanged, the
-construction plan changed, or the previous manifest predates `tests/` digests.
-Each source trial backs one regraded receipt. Run controls added by the repair,
-and any trial Harbor refuses to regrade, fresh. Regrading does not change the
-repair count. NeMo Gym has no regrade equivalent; rerun its evidence.
+For an agent run, also pass `--trace "$TRIALS/<new-trial>/agent/trajectory.json"`. Then measure the new trial under its new run ID. The receipt's `regrade` record binds the source receipt and trial to the old and new `tests/` digests. Keep the source receipts, trials and traces unchanged.
+
+Cite only completed (`passed` or `behavior_failed`) receipts of the immediately previous revision. After a second tests-only repair, regrade the previous revision's regraded trials.
+
+The recorder refuses a regrade in these cases.
+
+- Files outside `tests/` changed.
+- `tests/` is unchanged.
+- The construction plan changed beyond adding negative controls.
+- The previous manifest predates `tests/` digests.
+
+Each source trial backs one regraded receipt. Run controls added by the repair fresh. Run any trial Harbor refuses to regrade fresh. Regrading does not change the repair count. NeMo Gym has no regrade equivalent. Rerun its evidence.
 
 
 ## Revalidate saved acceptance
@@ -418,3 +417,26 @@ uv run <task_create_dir>/scripts/task_pipeline.py check-acceptance \
 
 This rechecks the task, proposal, coverage sources, receipts and all registered
 closure attempts. A stale saved `accepted: true` is not sufficient evidence.
+
+When the check fails, or before reporting why a saved claim is unreliable, add
+`--integrity`. It classifies the passed `task_validation` claim against its
+control receipts, attempt ledger, and repair lineage:
+
+- `violation`: a cited control failed, a registered closure failure is not
+  cited, or a cited receipt is from before an in-place repair.
+- `unknown`: evidence is missing or unreadable.
+- `stale`: the task changed after the controls ran.
+
+The integrity check uses the nearest enclosing Git root or the parent of an
+enclosing `.eval-author` directory as its evidence boundary. Without either, it
+uses the report directory. For another layout, pass `--repo-root <repository>`
+with `--integrity`. Keep the report and cited evidence inside that root.
+Selected paths must not traverse symlinks. Cited paths cannot widen the boundary.
+
+`violations` counts violating claims (0 or 1). `violation_findings` counts the
+supporting findings. Duplicate citations count once. An empty
+list of evidence is `unknown`, not a consistent claim.
+
+Report each finding with its receipt and case. Do not call an `unknown` or
+`stale` finding a false claim. Agent runs are excluded. Review them through
+their traces. The mode leaves coverage checks to the default command.

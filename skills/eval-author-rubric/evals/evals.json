@@ -3,23 +3,23 @@
   "evals": [
     {
       "id": "rubric-forged-credit",
-      "prompt": "Apply eval-author-rubric to this synthetic task. Only inline evidence is available; do not run commands or write files. The pinned verifier reads a solver-writable success.json and awards full credit when success is true, before checking the requested database update. Code inspection confirms this path is reachable. No native controls have been run. Explain the finding and what is still unmeasured.",
-      "expected_output": "AC-02 = 0/E1 and AC-03 = 0/E1 for the confirmed reachable static forbidden-credit and untrusted-result mechanism, citing one shared finding ID in both rows. Native controls remain unrun; this is not observed agent exploitation or E2 evidence. Proposes paired attack and valid controls without execution; leaves Audit untouched.",
+      "prompt": "Yes, I explicitly opt in to the experimental eval-author-rubric assessment for this synthetic task only. Only inline evidence is available; do not run commands or write files. The pinned verifier reads a solver-writable success.json and awards full credit when success is true, before checking the requested database update. Code inspection confirms this path is reachable. No controls have been run. Explain the finding and what is still unmeasured.",
+      "expected_output": "Reports the reachable solver-writable success path as a forbidden-credit finding. AUDIT-03 stays U (Unassessed): its 0 anchor needs a healthy control that obtains forbidden credit, and no control has run. Proposes the no-work and forged-success controls with a valid-work control, without running them. The other criteria are U for lack of facts. Leaves Audit untouched.",
       "assertions": [
-        "Reports AC-02 = 0/E1 and AC-03 = 0/E1, not NOT_ASSESSED for either confirmed defect.",
-        "Uses one shared finding ID; does not count two independent defects or add scores.",
-        "Separates the static defect from unrun native controls and observed exploitation; does not execute anything."
+        "Reports the reachable forbidden-credit path as a finding and keeps AUDIT-03 Unassessed because no control has run.",
+        "Proposes paired attack and valid-work controls without executing anything.",
+        "Shows the 23-criterion table with criteria lacking facts as U, not 0."
       ],
       "expected_skill": "eval-author-rubric",
       "files": []
     },
     {
       "id": "rubric-permitted-reference",
-      "prompt": "Apply eval-author-rubric to this synthetic task using only the inline facts. Do not run commands or write files. The task explicitly asks the solver to copy a supplied public specification into a requested output format. An exact text scan found matching phrases in that permitted reference. Private grading inputs and runtime permissions have not been inspected. Is the match proof of leakage?",
-      "expected_output": "Does not treat the permitted match as leakage. Explains the task authority and leaves AC-01 NOT_ASSESSED for uninspected protected surfaces. Does not infer model-training cleanliness or run a copy attack that contradicts the copying task.",
+      "prompt": "Yes, I explicitly opt in to the experimental eval-author-rubric assessment for this synthetic task only. Use only the inline facts. Do not run commands or write files. The task explicitly asks the solver to copy a supplied public specification into a requested output format. An exact text scan found matching phrases in that permitted reference. Private grading inputs and runtime permissions have not been inspected. Is the match proof of leakage?",
+      "expected_output": "Does not treat the permitted match as answer exposure. AUDIT-05-B stays U because the private grading inputs were not scanned against public files. Does not infer model-training cleanliness or run a copy attack that contradicts the copying task.",
       "assertions": [
-        "A permitted reference match is not automatically data leakage.",
-        "Uninspected boundaries remain NOT_ASSESSED rather than a pass or defect.",
+        "A permitted reference match is not automatically answer exposure.",
+        "Uninspected private inputs leave AUDIT-05-B Unassessed rather than a pass or defect.",
         "Preserves the declared copying task instead of forbidding valid behavior."
       ],
       "expected_skill": "eval-author-rubric",
@@ -27,12 +27,36 @@
     },
     {
       "id": "rubric-three-pillars",
-      "prompt": "Yes, I explicitly opt in to the experimental eval-author-rubric assessment for this synthetic review only. Use these inline facts; no commands or files. All declared AC-02 attacks and valid alternatives passed with healthy reach on the selected revision. For AC-04, trusted native receipts show a fixed target earned no credit alone but full credit after a sentinel predecessor left stale success state. The contract requires independent trials; no longitudinal sharing was authorized. No independent corroboration exists. Score AC-02 and AC-04, explain whether this establishes full validity, coverage, and diversity, and say how intentionally shared longitudinal state would differ.",
-      "expected_output": "AC-02 = 0/E2 and AC-04 = 0/E2 for the same demonstrated unintended carryover finding, citing one shared finding ID in both rows. The confirmed reachable forbidden-credit defect overrides the earlier passing declared AC-02 attacks. The rubric spans validity, coverage, and diversity; these findings do not score unimplemented areas or establish overall quality. Authorized longitudinal state is not automatically a defect; compare it against its contract. Neither result warrants E3 or score 3.",
+      "prompt": "Yes, I explicitly opt in to the experimental eval-author-rubric assessment for this synthetic task only. Use these inline facts; no commands or files. All declared forbidden-credit attacks and valid alternatives received their intended scores with healthy reach on the selected revision. Trusted native receipts show a fixed target earned no credit alone but full credit after a sentinel predecessor left stale success state. The contract requires independent episodes; no longitudinal sharing was authorized. No independent corroboration exists. Score the affected criteria, explain whether this establishes overall quality, and say how intentionally shared longitudinal state would differ.",
+      "expected_output": "ENV-03-S01 = 0: confirmed unintended persistence changes the target's credit. AUDIT-03 = 2: declared controls receive intended scores, with no held-out corroboration for 3. The carryover is one finding, not two defects. Authorized longitudinal state is not automatically a defect; compare it against its contract. The rubric does not produce an overall quality score.",
       "assertions": [
-        "Reports AC-02 = 0/E2 and AC-04 = 0/E2 from the supplied synthetic native evidence, citing the same carryover finding in both rows without counting two independent defects; the confirmed forbidden-credit defect overrides the earlier passing declared AC-02 attacks.",
-        "Distinguishes unintended carryover from authorized longitudinal sharing; does not claim all tasks must forget everything.",
-        "Preserves all three pillars without deriving overall quality or independent corroboration; executes nothing."
+        "Reports ENV-03-S01 = 0 for the confirmed carryover and AUDIT-03 = 2 without corroboration.",
+        "Distinguishes unintended carryover from authorized longitudinal sharing.",
+        "Does not derive an overall quality score; executes nothing."
+      ],
+      "expected_skill": "eval-author-rubric",
+      "files": []
+    },
+    {
+      "id": "rubric-contract-hidden-requirement",
+      "prompt": "Yes, I explicitly opt in to the experimental eval-author-rubric assessment for this synthetic task only. Use only these inline facts; no commands or files. instruction.md, the only solver-visible text, says: \"Compute the total amount of all orders in /workspace/orders.csv and write it to /workspace/total.txt as a number with exactly two decimal places, such as 12.30.\" orders.csv has amounts 120.25, 89.50 and 40.75. The verifier awards credit only when total.txt is 250.50 and /workspace/summary.json equals {\"currency\": \"USD\", \"order_count\": 3}. The reference solution writes both files. Nothing has been executed and no human has reviewed the task. Score task-contract.clear-contract, task-contract.discoverable-requirements and task-contract.scoring-authority.",
+      "expected_output": "task-contract.discoverable-requirements = 0: the summary.json condition has no solver-visible authority. task-contract.scoring-authority = 1: the 250.50 total is justified by the instruction and fixture amounts, but the summary.json values have no correctness source, and the reference solution writing them is not authority. task-contract.clear-contract stays U: the stated instruction agrees with the total check, and the unstated summary.json condition is a discoverable-requirements finding, not a clear-contract defect. Criteria without inline facts are U. Nothing is executed.",
+      "assertions": [
+        "Reports task-contract.discoverable-requirements = 0 for the summary.json condition that no solver-visible text states.",
+        "Reports task-contract.scoring-authority = 1: ties 250.50 to the instruction and fixture amounts, and does not treat the reference solution as authority for the summary.json values.",
+        "Leaves task-contract.clear-contract Unassessed rather than 0 or 2, records the review as agent review, and executes nothing."
+      ],
+      "expected_skill": "eval-author-rubric",
+      "files": []
+    },
+    {
+      "id": "rubric-contract-agent-only",
+      "prompt": "Yes, I explicitly opt in to the experimental eval-author-rubric assessment for this synthetic task only. Inline facts only; no commands or files. The instruction asks for the number of rows in /workspace/users.csv whose status is active, written as an integer to /workspace/active.txt. users.csv has five rows, three of them active. The verifier's only check reads active.txt, strips whitespace, and requires exactly 3. My agent review mapped that one condition to the instruction and recomputed 3 from the fixture. No human has reviewed the mapping and no probe has run. Can task-contract.clear-contract, task-contract.discoverable-requirements and task-contract.scoring-authority score 2?",
+      "expected_output": "task-contract.discoverable-requirements = 2 and task-contract.scoring-authority = 2: the one material condition maps to the instruction and the expected value 3 is recomputed from the fixture. Neither reaches 3, which needs corroboration by a different actor, such as a human review of the crosswalk or an independent probe. Names that corroboration. Executes nothing.",
+      "assertions": [
+        "Scores task-contract.discoverable-requirements and task-contract.scoring-authority at 2 from the recorded crosswalk and recomputation.",
+        "Does not award 3 without corroboration by a different actor, and names the corroboration needed.",
+        "Executes nothing."
       ],
       "expected_skill": "eval-author-rubric",
       "files": []
@@ -40,9 +64,9 @@
     {
       "id": "rubric-generic-review-no-opt-in",
       "prompt": "Review this synthetic eval for data leakage and forged credit. Answer from these inline facts only; no commands or files. The verifier trusts a solver-writable success.json.",
-      "expected_output": "Explains the ordinary trust-boundary concern without invoking eval-author-rubric, applying AC item scores, or treating a generic anti-cheat request as experimental opt-in.",
+      "expected_output": "Explains the ordinary trust-boundary concern without invoking eval-author-rubric, applying rubric criterion scores, or treating a generic anti-cheat request as experimental opt-in.",
       "assertions": [
-        "Explains the ordinary trust-boundary concern without invoking eval-author-rubric, applying AC item scores, or treating a generic anti-cheat request as experimental opt-in."
+        "Explains the ordinary trust-boundary concern without invoking eval-author-rubric, applying rubric criterion scores, or treating a generic anti-cheat request as experimental opt-in."
       ],
       "expected_skill": null,
       "files": []

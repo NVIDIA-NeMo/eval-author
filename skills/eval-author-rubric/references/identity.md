@@ -49,21 +49,21 @@ artifact uses `access: denied` without trying the read; an unresolved selection 
 The checked-in mutation panel exercises these distinctions with actual local files.
 
 Raw measurements are named `identity`, `route`, `config`, `links`, and `approvals`.
-Explicit `sourced_config`, `freshness`, `native`, and `reconstruction` selections add their
+Explicit `sourced_config`, `freshness`, `native`, `reconstruction`, `ethos`, and `authority` selections add their
 corresponding measurements. Absent optional selections do not establish coverage.
-They have statuses and diagnostics, not numeric scores. The eleven canonical
-criteria consume this evidence under their own anchors; a helper passing is not
-automatically criterion acceptance. Configuration differences require interpretation;
-equality is not adequacy. Declared missing/denied access differs from a performed
-check confirming a missing material required artifact. Preserve that distinction
-when choosing a zero versus `NOT_ASSESSED`.
-`preflight_success` is always false: this consumer cannot certify a workflow.
-Every canonical item includes the complete result template and one `check_results`
-entry per canonical check. Keep the check's method, condition, evidence boundary,
-remaining gap and next action with its outcome. `PARTIAL` is not a deterministic
-pass; `NOT_RUN` review/probe checks cannot inherit helper successes. Item-level
-`measurements` uses the canonical list format; former counter maps are retained
-as `legacy_measurements`. Subject revisions use validated content digests.
+These measurements have statuses and diagnostics, not numeric scores.
+Unknown top-level selection fields return `selection.invalid` (exit 2) rather than
+silently skipping a requested measurement. Measurements never score a criterion:
+every score comes from the selected criterion evidence. Record what a measurement
+shows as a criterion fact; a helper passing is not criterion acceptance.
+Configuration differences require interpretation; equality is not adequacy.
+Declared missing/denied access differs from a performed check confirming a missing
+material required artifact. Preserve that distinction when recording the fact.
+
+The report (`rubric-measurements-v4`) has `schema`, `experimental`, `scope`,
+`measurements` and `items`. `items` holds the 23 rubric criteria and METHOD-J1.
+Each row has a score, evidence strength, remaining gaps and one `check_results`
+entry per canonical check. Subject revisions use validated content digests.
 
 ## Selected artifact identity and access
 
@@ -73,48 +73,216 @@ denied/unresolved access, and changed digests with stable `identity.*` diagnosti
 A missing optional revision stays null; a missing required content digest does not
 pass. Do not turn content identity into an ownership or confidentiality claim.
 
-## Source-backed inventory assessment
+## Criterion evidence and scoring-rule demonstrations
 
-`rubric_scope`, when present, must be an object; other JSON types produce the sanitized
-`selection.invalid` CLI response (exit 2, empty stderr). Its optional `task_artifacts`
-and `grading_dependencies` objects contain `source` (selected inventory artifact ID),
-`required` (nonempty distinct artifact IDs), and `unresolved_material` (string gaps).
-Grading dependencies also name `review_source` (selected review artifact ID).
-Each required artifact's `source` must equal the inventory artifact's path.
+Select a retained packet with `criterion_evidence: {"artifact_id": "packet"}`.
+The packet and its cited sources must appear in `artifacts` with their exact
+digests. The [packet contract](../scripts/rubric_evidence_scoring.py) defines
+criterion-specific inventories, JSON-pointer bindings and provenance fields.
+Unsupported IDs, malformed facts, changed sources and contradictory records fail
+closed. Select each criterion explicitly.
 
-For content findings, the selected inventory file must be a JSON object with the
-relevant section in this exact shape (both sections may share one source):
+Recorded (`recorded-evidence-assessment`) and simulated
+(`synthetic-scoring-demonstration`) packets use the same criterion predicates, and
+both score rows in `items`. Simulated rows have strength E1. Recorded rows have E2,
+or E3 when every corroborating control has a different actor than the original
+observation. A bound JSON record does not authenticate a reviewer, establish solver
+permissions or prove native execution.
 
-```json
-{
-  "task_artifacts": {"required": ["task"], "unresolved_material": []},
-  "grading_dependencies": {"required": ["test"], "unresolved_material": []}
-}
-```
+## Selected Ethos structure
 
-The relevant section must exactly match the selection's `required` and
-`unresolved_material`, including list order, with no extra section fields.
-A full DISC-01-C additionally requires a `review`-role artifact whose `source` is
-the inventory path and whose JSON object has exactly these fields:
+`ethos` is `{"artifact_id": <id>}` naming one selected artifact with role `ethos`.
+Pass `--ethos-validator <ethos-write-skill-dir>/scripts/validate_ethos.py`, with the
+skill directory located as the
+[shared prerequisites](../../eval-author/references/shared-prerequisites.md) describe.
+A relative path resolves from the current directory, not from `--root`. Never
+substitute a copy or another schema. The measurement reads the document
+through the shared reader, records its digest and the validator file's digest, and
+runs the validator on those bytes. A rejection is `ethos.invalid` (fail) with the
+validator's reason; its warnings are kept. A changed digest is
+`ethos.digest_mismatch`. A missing or broken validator leaves validity unknown.
+A valid result is structure only: it does not show the content was confirmed,
+is current, or states adequate intent.
 
-```json
-{"source": "inventory-id", "required": ["test"], "unresolved_material": [], "complete": true}
-```
+## Harbor task layout labels
 
-Here `source` is the inventory artifact **ID**, `required` matches the selected
-list, and `complete` must be the JSON boolean true. Extra review fields, omitted
-IDs, contradictory conclusions/gaps, unsupported formats, or unreadable/stale
-sources cannot establish full credit; retain `NOT_ASSESSED` and null score rather
-than infer semantics. Existing measured missing/denied evidence (0) and measured
-partial identity evidence (1) remain usable. A materiality-gap declaration alone
-cannot establish 1; its source projection must match too.
+`layout` is `{"task": <task directory relative to --root>}`; `"."` selects the
+root itself. The measurement labels every file under that directory from the
+Harbor layout. `instruction.md`, `trajectory.json`, and `environment/` are
+`public`; `tests/` and `solution/` are `private`; `task.toml` is
+`configuration`; anything else is `unlabeled`. A declared step under
+`steps/<name>/` follows the same rules, and its `workdir/` is `public`. Each
+record keeps its task-relative path and digest.
 
-`assess(measurements, selection, root=None)` uses only the explicitly selected
-sources; `measure.py` supplies `root`. Without it, direct observations cannot
-establish inventory content findings. Source reads are capped at 1 MiB, use the
-shared local-path and strict JSON checks, and hash the exact bytes parsed against
-the measured digest. This verifies a bounded source projection, not undeclared
-reference discovery, independent review, reviewer authentication, or runtime proof.
+A directory without `task.toml`, or without both `instruction.md` and declared
+`[[steps]]`, is `layout.not_harbor` (unknown): give the
+[format warning](../../eval-author/references/task-format.md) instead of
+labeling it by hand. Symlinks are never followed and stay `unresolved`. A
+directory that can't be listed is `layout.directory_unreadable` (unknown), never
+an empty directory. A Dockerfile or Compose file under `environment/` that names
+`tests` or `solution` is `layout.private_path_in_environment` (unknown), a
+candidate for review. The labels describe the layout, not a tested runtime
+boundary or whether a public file contains an answer.
+
+## Internal answer leakage
+
+`leakage` is `{"task": <task directory>, "allowed_overlap": [...]}`. It uses the
+Harbor task layout labels above and compares every readable private file with
+every readable public file. Each finding records `kind`, `method`, `private` and
+`public` paths, the public `lines` range when there is one, and whether declared
+overlap allows it. Findings never contain the matched content.
+
+- `full`: the whole private file appears in a public file, by `exact`,
+  `normalized` (whitespace collapsed, lowercased), or `json-canonical` (sorted
+  keys) comparison. An unallowed full match is `leakage.full` (fail).
+- `hint`: part of a private file appears, as a `normalized-line` of at least 24
+  characters or a `json-value` of at least 6. An unallowed hint is
+  `leakage.hint` (unknown).
+- `reference`: an instruction names a private file's task path, a distinctive
+  file name, or a `test_` function from a private Python file. It is
+  `leakage.reference` (unknown).
+- `filename`: a public file or directory name contains an answer, such as
+  `expected_total_4213.csv`. Answers here are private JSON values of at least 4
+  characters and one-line plain answer files. It is `leakage.filename` (unknown).
+
+`hidden_cases` classifies the task's hidden tests: `protected` when the layout
+keeps every test file private and no public file holds any of a test's content,
+`exposed` when a public file holds a full copy of a test file, and `unknown`
+otherwise, including layout diagnostics, unscanned files, and partial matches
+awaiting review.
+
+Each `allowed_overlap` entry is `{"private", "public", "reason"}` with paths
+relative to the task directory. Use it only for content the task intends the
+agent to see, such as the input a task asks the agent to transform. When a
+`reconstruction` measurement declares a public file `generated`, overlap with
+it is never allowed: `leakage.generated_overlap_not_allowed` (fail).
+`generated_files_checked` says whether a reconstruction measurement was
+available to apply that rule.
+
+Non-UTF-8 files are listed in `unscanned` (`leakage.unscanned_files`, unknown).
+A match shows shared text, not that the agent can use it or that the author
+didn't intend it. No match doesn't establish the task is free of leakage:
+paraphrases, image contents, and answers computable from public inputs stay
+unchecked.
+
+## Development and test overlap
+
+`overlap` is `{"splits": {<name>: [<task directory>, ...]}, "required": [<name>,
+...]}`. `required` names at least two splits a complete check needs, such as
+`development` and `test`. A required split that isn't declared is
+`overlap.split_missing` (unknown), never an empty clean split. Take split
+membership from the suite's own dataset configs or manifests; don't infer it
+from directory names.
+
+Every pair of tasks in different splits is compared:
+
+- `duplicate` (fail): the same directory (`same-directory`), identical
+  instruction bytes (`exact-instruction`), or identical text after collapsing
+  whitespace and lowercasing (`normalized-instruction`). A multi-step task's
+  step instructions are compared together.
+- `sibling` (unknown): different tasks with the same repository and commit
+  (`repository-commit`), read from `task.toml` `[metadata]` keys such as `repo`
+  and `base_commit`, or else from `git clone` and `git checkout` lines in the
+  environment's Dockerfile. Siblings share a codebase rather than a task; review
+  whether the development task reveals what the test task measures.
+
+A task outside the Harbor layout or with an unreadable instruction is unknown.
+Each split reports how many tasks were declared, compared, and had a recoverable
+origin; a task without an origin can't be checked for siblings. Findings name
+tasks, never their content. Paraphrased duplicates, siblings with other kinds of
+shared origin, and model-training contamination are not checked.
+
+## Published sources the agent can reach
+
+`external` is `{"task": <task directory>}`. It reads `task.toml` and never fetches
+anything. `networks` lists the agent's network policy for the task and for each
+declared step. Harbor applies a step's `[steps.agent]` policy first, then the
+task's `[agent]` policy, then the `[environment]` one, and finally its default
+`public`; `allow_internet = false` means `no-network`. Allowed hosts are trimmed,
+lowercased, and stripped of a trailing dot, as Harbor does. The task's origin
+comes from the same repository-and-commit lookup as the overlap check above.
+
+- `external.source_reachable` (fail): the task names its repository and commit,
+  and some agent phase can reach that repository's host, through `public`
+  network or a matching `allowlist`. The repository's later commits may contain
+  the fix.
+- `external.network_open` (unknown): some agent phase has `public` network but no
+  source repository was identified. Other published copies of the answer can't
+  be ruled out.
+
+A job config can add allowed hosts at run time; this check sees only the task.
+Use the cheating evaluation set's hidden-case read for the runtime read
+boundary: it counts as protected only when the private read is denied and its
+paired read of the agent's own workspace file succeeds.
+
+## Benchmark content in prompts and skills
+
+`reuse` is `{"tasks": [<task directory>], "paths": [<file or directory>]}` with
+paths relative to `--root`. `paths` names the prompts, skills, and harness code
+the agent uses. The agent has these before any evaluation starts, so the
+measurement reads every selected file in full; files inside the selected tasks
+are skipped. The root must contain the tasks rather than be one.
+
+Each finding records `kind`, the `task`, the `private` source file, and the
+agent `file` and line. It never copies the matched content.
+
+- `expected-value` (fail): a JSON value of at least 6 characters from a private
+  file.
+- `private-line` (fail): a line of at least 24 characters from a private file,
+  compared after collapsing whitespace and lowercasing.
+- `test-name` (unknown): a `test_` function name from a private Python file.
+- `task-id` (unknown): the task directory's name, when it has at least 6
+  characters.
+
+Layout diagnostics from a selected task, such as a symlinked `tests/`, and
+missing, unreadable, or non-UTF-8 agent files leave the result unknown, never
+clean. A match shows that task-specific text reaches the agent, not how it got
+there. Generalized advice tuned to one grader, such as always writing a file the
+grader checks for, is not detected.
+
+## Construction authority references
+
+`authority` is `{"plan_artifact_id": <id>, "result_artifact_id": <optional id>}`.
+The plan has role `construction`. The optional selected native result has role `result`. Every artifact a reference cites must also be selected.
+A whitespace-free reference is a locator when its path names a selected artifact
+or contains `/` or `.`; its path is relative to the measurement root. Each locator
+is resolved against the selected bytes: `path` names the artifact, `path#Heading`
+a Markdown heading's visible text or its GitHub anchor, `path#L3-L5` a line range,
+and `path#/json/pointer` a JSON value. Headings in front matter and fenced code
+don't count.
+
+| Code | Status | Meaning |
+| --- | --- | --- |
+| `authority.reference_broken` | fail | The fragment is missing, or the path is unselected and doesn't exist. |
+| `authority.reference_changed` | fail | The cited bytes differ from the selected digest. |
+| `authority.reference_invalid` | fail | The cited path is a symlink, escapes the root, or isn't a regular file. |
+| `authority.reference_unselected` | unknown | The path exists but wasn't selected. |
+| `authority.reference_unreadable` | unknown | The selected artifact isn't available or couldn't be read. |
+| `authority.reference_prose` | unknown | The reference is prose; never guess what it refers to. |
+| `authority.unresolved` | unknown | The requirement's basis is `unresolved`. |
+| `authority.requirement_unmapped` | unknown | No check maps the requirement; proposal plans may allow this. |
+| `authority.check_dangling` | fail | A check cites an undeclared requirement. |
+| `authority.reference_implementation` | fail | The authority locator resolves to a selected scorer artifact. |
+| `authority.check_unobserved` | fail | The selected result lacks a check's success pointer. |
+| `authority.check_unknown` | unknown | No result is selected, available, or usable, or the partial plan omits success. |
+| `authority.check_pointer_invalid` | fail | A selected-result check declares an invalid JSON pointer. |
+| `authority.result_malformed` | fail | The selected result is not valid JSON. |
+| `authority.result_changed`, `authority.result_invalid`, `authority.result_unreadable` | fail, fail, unknown | The same source checks apply to the selected result. |
+| `authority.plan_malformed` | fail | The plan lacks the requirement and check shape this measurement reads. |
+| `authority.plan_changed`, `authority.plan_invalid`, `authority.plan_unreadable` | fail, fail, unknown | The same as the `reference_` codes, for the plan itself. |
+
+The result also counts requirements by basis and status, scored checks, and
+mapped requirements. Full plan validation stays with `construction_contract.py`.
+A resolved reference shows that the cited content exists, not that it supports
+the requirement.
+
+A requirement citation that resolves to an artifact with role `scorer` fails with `authority.reference_implementation`. Implementation does not establish authority for the intended requirement.
+
+The result's `checks` rows resolve each plan check's `success.pointer` in the selected result. A present value is `observed`, including false, zero, or null. A missing pointer is `unobserved`. It fails with `authority.check_unobserved`. Without a selected result, observations stay `unknown`.
+
+Selected result bytes must pass the same path and digest checks as other selected evidence. These checks do not compare the observed value with the expected value. They do not authenticate native execution.
+
+Requirement rows with `prose`, `unresolved`, or `unselected` status carry a `question` with `requirement_id`, `reference`, and `decision_needed`. The fixed wording is in `rubric_authority.py`. See [unresolved mappings for review packets](task-contract-authority.md#unresolved-mappings-for-review-packets) for agent crosswalk ambiguities and contradictions. Honest unknowns remain valid measurements. They do not establish passing observations or resolved decisions.
 
 ## Declared grading route and dependencies
 
@@ -132,7 +300,7 @@ which grader ran. `executed_scorer` stays null. Arbitrary Python/shell import an
 provider-native dispatch adapters, and runtime selection attestation are not
 implemented. A declaration of dependency closure does not prove source completeness.
 
-For package preflight or full `DISC-01-B` credit, retain `dependencies` in the dispatch JSON or select
+For package preflight or full `provenance.grading-path` credit, retain `dependencies` in the dispatch JSON or select
 `route.dependency_source: {artifact_id, pointer}` naming a selected JSON graph.
 The caller's dependency map must exactly match the retained map. Require both
 `status: pass` and `bound_dependency: true`; caller-only legacy maps are unbound
@@ -195,6 +363,71 @@ does not execute tasks, establish current task-tree freshness, qualify closure,
 validate every ATIF field, or traverse nested/subagent traces. Unsupported native
 formats remain unresolved. Existing control/accounting seam tests do not prove
 that the whole retained-credit or coverage workflow consumes this interface.
+
+## Selected receipt consistency
+
+Every explicit `native` selection automatically reports three measurements. The owning
+receipt validator derives each one from the same selected receipt, manifest, and
+native result. None of them scans a task tree.
+
+- `receipt_integrity` (`receipt-integrity-v1`) counts receipt status claims.
+- `required_verification` (`required-verification-v1`) gives each required
+  control of each selected manifest one state.
+- `superseded_references` (`manifest-supersession-v1`) lists receipts bound to a
+  manifest that a selected repair manifest explicitly supersedes.
+
+Read each control's typed `integrity` fields separately: claim, basis, record
+consistency, execution health, declared behavior, status-claim agreement, and
+freshness.
+
+Only a supported receipt for a closure control that claims `passed` is eligible.
+The claim is a contradiction when one of these is true:
+
+- Its return code is nonzero.
+- Its digest-bound native result from the same run fails a health assertion.
+- That result passes health and fails a declared behavior assertion.
+
+A contradiction shows that the records are inconsistent. It does not show that
+an agent ignored feedback, that evidence was visible to the model, or that
+context growth caused the result. A correctly recorded failure or infrastructure
+error is not an eligible claim. Zero reward, permitted partial credit, valid
+alternatives, and legitimate no-action controls follow their declared checks.
+Agent, diagnostic, baseline, out-of-scope, and superseded receipts are excluded.
+When a later reference check fails, the validator withdraws a native-basis claim
+as unknown. A return-code contradiction stands.
+
+Report contradictions divided by eligible claims. Keep unknown, excluded, and
+not-applicable receipts separate. Execution errors and mismatches are overlapping
+diagnostic counts, not extra trials. A zero denominator has a null rate.
+
+For required controls, report each state separately: `pass`, `fail`, `missing`,
+`mismatched`, `execution_error`, `unknown`, and `stale`. Freshness is `unknown`
+here. Do not report a rubric pass as a current pass. A missing control is an
+evidence gap. It does not show that verification was skipped. Retain earlier
+contradictions when another selected receipt passes. Ordering alone does not
+establish recovery.
+
+The native measurement reports `receipt_integrity`, `required_verification` and
+`superseded_references` as observations. They do not score a criterion.
+`required_verification` freshness is unknown here because this native projection
+cannot establish current task freshness.
+
+Treat each superseded reference as a review candidate. Receipts have no
+trustworthy time, so `confirmed` stays 0. Use `task_pipeline.py
+check-acceptance --integrity` to test whether a saved claim relies on a
+superseded result.
+
+`context_rot_score` stays null. Use the existing freshness checks for selected
+dependencies separately. Do not transfer a historical pass to a changed task.
+These remain unassessed here:
+
+- General false-closure claims in prose.
+- Actions in traces that use superseded values.
+- Visibility into the request context.
+- Prevention experiments.
+
+Retry candidates belong to the inspect-trace retry audit, not this rubric.
+Do not prescribe a checkpoint as a proven remedy from these measurements.
 
 ## Selected reconstruction provenance
 
@@ -331,7 +564,7 @@ bindings to avoid self-reference; all other selected artifacts remain required.
 Without this source mapping, raw approval comparisons establish only projected
 record consistency, not a retained decision. Existing audit checkpoints or journey
 acceptances without substitution scope and endpoints remain unresolved rather than
-being upgraded into substitution approvals. Canonical `ENV-02-A-C03` retains the
+being upgraded into substitution approvals. Canonical `provenance.dependency-substitution.deterministic-2` retains the
 source, scope, and freshness predicates separately from runtime adequacy and authority.
 
 Select `freshness` as an array of retained evidence entries. A source-bound entry

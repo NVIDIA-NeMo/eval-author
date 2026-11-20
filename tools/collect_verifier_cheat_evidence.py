@@ -19,15 +19,15 @@ import time
 import tomllib
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
 FIXTURES = ROOT / "evals/verifier-cheats"
+MANIFEST = json.loads((FIXTURES / "manifest.json").read_text())
 PANEL = {
-    f"{grader}--{control}": int(
-        (grader == "vulnerable" and control != "hang") or (grader == "sound" and control == "reference")
-    )
-    for grader in ("sound", "vulnerable", "always-fail")
-    for control in ("reference", "early-exit", "fake-success", "hidden-case-read", "hang", "boolean-output")
+    f"{grader}--{control['id']}": control["expected_reward"][grader]
+    for grader in MANIFEST["graders"]
+    for control in MANIFEST["controls"]
 }
 
 
@@ -43,38 +43,65 @@ def require(condition, message):
         raise ValueError(message)
 
 
-def native_check(job, name):
-    grader, control = name.split("--")
-    aggregate = load_json(job / "result.json")
-    require(type(aggregate["n_total_trials"]) is int and aggregate["n_total_trials"] == 1, "incorrect total trials")
-    expected_counts = {
+def read_boundary(stderr):
+    """Classify one hidden-case-read row: protected only when the paired public read succeeded."""
+    try:
+        reads = json.loads(stderr)
+    except ValueError:
+        return "unknown"
+    if not isinstance(reads, dict) or reads.get("public_read") != "ok":
+        return "unknown"
+    return {"denied": "protected", "allowed": "exposed"}.get(reads.get("private_read"), "unknown")
+
+
+def completed_job(
+    aggregate: dict[str, Any],
+    *,
+    errors: tuple[str, str, str] = ("incorrect total trials", "incorrect native counts", "unfinished job"),
+) -> None:
+    require(type(aggregate["n_total_trials"]) is int and aggregate["n_total_trials"] == 1, errors[0])
+    for key, value in {
         "n_completed_trials": 1,
         "n_errored_trials": 0,
         "n_pending_trials": 0,
         "n_running_trials": 0,
         "n_cancelled_trials": 0,
         "n_retries": 0,
-    }
-    require(
-        all(
-            type(aggregate["stats"][key]) is int and aggregate["stats"][key] == value
-            for key, value in expected_counts.items()
-        ),
-        "incorrect native counts",
-    )
-    require(bool(aggregate["finished_at"]), "unfinished job")
+    }.items():
+        require(type(aggregate["stats"][key]) is int and aggregate["stats"][key] == value, errors[1])
+    require(bool(aggregate["finished_at"]), errors[2])
+
+
+def completed_trial(
+    trial: dict[str, Any],
+    task_name: str,
+    trial_name: str,
+    *,
+    errors: tuple[str, str] = ("wrong trial identity", "failed or unfinished native trial"),
+) -> None:
+    require(trial["task_name"] == task_name and trial["trial_name"] == trial_name, errors[0])
+    require(trial["exception_info"] is None and bool(trial["finished_at"]), errors[1])
+
+
+def completed_phases(trial: dict[str, Any], *, error: str = "missing {phase} timing") -> None:
+    for phase in ("agent_execution", "verifier"):
+        require(bool(trial[phase]["started_at"]) and bool(trial[phase]["finished_at"]), error.format(phase=phase))
+
+
+def native_check(job, name):
+    grader, control = name.split("--")
+    aggregate = load_json(job / "result.json")
+    completed_job(aggregate)
     paths = list(job.glob("*/result.json"))
     require(len(paths) == 1, "missing or duplicate trial")
     trial_path = paths[0].parent
     trial = load_json(paths[0])
-    require(trial["task_name"] == "normalizer" and trial["trial_name"] == trial_path.name, "wrong trial identity")
-    require(trial["exception_info"] is None and bool(trial["finished_at"]), "failed or unfinished native trial")
+    completed_trial(trial, "normalizer", trial_path.name)
     require(
         trial["agent_info"]["name"] == "verifier-cheat-control" and trial["agent_info"]["model_info"] is None,
         "unexpected agent",
     )
-    for phase in ("agent_execution", "verifier"):
-        require(bool(trial[phase]["started_at"]) and bool(trial[phase]["finished_at"]), f"missing {phase} timing")
+    completed_phases(trial)
     rewards = trial["verifier_result"]["rewards"]
     require(set(rewards) == {"reward"}, "unexpected reward keys")
     reward = rewards["reward"]
@@ -126,8 +153,9 @@ def native_check(job, name):
             row["semantic_pass"] is (control == "reference" or (control == "boolean-output" and index == 1)),
             "incorrect case semantics",
         )
-        if control == "hidden-case-read":
-            require(row["stderr"] == "hidden-cases-blocked\n", "hidden case access not denied")
+    boundaries = [read_boundary(row["stderr"]) for row in rows] if control == "hidden-case-read" else []
+    for boundary in boundaries:
+        require(boundary == "protected", f"hidden case read boundary is {boundary}")
     return {
         "name": name,
         "reward": reward,
@@ -137,6 +165,7 @@ def native_check(job, name):
         "task_digest": lock["task"]["digest"],
         "semantic_passes": checks["semantic_passes"],
         "timeouts": checks["timeouts"],
+        **({"read_boundary": boundaries[0]} if boundaries else {}),
     }
 
 
@@ -193,8 +222,8 @@ def public_summary(report):
     image = runtime.get("image", [{}])
     metrics = report.get("metrics", {})
     public = {
-        "schema": "nemo.eval_author.verifier_cheat_evidence.v2",
-        "protocol": "harbor-verifier-cheats-v2",
+        "schema": "nemo.eval_author.verifier_cheat_evidence.v3",
+        "protocol": "harbor-verifier-cheats-v3",
         "status": report["status"] if report["status"] in ("passed", "failed", "incomplete") else "incomplete",
         "model_performance_measured": False,
         "skill_authoring_measured": False,
@@ -235,6 +264,8 @@ def public_summary(report):
             value = check.get(key)
             if type(value) in (int, float) and math.isfinite(value) and 0 <= value <= maximum and int(value) == value:
                 safe[key] = int(value)
+        if check.get("read_boundary") in ("protected", "exposed", "unknown"):
+            safe["read_boundary"] = check["read_boundary"]
         public["checks"].append(safe)
     return public
 
@@ -279,8 +310,8 @@ def run(output):
     summary = output / "verifier-cheat-summary.json"
     private = output / "verifier-cheat-private.json"
     report = {
-        "schema": "nemo.eval_author.verifier_cheat_evidence.v2",
-        "protocol": "harbor-verifier-cheats-v2",
+        "schema": "nemo.eval_author.verifier_cheat_evidence.v3",
+        "protocol": "harbor-verifier-cheats-v3",
         "status": "incomplete",
         "model_performance_measured": False,
         "skill_authoring_measured": False,
@@ -377,11 +408,12 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", type=Path, required=True, help="new directory for exact native evidence")
     args = parser.parse_args()
+    summary_name = "verifier-cheat-summary.json"
     try:
         code = run(args.output)
     except FileExistsError:
         parser.error("output directory already exists; use a fresh path")
-    print(json.dumps({"summary": str(args.output.resolve() / "verifier-cheat-summary.json"), "exit_code": code}))
+    print(json.dumps({"summary": str(args.output.resolve() / summary_name), "exit_code": code}))
     return code
 
 

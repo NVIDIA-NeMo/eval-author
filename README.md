@@ -99,7 +99,7 @@ Replace `claude-code` with your assistant's identifier:
 See the [Skills CLI documentation](https://github.com/vercel-labs/skills#supported-agents)
 for other assistants.
 
-Installation adds nine skill directories with their instructions, scripts,
+Installation adds ten skill directories with their instructions, scripts,
 schemas, templates, and references. Harbor and Python dependencies are separate
 [workflow requirements](docs/getting-started.md#requirements).
 
@@ -121,8 +121,8 @@ To install without Node.js, follow the
 ## Choose your journey
 
 Eval Author supports three journeys: **build your first evaluations**, **audit
-your existing coverage**, and **improve your evaluation suite**. Each starts by
-checking the prerequisites for your goal and confirming how your agent should
+your existing coverage**, and **improve your evaluation suite**. Each uses
+prerequisite checks for your goal and confirms how your agent should
 behave using `ETHOS.md`.
 
 Open your agent's repository in your coding assistant and copy the prompt for
@@ -164,8 +164,16 @@ Use eval-author to help me improve the existing evaluations for [agent name].
 The suite is in [path/to/evals].
 ```
 
-Current authoring routes extend Eval Author starter suites or propose additions
-from reviewed audit findings. Broader suite expansion is still in development.
+General improvement requests first offer the supported paths, for both first-time
+users and users returning after another journey. An already selected path or
+specific audit improvement carries forward, including after prerequisite blockers
+and a fresh chat. Selected audit recommendations
+continue to the supported authoring path, with any implementation limits made
+clear without another proposal step.
+
+Current authoring routes extend Eval Author starter suites or create tasks for
+eligible measured tool gaps from reviewed audit findings. Broader suite expansion
+is still in development.
 
 ### Other requests
 
@@ -186,13 +194,14 @@ Include the relevant file paths, trace IDs, or workspace names in your request.
 
 ### Experimental rubric assessment
 
-The rubric covers validity, coverage, and diversity. Its first populated area is
-anti-cheat within validity, reusing existing task controls and validation evidence.
-It is off by default: installing the skills or requesting an ordinary review,
-audit, or anti-cheat check does not opt you in. Explicitly ask:
-"Apply eval-author-rubric to these tasks." Consent applies to that assessment,
-not future tasks or sessions. This produces a scoped assessment,
-not a coverage audit or overall quality certification.
+The rubric scores 23 criteria in one table: artifact, configuration and
+provenance; task contract and scoring authority; and data leakage and forged
+credit. A separate row, METHOD-J1, scores the corroboration behind the 3s. It is
+off by default: installing the skills or requesting an ordinary review, audit, or
+anti-cheat check does not opt you in. Explicitly ask: "Apply eval-author-rubric to
+these tasks." Consent applies to that assessment, not future tasks or sessions.
+The [rubric base simulation](docs/determinism-checks.md#rubric-base-simulation)
+shows a perfect task and its mutations scored through the same table.
 See the [rubric skill](skills/eval-author-rubric/SKILL.md).
 
 ### Experimental trace-environment loop

@@ -103,7 +103,10 @@ def test_cli_rejects_malformed_control_config_before_classification(panel, field
     assert result.returncode == 1
     native = json.loads(result.stdout)["measurements"]["native"]
     assert native["status"] == "fail"
-    assert native["controls"] == [{"receipt": "receipt", "classification": "unproven", "task_freshness": "unknown"}]
+    assert [
+        {key: row[key] for key in ("receipt", "classification", "task_freshness")} for row in native["controls"]
+    ] == [{"receipt": "receipt", "classification": "unproven", "task_freshness": "unknown"}]
+    assert native["controls"][0]["integrity"]["status_claim"] == "unknown"
     assert "native.reference_invalid" in {row["code"] for row in native["diagnostics"]}
     assert not native["subjects"]
     assert "PRIVATE-" not in result.stdout
@@ -180,9 +183,7 @@ def test_selected_orphan_bytes_do_not_count_as_native_references(panel, role, wi
     assert result.returncode == 1
     assert result.stderr == ""
     report = json.loads(result.stdout)
-    check = next(row for row in report["items"]["CREATE-07"]["check_results"] if row["id"] == "CREATE-07-C01")
-    predicate = next(row for row in check["predicate_results"] if row["id"] == "selected_native_references_bound")
-    assert predicate["outcome"] == "FAIL"
+    assert report["measurements"]["native"]["status"] == "fail"
 
 
 @pytest.mark.parametrize("schema", ["nemo.eval_author.task_evidence.v1", "nemo.eval_author.task_evidence.v2"])

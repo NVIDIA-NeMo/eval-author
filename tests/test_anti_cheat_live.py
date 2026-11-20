@@ -19,7 +19,11 @@ def load(name, path):
     spec = importlib.util.spec_from_file_location(name, path)
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
+    sys.path.insert(0, str(path.parent))
+    try:
+        spec.loader.exec_module(module)
+    finally:
+        sys.path.pop(0)
     return module
 
 
@@ -636,6 +640,19 @@ def test_native_rejects_boolean_identity():
         runner.validate_receipt(receipt, 1, 1)
 
 
+def test_measurement_identity_binds_shared_envelope_source(tmp_path, monkeypatch):
+    runner = load("runner", SCRIPT)
+    original = runner.bindings()
+    source = tmp_path / "collect_verifier_cheat_evidence.py"
+    source.write_bytes(Path(runner.common.__file__).read_bytes() + b"\n# changed validator\n")
+    monkeypatch.setattr(runner.common, "__file__", str(source))
+    changed = runner.bindings()
+    assert changed["measurement_digest"] != original["measurement_digest"]
+    assert changed["comparison_digest"] != original["comparison_digest"]
+    for key in ("runtime_digest", "model_digest", "prompt_digest", "task_digest"):
+        assert changed[key] == original[key]
+
+
 def test_native_evidence_tampering_is_rejected(tmp_path):
     runner = load("runner", SCRIPT)
     import pytest
@@ -744,6 +761,31 @@ def native_fixture(tmp_path, runner):
     (trial / "verifier/reward.txt").write_text("1")
     (trial / "verifier/test-stdout.txt").write_text("")
     return job, trial, task
+
+
+def test_native_check_delegates_loaded_envelope(tmp_path, monkeypatch):
+    from unittest.mock import Mock
+
+    runner = load("runner", SCRIPT)
+    job, _, _ = native_fixture(tmp_path, runner)
+    spies = {
+        name: Mock(wraps=getattr(runner.common, name))
+        for name in ("completed_job", "completed_trial", "completed_phases")
+    }
+    for name, spy in spies.items():
+        monkeypatch.setattr(runner.common, name, spy)
+    assert runner.native_check(job, runner.cells("controls", 2)[0])["status"] == "completed"
+    for spy in spies.values():
+        spy.assert_called_once()
+        assert isinstance(spy.call_args.args[0], dict)
+    for name, field, value in (
+        ("completed_job", "n_total_trials", True),
+        ("completed_trial", "exception_info", {}),
+        ("completed_phases", "verifier", {"started_at": "start", "finished_at": None}),
+    ):
+        args, kwargs = spies[name].call_args
+        with pytest.raises(ValueError, match="^invalid evidence$"):
+            getattr(runner.common, name)({**args[0], field: value}, *args[1:], **kwargs)
 
 
 def test_native_identity_matches_installed_api_and_task(tmp_path):

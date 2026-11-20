@@ -40,9 +40,6 @@ OLD_WORKSPACE = "workspace was prepared by an older trace workspace version; re-
 
 RUN_INPUT_SCHEMA = "nemo.eval_author.trace_environment_run_input.v4"
 
-# Run-input v3 predates the tests/ digests: it still proves a fresh job but cannot be a regrade source.
-LEGACY_RUN_INPUT_SCHEMA = "nemo.eval_author.trace_environment_run_input.v3"
-
 REGRADE_INPUT_SCHEMA = "nemo.eval_author.trace_environment_regrade_input.v1"
 
 VALIDATION_SCHEMA = "nemo.eval_author.trace_environment_validation.v7"
@@ -445,7 +442,10 @@ def _validate_mock_tool_call_integration(task_dir: Path, config: dict[str, Any])
 
 
 def _task_tree_info(root: Path, *, exclude: str | None = None) -> dict[str, Any]:
-    """Hash a task tree with unambiguous framing and executable-bit coverage; `exclude` omits one top-level entry."""
+    """Hash the task tree with unambiguous framing and executable-bit coverage.
+
+    The exclude argument omits one top-level entry.
+    """
 
     if root.is_symlink() or not root.is_dir():
         raise ContractError("task must be a regular directory")

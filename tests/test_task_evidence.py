@@ -17,6 +17,7 @@ SCRIPTS = Path(__file__).resolve().parents[1] / "skills/eval-author-task-create/
 AUDIT_SKILL = SCRIPTS.parents[1] / "eval-author-audit"
 sys.path.insert(0, str(SCRIPTS))
 evidence = importlib.import_module("task_evidence")
+shared_evidence = importlib.import_module("eval_author_shared.task_evidence")
 pipeline = importlib.import_module("task_pipeline")
 
 FAKE_HARBOR = """
@@ -307,8 +308,10 @@ def test_repair_updates_manifest_in_place_and_requires_fresh_proof(tmp_path, pre
     for index in range(3):
         (task / "instruction.md").write_text(f"Clarified requirement {index}")
         reason = f"instruction_ambiguity: clarify visible requirement {index}"
+        replaced = evidence.digest(manifest)
         evidence.prepare(task, contract, manifest, manifest, reason)
         current = evidence.manifest_at(manifest)
+        assert current["supersedes"] == {"manifest_sha256": replaced}
         assert current["repair_count"] == index + 1
         assert current["repair_reason"] == reason
         assert "repairs" not in current
@@ -324,7 +327,10 @@ def test_repair_updates_manifest_in_place_and_requires_fresh_proof(tmp_path, pre
 def test_repair_resumes_without_old_manifest_copies(tmp_path, prepared):
     task, contract, previous = prepared
     manifest = tmp_path / "current.json"
+    replaced = evidence.digest(previous)
     evidence.prepare(task, contract, manifest, previous, "Fix the expected result")
+    assert "supersedes" not in evidence.read(previous)
+    assert evidence.read(manifest)["supersedes"] == {"manifest_sha256": replaced}
     previous.unlink()
     assert evidence.manifest_at(manifest)["repair_count"] == 1
 
@@ -353,7 +359,7 @@ TRIALS = [
 
 
 def harbor_trial(tmp_path, manifest, case, run_id, agent, reward, regrade_of=None):
-    """Record one Harbor-shaped trial; `regrade_of` replays that receipt's trial as `harbor trial regrade` does."""
+    """Record a synthetic trial or regrade with Harbor's result fields."""
     result = tmp_path / f"{run_id}-result.json"
     receipt = tmp_path / f"{run_id}-receipt.json"
     trace = tmp_path / f"{run_id}-trajectory.json" if case == "agent" else None
@@ -424,6 +430,306 @@ def test_regraded_receipt_binds_one_unchanged_source(tmp_path, prepared, mutatio
         write(sources[0], {**evidence.read(sources[0]), "cwd": str(tmp_path / "elsewhere")})
     with pytest.raises(evidence.EvidenceError, match="regrade record changed"):
         evidence.verify_receipts(regraded, "cover-read")
+
+
+@pytest.mark.parametrize("field", ["task_without_tests_sha256", "tests_sha256"])
+def test_manifest_rechecks_split_digests(tmp_path, prepared, field):
+    manifest = prepared[2]
+    value = evidence.read(manifest)
+    value[field] = "0" * 64
+    write(manifest, value)
+    with pytest.raises(evidence.EvidenceError, match="tests/ digests differ"):
+        evidence.manifest_at(manifest)
+
+
+@pytest.mark.parametrize("change", ["content", "mode", "directory", "symlink"])
+def test_task_digest_split_preserves_full_tree_safeguards(tmp_path, change):
+    task = tmp_path / "task"
+    (task / "tests").mkdir(parents=True)
+    instruction = task / "instruction.md"
+    instruction.write_text("Return the total.\n")
+    verifier = task / "tests/test.sh"
+    verifier.write_text("exit 0\n")
+    before = shared_evidence._task_digests(task)
+    assert evidence.task_digest(task) == before["task_sha256"]
+    if change == "content":
+        verifier.write_text("exit 1\n")
+    elif change == "mode":
+        instruction.chmod(instruction.stat().st_mode ^ 0o100)
+    elif change == "directory":
+        (task / "data").mkdir()
+    else:
+        (task / "tests/link").symlink_to(instruction)
+        with pytest.raises(evidence.EvidenceError, match="symlinks"):
+            shared_evidence._task_digests(task)
+        return
+    after = shared_evidence._task_digests(task)
+    assert after["task_sha256"] != before["task_sha256"]
+    changed, unchanged = (
+        ("tests_sha256", "task_without_tests_sha256")
+        if change == "content"
+        else ("task_without_tests_sha256", "tests_sha256")
+    )
+    assert after[changed] != before[changed]
+    assert after[unchanged] == before[unchanged]
+
+
+def test_regrade_rechecks_source_after_execution(tmp_path, prepared, monkeypatch):
+    sources = revise_after_trials(tmp_path, prepared, "tests")
+    original_run = subprocess.run
+
+    def change_source(*args, **kwargs):
+        completed = original_run(*args, **kwargs)
+        write(sources[0], {**evidence.read(sources[0]), "cwd": "changed"})
+        return completed
+
+    monkeypatch.setattr(evidence.subprocess, "run", change_source)
+    path = harbor_trial(tmp_path, prepared[2], "reference", "regraded", "oracle", 1, sources[0])
+    receipt = evidence.read(path)
+    assert receipt["status"] == "infrastructure_error"
+    assert receipt["error"] == "regrade source changed during execution"
+
+
+def test_regrade_metadata_cannot_be_omitted_on_recheck(tmp_path, prepared):
+    sources = revise_after_trials(tmp_path, prepared, "tests")
+    receipts = regrade_all(tmp_path, prepared[2], sources)
+    value = evidence.read(receipts[0])
+    del value["regrade"]
+    write(receipts[0], value)
+    with pytest.raises(evidence.EvidenceError, match="require a recorded regrade source"):
+        evidence.verify_receipts(receipts, "cover-read")
+
+
+@pytest.mark.parametrize("mutation", ["health", "status", "identity"])
+def test_regrade_source_rechecks_native_health_and_status(tmp_path, prepared, mutation):
+    sources = revise_after_trials(tmp_path, prepared, "tests")
+    source = evidence.read(sources[0])
+    result = Path(source["result"])
+    native = evidence.read(result)
+    if mutation == "health":
+        native["error"] = "verifier failed"
+    elif mutation == "status":
+        native["reward"] = 0
+    else:
+        native["rollout_id"] = "unrelated"
+    write(result, native)
+    source["result_sha256"] = evidence.digest(result)
+    write(sources[0], source)
+    with pytest.raises(evidence.EvidenceError):
+        harbor_trial(tmp_path, prepared[2], "reference", "regraded", "oracle", 1, sources[0])
+
+
+@pytest.mark.parametrize("bound", [False, True])
+def test_tests_only_repair_can_mix_regrades_and_a_new_control(tmp_path, prepared, bound):
+    task, contract_path, manifest = prepared
+    contract = evidence.read(contract_path)
+    plan_path = None
+    if bound:
+        plan_path = write(tmp_path / "construction.json", native_construction(contract))
+        manifest = tmp_path / "bound.json"
+        evidence.prepare(task, contract_path, manifest, construction_plan=plan_path)
+    sources = [harbor_trial(tmp_path, manifest, *trial) for trial in TRIALS]
+    assert len(evidence.verify_receipts(sources, "cover-read")) == 2
+    original_plan = plan_path.read_bytes() if plan_path else None
+    contract["cases"]["new-negative"] = {**contract["cases"]["incorrect"]}
+    write(contract_path, contract)
+    if plan_path:
+        write(plan_path, native_construction(contract))
+    (task / "tests").mkdir()
+    (task / "tests/test.sh").write_text("exit 0\n")
+    evidence.prepare(task, contract_path, manifest, manifest, "Add a negative control", construction_plan=plan_path)
+    receipts = regrade_all(tmp_path, manifest, sources)
+    with pytest.raises(evidence.EvidenceError, match="every declared control"):
+        evidence.verify_receipts(receipts, "cover-read")
+    receipts.append(harbor_trial(tmp_path, manifest, "new-negative", "new-negative", "wrong-answer", 0))
+    assert len(evidence.verify_receipts(receipts, "cover-read")) == 2
+    if bound:
+        previous = evidence.read(manifest)["previous_revision"]
+        assert previous["construction_snapshot"].encode() == original_plan
+        previous["construction_snapshot"] += " "
+        value = evidence.read(manifest)
+        value["previous_revision"] = previous
+        write(manifest, value)
+        with pytest.raises(evidence.EvidenceError, match="snapshot"):
+            shared_evidence._regrade_base(value)
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        "case_modified",
+        "case_deleted",
+        "positive_added",
+        "requirements",
+        "checks",
+        "inputs",
+        "probes",
+        "prerequisites",
+        "starting_state",
+        "bindings",
+        "review",
+        "migration",
+        "snapshot",
+    ],
+)
+def test_additive_construction_preserves_existing_semantics(prepared, mutation):
+    contract = evidence.read(prepared[1])
+    old = native_construction(contract)
+    old["probes"] = [{"id": "setup", "command": ["true"], "timeout_seconds": 2}]
+    old["prerequisites"] = [{"id": "dependency", "before": "setup", "after": "total"}]
+    current = json.loads(json.dumps(old))
+    current["cases"].append({**current["cases"][1], "case": "new-negative"})
+    if mutation == "case_modified":
+        current["cases"][1]["rationale"] = "Changed existing behavior"
+    elif mutation == "case_deleted":
+        current["cases"].pop(1)
+    elif mutation == "positive_added":
+        current["cases"][-1]["kind"] = "agent"
+    elif mutation == "snapshot":
+        pass
+    elif isinstance(current[mutation], list):
+        current[mutation].append({"changed": True})
+    else:
+        current[mutation] = {"changed": True}
+    raw = json.dumps(old)
+    current_raw = json.dumps(current)
+    with pytest.raises(shared_evidence.construction.PlanError, match="changed|snapshot"):
+        shared_evidence.construction.require_regrade_compatible(
+            raw + (" " if mutation == "snapshot" else ""),
+            hashlib.sha256(raw.encode()).hexdigest(),
+            current_raw,
+            hashlib.sha256(current_raw.encode()).hexdigest(),
+        )
+
+
+@pytest.mark.parametrize("field", ["requirements", "checks", "inputs", "probes", "prerequisites"])
+@pytest.mark.parametrize("operation", ["modify", "delete"])
+def test_additive_construction_rejects_changed_or_deleted_rows(field, operation):
+    previous = {"cases": [], field: [{"id": "existing", "setting": "unchanged"}]}
+    current = json.loads(json.dumps(previous))
+    current["cases"].append({"case": "new-negative", "kind": "negative"})
+    if operation == "modify":
+        current[field][0]["setting"] = "changed"
+    else:
+        current[field].clear()
+    with pytest.raises(shared_evidence.construction.PlanError, match="changed beyond additive"):
+        shared_evidence.construction.require_additive_cases(previous, current)
+
+
+@pytest.mark.parametrize("mutation", ["case", "deleted", "health", "execution", "positive_added"])
+def test_regrade_rejects_changed_result_contract(tmp_path, prepared, mutation):
+    task, contract_path, manifest = prepared
+    sources = revise_after_trials(tmp_path, prepared, "tests")
+    contract = evidence.read(contract_path)
+    if mutation == "case":
+        contract["cases"]["incorrect"]["requirement"] = "Changed behavior"
+    elif mutation == "deleted":
+        contract["cases"]["renamed"] = contract["cases"].pop("incorrect")
+    elif mutation == "health":
+        contract["cases"]["reference"]["health"] = [{"pointer": "/other", "equals": None}]
+    elif mutation == "execution":
+        contract["native_run_id"] = "/id"
+    else:
+        contract["cases"]["new-positive"] = contract["cases"]["reference"]
+    write(contract_path, contract)
+    # Keep the original source revision while preparing the changed contract.
+    value = evidence.read(manifest)
+    value["contract"] = contract
+    write(manifest, value)
+    with pytest.raises(evidence.EvidenceError, match="changed beyond additive"):
+        harbor_trial(tmp_path, manifest, "reference", "regraded", "oracle", 1, sources[0])
+
+
+@pytest.mark.parametrize("mutation", ["source_id", "same_id", "agent", "empty_agent"])
+def test_regrade_requires_source_identity_and_agent(mutation):
+    source = {"id": "source-trial", "config": {"agent": {"name": "oracle"}}}
+    native = {
+        "id": "regraded-trial",
+        "config": {"agent": {"name": "oracle"}, "source_trial": {"action": "regrade", "trial_id": "source-trial"}},
+    }
+    if mutation == "source_id":
+        native["config"]["source_trial"]["trial_id"] = "other-trial"
+    elif mutation == "same_id":
+        native["id"] = source["id"]
+    elif mutation == "agent":
+        native["config"]["agent"]["name"] = "nop"
+    else:
+        native["config"]["agent"] = source["config"]["agent"] = {}
+    with pytest.raises(evidence.EvidenceError, match="name its source trial"):
+        shared_evidence._require_regrade_of(native, source)
+
+
+@pytest.fixture
+def workspace_source(tmp_path, monkeypatch):
+    task = tmp_path / "task"
+    (task / "tests").mkdir(parents=True)
+    (task / "instruction.md").write_text("Return the total.\n")
+    (task / "tests/test.sh").write_text("exit 0\n")
+    job = tmp_path / "private/jobs/source"
+    result = job / "task__trial/result.json"
+    result.parent.mkdir(parents=True)
+    plan = write(tmp_path / "private/construction.json", {"cases": []})
+    context = {"canonical_path": "private/construction.json", "sha256": evidence.digest(plan), "controls": {}}
+    inputs = {
+        "schema": shared_evidence._workspace.RUN_INPUT_SCHEMA,
+        "arm": "oracle",
+        "job_dir": "private/jobs/source",
+        "task_tree_sha256": shared_evidence._workspace._task_tree_info(task)["task_tree_sha256"],
+        **shared_evidence._tests_split(tmp_path),
+        "task_checksum": "b" * 64,
+        "negative_control": None,
+        "construction_sha256": context["sha256"],
+        "control_id": None,
+        "construction_path": context["canonical_path"],
+        "construction_snapshot": plan.read_text(),
+    }
+    input_path = shared_evidence._run_input_path(tmp_path, job)
+    input_path.parent.mkdir()
+    write(input_path, inputs)
+    write(
+        result,
+        {
+            "id": "source-trial",
+            "config": {"job_id": "source-job", "agent": {"name": "oracle"}},
+            "task_checksum": "b" * 64,
+            "exception_info": None,
+            "verifier_result": {"rewards": {"reward": 1}},
+        },
+    )
+    monkeypatch.setattr(evidence, "_construction_context", lambda task_dir: context)
+    return job, result, input_path, context
+
+
+@pytest.mark.parametrize("mutation", ["health", "trial_id", "job_id", "unrecorded_regrade"])
+def test_workspace_regrade_requires_complete_source_result(tmp_path, workspace_source, mutation):
+    job, result, _, context = workspace_source
+    native = evidence.read(result)
+    if mutation == "health":
+        del native["exception_info"]
+    elif mutation == "trial_id":
+        del native["id"]
+    elif mutation == "job_id":
+        del native["config"]["job_id"]
+    else:
+        native["config"]["source_trial"] = {"action": "regrade", "trial_id": "older-trial"}
+    write(result, native)
+    (tmp_path / "task/tests/test.sh").write_text("exit 1\n")
+    with pytest.raises(shared_evidence._workspace.ContractError):
+        shared_evidence._regrade_inputs(tmp_path, tmp_path / "private/jobs/regraded", job, "current", "c" * 64, context)
+
+
+@pytest.mark.parametrize("mutation", ["tests_tree_sha256", "task_tree_without_tests_sha256", "unrecorded_regrade"])
+def test_workspace_fresh_validation_rejects_inconsistent_inputs(tmp_path, workspace_source, mutation):
+    job, result, input_path, _ = workspace_source
+    inputs = evidence.read(input_path)
+    native = evidence.read(result)
+    if mutation == "unrecorded_regrade":
+        native["config"]["source_trial"] = {"action": "regrade", "trial_id": "older-trial"}
+    else:
+        inputs[mutation] = "sha256:" + "0" * 64
+        write(input_path, inputs)
+    with pytest.raises(shared_evidence._workspace.ContractError):
+        shared_evidence._validate_run_inputs(tmp_path, job, "oracle", native, inputs["task_tree_sha256"], "b" * 64)
 
 
 def test_partial_registration_disposal_cannot_hide_a_failed_attempt_during_repair(tmp_path, prepared, monkeypatch):
@@ -685,6 +991,9 @@ def test_documented_harbor_trial_flow_is_accepted(tmp_path, monkeypatch):
     saved = write(tmp_path / "acceptance.json", verdict)
     code, rechecked = pipeline._check_acceptance(saved)
     assert code == 0 and rechecked == verdict
+    code, measured = pipeline._acceptance_integrity(saved)
+    assert code == 0 and measured["acceptance_integrity"]["status"] == "consistent"
+    assert measured["acceptance_integrity"]["required_verification"]["current_pass"] == 3
     proposal.write_text("Changed requirement.")
     with pytest.raises(pipeline.PipelineError, match="proposal content changed"):
         pipeline._check_acceptance(saved)
@@ -769,15 +1078,9 @@ def test_nop_cannot_be_the_realistic_incorrect_control(tmp_path, prepared):
             assert "wrong answer" in receipt["error"]
 
 
-def test_construction_binding_rechecked_and_historical_manifest_readable(prepared, tmp_path):
-    construction = importlib.import_module("construction_plan")
-    PLAN_SCHEMA = construction.SCHEMA
-    PlanError = construction.PlanError
-
-    task, contract_path, legacy_path = prepared
-    contract = evidence.read(contract_path)
+def native_construction(contract):
     plan = {
-        "schema": PLAN_SCHEMA,
+        "schema": shared_evidence.construction.plan_format.SCHEMA,
         "task_id": contract["task_id"],
         "provider": "harbor",
         "requirements": [
@@ -795,6 +1098,14 @@ def test_construction_binding_rechecked_and_historical_manifest_readable(prepare
         ],
         "prerequisites": [],
     }
+    return shared_evidence.construction.from_plan(plan, contract)
+
+
+def test_construction_binding_rechecked_and_historical_manifest_readable(prepared, tmp_path):
+    PlanError = shared_evidence.construction.PlanError
+    task, contract_path, legacy_path = prepared
+    contract = evidence.read(contract_path)
+    plan = native_construction(contract)
     plan_path = write(tmp_path / "construction.json", plan)
     bound_path = tmp_path / "bound.json"
     evidence.prepare(task, contract_path, bound_path, construction_plan=plan_path)

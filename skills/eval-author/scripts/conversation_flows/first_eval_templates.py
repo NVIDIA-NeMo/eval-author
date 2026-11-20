@@ -7,8 +7,8 @@ TRACE_INTRO = (
     "We’ll use your confirmed `ETHOS.md` to propose your first evaluation tasks. "
     "Existing traces can help us use realistic requests, but they aren’t required."
 )
-TRACE_QUESTION = "Would you like to use existing traces, or start from `ETHOS.md`?"
-TRACE_CHOICES = ("Start from ETHOS.md", "Use existing traces")
+TRACE_QUESTION = "Would you like to include existing traces when designing your first evaluations?"
+TRACE_CHOICES = ("Continue without traces", "Include existing traces")
 SAVED_DESIGN_INTRO = "I found a saved design for your evaluation tasks."
 SAVED_DESIGN_COUNTS = "Saved design: {tasks} tasks; {examples} distinct input examples."
 SAVED_DESIGN_TABLE = "| Task ID | Behavior under test |\n|---|---|"
@@ -34,6 +34,13 @@ SAVED_DESIGN_QUESTION = "Would you like to continue this saved design, revise it
 PROPOSAL_INTRO = "Here are the proposed evaluation tasks."
 TASK_TABLE = "| Task | Expected outcome | Verifier |\n|---|---|---|"
 PROPOSAL_TABLE = TASK_TABLE
+INTERACTION_TYPE = "**{label}:** "
+INTERACTION_TITLE = "**{task_id}: interaction details**"
+INTERACTION_FIELDS = {
+    "state_requirements": "State carried between requests",
+    "prerequisite_checks": "Prerequisite checks",
+    "conversation_scenario": "Conversation scenario",
+}
 NOT_DOCUMENTED = "Not documented"
 FIRST_CHOICE = "I’ll build **{task_id}** first."
 PROPOSAL_PROCESS = (
@@ -97,9 +104,10 @@ NO_REMAINING_TASKS = "No additional tasks agreed."
 FIRST_REVIEW_INTRO = (
     "Your first task, **{task_id}**, is ready for review. It follows your approved design and confirmed `ETHOS.md`."
 )
-FIRST_REVIEW_ACTION = "Review your first task in the {report} or {readme}."
+FIRST_REVIEW_ACTION = "Review your first task in the {report} or the {markdown}."
 FIRST_REVIEW_REPORT_LABEL = "HTML report’s Tasks view"
-FIRST_REVIEW_README_LABEL = "mirrored README"
+FIRST_REVIEW_README_LABEL = "suite README"
+FIRST_REVIEW_MARKDOWN_LABEL = "Markdown task report"
 FIRST_QUESTION = (
     "Does this represent the behavior you want to test, and would its verifier assess the agent fairly? "
     "Approve the first task or tell me what to change before I build the remaining tasks."
@@ -113,7 +121,7 @@ SUITE_REVIEW_INTRO = (
     "Your evaluation suite is ready for review: {tasks} tasks; {examples} distinct input examples. "
     "It follows your approved design and confirmed `ETHOS.md`."
 )
-SUITE_REVIEW_ACTION = "Review your tasks in the {report} or {readme}."
+SUITE_REVIEW_ACTION = "Review your tasks in the {report} or the {markdown}."
 SUITE_REVIEW_TABLE = TASK_TABLE
 SUITE_REVIEW_STATUS = (
     "**Status:** Environment proof: {environments}/{tasks} passed. Verifier validation: {validated}/{tasks} passed. "
@@ -122,6 +130,15 @@ SUITE_REVIEW_STATUS = (
 SUITE_QUESTION = "Do these tasks look good? Approve the suite or tell me what to change before we choose how to run it."
 SETTINGS_INTRO = "Here are the settings for running the approved tasks."
 SETTINGS_LABELS = ("Attempts", "Validation", "User-specified limits", "Open questions")
+NEUTRAL_SCENARIO = " - Neutral scenario: {task_id} ({path})"
+SIMULATOR_SETTINGS_PENDING = (
+    "- **User simulation:** Neutral user. Simulator identity and conversation limits remain unresolved."
+)
+SIMULATOR_SETTINGS = "- **Simulated user:** Neutral, using {agent_model}\n- **Conversation limits:** {limits}"
+RESULT_INTERACTION_TYPE = "**Interaction type:** {label}."
+RESULT_USER_SIM = (
+    "**Neutral scenario:** {task_id} ({path}). **Simulator:** {agent_model}. **Conversation limits:** {limits}."
+)
 NO_OPEN_QUESTIONS = "None."
 CHECKS_PASSED = (
     "The verifiers have already passed their checks. I’ll reuse those saved results; "
@@ -193,7 +210,7 @@ INCOMPLETE_EXECUTION_BLOCKER = (
 )
 SUITE_REVIEW_BLOCKER = (
     "- **Review the suite:** Current suite approval has not been recorded. "
-    "**Needed:** Review the authored tasks in the HTML report or mirrored README, then approve the suite or request changes."
+    "**Needed:** Review the authored tasks in the HTML report or the Markdown task report, then approve the suite or request changes."
 )
 JOB_ERRORS = (
     "Retained jobs with execution errors: {runs}. Successful attempts from these jobs count only where their "
@@ -214,8 +231,9 @@ ATTEMPT_EVIDENCE = "Attempt evidence: {links}"
 LIMITATIONS = "Limitations: {limitations}"
 RERUN = "You can rerun the full suite or just this task using the **{instructions}**."
 RESULTS_REPORT_LABEL = "HTML report"
+RESULTS_MARKDOWN_LABEL = "Markdown runs report"
 RESULTS_REVIEW = (
-    "Review your runs in the {report} (**Runs**) or the {readme}. "
+    "Review your runs in the {report} (**Runs**) or the {markdown}. "
     "Follow the linked evidence to inspect each attempt’s recorded responses or actions and grade."
 )
 GYM_RESULTS_REVIEW = (
@@ -257,6 +275,25 @@ by directory membership. Report any missing planned task files without creating
 them. Do not substitute another agent, reimplement its decisions, or change what
 the tasks measure to make the connection work.
 
+Honor each saved interaction_type. Single-turn needs one ordinary invocation. Scripted
+multi-step needs the specified state continuity and checked prerequisites. If a
+prerequisite fails, retain that failure and mark later behavior unexercised.
+User-sim needs adaptive messages in one continuing session. Verify expected
+scenario paths before using them, apply the shared neutral behavior and scenario
+stopping rules, and retain the selected simulator model and execution limits.
+For Harbor ACP, check both the advertised bridge capability and ACPAgentMixin.
+Use one native single-step task per adaptive scenario, not a Harbor multi-step
+task. Check both agent roles and their required credentials before running.
+
+Prove the opening request, follow-up exchange, termination, and task-state reset
+against the actual target. Keep simulator inputs outside the target's visible
+context and tools. Harbor's stock ACP roles share a filesystem, so prompt text
+alone cannot enforce this separation. Retain raw bridge conversation, separate
+simulator and target logs, target tool observations, independent state checks,
+native grading, and errors. Verify export files exist even when the native job
+succeeds. Simulator messages are not target actions. Report unsupported
+capabilities without changing the chosen type or substituting another agent.
+
 Keep this as repository engineering work outside Eval Author. Do not modify its
 workflow state or approvals, mark the integration verified, or claim an agent
 baseline from adapter completion or control results. Agent/model evaluation runs
@@ -272,8 +309,16 @@ Return here with those paths and results so I can recheck the connection and res
 LINK_LABELS = {
     "report": "the report",
     "readme": "the suite README",
+    "tasks_markdown": "the Markdown task report",
+    "runs_markdown": "the Markdown runs report",
     "tasks_view": "Tasks view",
     "task_readme": "task README",
     "rerun": "saved run instructions",
     "task_rerun": "Task-specific run instructions",
 }
+
+
+SIMULATION_DISABLED = """User simulation is disabled for this suite. Saved tasks and results remain available.
+Say “enable user simulation” to make experimental simulation authoring and execution available,
+or revise the design to use Single Turn or Scripted Multi-step. Enabling simulation
+keeps the usual task review and execution authorization checks."""

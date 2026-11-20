@@ -47,6 +47,7 @@ def authored_rows(repo: Path, state: dict, task_ids: list[str]) -> list[dict]:
         raise ValueError("Save the first_eval design before reading authored task rows")
     snapshot = _report_snapshot(repo)
     observed = first_eval_state.observe(repo, state)
+    planned = {task["id"]: task for task in record["plan"]["tasks"]}
     rows = []
     for task_id in task_ids:
         saved = record["tasks"].get(task_id)
@@ -68,16 +69,28 @@ def authored_rows(repo: Path, state: dict, task_ids: list[str]) -> list[dict]:
         current_readme = journey_state._file_digest(readme, report.MAX_README_BYTES)[0]
         if current_readme != item["readme_revision"]:
             raise ValueError(f"Report task {task_id} is stale; refresh the report")
-        rows.append(
-            {
-                "task_id": task_id,
-                "task_sha256": saved["sha256"],
-                "behavior_tested": item["behavior"] or "Not documented",
-                "expected_outcome": item["expected_outcome"] or "Not documented",
-                "verifier_type": VERIFIER_LABELS[item["grading_kind"]],
-                "scoring_rule": item.get("scoring_rule") or "Not documented",
-            }
-        )
+        row = {
+            "task_id": task_id,
+            "task_sha256": saved["sha256"],
+            "behavior_tested": item["behavior"] or "Not documented",
+            "expected_outcome": item["expected_outcome"] or "Not documented",
+            "verifier_type": VERIFIER_LABELS[item["grading_kind"]],
+            "scoring_rule": item.get("scoring_rule") or "Not documented",
+        }
+        design = planned[task_id]
+        if design.get("interaction_type") is not None:
+            if item.get("interaction_type") != design["interaction_type"]:
+                raise ValueError(f"Report interaction type for {task_id} is stale; refresh the report")
+            row["interaction_type"] = design["interaction_type"]
+        if design.get("interaction_type") == "user_sim":
+            identity = report.user_sim_identity(repo, task_id, saved["path"])
+            if (
+                item.get("user_sim_scenario") != identity
+                or observed["files"].get(identity["path"]) != identity["digest"]
+            ):
+                raise ValueError(f"Report user-sim scenario for {task_id} is stale; refresh the report")
+            row["user_sim_scenario"] = identity
+        rows.append(row)
     return rows
 
 

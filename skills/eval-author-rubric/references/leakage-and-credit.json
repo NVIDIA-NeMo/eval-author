@@ -1,0 +1,552 @@
+{
+  "rubric_version": "4.0-draft",
+  "items": [
+    {
+      "id": "AUDIT-03",
+      "skill_id": "audit",
+      "title": "Forbidden-credit resistance",
+      "question": "Do healthy anti-cheat controls receive only their declared credit?",
+      "requirement": "For each scoring path, declare applicable forbidden-credit controls and legitimate inaction semantics.",
+      "scope": "task; For each scoring path, declare applicable forbidden-credit controls and legitimate inaction semantics.",
+      "measurement": "Expected versus actual reward for every affected check and total; healthy reached controls / applicable controls, by attack class. Broken, blocked and unrun controls remain separate from successful defenses.",
+      "methods": [
+        "human_review",
+        "probe",
+        "deterministic"
+      ],
+      "checks": [
+        {
+          "method": "human_review",
+          "action": "Approve controls for no-work/early-exit, all-failure, inert reference text, hardcoded/copied answers, forged/stale success, scorer/test tampering and forbidden answer access; distinguish valid inaction and realistic wrong answers from NOP.",
+          "expected_evidence": "Attack applicability matrix with expected per-check credit",
+          "when": "During assessment of the declared revision",
+          "id": "AUDIT-03-C01"
+        },
+        {
+          "method": "probe",
+          "action": "Submit every applicable control through the actual scoring path while collecting trusted reach and health receipts.",
+          "expected_evidence": "Native control outputs, health and reach evidence",
+          "when": "Only in authorized isolated control execution",
+          "id": "AUDIT-03-C02"
+        },
+        {
+          "method": "deterministic",
+          "action": "Compare each affected reward and total with expected credit; separate healthy forbidden-credit results from control errors or missing runs.",
+          "expected_evidence": "Per-check mismatch table and coverage counts",
+          "when": "During assessment of the declared revision",
+          "id": "AUDIT-03-C03"
+        }
+      ],
+      "scoring": {
+        "0": "Healthy control obtains forbidden credit",
+        "1": "Applicable attack classes remain untested or unresolved",
+        "2": "Declared applicable controls all receive intended scores",
+        "3": "Held-out independently authored attacks also receive intended scores"
+      },
+      "evidence": [
+        "Attack matrix",
+        "Control sources",
+        "Expected/actual per-check and total rewards",
+        "Native health/reach receipts"
+      ],
+      "on_gap": "A healthy forbidden-credit result blocks qualification; repair and rerun the required panel; missing or broken controls remain unproven",
+      "boundary": "Valid no-action behavior may earn credit. Scorer health failures cannot establish resistance; runtime access attacks differ from training contamination. Missing or unrun evidence is NOT_ASSESSED, not 0; justified exclusions are NOT_APPLICABLE. Referenced code is supporting material, not verified runnable integration. Execute interventions only with approval; qualify any material judge/classifier and routing dependency before using its verdict.",
+      "code_references": [
+        "skills/eval-author/references/task-validation.md",
+        "skills/eval-author/scripts/eval_author_shared/task_evidence.py",
+        "skills/eval-author/scripts/eval_author_shared/verifier_lint.py",
+        "skills/eval-author/scripts/eval_author_shared/construction.py"
+      ],
+      "source_ids": [
+        1,
+        5
+      ],
+      "implementation_task": "Build an anti-cheat control panel and reward comparator that blocks qualification on healthy forbidden credit.",
+      "level": "task"
+    },
+    {
+      "id": "AUDIT-04-B",
+      "skill_id": "audit",
+      "title": "Exploit containment",
+      "question": "Is a confirmed exploit in this task contained and its repair verified on this task?",
+      "requirement": "When an exploit is confirmed in this task, isolate the affected results and verify the repair on this task.",
+      "scope": "task; When an exploit is confirmed in this task, isolate the affected results and verify the repair on this task.",
+      "measurement": "Containment disposition for the confirmed affected revision; expected-versus-actual rewards after repair on this task.",
+      "methods": [
+        "human_review",
+        "probe",
+        "deterministic"
+      ],
+      "checks": [
+        {
+          "method": "human_review",
+          "action": "Approve quarantine or bounded use of affected results and record residual risk for each confirmed mechanism.",
+          "expected_evidence": "Containment/disposition register",
+          "when": "During assessment of the declared revision",
+          "id": "AUDIT-04-B-C01"
+        },
+        {
+          "method": "probe",
+          "action": "Replay the known mechanisms against the repaired task; include independent attacks for stronger assurance.",
+          "expected_evidence": "Revision-bound containment and regression results for this task",
+          "when": "After authorized repair in an isolated execution scope",
+          "id": "AUDIT-04-B-C02"
+        },
+        {
+          "method": "deterministic",
+          "action": "Reconcile confirmed affected revisions with isolation and replay outcomes; flag accepted uncontained exploits.",
+          "expected_evidence": "Unresolved containment report",
+          "when": "During assessment of the declared revision",
+          "id": "AUDIT-04-B-C03"
+        }
+      ],
+      "scoring": {
+        "0": "A confirmed exploit remains accepted without containment, or a healthy repair replay still obtains forbidden credit.",
+        "1": "Containment or repair covers only part of this task's confirmed exploit scope.",
+        "2": "The affected revision is isolated and the repaired task has verified outcomes; residual limits are disclosed.",
+        "3": "Independent attacks against the repaired task corroborate containment."
+      },
+      "evidence": [
+        "Containment decisions",
+        "Affected and repaired identities",
+        "Repaired-task regression results"
+      ],
+      "on_gap": "Quarantine affected results or qualify their use; repair the cause and reassess this task. Cross-task containment is AUDIT-04-B-SUITE.",
+      "boundary": "Fixing only newly generated tasks does not contain existing affected results. Missing or unrun evidence is NOT_ASSESSED, not 0; justified exclusions are NOT_APPLICABLE. Referenced code is supporting material, not verified runnable integration. Execute interventions only with approval; qualify any material judge/classifier and routing dependency before using its verdict.",
+      "code_references": [
+        "skills/eval-author/references/task-validation.md",
+        "skills/eval-author/scripts/eval_author_shared/solution_review.py",
+        "skills/eval-author-environment/references/task-fidelity.md"
+      ],
+      "source_ids": [
+        5,
+        9
+      ],
+      "implementation_task": "Build a containment checklist and a replay panel for the repaired task.",
+      "level": "task"
+    },
+    {
+      "id": "AUDIT-04-B-SUITE",
+      "skill_id": "audit",
+      "title": "Exploit containment across the suite",
+      "question": "Are confirmed exploits contained and fixes verified on retained affected tasks?",
+      "requirement": "When an exploit is confirmed, isolate affected results and verify repairs on affected retained tasks and new tasks.",
+      "scope": "suite; When an exploit is confirmed, isolate affected results and verify repairs on affected retained tasks and new tasks.",
+      "measurement": "Containment dispositions / confirmed affected revisions; expected-versus-actual rewards after repair; regression coverage across retained affected and new tasks.",
+      "methods": [
+        "human_review",
+        "probe",
+        "deterministic"
+      ],
+      "checks": [
+        {
+          "method": "human_review",
+          "action": "Approve quarantine or bounded use of affected results and record residual risk for each confirmed mechanism.",
+          "expected_evidence": "Containment/disposition register",
+          "when": "During assessment of the declared revision",
+          "id": "AUDIT-04-B-SUITE-C01"
+        },
+        {
+          "method": "probe",
+          "action": "Replay known mechanisms against repaired retained affected tasks and new tasks; include independent attacks for stronger assurance.",
+          "expected_evidence": "Revision-bound containment and regression results",
+          "when": "After authorized repair in an isolated execution scope",
+          "id": "AUDIT-04-B-SUITE-C02"
+        },
+        {
+          "method": "deterministic",
+          "action": "Reconcile confirmed affected revisions with isolation and replay outcomes; flag accepted uncontained exploits.",
+          "expected_evidence": "Unresolved containment report",
+          "when": "During assessment of the declared revision",
+          "id": "AUDIT-04-B-SUITE-C03"
+        }
+      ],
+      "scoring": {
+        "0": "A confirmed exploit remains accepted without containment, or a healthy repair replay still obtains forbidden credit.",
+        "1": "Containment or repair coverage addresses only part of the confirmed affected scope.",
+        "2": "Affected revisions are isolated and applicable retained/new-task repairs have verified outcomes; residual limits are disclosed.",
+        "3": "Independent attacks and cross-family replay corroborate containment across the suite."
+      },
+      "evidence": [
+        "Containment decisions",
+        "Affected and repaired identities",
+        "Retained/new-task regression results"
+      ],
+      "on_gap": "Quarantine affected results across the suite or qualify their use; repair shared causes and reassess every affected task.",
+      "boundary": "Fixing only newly generated tasks does not contain existing affected results. Missing or unrun evidence is NOT_ASSESSED, not 0; justified exclusions are NOT_APPLICABLE. Referenced code is supporting material, not verified runnable integration. Execute interventions only with approval; qualify any material judge/classifier and routing dependency before using its verdict.",
+      "code_references": [
+        "skills/eval-author/references/task-validation.md",
+        "skills/eval-author/scripts/eval_author_shared/solution_review.py",
+        "skills/eval-author-environment/references/task-fidelity.md"
+      ],
+      "source_ids": [
+        5,
+        9
+      ],
+      "implementation_task": "Build a suite containment register and a replay regression panel that retains previously affected tasks.",
+      "level": "suite"
+    },
+    {
+      "id": "AUDIT-05-B",
+      "skill_id": "audit",
+      "title": "Exposure disclosure",
+      "question": "Does the contamination statement match what is known and unknown about task and answer exposure?",
+      "requirement": "For reused/public tasks or any contamination statement, assess exposure separately from statistical precision.",
+      "scope": "suite; For reused/public tasks or any contamination statement, assess exposure separately from statistical precision.",
+      "measurement": "Inventory exposed task/solution IDs, timestamps, known training overlap and authorized answer accessibility; report searched and unknown provenance scope and sensitivity to exposed subsets.",
+      "methods": [
+        "deterministic",
+        "human_review"
+      ],
+      "checks": [
+        {
+          "method": "deterministic",
+          "action": "Inventory public tasks/solutions, exposure timestamps, known corpus overlap and accessible answer artifacts with source identities.",
+          "expected_evidence": "Exposure inventory and searched/unknown corpus list",
+          "when": "During assessment of the declared revision",
+          "id": "AUDIT-05-B-C01"
+        },
+        {
+          "method": "human_review",
+          "action": "Review whether observed overlap supports the claimed exposure conclusion and whether inaccessible training provenance remains explicitly unknown.",
+          "expected_evidence": "Bounded exposure statement with cited dispositions",
+          "when": "During assessment of the declared revision",
+          "id": "AUDIT-05-B-C02"
+        },
+        {
+          "method": "deterministic",
+          "action": "Recompute reported outcomes under predeclared exposed-subset exclusions or bounds, retaining the original population report.",
+          "expected_evidence": "Exposure sensitivity results",
+          "when": "During assessment of the declared revision",
+          "id": "AUDIT-05-B-C03"
+        }
+      ],
+      "scoring": {
+        "0": "Verified exposure contradicts a cleanliness claim, or known contamination is materially concealed.",
+        "1": "An inspectable inventory exists but known exposure gaps are not yet adequately bounded.",
+        "2": "Known exposure and unknown sources are disclosed and the contamination statement stays within their support.",
+        "3": "Independent provenance review and exposure sensitivity corroborate the bounded statement."
+      },
+      "evidence": [
+        "Exposure inventory",
+        "Known/unknown provenance",
+        "Overlap dispositions",
+        "Sensitivity results"
+      ],
+      "on_gap": "Collect more evidence or narrow statistical/cleanliness claims; lack of observed leakage is not proof of no contamination",
+      "boundary": "This defines the formerly inherited contamination_exposure subscore. No detection is not proof of cleanliness; detector qualification is AUDIT-05-S05. Missing or unrun evidence is NOT_ASSESSED, not 0; justified exclusions are NOT_APPLICABLE. Referenced code is supporting material, not verified runnable integration. Execute interventions only with approval; qualify any material judge/classifier and routing dependency before using its verdict.",
+      "code_references": [
+        "skills/eval-author-audit/scripts/audit_spec/report.py",
+        "skills/eval-author/references/authoring-context.md"
+      ],
+      "source_ids": [
+        1
+      ],
+      "implementation_task": "Build an exposure disclosure register and sensitivity report with explicit unknown-training fields.",
+      "level": "suite"
+    },
+    {
+      "id": "AUDIT-05-S03",
+      "skill_id": "audit",
+      "title": "Adaptive selection and confirmation",
+      "question": "Is confirmation independent of development feedback, or valid under the actual reuse mechanism?",
+      "requirement": "When prior benchmark feedback influenced task, scorer, prompt, harness, model or run selection, preserve all evaluated alternatives and access lineage.",
+      "scope": "suite; When prior benchmark feedback influenced task, scorer, prompt, harness, model or run selection, preserve all evaluated alternatives and access lineage.",
+      "measurement": "Ledger completeness across candidates and feedback events; holdout exposure violations; confirmation outcomes; where reuse is claimed, actual feedback channel and budget versus the mechanism assumptions.",
+      "methods": [
+        "deterministic",
+        "human_review",
+        "probe"
+      ],
+      "checks": [
+        {
+          "method": "deterministic",
+          "action": "Reconcile the chronological candidate/revision ledger with feedback source, partition/family, revealed information, actor, modification, selection reason and all evaluated alternatives; inspect holdout access logs and split lineage.",
+          "expected_evidence": "Decision ledger and exposure report",
+          "when": "During assessment of the declared revision",
+          "id": "AUDIT-05-S03-C01"
+        },
+        {
+          "method": "human_review",
+          "action": "Approve a frozen analysis/acceptance rule and untouched family-aware confirmation set, or justify a reuse guarantee against actual access, assumptions and budget.",
+          "expected_evidence": "Confirmation or adaptive-reuse contract",
+          "when": "During assessment of the declared revision",
+          "id": "AUDIT-05-S03-C02"
+        },
+        {
+          "method": "probe",
+          "action": "Run authorized untouched confirmation or test reuse-budget exhaustion and feedback side channels.",
+          "expected_evidence": "Confirmation outcomes or boundary-control receipts",
+          "when": "Only when confirmation or reuse controls are authorized",
+          "id": "AUDIT-05-S03-C03"
+        }
+      ],
+      "scoring": {
+        "0": "development-visible feedback is falsely represented as untouched confirmation, or a proven reuse guarantee is materially violated",
+        "1": "some decision history exists but known exposures or adaptive choices remain unaccounted for",
+        "2": "full known selection history and confirmation/reuse design justify the bounded conclusion, with exploratory results labeled",
+        "3": "independent confirmation and feedback-boundary review corroborate the retained gain."
+      },
+      "evidence": [
+        "Candidate/feedback ledger",
+        "Split/access records",
+        "Frozen selection rule",
+        "Confirmation or mechanism/budget results"
+      ],
+      "on_gap": "label development evidence exploratory; collect independent confirmation or narrow claims.",
+      "boundary": "A digest proves identity, not independence. Same-family resampling and ordinary multiple-comparison correction do not prove arbitrary adaptive validity. Reuse is not automatic proof of overfitting; no universal differential-privacy mechanism is required. Missing or unrun evidence is NOT_ASSESSED, not 0; justified exclusions are NOT_APPLICABLE. Referenced code is supporting material, not verified runnable integration. Execute interventions only with approval; qualify any material judge/classifier and routing dependency before using its verdict.",
+      "code_references": [],
+      "source_ids": [
+        35,
+        36
+      ],
+      "implementation_task": "Build an adaptive-selection audit packet and family-aware confirmation or justified reuse protocol.",
+      "level": "suite"
+    },
+    {
+      "id": "TRACE-04-A",
+      "skill_id": "inspect_trace",
+      "title": "Review secrets and proprietary information",
+      "question": "Are secrets and proprietary content identified and dispositioned under the applicable policy?",
+      "requirement": "When traces may contain secrets or proprietary information.",
+      "scope": "trace",
+      "measurement": "Reviewed eligible fields / eligible fields; authorized dispositions / identified secrets/proprietary findings.",
+      "methods": [
+        "deterministic",
+        "human_review"
+      ],
+      "checks": [
+        {
+          "method": "deterministic",
+          "action": "Screen locally for secrets and structured proprietary markers; retain locations and source classification without public sensitive spans.",
+          "expected_evidence": "Private candidate inventory and channel coverage.",
+          "when": "Whenever applicable",
+          "id": "TRACE-04-A-C01"
+        },
+        {
+          "method": "human_review",
+          "action": "Review contextual proprietary content and sampled negatives; obtain qualified policy dispositions for intended access, recipients and use.",
+          "expected_evidence": "Secrets/proprietary review and authorization decisions.",
+          "when": "Whenever applicable",
+          "id": "TRACE-04-A-C02"
+        },
+        {
+          "method": "deterministic",
+          "action": "Match approval and permitted use to the exact material digest and recipients.",
+          "expected_evidence": "Digest/recipient/use approval match.",
+          "when": "Whenever applicable",
+          "id": "TRACE-04-A-C03"
+        }
+      ],
+      "scoring": {
+        "0": "Known material detection or unauthorized-handling failure invalidates this category review.",
+        "1": "Category review is evidenced but coverage or dispositions are partial.",
+        "2": "Secrets/proprietary channels and contextual candidates reviewed; dispositions and exact-use authorization verified.",
+        "3": "Independent labels and release audit corroborate this category review."
+      },
+      "evidence": [
+        "Private candidate inventory and channel coverage.",
+        "Secrets/proprietary review and authorization decisions.",
+        "Digest/recipient/use approval match."
+      ],
+      "on_gap": "Withhold affected access or sharing pending policy review. Unknown or not run: NOT_ASSESSED, not a defect; justified inapplicability: NOT_APPLICABLE.",
+      "boundary": "No regex match is not clearance; policy decisions require qualified authority.",
+      "code_references": [
+        "skills/eval-author/scripts/eval_author_shared/trace_workspace.py",
+        "skills/eval-author/scripts/eval_author_shared/workspace_contract.py",
+        "skills/eval-author/references/publication-review.md"
+      ],
+      "source_ids": [],
+      "implementation_task": "Deliver a secrets/proprietary review and exact-material authorization packet distinct from export-control review.",
+      "level": "task"
+    },
+    {
+      "id": "ENV-03-S01",
+      "skill_id": "environment",
+      "title": "Verify reset closure and episode isolation",
+      "question": "Does reset prevent unintended state from changing nominally independent episodes?",
+      "requirement": "When independent episodes, repeated-task reliability or parallel execution is claimed.",
+      "scope": "task",
+      "measurement": "Reset-covered material state surfaces / declared surfaces; unaffected target episodes / sentinel, order, session, concurrency and delayed-effect controls.",
+      "methods": [
+        "human_review",
+        "deterministic",
+        "probe"
+      ],
+      "checks": [
+        {
+          "method": "human_review",
+          "action": "Declare isolated versus intentionally shared workspace, backend rows, caches, tool sessions, credentials, memory, rate limits, clock and queued effects.",
+          "expected_evidence": "Isolation/reset manifest and longitudinal exceptions.",
+          "when": "Whenever applicable",
+          "id": "ENV-03-S01-C01"
+        },
+        {
+          "method": "deterministic",
+          "action": "Compare initial/reset digests and inventory closure over all material state, not only visible database rows.",
+          "expected_evidence": "Pre/post/reset state and permission comparisons.",
+          "when": "Whenever applicable",
+          "id": "ENV-03-S01-C02"
+        },
+        {
+          "method": "probe",
+          "action": "Run fixed non-LLM target controls alone, after a sentinel predecessor, in permuted orders and supported parallelism; read delayed effects after reset.",
+          "expected_evidence": "Sentinel/order/concurrency matrix with observations, native outcomes, rate limits and contamination markers.",
+          "when": "Only authorized controls; explicit permission for real services",
+          "id": "ENV-03-S01-C03"
+        },
+        {
+          "method": "probe",
+          "action": "Repeat stochastic agents to quantify residual differences only when deterministic controls leave an outcome question.",
+          "expected_evidence": "Paired repeat outcomes and residual-effect uncertainty.",
+          "when": "Only when needed and separately authorized",
+          "id": "ENV-03-S01-C04"
+        }
+      ],
+      "scoring": {
+        "0": "Confirmed unintended persistence changes evidence, actions or grades.",
+        "1": "Reset is partially verified with known uncovered persistence or ordering conditions.",
+        "2": "Declared reset/persistence semantics hold and deterministic predecessor/order/session controls show no unexplained interference.",
+        "3": "Independent parallel, delayed-effect and held-out ordering probes corroborate isolation."
+      },
+      "evidence": [
+        "Isolation/reset manifest and longitudinal exceptions.",
+        "Pre/post/reset state and permission comparisons.",
+        "Sentinel/order/concurrency matrix with observations, native outcomes, rate limits and contamination markers.",
+        "Paired repeat outcomes and residual-effect uncertainty."
+      ],
+      "on_gap": "Repair reset scope or withdraw independent-episode claims. Unknown or not run: NOT_ASSESSED, not a defect; justified inapplicability: NOT_APPLICABLE.",
+      "boundary": "Preserve memory for intentionally longitudinal tasks; test declared transitions instead of forcing independence.",
+      "code_references": [],
+      "source_ids": [
+        27,
+        28,
+        29
+      ],
+      "implementation_task": "Deliver a complete reset-surface inventory and episode-isolation control packet.",
+      "level": "task"
+    },
+    {
+      "id": "CREATE-02",
+      "skill_id": "first_eval_create",
+      "title": "Task-irrelevant shortcuts",
+      "question": "Can incidental cues satisfy the score without the claimed capability?",
+      "requirement": "For plausible template/fixture/trace cue dependence and generalizable reasoning/workflow claims, declare candidate cue classes and qualify their tests.",
+      "scope": "task; For plausible template/fixture/trace cue dependence and generalizable reasoning/workflow claims, declare candidate cue classes and qualify their tests.",
+      "measurement": "Cue-class coverage; paired outcome transitions and cluster-aware uncertainty for cue-only, nuisance-swap, misleading-cue and style-only controls; healthy material bypasses versus confounded effects.",
+      "methods": [
+        "deterministic",
+        "llm_as_judge",
+        "probe"
+      ],
+      "checks": [
+        {
+          "method": "deterministic",
+          "action": "Inventory cue-bearing filenames, entity IDs, answer positions, artifact order, formatting, stale outputs, template labels and metadata; measure duplicates, answer-location co-occurrence and local answer-bearing artifacts.",
+          "expected_evidence": "Cue register with candidate correlations",
+          "when": "During assessment of the declared revision",
+          "id": "CREATE-02-C01"
+        },
+        {
+          "method": "llm_as_judge",
+          "action": "Link cues to task authority and qualify unchanged requirements, feasibility, scoring and valid alternatives for each control; distinguish incidental cues from legitimate evidence.",
+          "expected_evidence": "Control admissibility and confound review",
+          "when": "During assessment of the declared revision",
+          "id": "CREATE-02-C02"
+        },
+        {
+          "method": "probe",
+          "action": "Run cue-only baselines, semantics-preserving nuisance swaps, misleading-cue counterexamples with decisive real evidence, and matched style-only controls at pinned revisions.",
+          "expected_evidence": "Per-task outcomes and health receipts",
+          "when": "Only for authorized cue-isolation experiments",
+          "id": "CREATE-02-C03"
+        },
+        {
+          "method": "deterministic",
+          "action": "Report paired transitions and uncertainty by cue/control class, not just aggregate score drops.",
+          "expected_evidence": "Cue-dependence results with unresolved confounds",
+          "when": "During assessment of the declared revision",
+          "id": "CREATE-02-C04"
+        }
+      ],
+      "scoring": {
+        "0": "a healthy qualified control obtains material success via a task-irrelevant cue that contradicts the claimed capability",
+        "1": "initial controls exist but a demonstrated candidate cue remains insufficiently isolated",
+        "2": "declared plausible cue classes have qualified tests and no material unresolved bypass within scope",
+        "3": "independently authored held-out counterexamples corroborate robustness on this task."
+      },
+      "evidence": [
+        "Cue/applicability register",
+        "Transformation digests",
+        "Contract/feasibility/scorer qualification",
+        "Paired outcomes and health",
+        "Confound decisions"
+      ],
+      "on_gap": "remove cue, repair measure or narrow claim; route prohibited mechanisms to AUDIT-03/AUDIT-04-A / AUDIT-04-B without double-counting. Cross-family robustness is CREATE-02-SUITE.",
+      "boundary": "Correlation alone is not proof. Preserve task-relevant evidence and legitimate shortcuts; a score drop may reflect changed difficulty. Route forbidden mechanisms to AUDIT-03/AUDIT-04-A / AUDIT-04-B without duplicate credit. Missing or unrun evidence is NOT_ASSESSED, not 0; justified exclusions are NOT_APPLICABLE. Referenced code is supporting material, not verified runnable integration. Execute interventions only with approval; qualify any material judge/classifier and routing dependency before using its verdict.",
+      "code_references": [],
+      "source_ids": [
+        31,
+        33
+      ],
+      "implementation_task": "Build a qualified four-control cue-dependence panel and paired-transition report.",
+      "level": "task"
+    },
+    {
+      "id": "CREATE-02-SUITE",
+      "skill_id": "first_eval_create",
+      "title": "Task-irrelevant shortcuts across task families",
+      "question": "Does cue robustness hold on new task families, not only the tasks it was developed on?",
+      "requirement": "For generalizable reasoning or workflow claims, corroborate cue robustness on independently authored new task families.",
+      "scope": "suite; For generalizable reasoning or workflow claims, corroborate cue robustness on independently authored new task families.",
+      "measurement": "Per-family cue-only and nuisance-swap transitions on new task families; consistency of task-level CREATE-02 results across families.",
+      "methods": [
+        "deterministic",
+        "probe"
+      ],
+      "checks": [
+        {
+          "method": "deterministic",
+          "action": "Select new task families authored independently of the development families, and record their identities.",
+          "expected_evidence": "Family register with authorship and identities",
+          "when": "During assessment of the declared suite revision",
+          "id": "CREATE-02-SUITE-C01"
+        },
+        {
+          "method": "probe",
+          "action": "Run the task-level CREATE-02 cue controls on each new family at pinned revisions.",
+          "expected_evidence": "Per-family outcomes and health receipts",
+          "when": "Only for authorized cue-isolation experiments",
+          "id": "CREATE-02-SUITE-C02"
+        },
+        {
+          "method": "deterministic",
+          "action": "Compare paired transitions across families; flag a cue bypass that appears only outside the development families.",
+          "expected_evidence": "Cross-family cue-dependence results",
+          "when": "During assessment of the declared suite revision",
+          "id": "CREATE-02-SUITE-C03"
+        }
+      ],
+      "scoring": {
+        "0": "a healthy qualified cue control succeeds in a new family through a task-irrelevant cue",
+        "1": "new families exist but their cue controls are incomplete or unresolved",
+        "2": "new families have qualified cue controls and no material bypass within scope",
+        "3": "independently authored new families and held-out counterexamples corroborate robustness across families."
+      },
+      "evidence": [
+        "Family register",
+        "Per-family paired outcomes and health",
+        "Cross-family comparison"
+      ],
+      "on_gap": "remove the cue or narrow the generalization claim to the families tested.",
+      "boundary": "Correlation alone is not proof. Preserve task-relevant evidence and legitimate shortcuts; a score drop may reflect changed difficulty. Route forbidden mechanisms to AUDIT-03/AUDIT-04-A / AUDIT-04-B without duplicate credit. Missing or unrun evidence is NOT_ASSESSED, not 0; justified exclusions are NOT_APPLICABLE. Referenced code is supporting material, not verified runnable integration. Execute interventions only with approval; qualify any material judge/classifier and routing dependency before using its verdict.",
+      "code_references": [],
+      "source_ids": [
+        31,
+        33
+      ],
+      "implementation_task": "Run the task-level cue panel across independently authored task families and compare transitions.",
+      "level": "suite"
+    }
+  ]
+}

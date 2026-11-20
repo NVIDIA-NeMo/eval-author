@@ -13,6 +13,7 @@ import conversation_templates as shared
 import first_eval_state
 import journey_state
 from conversation_formatting import checklist, json_context, link, literal, mapping, text
+from interaction_types import USER_SIM_SCENARIO_FILENAME
 
 from . import first_eval_templates as copy
 
@@ -37,6 +38,7 @@ STAGES = {
         "results",
         "resume",
         "blockers",
+        "simulation_disabled",
     )
 }
 CONTENT_FIELDS = {
@@ -77,6 +79,8 @@ def bound_links(state: dict, facts: dict) -> None:
     paths = {
         "report": ".eval-author/report.html",
         "readme": ".eval-author/README.md",
+        "tasks_markdown": ".eval-author/report_markdown/tasks.md",
+        "runs_markdown": ".eval-author/report_markdown/runs.md",
         "rerun": ".eval-author/README.md",
         "tasks_view": ".eval-author/report.html",
     }
@@ -113,6 +117,25 @@ def applicable_blockers(state: dict) -> dict:
     return {item["id"]: item for item in state["blockers"] if item["phase"] in {"setup", "ethos", state["journey"]}}
 
 
+def adapter_task(record: dict, task: dict) -> dict:
+    context = {
+        "id": task["id"],
+        "example_ids": task["example_ids"],
+        "path": record["tasks"].get(task["id"], {}).get("path"),
+    }
+    for field in (
+        "interaction_type",
+        "state_requirements",
+        "prerequisite_checks",
+        "conversation_scenario",
+    ):
+        if field in task:
+            context[field] = task[field]
+    if task.get("interaction_type") == "user_sim" and context["path"]:
+        context["expected_scenario_path"] = str(PurePosixPath(context["path"]) / USER_SIM_SCENARIO_FILENAME)
+    return context
+
+
 def adapter_handoff(state: dict, reason: str) -> str:
     record = first_eval_state.record(state)
     provider = state["setup"]
@@ -128,18 +151,19 @@ def adapter_handoff(state: dict, reason: str) -> str:
         "provider": provider,
         "ethos_path": state["ethos"]["path"],
         "design_approved": approved,
-        "tasks": [
-            {
-                "id": task["id"],
-                "example_ids": task["example_ids"],
-                "path": record["tasks"].get(task["id"], {}).get("path"),
-            }
-            for task in record["plan"]["tasks"]
-        ]
-        if record and approved
-        else [],
+        "tasks": [adapter_task(record, task) for task in record["plan"]["tasks"]] if record and approved else [],
         "missing_connection": reason,
     }
+    if record and approved and any(task.get("interaction_type") == "user_sim" for task in record["plan"]["tasks"]):
+        settings = first_eval_state.execution_settings(record)
+        if "user_sim" in settings:
+            context["simulator_settings"] = settings["user_sim"]
+        selection = record.get("selection")
+        if selection and progress and selection.get("settings_digest") == progress["settings_digest"]:
+            context["execution_inputs"] = {
+                "config": selection["config"],
+                "inputs": selection.get("inputs", []),
+            }
     return copy.ADAPTER_HANDOFF.format(context=json_context(context))
 
 
@@ -195,6 +219,8 @@ def source_prompt(state: dict) -> str:
 
 
 def task_table(tasks: list[dict]) -> str:
+    from interaction_types import interaction_type_label
+
     rows = [copy.TASK_TABLE]
     for task in tasks:
         task_id = literal(task.get("task_id") or copy.NOT_DOCUMENTED, "task_id", table=True)
@@ -202,7 +228,20 @@ def task_table(tasks: list[dict]) -> str:
         expected = literal(task.get("expected_outcome") or copy.NOT_DOCUMENTED, "expected_outcome", table=True)
         verifier_type = literal(task.get("verifier_type") or copy.NOT_DOCUMENTED, "verifier_type", table=True)
         scoring = literal(task.get("scoring_rule") or copy.NOT_DOCUMENTED, "scoring_rule", table=True)
-        rows.append(f"| **{task_id}** - {behavior} | {expected} | **{verifier_type}** {scoring} |")
+        interaction = ""
+        if task.get("interaction_type") is not None:
+            label = interaction_type_label(task["interaction_type"])
+            interaction = copy.INTERACTION_TYPE.format(label=label)
+        scenario = ""
+        if task.get("user_sim_scenario") is not None:
+            identity = task["user_sim_scenario"]
+            scenario = copy.NEUTRAL_SCENARIO.format(
+                task_id=literal(identity["task_id"], "scenario task ID", table=True),
+                path=literal(identity["path"], "scenario path", table=True),
+            )
+        rows.append(
+            f"| {interaction}**{task_id}** - {behavior}{scenario} | {expected} | **{verifier_type}** {scoring} |"
+        )
     return "\n".join(rows)
 
 
@@ -211,16 +250,42 @@ def authored_rows(record: dict, facts: dict, observed: dict, task_ids: list[str]
     if not isinstance(supplied, list) or len(supplied) != len(task_ids):
         raise ValueError("Supply one current authored task row per reviewed task from the saved report snapshot")
     rows = []
+    planned = {task["id"]: task for task in record["plan"]["tasks"]}
     for task_id, row in zip(task_ids, supplied, strict=True):
         row = mapping(
             row,
             "authored task row",
-            {"task_id", "task_sha256", "behavior_tested", "expected_outcome", "verifier_type", "scoring_rule"},
+            {
+                "task_id",
+                "task_sha256",
+                "behavior_tested",
+                "expected_outcome",
+                "verifier_type",
+                "scoring_rule",
+                "interaction_type",
+                "user_sim_scenario",
+            },
         )
         if row.get("task_id") != task_id or row.get("task_sha256") != observed["tasks"].get(task_id):
             raise ValueError("Authored task rows must match the saved task order and fresh task digests")
         if row["task_sha256"] != record["tasks"][task_id]["sha256"]:
             raise ValueError("Authored task rows must describe current task files")
+        design = planned[task_id]
+        if row.get("interaction_type") != design.get("interaction_type"):
+            raise ValueError("Authored interaction types must match the saved design")
+        scenario = row.get("user_sim_scenario")
+        if design.get("interaction_type") == "user_sim":
+            scenario = mapping(scenario, "neutral scenario identity", {"task_id", "user_type", "path", "digest"})
+            if (
+                scenario.get("task_id") != task_id
+                or scenario.get("user_type") != "neutral"
+                or scenario.get("path") != record["tasks"][task_id]["path"] + "/" + USER_SIM_SCENARIO_FILENAME
+                or not scenario.get("digest")
+                or observed["files"].get(scenario["path"]) != scenario["digest"]
+            ):
+                raise ValueError("Authored user-sim rows require the current neutral scenario identity")
+        elif scenario is not None:
+            raise ValueError("Only User-sim tasks have a neutral scenario identity")
         rows.append(row)
     return rows
 
@@ -247,14 +312,28 @@ def proposal(record: dict) -> str:
             "expected_outcome": task.get("expected_result"),
             "verifier_type": task.get("verifier_type"),
             "scoring_rule": task.get("scoring_rule"),
+            "interaction_type": task.get("interaction_type"),
         }
         for task in tasks
     ]
     examples = len({example for task in tasks for example in task["example_ids"]})
+    interactions = []
+    for task in tasks:
+        details = []
+        for field, label in copy.INTERACTION_FIELDS.items():
+            value = task.get(field)
+            if value:
+                value = ", ".join(value) if isinstance(value, list) else value
+                details.append(f"- **{label}:** {literal(value, field)}")
+        if details:
+            interactions.append(
+                copy.INTERACTION_TITLE.format(task_id=literal(task["id"], "task ID")) + "\n\n" + "\n".join(details)
+            )
     return "\n\n".join(
         [
             copy.PROPOSAL_INTRO,
             task_table(rows),
+            *interactions,
             literal(presentation.get("coverage_note"), "coverage_note"),
             copy.FIRST_CHOICE.format(task_id=literal(record["first_task"], "first task ID")),
             copy.PROPOSAL_PROCESS.format(tasks=len(tasks), examples=examples),
@@ -330,6 +409,15 @@ def execution_settings(record: dict) -> str:
         "; ".join(literal(item, "open question") for item in questions) or copy.NO_OPEN_QUESTIONS,
     )
     bullets = "\n".join(f"- **{label}:** {value}" for label, value in zip(copy.SETTINGS_LABELS, values, strict=True))
+    if first_eval_state.user_sim_tasks(record):
+        simulation = settings.get("user_sim")
+        if simulation is None:
+            bullets += "\n" + copy.SIMULATOR_SETTINGS_PENDING
+        else:
+            bullets += "\n" + copy.SIMULATOR_SETTINGS.format(
+                agent_model=literal(simulation["agent_model"], "simulator agent and model"),
+                limits=literal(simulation["conversation_limits"], "conversation limits"),
+            )
     return "\n\n".join([copy.SETTINGS_INTRO, bullets])
 
 
@@ -486,7 +574,7 @@ def first_review(record: dict, progress: dict, facts: dict) -> str:
             copy.FIRST_REVIEW_INTRO.format(task_id=literal(record["first_task"], "first task ID")),
             copy.FIRST_REVIEW_ACTION.format(
                 report=named_link(facts, "tasks_view", fragment=True, label=copy.FIRST_REVIEW_REPORT_LABEL),
-                readme=named_link(facts, "readme", label=copy.FIRST_REVIEW_README_LABEL),
+                markdown=named_link(facts, "tasks_markdown", label=copy.FIRST_REVIEW_MARKDOWN_LABEL),
             ),
             task_table(rows),
             copy.FIRST_REVIEW_STATUS.format(
@@ -519,7 +607,7 @@ def suite_review(record: dict, progress: dict, facts: dict) -> str:
         ),
         copy.SUITE_REVIEW_ACTION.format(
             report=named_link(facts, "tasks_view", fragment=True, label=copy.FIRST_REVIEW_REPORT_LABEL),
-            readme=named_link(facts, "readme", label=copy.FIRST_REVIEW_README_LABEL),
+            markdown=named_link(facts, "tasks_markdown", label=copy.FIRST_REVIEW_MARKDOWN_LABEL),
         ),
         task_table(rows),
         copy.SUITE_REVIEW_STATUS.format(
@@ -662,6 +750,22 @@ def results(record: dict, progress: dict, facts: dict, journey: str) -> str:
             quality=literal(facts.get("quality_failures"), "quality_failures"), **attempt_counts(progress, run)
         )
     )
+    design = next(task for task in record["plan"]["tasks"] if task["id"] == attempt["task_id"])
+    if design.get("interaction_type") is not None:
+        from interaction_types import interaction_type_label
+
+        parts.append(copy.RESULT_INTERACTION_TYPE.format(label=interaction_type_label(design["interaction_type"])))
+    if design.get("interaction_type") == "user_sim":
+        simulation = selected["user_sim"]
+        settings = first_eval_state.execution_settings(record)["user_sim"]
+        parts.append(
+            copy.RESULT_USER_SIM.format(
+                task_id=literal(simulation["task_id"], "scenario task ID"),
+                path=literal(simulation["scenario"]["path"], "scenario path"),
+                agent_model=literal(settings["agent_model"], "simulator agent and model"),
+                limits=literal(settings["conversation_limits"], "conversation limits"),
+            )
+        )
     parts.append(
         copy.ATTEMPT_REVIEW.format(
             run=literal(run["id"], "run id"),
@@ -698,9 +802,14 @@ def results(record: dict, progress: dict, facts: dict, journey: str) -> str:
             raise ValueError("Save the pending audit invitation before presenting the completed evaluation handoff")
         parts.append("\n".join(f"- [x] {label}" for label in (*shared.CHECKLIST_LABELS, shared.JOURNEYS[journey])))
         parts.append(
-            (copy.GYM_RESULTS_REVIEW if record["provider"] == "gym" else copy.RESULTS_REVIEW).format(
+            copy.GYM_RESULTS_REVIEW.format(
                 report=named_link(facts, "report", label=copy.RESULTS_REPORT_LABEL),
                 readme=named_link(facts, "readme", label=copy.FIRST_REVIEW_README_LABEL),
+            )
+            if record["provider"] == "gym"
+            else copy.RESULTS_REVIEW.format(
+                report=named_link(facts, "report", label=copy.RESULTS_REPORT_LABEL),
+                markdown=named_link(facts, "runs_markdown", label=copy.RESULTS_MARKDOWN_LABEL),
             )
         )
         if progress["audit_decision"] == "pending":
@@ -773,7 +882,9 @@ def render(payload: dict) -> str:
         return (blocker_section(state, facts, stage) or "") + "\n"
     else:
         if stage == "proposal" and not choice:
-            raise ValueError("Save the user’s choice of existing traces or ETHOS.md before presenting a proposal")
+            raise ValueError(
+                "Save the user’s choice of whether to include existing traces before presenting a proposal"
+            )
         if stage == "resume" and first_eval_state.record(state) is None:
             raise ValueError("Save a small, concrete first-evaluation proposal before resuming the selected source")
         observed = facts.get("observations")
@@ -786,6 +897,10 @@ def render(payload: dict) -> str:
         assert record is not None
         if stage == "resume":
             stage = progress["next_stage"]
+        if progress["user_simulation_blocked"] and stage != "results":
+            return copy.SIMULATION_DISABLED + "\n"
+        if stage == "simulation_disabled":
+            raise ValueError("The selected suite has no disabled simulation work")
         if stage == "proposal":
             if progress["scope_approved"]:
                 raise ValueError("Scope is already approved; resume the saved next stage")

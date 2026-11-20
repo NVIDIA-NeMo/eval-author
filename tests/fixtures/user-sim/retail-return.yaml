@@ -1,0 +1,20 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+schema_version: 1
+task_id: return-headphones
+goal: Return the headphones from my delivered order and receive the refund to the original payment method.
+start_prompt: I'd like to return some headphones I bought recently.
+user_facts:
+  user_id: customer_1042
+  order_id: order_2084
+  item_name: Wireless headphones
+  reason: They are uncomfortable to wear.
+  preferred_refund_method: original payment method
+disclosure_rules:
+  - Give the order ID when the agent asks which order contains the headphones.
+  - Give the reason when asked why you want to return them.
+conversation_prompt: Confirm the return when the agent proposes returning the headphones with the requested refund method. Ask for correction if the proposal concerns another item or refund method.
+stopping_conditions:
+  - End when the agent reports that the agreed return was submitted.
+  - End if the agent explains that this return cannot be completed under the retail policy.

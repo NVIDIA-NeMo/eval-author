@@ -62,8 +62,9 @@ for references, content pins, and the example layout.
 
 ## 1. Prep
 
-Prep prepares case examples for the experiment. This case-construction process
-is outside this repository and the experiment itself. It produces the
+Prep prepares case examples for the experiment. Case construction remains
+external to the experiment; the [Harbor task download tool](tools.md#download-harbor-tasks)
+can materialize remote tasks into the prepared bundle. Prep produces the
 baseline agent, creates and qualifies its mutants, and assembles the case
 description, task set, and configuration in the benchmark's input format. Prep
 also constructs the eval subsets and bundles their manifest with the task set.
@@ -121,7 +122,7 @@ are the **execution implementation** and the **results-directory interface**.
 
 | Component | Role |
 | --- | --- |
-| Execution implementation | Runs the configured agent-by-task matrix and assembles its outputs. The initial implementation is a simple local Harbor loop, one agent's full benchmark at a time. A future NeMo Helix implementation will orchestrate evaluations at scale. |
+| Execution implementation | Runs the configured agent-by-task matrix and assembles its outputs. The initial implementation is a simple local Harbor loop, one agent's full benchmark at a time. A future [NeMo Helix implementation](helix-architecture.md) will orchestrate evaluations at scale. |
 | Results directory | Carries the task inventory, agent/task identities, statuses, measurements, and native evidence into analysis. Both execution implementations produce the same contract. |
 
 The experiment root contains `execution.json`, mapping each case ID to its
@@ -209,7 +210,7 @@ configuration and coordinates their execution.
 
 | Stage | Python tool / library operation |
 | --- | --- |
-| Execute evals | `run_evals.py` / `metric_benchmark.execution.execute_benchmark`; a future NeMo Helix tool will produce the same results-directory contract |
+| Execute evals | `run_evals.py` / `metric_benchmark.execution.execute_benchmark`; a future [NeMo Helix tool](helix-architecture.md) will produce the same results-directory contract |
 | Compute mutant scores | [`compute_mutant_scores.py`](compute-mutant-scores.md) / `metric_benchmark.scoring.compute_mutant_scores` |
 | Compute coverage | [`compute_coverage.py`](compute-coverage.md) / `metric_benchmark.coverage.invoke_coverage` |
 | Correlation | [`correlate.py`](correlate.md) / `metric_benchmark.correlation.correlate` |

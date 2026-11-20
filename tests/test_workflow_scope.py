@@ -651,7 +651,7 @@ def test_returning_audit_scope_reaches_checks_with_selected_evidence_context():
     evidence, raw = capture("audit-returning-new-chat")
     for action in ("read_repository", "validate", "read_trace", "propose"):
         raw = add_call(evidence, raw, action=action)
-    raw = add_call(evidence, raw, action="write_artifact", writes=[".eval-author/audit-coverage-report.md"])
+    raw = add_call(evidence, raw, action="write_artifact", writes=[".eval-author/report_markdown/audits.md"])
     report = scope.check(CONTRACTS, evidence, raw)
     assert report["status"] == "pass"
     assert report["host_acceptance"] == "not_measured"
@@ -954,7 +954,7 @@ def test_artifact_parent_symlink_cannot_escape_scope():
     entry = {"kind": "symlink", "mode": 0o777, "target": "/outside"}
     for state in ("before", "after"):
         evidence["turns"][0][state]["entries"][".eval-author"] = entry
-    raw = add_call(evidence, raw, action="write_artifact", writes=[".eval-author/audit-coverage-report.md"])
+    raw = add_call(evidence, raw, action="write_artifact", writes=[".eval-author/report_markdown/audits.md"])
     assert scope.check(CONTRACTS, evidence, raw)["status"] == "fail"
 
 

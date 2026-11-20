@@ -13,10 +13,10 @@ this reference defines presentation inputs, not another workflow.
 ## Input and saved questions
 
 The saved audit approach controls milestones. Task review skips trace selection
-and measurement, keeps run coverage unmeasured, and permits findings review
+and measurement, keeps run coverage unmeasured, and permits findings
 after check approval. Measured audits retain their selected-run requirements.
 Use onboarding's stateless `audit_mode` stage for a new choice before shared
-prerequisites, not an invented downstream checkpoint. Legacy audits stay measured.
+prerequisites, not an invented downstream checkpoint.
 
 Read `journey_state.py show` without `--state-only` after permitted inspection
 and reconciliation. Pass its complete `state`, exact `revision`, and
@@ -25,7 +25,7 @@ Audit stages require the saved audit journey and have no stateless preview.
 The [shared contract](../conversation-rendering.md) owns purity, input authority,
 escaping, and unchanged output; callers own freshness and semantic agreement.
 
-Before suite, trace, checks, or findings review, call the pure
+Before a suite, trace, or checks decision, call the pure
 `decision_question(stage, lifecycle, facts)` helper. Save that question in
 `lifecycle.pending` with its decision stage, current digest, and presentation
 provenance through a revision-checked update:
@@ -35,14 +35,13 @@ provenance through a revision-checked update:
 | `audit_suites` | `suite_selection` | `audit.checkpoint_digests.suite_selection` |
 | `audit_traces` | `trace_selection` | `audit.checkpoint_digests.trace_selection` |
 | `audit_checks` | `checks_review` | `audit.checks_digest` |
-| `audit_findings` | `findings_review` | `audit.findings_digest` |
 
-Current partial measurement initially derives `audit.stage: "measurement"`.
-To review its findings, save `pending.stage: "findings_review"` with the current,
-non-null `audit.findings_digest` and canonical findings question. This pending
-checkpoint makes partial findings review applicable without completing measurement.
-After acceptance, an explicit next-action question uses `pending.stage: "next_action"`
-and that same current findings digest. Measurement has no decision checkpoint or
+Current findings need no decision checkpoint: once the report, content, and inputs
+are recorded and current, and a task review has recorded `findings_final` for that report,
+`audit.findings_reviewed` is true and `audit_findings`
+renders without a findings-acceptance question. An optional saved next-action question uses
+`pending.stage: "next_action"` and the current `audit.findings_digest`; offer only supported actions.
+The renderer reuses that question instead of adding its default continuation offer. Measurement has no decision checkpoint or
 entry in `checkpoint_digests`. Never save `pending.stage: "measurement"`.
 
 Refresh state and observations after saving and before rendering.
@@ -52,8 +51,9 @@ Onboarding `resume` rejects these downstream checkpoints.
 
 ## Stages and facts
 
-Every stage accepts `audit_observations`, optional `links`, and applicable
-`blockers`. Additional facts and gates are listed below; unknown fields fail.
+Every stage accepts `audit_observations`, optional `links`, optional
+`suite_report_error` (the renderer's error: the notice then links the Markdown and says the HTML report
+could not be refreshed), and applicable `blockers`. Additional facts and gates are listed below; unknown fields fail.
 
 | Stage | Additional facts and behavior |
 |---|---|
@@ -61,10 +61,10 @@ Every stage accepts `audit_observations`, optional `links`, and applicable
 | `audit_traces` | Optional `report_action`. Requires resolved suite selection and unresolved trace selection. |
 | `audit_checks` | `checks`: lists keyed by `tools`, `capabilities`, `failure_cases`, and `grading`, with `{check, evidence}` rows; use empty lists for absent areas. Requires `validation: "passed"`, `report_action`, `limits`, optional `changes`, a current checks digest and report. |
 | `audit_measurement` | Optional `progress` and `report_action`. Requires current check approval and unresolved measurement; emits no decision question. |
-| `audit_findings` | `conclusion`, a nonempty `findings` list, `limits`, `recommendations`, `report_action`. Requires current checks/findings and complete, current partial, or explicitly deferred measurement, with a saved findings-review checkpoint. |
-| `audit_next_action` | Acknowledges accepted findings and any selected action without creating a question. Optional `recommendations` accompany only an applicable previously saved action question. |
+| `audit_findings` | `conclusion`, a nonempty `findings` list, `limits`, `recommendations`, `report_action`. Requires current checks/findings and finalized task analysis, or complete, current partial, or explicitly deferred measurement. No findings-acceptance checkpoint is needed. |
+| `audit_next_action` | Acknowledges recorded findings and any selected action without creating a question. Optional `recommendations` accompany only an applicable previously saved action question. |
 | `audit_blockers` | Saved blockers and explanations; optional `report_action`. Uses top-level `pending_question` for the actual recovery choice. |
-| `audit_resume` | Resolves to the blocker or current milestone using its facts; accepted findings resolve to acknowledgement. |
+| `audit_resume` | Resolves to the blocker or current milestone using its facts. Recorded findings resolve to acknowledgement. |
 
 `report_action` is `created`, `updated`, or `unchanged`, matching this turn's
 actual work. Save the report in `lifecycle.findings.report`; its digest must match
@@ -82,8 +82,21 @@ for bounded excerpts. No preparation payload or manifest inspection is performed
 Each finding is `{kind, label, evidence}`; kinds are `strength`,
 `missing_scenario`, `grading_weakness`, `agent_failure`, `insufficient_evidence`.
 Lead `conclusion` with the established outcome. Each recommendation is
-`{kind, label, reason}`; kinds are `improve`, `create`, `collect_evidence`,
-`fix_agent`. Supply at most three prioritized choices, or none when unsupported.
+`{kind, label, reason, support}`; kinds are `improve`, `create`, `collect_evidence`,
+`fix_agent`. Supply every report recommendation in the same order as the
+[report’s Recommended next actions table](../../../eval-author-audit/references/report-sections.md#recommended-next-actions).
+The conversation accepts the report schema’s full recommendation capacity;
+there is no smaller presentation limit. The caller supplies the established
+priority order; the renderer preserves it.
+Set `support` to `supported` or `separate_work` for the actual recommended action
+in this suite, following the [selected audit continuation](expansion.md#selected-audit-improvements).
+Do not infer support from `kind`: inspecting existing verifier evidence does not
+establish support for creating missing controls. Explain the concrete limit in
+`reason`. If support is unresolved, use `unknown`; older payloads without this
+field display unconfirmed support rather than implying implementation is available.
+The closing question offers only recommendations marked `supported`.
+Findings and next-action acknowledgments omit the trailing journey checklist;
+incomplete measurement remains explicit in the findings and evidence limits.
 Improvement labels are noun phrases without a leading article; template copy
 supplies it. Detailed findings and evidence belong in the report.
 
@@ -92,12 +105,25 @@ supplies it. Detailed findings and evidence belong in the report.
 `links` accepts `report`, `intended_coverage`, and `findings`, each with `target`
 and optional caller-verified `fragment`. Every target must equal the saved
 report's absolute path. Checks review requires `report` and `intended_coverage`.
-Findings review requires `report` and accepts an optional `findings` link.
-Acceptance accepts only `report`. Other stages accept `report` only when
+Findings require `report` and accept an optional `findings` link.
+Acknowledgement accepts only `report`. Other stages accept `report` only when
 announcing `report_action`. Stage-inapplicable links are rejected.
 Section links require fragments. Supporting evidence stays inside the report.
+When the saved report is `.eval-author/report_markdown/audits.md`, the report notice also
+links the HTML report's Audit tab (`.eval-author/report.html#audit`); callers supply no extra link.
 
 Blockers follow the [shared contract](onboarding.md#blockers): one explanation
 per saved blocker with `id`, `step`, `reason`, `needed`, and `skill_link` where
 required. Shared prerequisites and Ethos take precedence. Blockers suppress
 success checklists and preserve the recovery question over an older review question.
+
+## Specific improvement selections
+
+Use the [selected improvement handoff](../../../eval-author-audit/references/coverage-report.md#selected-improvement-handoff-and-follow-through)
+for recommendation IDs, revision-checked decisions, resume behavior, and report
+follow-through. Include each highlighted recommendation's internal ID in `facts.recommendations[].id`.
+Present its descriptive label, not the ID, and resolve the user's choice internally.
+The renderer accepts older payloads without IDs for compatibility; new findings
+reviews must identify the report recommendations being offered. A legacy generic
+improvement acknowledgement identifies the unresolved selection; the receiving
+workflow asks only which recommendations to plan.

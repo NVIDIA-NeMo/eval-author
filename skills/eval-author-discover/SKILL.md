@@ -45,6 +45,10 @@ metadata:
 
 # Eval Author: discover
 
+Inspecting a native `user_agent` configuration doesn't enable simulation.
+Before simulation authoring or execution, apply the
+[simulation opt-in gate](../eval-author/references/coverage-planning.md#enable-experimental-user-simulation).
+
 ## Purpose
 
 The Eval Author discovery pass. Read `eval-author` for the shared standard,
@@ -299,8 +303,10 @@ Preserve its verdict, ready config choices, and next actions. Do not add interna
 check names, raw exceptions, `proven=true`, or git status to the reply. Mention the
 saved report after the verdict and next action. Discovery runs only the sampled Solve
 trials; avoid running the full suite with a real agent which can be resource intensive.
-When `other_eval_candidates` is not empty, the summary asks whether to convert
-that code into Harbor tasks. Each lists its signals: an eval-named file, or an
+When `other_eval_candidates` is not empty, the summary says why Eval Author needs
+Harbor or NeMo Gym tasks and asks whether to convert that code into Harbor tasks.
+Follow the [task format guidance](../eval-author/references/task-format.md) when
+the user asks why. Each lists its signals: an eval-named file, or an
 OpenTelemetry, MLflow tracing, ATIF, or NeMo Intake marker. These are heuristic
 leads, not discovered evals:
 inspect them before describing what they test, and convert nothing during

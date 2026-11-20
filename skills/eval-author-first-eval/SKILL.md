@@ -1,9 +1,8 @@
 ---
 name: eval-author-first-eval
 description: >-
-  For a fresh start, read the eval-author core skill at ../eval-author/SKILL.md,
-  use its pure conversation renderer for orientation and end the turn before
-  repository inspection or prerequisite work.
+  For a fresh start, read the eval-author core skill at ../eval-author/SKILL.md
+  and follow its entry rules before repository inspection or prerequisite work.
   Confirm ETHOS.md, plan evaluation tasks, and build first evals or
   expand a starter NeMo Gym or Harbor suite while explaining
   its parts. No prior traces or coverage reports are required. Missing selected
@@ -38,6 +37,9 @@ metadata:
 
 # Eval Author: first evaluations
 
+Apply the shared [simulation opt-in gate](../eval-author/references/coverage-planning.md#enable-experimental-user-simulation)
+when selecting interaction types and before simulation authoring or execution.
+
 ## A recorded trace as a starting source
 
 For a user-selected recorded trace, follow the shared [trace source handoff](../eval-author/references/trace-input.md).
@@ -48,8 +50,8 @@ source remains a recorded outcome, not a reason to invent a replacement task.
 ## Purpose and conversation
 
 Read the [core skill](../eval-author/SKILL.md) for shared boundaries and onboarding.
-Fresh invocations use its pure onboarding renderer and stop at its orientation
-checkpoint. Complete the saved state-only prerequisite pass before target
+Follow its entry rules for fresh creation and selected starter expansion.
+Complete the saved state-only prerequisite pass before target
 `ETHOS.md` inspection, then reconcile artifacts normally. Reuse current
 [ETHOS.md confirmation](../eval-author/references/ethos-confirmation.md)
 and source choices through the shared completion pause. For fresh creation with
@@ -130,6 +132,9 @@ truth or replace subjective quality with brittle wording checks.
 Follow the [first_eval task table contract](../eval-author/references/conversations/first_eval_templates.md)
 when saving each proposed task's verifier type and scoring rule, before resolving
 its validation setup.
+Choose and retain each task's interaction type using
+[coverage planning](../eval-author/references/coverage-planning.md#choose-the-interaction-type)
+before saving the proposal.
 
 Reuse prerequisite findings and the selected source to make the proposal.
 Read only the additional agent interface or selected evidence needed to describe
@@ -185,6 +190,12 @@ data, observable state, isolation, and smoke evidence establish environment
 readiness; task controls never prove the kit. Build on that proven kit and keep reference
 answers and verifier-only information outside the agent's initial environment.
 
+Prepare the task-specific fixtures and README Verifier section before the scenario handoff.
+For an approved `user_sim` task, call
+[`eval-author-user-sim`](../eval-author-user-sim/SKILL.md) after environment proof
+to author the neutral scenario and conversation-dependent checks. Preserve its
+runtime blockers and this flow's first-task review and native validation gates.
+
 Use [private construction declarations](../eval-author/references/construction-plan.md)
 for grading authority, authored or copied inputs, and observable checks. Validate
 and bind the construction plan before recording native controls. Preserve
@@ -197,7 +208,7 @@ put later run results and evidence links in the outer suite README.
 
 Satisfy [grader validation before authored-task review](../eval-author/references/conversations/first-eval.md#grader-validation-before-authored-task-review)
 for this task, including its actual model-based judge when used. Generate the
-report and Markdown mirror using [Report generation](../eval-author/references/suite-readme.md#report-generation)
+report and Markdown reports using [Report generation](../eval-author/references/suite-readme.md#report-generation)
 before `first_eval_review_first`. Link the actual Tasks view and task README,
 and report environment proof, verifier validation, and actual-agent execution
 separately. Missing or stale required validation or artifacts block review.
@@ -225,6 +236,8 @@ reviewed approach; it does not claim individual review of every later task.
 Only after current first-task approval, render `first_eval_prepare_remaining`
 and build the remaining agreed tasks with the approved pattern. Reuse applicable
 proof and controls, refreshing the report after authoring, revisions, and validation.
+For every remaining `user_sim` task, use the same scenario-authoring handoff after
+its environment proof, prepared fixtures, and README Verifier section are ready.
 Read every authored row with `first_eval_table_data.py --stage review_suite`
 after the refresh and pass the returned `task_rows` to the renderer.
 Keep task paths stable; a blocked first task never unlocks remaining authoring.
@@ -248,7 +261,7 @@ execution claims. Unknown or missing evidence never establishes completion.
 
 Once all agreed tasks are authored, their environments are proven, and every
 task satisfies the [pre-review validation gate](../eval-author/references/conversations/first-eval.md#grader-validation-before-authored-task-review),
-refresh the report and Markdown mirror and use the [suite review checkpoint](../eval-author/references/conversations/first-eval.md#review-the-authored-suite-before-execution-settings).
+refresh the report and Markdown reports and use the [suite review checkpoint](../eval-author/references/conversations/first-eval.md#review-the-authored-suite-before-execution-settings).
 Render `first_eval_review_suite` as the final reply and end the turn. Wait for
 approval of the whole suite before discussing target-agent execution models,
 credentials, attempt settings, or run authorization. Grader-validation

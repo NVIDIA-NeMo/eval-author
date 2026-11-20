@@ -3,33 +3,53 @@
 
 # Read your results
 
-Eval Author saves reports and evaluation artifacts in the repository you are
-working on. Start with the report for your requested workflow, and read its
-limitations before deciding what to change.
+- Start with the report for your requested workflow.
+- Read its evidence and limitations before deciding what to change.
+- Use the [rubric table](#rubric-table) section to read the experimental rubric's output.
 
-## Experimental rubric artifacts
+Eval Author normally saves reports and evaluation artifacts in the repository you are working on. The rubric simulation writes to a private output directory that you choose.
 
-Rubric selections use `rubric_scope` for source-backed inventories. Package demo
-observations use `retained_credit`, `retained_credit_controls`, and `coverage` to
-identify their consumers. The provenance panel uses `rubric-provenance-demo-v1`
-with `rubric-provenance-expectations-v1` expectations; the version remains 1.
-Update integrations to these current names and rebuild older demo outputs rather
-than relying on former field or schema names; no compatibility aliases are kept.
-See the [rubric measurements](determinism-checks.md#rubric-identity-measurements)
-and [provenance demo](determinism-checks.md#provenance-demo) for commands.
+## Rubric table
+
+`rubric_table.py` writes one table with all 23 rubric criteria: `results.md`, `results.html` and `assessment.json`. Each row has its level (task or suite), score, evidence strength and the anchor its evidence met. Simulated evidence has strength E1. Recorded evidence has E2, or E3 when a different actor corroborates. `U` means Unassessed: the criterion's facts are missing.
+
+The [rubric base simulation](determinism-checks.md#rubric-base-simulation) writes this table for the refund base and each mutation under `<case>/table/`. Its `summary.html` shows the base table, what each mutation lowered and every score side by side; `summary.md` and `summary.json` hold the same scores. Each case's `simulated-premises.json` lists its simulated inputs.
 
 ## Case and run catalog
 
-The case and run catalog can be found in `.eval-author/report.html` and the
-`.eval-author/README.md` which is a lighter weight version for agents and humans
-who prefer markdown. These catalogs provide provide a high level overview of tasks
-and runs, and link to the corresponding assets on disc, as well as provide links
-to the Harbor viewer for Harbor generated tasks.
+Open `.eval-author/report.html` in a browser. It is a single offline file with
+four tabs:
 
-To refresh the catalog, ask: “Use Eval Author to refresh the HTML report for evaluations in
-this repository.” The report is saved at `.eval-author/report.html`, with Tasks,
-Runs, and viewer Settings. The same command maintains the task and run tables inside a m
-arked section of `.eval-author/README.md`.
+- **Tasks** lists every task with its status, the behavior it tests, its expected
+  outcome, and its verifier, with **Draft** tasks first. A summary above the table
+  counts **Proposed**, **Draft**, **Accepted**, and **Unknown** tasks. Open a task's README, or its
+  Harbor task viewer where available.
+- **Runs** lists each evaluation job with its role, completion, and combined reward.
+- **Audit** shows the latest [audit coverage report](#coverage-audits). Task names
+  in the audit open their rows in Tasks, and run evidence opens Runs.
+- **Settings** sets the Harbor viewer addresses.
+
+`.eval-author/README.md` introduces the suite: its contents, what each tab
+helps you decide, and links to every report. The Harbor task and job viewers each
+serve one folder at a time, so if your tasks or jobs span several folders, start a
+viewer on one folder and change its address in **Settings** before moving to the
+next. If the browser blocks the report's cross-origin viewer check, the link opens
+Harbor directly without checking the viewer's mode, catalog, or source folder.
+Confirm that Harbor shows the intended task or run; a stopped viewer shows the
+browser's connection error.
+The same content is in Markdown under
+`.eval-author/report_markdown/` for agents and reviews: `tasks.md`, `runs.md`,
+and `audits.md`. Point a coding agent at these files when it needs to work with
+the suite's tasks, runs, or audit findings.
+
+To refresh the report, ask: “Use Eval Author to refresh the HTML report for evaluations in
+this repository.” Eval Author also refreshes it after authoring, runs, and audits.
+Refresh rewrites `report.html`, `tasks.md`, `runs.md`, and the generated section of
+`.eval-author/README.md` between its `BEGIN EVAL AUTHOR REPORT` and
+`END EVAL AUTHOR REPORT` markers. Your own README content outside the markers is
+kept. Suites created before this layout had their task and run tables inside the
+README; the next refresh replaces them with the introduction, and the tables move
+to `tasks.md` and `runs.md`. No action is needed.
 
 See the [Report generation](../skills/eval-author/references/suite-readme.md#report-generation)
 for selected roots, metadata, and CLI usage. The report reads existing artifacts;
@@ -41,8 +61,33 @@ counts appear separately; an incomplete job's score is labeled partial. Missing
 rewards do not become zeroes. Without a documented reward range, the numeric
 total appears without a graph. Native scores without a documented pass rule
 are not labeled passed or failed. Standalone controls and other individual trials
-remain accessible in the separate Legacy trials section and are not combined
+remain accessible in the separate Individual attempts section and are not combined
 into inferred jobs.
+
+Markdown tables use inline labels and text separators, so they render in
+terminal interfaces without HTML support.
+
+## User-simulation scenarios
+
+For an approved Harbor **User-sim** task with
+[experimental user simulation enabled](first-evals.md#enable-experimental-user-simulation),
+Eval Author writes `user-sim.yaml` in the task directory. It describes the neutral user's goal, opening request, known
+facts, and any task-specific conversation rules. The task README links this file
+and explains which parts of the exchange the verifier checks.
+
+After you select execution settings, Eval Author can translate one scenario into
+a native Harbor `run.yaml` and private simulator prompt files in a separate
+directory under `.eval-author/.working/`. It preserves the selected target,
+environment, and verifier settings. Each scenario gets a separate configuration.
+Translation rejects tasks with `trajectory.json` and target
+`kwargs.prompt_template_path` settings because Harbor's ACP flow cannot preserve
+their behavior with user simulation.
+
+An interactive runner and checked information boundaries are still required
+before execution. The generated prompt requests the exact opening message, but
+the conversation evidence must confirm that the simulator sent it. Valid files
+and passing synthetic controls do not establish an actual-agent run or measured
+coverage. Native NeMo Gym User-sim authoring is not supported yet.
 
 ## Discovery and readiness
 
@@ -95,10 +140,32 @@ item rerun commands, and known execution blockers.
 
 ## First evaluations
 
-The HTML report and Markdown catalog show proposed, authored, validated, and
+Your first evaluations give you a small starting suite that you can expand over
+time. You agree on one to three evaluation tasks, then Eval Author builds one
+draft for you to review. Check that it tests the behavior you care about and
+grades the outcome fairly. Once you're happy with that first task, Eval Author
+builds and validates the remaining tasks in your agreed set. You review the
+suite before running it, then use the results to decide whether to add coverage.
+
+The HTML report and `report_markdown/tasks.md` show proposed, authored, validated, and
 executed task totals for your full saved plan. Use the
 [generated case review guide](#review-generated-cases) to inspect cases and their
 available evidence.
+
+Each proposed task identifies its **interaction type**:
+
+- **Single Turn** uses one user request. The agent can make several tool calls
+  to complete it.
+- **Scripted Multi-step** uses predefined requests and checks intermediate
+  outcomes before continuing. For example, add an item to a cart, check that
+  it's there, then request its removal.
+- **User Simulation** adapts later user messages to the agent's responses. For example,
+  a simulated customer chooses among the replacement items the agent actually
+  offers, then confirms the selected item.
+
+The interaction type describes the task's design. Runtime readiness and actual
+execution are tracked separately. Older saved plans can remain without a
+documented type until reviewed.
 
 Task controls check the task and its verifier: NeMo Gym's known-correct and negative
 verifier fixtures, or Harbor's no-op baseline and reference solution. Results
@@ -108,7 +175,7 @@ outcomes. See [Build your first evaluations](first-evals.md).
 
 ## Open readable cases and traces
 
-Start with the html report or the README.md for artifact paths and commands. Harbor
+Start with the HTML report or `.eval-author/README.md` for artifact paths and commands. Harbor
 tasks and recorded jobs use its native local viewer. Report links target the
 Harbor 0.24.0 viewer; refresh the report after upgrading to regenerate trial links.
 For NeMo Gym JSONL and ATIF, MLflow, or NeMo Gym traces, Eval Author includes an
@@ -138,13 +205,15 @@ and adds coverage analysis from selected recorded runs. See
 [Audit coverage](existing-evals.md#audit-coverage) for the initial choice and
 token tradeoff.
 
-The Audit coverage report is the only document you review; other outputs support
+The Audit coverage report is the only document you review. Read it in the
+**Audit** tab of `.eval-author/report.html`, where task names link to the Tasks
+tab and run evidence to the Runs tab, or as Markdown. Other outputs support
 internal validation, measurement, and saved progress:
 
 | Artifact | File | Role |
 | --- | --- | --- |
 | **Audit specification (internal)** | `.eval-author/audit.md` | Intended checks and evidence requirements |
-| **Audit coverage report** | `.eval-author/audit-coverage-report.md` | Readable scope, test mappings, findings, limits, and next actions |
+| **Audit coverage report** | `.eval-author/report_markdown/audits.md`, and the **Audit** tab of `.eval-author/report.html` | Readable scope, test mappings, findings, limits, and next actions |
 | **Coverage measurements (internal JSON)** | `.eval-author/audit-coverage-report.json` | Generated measured results aggregated over the selected runs, when available |
 | **Report content (internal)** | `.eval-author/.working/audit/report-content.json` | Saved report text and evidence references |
 | **Journey state (internal)** | `.eval-author/.working/journey-state.json` | Saved scope and review decisions, partial progress, pending questions, and next action |
@@ -162,14 +231,25 @@ audit's coverage criteria.
 
 The report opens with a Summary (including an ADVISORY when verifier cheating is
 confirmed and the Evaluation coverage table), then Key findings. Recommended
-next actions is a single list, highest priority first, that names each finding or
-advisory, the capabilities and tools it involves, and the proposed task.
+next actions is a single table, highest priority first, with **Priority**,
+**Finding / Advisory**, **Affected coverage** (the tool, capability, or failure
+case involved), and **Description** columns; the description gives the action and
+the proposed task. The closing conversation lists every recommendation in the
+same priority order, including each action’s implementation limits and support status.
 The Coverage report maps each audit item to its tasks and run evidence, followed by the task
 catalog, verifier cheat screening, scope and execution evidence, and
 definitions.
 
 The audit report is generated. Ask Eval Author to revise and regenerate it when
-you need changes. Direct Markdown edits block refresh.
+you need changes. Editing the generated audit Markdown blocks audit regeneration
+until the edits are resolved. HTML refresh continues to display the edited report,
+and the Audit tab marks it as edited. Each regeneration also refreshes `report.html`
+and the Markdown reports.
+
+Audits saved before this layout are at `.eval-author/audit-coverage-report.md`.
+The Audit tab shows such a report, labeled with its old location, until the next
+audit. That audit writes `report_markdown/audits.md` and removes the old file if it
+was not edited; an edited or handwritten old report stays where it is.
 
 Older manually written reports remain readable. Ask for conversion before
 regenerating one. Conversion preserves the original report and historical
@@ -199,9 +279,20 @@ for example “deferred — selected trace
 directory is missing,” so the limitation remains visible in later reviews.
 
 A task review deliberately leaves run coverage unmeasured. It can complete after
-you accept its findings, without a measurement JSON file or a deferred step.
+its findings are recorded, without a measurement JSON file or a deferred step.
 The incomplete-measurement rules above apply to measured audits. Resuming either
 approach preserves its choice and reviews changed inputs before reusing results.
+
+Once an audit's findings are recorded, Eval Author saves a snapshot of it under
+`.eval-author/.working/audit-history/`, which a new audit keeps. The next report for the same agent compares
+capability coverage with the previous audit in the Evaluation coverage table:
+percentage points for the coverage ratio and relative percentages for counts. A
+changed declared scope or measurement method is explained and its coverage
+change is not compared, so a larger scope never reads as better performance.
+The report has one Evaluation coverage table, with Current audit, Previous audit,
+and Change columns. The first audit shows `No comparable previous audit` above the
+same table, with `-` and `Not compared` in its Previous audit and
+Change columns. History stays in your checkout.
 
 A covered item has supporting evidence under the audit's declared criteria.
 An uncovered item may lack evidence in the measured traces, or its evidence type
@@ -210,14 +301,14 @@ new evaluation. Coverage does not establish overall agent quality or prove that
 an unobserved behavior never occurs.
 
 The final checklist step, **Generate and review coverage report**, creates or
-updates the Audit coverage report and reviews its findings with you. The review
-stays pending until you respond to the check-in. Whenever a session creates or
+updates the Audit coverage report and presents its findings. Findings need no
+approval. Whenever a session creates or
 updates the report, its final response explicitly says so and links it, even if the
 audit stops at an intermediate checkpoint. When an audit resumes, changed
 inputs are reconciled with the report before its findings are treated as current.
 
 The audit also inspects selected tasks' grading paths and reconciles retained
-cheat-control results before findings review. Findings distinguish verifier
+cheat-control results before recording findings. Findings distinguish verifier
 defects, agent failures, rejected valid solutions, and ungraded execution.
 Failed controls remain relevant even when a task has no usable agent trajectory.
 A later passing control doesn't erase a failure on the same task revision.
@@ -227,12 +318,25 @@ stay in the task README's **Verifier** section. Legacy **Grading** and **Grader*
 headings remain supported.
 
 Journey state saves audit decisions and the pending checkpoint across chats
-and workflow switches. Accepting findings records the answer without rewriting
-the report to mark it accepted. See [audit resumption](existing-evals.md#audit-coverage)
+and workflow switches. Recording findings doesn't rewrite the report. See [audit resumption](existing-evals.md#audit-coverage)
 for how changed inputs reopen review and measurement.
 
-For the combined findings review and optional next-action handoff, see
+For the findings and optional next-action handoff, see
 [Audit coverage](existing-evals.md#audit-coverage).
+
+### Selected audit improvements
+
+Refer to recommended next actions by their descriptions. You can select one or
+several to plan, finish with the findings, or choose an evidence or agent fix.
+Recording findings alone does not start improvement work.
+
+Selected improvements survive a later session with their audit context. Their
+scope still needs agreement before implementation. Progress and available
+evidence appear beneath the same recommendation in the Audit coverage report.
+An implemented change does not by itself establish successful validation or
+better coverage. If task files change, earlier audit measurements need review
+before they can describe the changed tasks. Eval Author retains the original
+findings and explains that limit; it does not automatically repeat the audit.
 
 ### Identity-aware coverage results
 

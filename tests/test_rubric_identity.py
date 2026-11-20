@@ -427,26 +427,140 @@ def test_configuration_known_empty_lists_remain_equal():
     assert result["unknowns"] == result["differences"] == []
 
 
-def test_configuration_diagnostics_use_exact_json_pointers():
-    checker = load_checker()
-    declared: dict[str, Any] = dict.fromkeys(checker.CONFIG_FIELDS, "known")
-    observed = declared.copy()
-    declared["agent"] = {"a/b~c": ["", {"x/y": True}]}
-    observed["agent"] = {"a/b~c": ["known", {"x/y": 1}]}
-    declared["extra/~"] = {"": None}
-    observed["extra/~"] = {"": "known"}
-    result = checker.compare_config(declared, observed)
-    assert result["status"] == "different"
-    assert result["differences"] == ["/agent/a~1b~0c/1/x~1y"]
-    assert result["unknowns"] == ["/agent/a~1b~0c/0", "/extra~1~0/"]
+def route_fixture(root: Path, mutation: str | None) -> dict[str, Any]:
+    """Synthetic refund route selection shared by the route tests."""
+    import copy
+
+    def digest(path: Path) -> str:
+        return hashlib.sha256(path.read_bytes()).hexdigest()
+
+    files: dict[str, Any] = {
+        "task": {"task_id": "task-1"},
+        "entry": {"selector": "strict", "routes": {"strict": "scorer", "weak": "other"}},
+        "scorer": {"checks": ["amount", "approval"]},
+        "other": {"checks": ["claimed_success"]},
+        "prompt": {"role": "judge-input"},
+        "ethos": {"intent": "synthetic refund task"},
+    }
+    if mutation == "wrong-scorer":
+        files["entry"]["selector"] = "weak"
+    elif mutation == "ambiguous-route":
+        files["entry"] = {"selector": None, "routes": files["entry"]["routes"]}
+    scope: dict[str, dict[str, Any]] = {
+        "task_artifacts": {"required": ["task"], "source": "task-inventory", "unresolved_material": []},
+        "grading_dependencies": {
+            "required": ["scorer", "other", "prompt"],
+            "source": "grading-inventory",
+            "unresolved_material": [],
+            "review_source": "review",
+        },
+    }
+    if mutation == "partial":
+        scope["task_artifacts"]["unresolved_material"] = ["Unresolved generated task input reference"]
+        scope["grading_dependencies"]["required"].append("absent")
+        scope["grading_dependencies"]["unresolved_material"] = ["Unresolved scorer dependency: absent"]
+    for name, inventory in scope.items():
+        files[inventory["source"]] = {
+            name: {key: copy.deepcopy(inventory[key]) for key in ("required", "unresolved_material")}
+        }
+    roles = {
+        "task": "task",
+        "entry": "configuration",
+        "scorer": "scorer",
+        "other": "scorer",
+        "prompt": "judge_prompt",
+        "ethos": "ethos",
+        "task-inventory": "manifest",
+        "grading-inventory": "manifest",
+        "review": "review",
+    }
+    files["review"] = {
+        "source": scope["grading_dependencies"]["source"],
+        "required": copy.deepcopy(scope["grading_dependencies"]["required"]),
+        "unresolved_material": copy.deepcopy(scope["grading_dependencies"]["unresolved_material"]),
+        "complete": mutation != "partial",
+    }
+    dependencies = {"scorer": ["prompt"], "other": [], "prompt": []}
+    if mutation == "partial":
+        dependencies["scorer"].append("absent")
+    if mutation == "missing-dependency":
+        dependencies["scorer"] = ["absent"]
+    entry: dict[str, Any] = files["entry"]
+    entry["dependencies"] = copy.deepcopy(dependencies)
+    entry["expected_scorer"] = "scorer"
+    records = []
+    for name, value in files.items():
+        path = root / (name + ".json")
+        path.write_text(json.dumps(value, sort_keys=True))
+        records.append(
+            {
+                "id": name,
+                "role": roles[name],
+                "path": path.name,
+                "digest": digest(path),
+                "revision": None,
+                "access": "available",
+                "selection_origin": "explicit",
+                "source": "task-inventory.json"
+                if name == "task"
+                else "grading-inventory.json"
+                if name in ("scorer", "other", "prompt", "review")
+                else "fixture:selection",
+                "evidence": [{"path": path.name, "digest": digest(path)}],
+            }
+        )
+    if mutation in ("missing", "denied", "unresolved"):
+        records[0]["access"] = mutation
+        records[0]["digest"] = None
+        records[0]["evidence"] = []
+    if mutation == "confirmed-missing":
+        (root / "task.json").unlink()
+    if mutation == "changed-task":
+        (root / "task.json").write_text('{"task_id":"task-changed"}')
+    config: dict = {
+        "agent": "scripted",
+        "run": "run-1",
+        "task": "task-1",
+        "tool_permissions": [],
+        "provider": "harbor",
+        "runtime_pins": {"harbor": "0.24.0"},
+        "environment": {"network": "none"},
+    }
+    observed = copy.deepcopy(config)
+    if mutation == "config-difference":
+        observed["runtime_pins"]["harbor"] = "different"
+    bindings = {row["id"]: row["digest"] for row in records}
+    approval: dict = {
+        "id": "approval",
+        "decision_id": "decision",
+        "scope": "task:task/substitution",
+        "substitution": {"from": "other", "to": "scorer"},
+        "bindings": copy.deepcopy(bindings),
+    }
+    decision = {key: copy.deepcopy(value) for key, value in approval.items() if key != "decision_id"}
+    decision.update(id="decision", outcome="approved", source="fixture:user-turn")
+    if mutation == "stale-approval":
+        approval["bindings"]["ethos"] = "f" * 64
+        decision["bindings"]["ethos"] = "f" * 64
+    nodes = [{"id": "task", "role": "task"}, {"id": "run", "role": "run"}]
+    links = [{"source": "run", "target": "task", "relation": "task"}]
+    if mutation == "broken-reference":
+        links = []
+    return {
+        "artifacts": records,
+        "route": {"entrypoint": "entry", "expected_scorer": "scorer", "dependencies": dependencies},
+        "declared_config": config,
+        "observed_config": observed,
+        "nodes": nodes,
+        "links": links,
+        "approvals": [approval],
+        "decisions": [] if mutation == "missing-decision" else [decision],
+    }
 
 
 @pytest.fixture
-def route_selection(tmp_path, monkeypatch):
-    monkeypatch.syspath_prepend(str(ROOT / "tools"))
-    from run_rubric_measurements import fixture
-
-    return fixture(tmp_path, None)
+def route_selection(tmp_path):
+    return route_fixture(tmp_path, None)
 
 
 @pytest.mark.parametrize("access", ["missing", "denied", "unresolved", "malformed"])
@@ -1188,7 +1302,7 @@ def test_cli_readers_never_open_selected_unavailable_alias(tmp_path, consumer, a
         assert report["counts"]["compared"] == 1
 
 
-@pytest.mark.parametrize("consumer", ["approvals", "native", "scoring"])
+@pytest.mark.parametrize("consumer", ["approvals", "native"])
 @pytest.mark.parametrize("access", ["missing", "denied", "unresolved"])
 @pytest.mark.parametrize("reverse", [False, True])
 @pytest.mark.parametrize("direct", [False, True])
@@ -1201,12 +1315,6 @@ def test_cli_downstream_readers_respect_full_identity_selection(tmp_path, consum
     choice = {"approvals": approvals, "decisions": decisions, "approval_sources": sources}
     if consumer == "native":
         choice = {"native": {"receipt_ids": [], "manifest_ids": [], "result_ids": [], "trace_ids": [selected["id"]]}}
-    elif consumer == "scoring":
-        choice = {
-            "rubric_scope": {
-                "task_artifacts": {"source": selected["id"], "required": ["task"], "unresolved_material": []}
-            }
-        }
     private = tmp_path / "private.json"
     private.write_bytes((tmp_path / selected["path"]).read_bytes())
     records.append(dict(selected, id="unavailable", path=private.name, access=access))
@@ -1226,11 +1334,9 @@ def test_cli_downstream_readers_respect_full_identity_selection(tmp_path, consum
     if consumer == "approvals":
         assert report["measurements"]["approvals"]["evidence"] == []
         assert report["measurements"]["approvals"]["status"] != "pass"
-    elif consumer == "native":
+    else:
         assert report["measurements"]["native"]["bindings"] == []
         assert report["measurements"]["native"]["status"] != "pass"
-    else:
-        assert report["items"]["DISC-01-A"]["score"] is None
 
 
 def audited_rubric_cli(root, selection, forbidden):

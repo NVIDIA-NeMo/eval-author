@@ -5,9 +5,9 @@
 
 from collections.abc import Callable
 
-from . import audit, first_eval, onboarding
+from . import audit, expansion, first_eval, onboarding
 
-FLOWS = (onboarding, first_eval, audit)
+FLOWS = (onboarding, first_eval, audit, expansion)
 HANDLERS: dict[tuple[str | None, str], Callable[[dict], str]] = {}
 PREVIEWS: set[str] = set()
 for flow in FLOWS:

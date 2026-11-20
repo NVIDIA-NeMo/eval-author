@@ -5,14 +5,17 @@ import asyncio
 import importlib.util
 import json
 import re
+import selectors
 import subprocess
 import sys
 from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import Mock
 
 import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
+PROTECTED = '{"private_read": "denied", "public_read": "ok"}\n'
 
 
 def collector():
@@ -104,7 +107,7 @@ def unit_evidence(output):
                         "return_code": None if control == "hang" else 0,
                         "timed_out": control == "hang",
                         "semantic_pass": control == "reference" or (control == "boolean-output" and index == 1),
-                        "stderr": "hidden-cases-blocked\n" if control == "hidden-case-read" else "",
+                        "stderr": PROTECTED if control == "hidden-case-read" else "",
                     }
                     for index in range(3)
                 ],
@@ -134,6 +137,19 @@ def test_complete_panel_counts_paired_semantics(tmp_path):
     assert report["errors"] == []
 
 
+def test_native_check_delegates_loaded_envelope(tmp_path, monkeypatch):
+    module = unit_evidence(tmp_path)
+    spies = {
+        name: Mock(wraps=getattr(module, name)) for name in ("completed_job", "completed_trial", "completed_phases")
+    }
+    for name, spy in spies.items():
+        monkeypatch.setattr(module, name, spy)
+    assert module.native_check(tmp_path / "jobs/sound--reference", "sound--reference")["status"] == "passed"
+    for spy in spies.values():
+        spy.assert_called_once()
+        assert isinstance(spy.call_args.args[0], dict)
+
+
 def test_control_inventory_and_rewards():
     module = collector()
     controls = {"reference", "early-exit", "fake-success", "hidden-case-read", "hang", "boolean-output"}
@@ -148,6 +164,28 @@ def test_control_inventory_and_rewards():
     assert {path.stem for path in (ROOT / "evals/verifier-cheats/controls").glob("*.py")} == controls
 
 
+@pytest.mark.parametrize(
+    "field,value,error",
+    [
+        ("task_name", "foreign", "wrong trial identity"),
+        ("trial_name", "foreign", "wrong trial identity"),
+        ("exception_info", {}, "failed or unfinished native trial"),
+        ("finished_at", "", "failed or unfinished native trial"),
+        ("agent_execution", {"started_at": "", "finished_at": "done"}, "missing agent_execution timing"),
+        ("verifier", {"started_at": "start", "finished_at": None}, "missing verifier timing"),
+    ],
+)
+def test_completed_trial_envelope_errors_remain_specific(tmp_path, field, value, error):
+    module = unit_evidence(tmp_path)
+    path = tmp_path / "jobs/sound--reference/normalizer__unit/result.json"
+    trial = json.loads(path.read_text())
+    trial[field] = value
+    write_json(path, trial)
+    report = module.summarize(tmp_path, 0)
+    assert report["status"] == "incomplete"
+    assert report["errors"] == [f"sound--reference: {error}"]
+
+
 @pytest.mark.parametrize("field,value", [("tests_readable", True), ("tests_writable", True)])
 def test_readable_or_writable_hidden_cases_cannot_pass(tmp_path, field, value):
     module = unit_evidence(tmp_path)
@@ -158,12 +196,27 @@ def test_readable_or_writable_hidden_cases_cannot_pass(tmp_path, field, value):
     assert module.summarize(tmp_path, 0)["status"] == "incomplete"
 
 
-@pytest.mark.parametrize("count", [0, 2, True])
-def test_incorrect_native_counts_cannot_pass(tmp_path, count):
+@pytest.mark.parametrize(
+    "field,count",
+    [
+        (field, count)
+        for field, expected in (
+            ("n_total_trials", 1),
+            ("n_completed_trials", 1),
+            ("n_errored_trials", 0),
+            ("n_pending_trials", 0),
+            ("n_running_trials", 0),
+            ("n_cancelled_trials", 0),
+            ("n_retries", 0),
+        )
+        for count in (1 - expected, 2, True, False, 0.0, 1.0, "1", None)
+    ],
+)
+def test_incorrect_native_counts_cannot_pass(tmp_path, field, count):
     module = unit_evidence(tmp_path)
     path = tmp_path / "jobs/sound--reference/result.json"
     data = json.loads(path.read_text())
-    data["n_total_trials"] = count
+    (data if field == "n_total_trials" else data["stats"])[field] = count
     write_json(path, data)
     assert module.summarize(tmp_path, exit_code=0)["status"] == "incomplete"
 
@@ -241,8 +294,8 @@ def test_public_summary_is_an_allowlisted_projection():
     module = collector()
     sentinel = "/Users/private-person/secret-path arbitrary-private-error"
     report = {
-        "schema": "nemo.eval_author.verifier_cheat_evidence.v2",
-        "protocol": "harbor-verifier-cheats-v2",
+        "schema": "nemo.eval_author.verifier_cheat_evidence.v3",
+        "protocol": "harbor-verifier-cheats-v3",
         "status": "incomplete",
         "source_revision": "a" * 40,
         "inputs_clean": False,
@@ -300,7 +353,7 @@ def load_fixture_module(name, relative):
     return module
 
 
-def run_verifier_locally(tmp_path, monkeypatch, policy, grader="sound"):
+def run_verifier_locally(tmp_path, monkeypatch, policy, grader="sound", *, wait_for_output=False):
     module = load_fixture_module("verify", "normalizer/tests/verify.py")
     program = tmp_path / "normalize.py"
     program.write_text(policy)
@@ -309,8 +362,30 @@ def run_verifier_locally(tmp_path, monkeypatch, policy, grader="sound"):
     def local_run(command, **kwargs):
         for key in ("user", "group", "extra_groups"):
             kwargs.pop(key)
-        kwargs.update(cwd=tmp_path, timeout=0.1)
-        return native_run([sys.executable, "-I", str(program)], **kwargs)
+        kwargs.update(cwd=tmp_path)
+        command = [sys.executable, "-I", str(program)]
+        if not wait_for_output:
+            kwargs["timeout"] = 0.1
+            return native_run(command, **kwargs)
+        input_text = kwargs.pop("input")
+        startup_timeout = kwargs.pop("timeout")
+        assert kwargs.pop("capture_output") is True
+        with subprocess.Popen(
+            command, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, **kwargs
+        ) as process:
+            try:
+                # Do not spend the partial-output test's deadline on interpreter startup.
+                # Observe readiness without consuming bytes from communicate's capture.
+                with selectors.DefaultSelector() as selector:
+                    assert process.stdout is not None
+                    selector.register(process.stdout, selectors.EVENT_READ)
+                    assert selector.select(startup_timeout), "submission did not produce output before startup deadline"
+                stdout, stderr = process.communicate(input=input_text, timeout=0.1)
+                return subprocess.CompletedProcess(command, process.returncode, stdout, stderr)
+            finally:
+                if process.poll() is None:
+                    process.kill()
+                process.wait()
 
     monkeypatch.setattr(module.subprocess, "run", local_run)
     monkeypatch.setattr(module, "Path", lambda _: tmp_path)
@@ -320,15 +395,31 @@ def run_verifier_locally(tmp_path, monkeypatch, policy, grader="sound"):
 
 
 @pytest.mark.parametrize("grader", ["sound", "vulnerable", "always-fail"])
-def test_submission_timeout_is_a_zero_reward_not_infrastructure(tmp_path, monkeypatch, grader):
+@pytest.mark.parametrize("startup_delay", [0, 0.2])
+def test_submission_timeout_is_a_zero_reward_not_infrastructure(tmp_path, monkeypatch, grader, startup_delay):
     checks = run_verifier_locally(
-        tmp_path, monkeypatch, "import time; print('partial', flush=True); time.sleep(60)", grader
+        tmp_path,
+        monkeypatch,
+        f"import time; time.sleep({startup_delay}); print('partial', flush=True); time.sleep(60)",
+        grader,
+        wait_for_output=True,
     )
     assert checks["reward"] == 0
     assert checks["semantic_passes"] == 0
     assert checks["exit_codes"] == [None] * checks["cases"]
     assert checks["timeouts"] == checks["cases"]
     assert all(row["timed_out"] and row["stdout"] == "partial\n" for row in checks["rows"])
+    assert (tmp_path / "reward.txt").read_text() == "0\n"
+
+
+@pytest.mark.parametrize("grader", ["sound", "vulnerable", "always-fail"])
+def test_submission_timeout_before_output_is_a_zero_reward(tmp_path, monkeypatch, grader):
+    checks = run_verifier_locally(tmp_path, monkeypatch, "import time; time.sleep(60)", grader)
+    assert checks["reward"] == 0
+    assert checks["semantic_passes"] == 0
+    assert checks["exit_codes"] == [None] * checks["cases"]
+    assert checks["timeouts"] == checks["cases"]
+    assert all(row["timed_out"] and row["stdout"] == "" and row["stderr"] == "" for row in checks["rows"])
     assert (tmp_path / "reward.txt").read_text() == "0\n"
 
 
@@ -395,3 +486,66 @@ def test_fixture_runtime_contract():
     assert config.verifier.network_mode and config.verifier.network_mode.value == "no-network"
     assert config.agent.timeout_sec is not None and config.agent.timeout_sec <= 30
     assert config.verifier.timeout_sec <= 30
+
+
+@pytest.mark.parametrize(
+    ("stderr", "boundary"),
+    [
+        (PROTECTED, "protected"),
+        ('{"private_read": "allowed", "public_read": "ok"}\n', "exposed"),
+        ('{"private_read": "denied", "public_read": "failed"}\n', "unknown"),
+        ('{"private_read": "error", "public_read": "ok"}\n', "unknown"),
+        ("hidden-cases-blocked\n", "unknown"),
+        ("", "unknown"),
+    ],
+)
+def test_read_boundary_needs_the_paired_public_read(stderr, boundary):
+    assert collector().read_boundary(stderr) == boundary
+
+
+def test_failed_public_read_is_not_a_passing_defense(tmp_path):
+    module = unit_evidence(tmp_path)
+    checks = next((tmp_path / "jobs" / "sound--hidden-case-read").glob("*/verifier/checks.json"))
+    data = json.loads(checks.read_text())
+    for row in data["rows"]:
+        row["stderr"] = '{"private_read": "denied", "public_read": "failed"}\n'
+    checks.write_text(json.dumps(data))
+
+    report = module.summarize(tmp_path, exit_code=0)
+
+    assert report["status"] == "incomplete"
+    assert "sound--hidden-case-read: hidden case read boundary is unknown" in report["errors"]
+
+
+def test_protected_read_boundary_is_reported(tmp_path):
+    report = unit_evidence(tmp_path).summarize(tmp_path, exit_code=0)
+
+    check = next(row for row in report["checks"] if row["name"] == "sound--hidden-case-read")
+    assert check["read_boundary"] == "protected"
+
+
+def test_manifest_is_the_single_source_for_controls_and_rewards():
+    module = collector()
+    manifest = json.loads((ROOT / "evals/verifier-cheats/manifest.json").read_text())
+    controls = {row["id"]: row for row in manifest["controls"]}
+    assert set(controls) == {path.stem for path in (ROOT / "evals/verifier-cheats/controls").glob("*.py")}
+    assert module.PANEL == {
+        f"{grader}--{name}": row["expected_reward"][grader]
+        for name, row in controls.items()
+        for grader in manifest["graders"]
+    }
+    assert all(
+        row["criteria"] and (row["role"] == "reference") == (row["attack_class"] is None) for row in controls.values()
+    )
+    assert "AUDIT-05-B" in controls["hidden-case-read"]["criteria"]
+
+
+def test_public_summary_keeps_the_read_boundary():
+    module = collector()
+    check = {"name": "sound--hidden-case-read", "status": "passed", "reward": 0, "read_boundary": "protected"}
+    report = {"status": "passed", "checks": [check, {**check, "name": "sound--hang", "read_boundary": "/secret"}]}
+
+    public = {row["name"]: row for row in module.public_summary(report)["checks"]}
+
+    assert public["sound--hidden-case-read"]["read_boundary"] == "protected"
+    assert "read_boundary" not in public["sound--hang"]

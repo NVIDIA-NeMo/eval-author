@@ -1,7 +1,12 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Experimental read-only rubric measurements of an explicit selection."""
+"""Score the 23 rubric criteria for an explicit selection.
+
+Measurement producers record observations. Every criterion score comes from the
+criterion predicates in rubric_evidence_scoring, applied to the selected
+criterion evidence. Simulated and recorded evidence use the same predicates.
+"""
 
 from __future__ import annotations
 
@@ -12,21 +17,52 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "eval-author/scripts"))
 from eval_author_shared.task_evidence import loads  # noqa: E402
+from rubric_authority import check_authority  # noqa: E402
 from rubric_configuration import compare_sourced_config  # noqa: E402
+from rubric_ethos import check_ethos  # noqa: E402
+from rubric_evidence_scoring import assess_evidence  # noqa: E402
+from rubric_external import check_external  # noqa: E402
 from rubric_freshness import check_freshness  # noqa: E402
-from rubric_identity import compare_config, finish, identify, resolve_route, text  # noqa: E402
+from rubric_identity import compare_config, finish, identify, read_selected, resolve_route, text  # noqa: E402
+from rubric_layout import label_task  # noqa: E402
+from rubric_leakage import scan_task  # noqa: E402
 from rubric_links import check_approvals, check_links, check_sourced_approvals  # noqa: E402
 from rubric_native import project_native  # noqa: E402
+from rubric_overlap import check_overlap  # noqa: E402
 from rubric_reconstruction import project_reconstruction  # noqa: E402
-from rubric_report import build_report  # noqa: E402
-from rubric_scoring import assess  # noqa: E402
+from rubric_reuse import check_reuse  # noqa: E402
 
 
-def measure(root, selection):
+def measure(root, selection, ethos_validator=None):
     root = Path(root).resolve(strict=True)
     json.dumps(selection, allow_nan=False)
     if not isinstance(selection, dict):
         raise ValueError("selection must be an object")
+    supported = {
+        "approval_sources",
+        "approvals",
+        "artifacts",
+        "authority",
+        "decisions",
+        "criterion_evidence",
+        "declared_config",
+        "ethos",
+        "freshness",
+        "external",
+        "layout",
+        "leakage",
+        "links",
+        "native",
+        "nodes",
+        "observed_config",
+        "overlap",
+        "reconstruction",
+        "reuse",
+        "route",
+        "sourced_config",
+    }
+    if selection.keys() - supported:
+        raise ValueError("unsupported selection field")
     artifacts = selection.get("artifacts", [])
     identity = identify(root, artifacts)
     route = (
@@ -70,6 +106,20 @@ def measure(root, selection):
         measurements["reconstruction"] = project_reconstruction(root, artifacts, selection["reconstruction"])
     if "freshness" in selection:
         measurements["freshness"] = check_freshness(root, artifacts, selection["freshness"])
+    if "ethos" in selection:
+        measurements["ethos"] = check_ethos(root, artifacts, selection["ethos"], ethos_validator)
+    if "authority" in selection:
+        measurements["authority"] = check_authority(root, artifacts, selection["authority"])
+    if "layout" in selection:
+        measurements["layout"] = label_task(root, selection["layout"])
+    if "leakage" in selection:
+        measurements["leakage"] = scan_task(root, selection["leakage"], measurements.get("reconstruction"))
+    if "overlap" in selection:
+        measurements["overlap"] = check_overlap(root, selection["overlap"])
+    if "external" in selection:
+        measurements["external"] = check_external(root, selection["external"])
+    if "reuse" in selection:
+        measurements["reuse"] = check_reuse(root, selection["reuse"])
     if "native" in selection:
         selected_native = selection["native"]
         if not isinstance(selected_native, dict) or set(selected_native) != {
@@ -82,14 +132,15 @@ def measure(root, selection):
         if not all(isinstance(ids, list) and all(text(ident) for ident in ids) for ids in selected_native.values()):
             raise ValueError("invalid native selection")
         measurements["native"] = project_native(root, identity, **selected_native)
+    items = assess_evidence(root, selection)
+    if assess_evidence(root, selection) != items or identify(root, artifacts) != identity:
+        raise ValueError("selected evidence changed during assessment")
     return {
-        "schema": "rubric-measurements-v2",
+        "schema": "rubric-measurements-v4",
         "experimental": True,
         "scope": "explicit-local-selection",
-        "preflight_success": False,
-        "anti_cheat_scores": None,
         "measurements": measurements,
-        "items": build_report(assess(measurements, selection, root=root), measurements, selection, root),
+        "items": items,
     }
 
 
@@ -97,18 +148,31 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", required=True, type=Path)
     parser.add_argument("--selection", required=True, type=Path)
+    parser.add_argument("--ethos-validator", type=Path, help="ethos-write's scripts/validate_ethos.py")
+    parser.add_argument(
+        "--verify-existing", type=Path, help="Compare a retained report with a fresh read-only assessment"
+    )
     args = parser.parse_args(argv)
     try:
-        report = measure(args.root.absolute(), loads(args.selection.read_text()))
-        output = json.dumps(report, sort_keys=True, indent=2, allow_nan=False)
+        report = measure(args.root.absolute(), loads(args.selection.read_text()), args.ethos_validator)
+        output = json.dumps(report, indent=2, allow_nan=False)
+        if args.verify_existing:
+            root = args.root.absolute()
+            data, reason = read_selected(root, args.verify_existing.absolute().relative_to(root).as_posix())
+            if (
+                reason
+                or data is None
+                or json.dumps(loads(data), sort_keys=True, allow_nan=False)
+                != json.dumps(report, sort_keys=True, allow_nan=False)
+            ):
+                raise ValueError("retained report disagrees with current evidence")
     except (OSError, ValueError, TypeError, KeyError):
         print(
             json.dumps(
                 {
-                    "schema": "rubric-measurements-v2",
+                    "schema": "rubric-measurements-v4",
                     "status": "invalid",
                     "code": "selection.invalid",
-                    "preflight_success": False,
                 }
             )
         )

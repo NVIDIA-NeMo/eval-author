@@ -42,7 +42,8 @@ construction, follow the [trace source handoff](../eval-author/references/trace-
 This branch starts before Intake CLI resolution and needs no Intake access. It
 owns scrubbing, the contextual privacy review, and the recorded evidence audit.
 Use [trace sources](references/sources.md) for source kinds and scrubbing, and the
-[evidence audit contract](references/evidence-audit.md) for review coverage.
+[evidence audit contract](references/evidence-audit.md) for review coverage and
+for [repeats after tool errors](references/evidence-audit.md#repeats-after-tool-errors).
 Return the private workspace to first-eval or task-create after review; candidacy
 belongs to task-create. For a remote Intake investigation, continue below.
 
@@ -151,6 +152,27 @@ nemo intake spans get --output-format=json --workspace="WORKSPACE" "SPAN_ID"
 
 Require the returned `trace_id` to equal the selected trace ID. Otherwise,
 discard the span and report the mismatch. Don't recreate payload-length flags.
+
+Span status alone doesn't show whether tools failed. Some producers mark every
+tool span successful even when the tool failed. Whether or not the error-status
+selection returned spans, read bounded previews of every tool span:
+
+```bash
+nemo intake spans list --output-format=json --workspace="WORKSPACE" --filter.trace-id="TRACE_ID" --filter.kind=TOOL --mode=preview --sort=started_at --all-pages
+```
+
+Count a tool result as failure evidence only when it is the tool's own failure
+report: an error field, a non-zero exit code or `exit_code` field, or a
+traceback or crash message from the command the tool ran. Exit code 0 is still a
+failure when the command's own output shows it crashed. Content that the tool
+returned successfully, such as a file, search result, or log that mentions
+`Error` or `Exception`, isn't failure evidence. Read the exact payload only when
+a preview is ambiguous or truncated.
+
+In the report and the explanation to the user, state which method found
+failures: span status, tool-result text, or both. If neither found any, say that
+neither span status nor tool-result text showed failures. Never report "no
+errors" from the status selection alone.
 
 ## Read evaluator evidence
 
