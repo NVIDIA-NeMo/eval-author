@@ -442,7 +442,7 @@ def test_ethos_confirmation_preserves_other_owners_questions(modules, tmp_path, 
 @pytest.mark.parametrize("path", ["starter_suite", "recorded_interaction"])
 @pytest.mark.parametrize("approved", [False, True])
 @pytest.mark.parametrize("phase", ["setup", "ethos", "expand"])
-@pytest.mark.parametrize("review", ["content", "path"])
+@pytest.mark.parametrize("review", ["content", "path", "draft"])
 def test_generated_ethos_review_clears_under_blockers(modules, tmp_path, path, approved, phase, review):
     state, expansion, renderer = modules
     saved = start(modules, tmp_path, path, existing_ethos=True)
@@ -462,12 +462,33 @@ def test_generated_ethos_review_clears_under_blockers(modules, tmp_path, path, a
     if review == "content":
         (tmp_path / "ETHOS.md").write_text("# Changed agent intent\n")
         saved = state.initialize(tmp_path, journey="expand")
-    else:
+    elif review == "path":
         (tmp_path / "selected").mkdir()
         (tmp_path / "selected/ETHOS.md").write_bytes((tmp_path / "ETHOS.md").read_bytes())
         saved = state.update(tmp_path, {"ethos": {"path": "selected/ETHOS.md"}}, expected_revision=blocked["revision"])
+    else:
+        draft_path = ".eval-author/.working/review-draft.md"
+        draft_bytes = b"# Agreed agent behavior\n"
+        (tmp_path / draft_path).write_bytes(draft_bytes)
+        state.update(
+            tmp_path,
+            {
+                "ethos": {
+                    "stage": "write",
+                    "draft": {"path": draft_path, "digest": hashlib.sha256(draft_bytes).hexdigest()},
+                    "draft_confirmed": True,
+                    "draft_source": "User approves draft",
+                }
+            },
+            expected_revision=blocked["revision"],
+        )
+        (tmp_path / draft_path).write_bytes(b"# Revised agent behavior\n")
+        saved = state.initialize(tmp_path, journey="expand")
+        assert saved["ethos"]["stage"] == "draft"
+        assert not saved["ethos"]["draft_confirmed"]
+        (tmp_path / "ETHOS.md").write_bytes((tmp_path / draft_path).read_bytes())
     answered_question = saved["pending_question"]
-    assert "ETHOS.md" in answered_question
+    assert ("draft" if review == "draft" else "ETHOS.md") in answered_question
     scope = copy.deepcopy(saved["scopes"]["expand"])
     confirmed = state.confirm_ethos(
         tmp_path,

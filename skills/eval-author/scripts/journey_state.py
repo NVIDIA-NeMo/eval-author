@@ -30,6 +30,7 @@ import first_eval_state  # noqa: E402
 from conversation_templates import (  # noqa: E402
     CHECKLIST_LABELS,
     ETHOS_CHANGED_QUESTION,
+    ETHOS_DRAFT_CHANGED_QUESTION,
     ETHOS_SELECTED_QUESTION,
     JOURNEYS,
 )
@@ -441,7 +442,7 @@ def load_state(repo: Path, *, state_only: bool = False) -> dict:
         if current != draft["digest"]:
             state["ethos"].update(stage="draft", draft_confirmed=False, draft_source=None)
             state["next_handoff"] = "ethos-orchestrate"
-            state["pending_question"] = "The agreed draft changed or is unavailable; review the draft before writing."
+            state["pending_question"] = ETHOS_DRAFT_CHANGED_QUESTION
     if (
         state["journey"] != "audit"
         and state["ethos"]["stage"] == "complete"

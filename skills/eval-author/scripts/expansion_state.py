@@ -284,11 +284,15 @@ def checkpoint_ready(state: dict) -> bool:
 def reconcile_question(repo, state: dict, *, answered_ethos_review: bool = False) -> None:
     value = record(state)
     if value is not None and value["schema_version"] == 2:
-        from conversation_templates import ETHOS_CHANGED_QUESTION, ETHOS_SELECTED_QUESTION
+        from conversation_templates import ETHOS_CHANGED_QUESTION, ETHOS_DRAFT_CHANGED_QUESTION, ETHOS_SELECTED_QUESTION
         from journey_state import active_blockers, checklist
 
         scope_question = value["pending"]["question"] if value["pending"] else None
-        ethos_question = state["pending_question"] in {ETHOS_CHANGED_QUESTION, ETHOS_SELECTED_QUESTION} or (
+        ethos_question = state["pending_question"] in {
+            ETHOS_CHANGED_QUESTION,
+            ETHOS_DRAFT_CHANGED_QUESTION,
+            ETHOS_SELECTED_QUESTION,
+        } or (
             state["next_handoff"] == "ethos-orchestrate"
             and checklist(state)[0]["complete"]
             and not active_blockers(state)
