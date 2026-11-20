@@ -8,7 +8,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
-from typing import Literal, NotRequired, TypedDict, cast
+from typing import Literal, TypedDict, cast
 
 
 class EntryChoice(TypedDict):
@@ -35,8 +35,8 @@ class PendingDecision(TypedDict):
 
 
 class EntryRecord(TypedDict):
-    schema_version: Literal[1]
-    setup: NotRequired[Literal["gym", "harbor"]]
+    checkpoint: Literal["entry"]
+    setup: Literal["gym", "harbor"]
     ethos_digest: str
     handoff_digest: str | None
     pending: PendingDecision
@@ -63,7 +63,7 @@ class ScopeDecision(TypedDict):
 
 
 class ScopeRecord(TypedDict):
-    schema_version: Literal[2]
+    checkpoint: Literal["scope"]
     setup: Literal["gym", "harbor"]
     ethos_digest: str | None
     handoff_digest: str | None
@@ -89,20 +89,21 @@ def handoff_digest(state: dict) -> str | None:
 def validate(value: object) -> None:
     if not isinstance(value, dict):
         raise ValueError("Expansion requires a saved checkpoint")
-    scope = value.get("schema_version") == 2
+    scope = value.get("checkpoint") == "scope"
     fields = {
-        "schema_version",
+        "checkpoint",
+        "setup",
         "ethos_digest",
         "handoff_digest",
         "pending",
     }
     if scope:
-        fields |= {"setup", "path", "plan", "decision"}
-    if (set(value) if scope else set(value) - {"setup"}) != fields:
-        raise ValueError("Expansion entry requires versioned context bindings and a pending decision")
-    if type(value["schema_version"]) is not int or value["schema_version"] not in (1, 2):
-        raise ValueError("Unsupported expansion lifecycle version")
-    if "setup" in value and value["setup"] not in ("gym", "harbor"):
+        fields |= {"path", "plan", "decision"}
+    if set(value) != fields:
+        raise ValueError("Expansion checkpoint requires current context bindings and its decision fields")
+    if value["checkpoint"] not in ("entry", "scope"):
+        raise ValueError("Unsupported expansion checkpoint")
+    if value["setup"] not in ("gym", "harbor"):
         raise ValueError("Expansion entry requires a supported provider")
     for field in ("ethos_digest", "handoff_digest"):
         digest = value[field]
@@ -162,7 +163,7 @@ def _validate_plan(value: dict) -> None:
 
 def new_record(state: dict, *, question: str, source: str) -> EntryRecord:
     value: EntryRecord = {
-        "schema_version": 1,
+        "checkpoint": "entry",
         "setup": state["setup"],
         "ethos_digest": state["ethos"]["confirmed_digest"],
         "handoff_digest": handoff_digest(state),
@@ -176,7 +177,7 @@ def new_scope(state: dict, *, path: str, plan: dict, question: str | None, sourc
     import copy
 
     value = {
-        "schema_version": 2,
+        "checkpoint": "scope",
         "setup": state["setup"],
         "ethos_digest": state["ethos"]["confirmed_digest"],
         "handoff_digest": handoff_digest(state),
@@ -215,11 +216,10 @@ def derive(state: dict, observed: object) -> dict | None:
     ):
         raise ValueError("Supply expansion observations from the current repository and revision")
     scoped_trace = (
-        value["schema_version"] == 2 and value["path"] == "recorded_interaction" and value["ethos_digest"] is None
+        value["checkpoint"] == "scope" and value["path"] == "recorded_interaction" and value["ethos_digest"] is None
     )
     current = (
-        "setup" in value
-        and value["setup"] == state["setup"]
+        value["setup"] == state["setup"]
         and value["ethos_digest"] == state["ethos"]["confirmed_digest"]
         and value["handoff_digest"] == handoff_digest(state)
         and (
@@ -227,10 +227,12 @@ def derive(state: dict, observed: object) -> dict | None:
         )
     )
     scope = state["scopes"]["expand"]
-    decision = value["decision"] if value["schema_version"] == 2 and current and not scope.get("needs_review") else None
+    decision = (
+        value["decision"] if value["checkpoint"] == "scope" and current and not scope.get("needs_review") else None
+    )
     return {
         "stage": "entry"
-        if value["schema_version"] == 1
+        if value["checkpoint"] == "entry"
         else {"approved": "scope_approved", "declined": "scope_declined", "revise": "scope_revision"}.get(
             decision["kind"] if decision else None, "scope"
         ),
@@ -256,7 +258,7 @@ def trace_scope(state: dict) -> bool:
     return (
         state["journey"] == "expand"
         and value is not None
-        and value["schema_version"] == 2
+        and value["checkpoint"] == "scope"
         and value["path"] == "recorded_interaction"
     )
 
@@ -283,7 +285,7 @@ def checkpoint_ready(state: dict) -> bool:
 
 def reconcile_question(repo, state: dict, *, answered_ethos_review: bool = False) -> None:
     value = record(state)
-    if value is not None and value["schema_version"] == 2:
+    if value is not None and value["checkpoint"] == "scope":
         from conversation_templates import ETHOS_CHANGED_QUESTION, ETHOS_DRAFT_CHANGED_QUESTION, ETHOS_SELECTED_QUESTION
         from journey_state import active_blockers, checklist
 
@@ -307,7 +309,7 @@ def reconcile_question(repo, state: dict, *, answered_ethos_review: bool = False
         or not value["pending"]
         or (state["pending_question"] is not None and not answered_ethos_review)
         or not checkpoint_ready(state)
-        or value["schema_version"] == 2
+        or value["checkpoint"] == "scope"
         and state["scopes"]["expand"].get("needs_review")
     ):
         return
@@ -324,8 +326,8 @@ def transition(repo, previous: dict, updated: dict) -> None:
         return
     if updated["journey_status"].get("expand") == "complete":
         raise ValueError("An unresolved expansion entry decision cannot establish completion")
-    if after["schema_version"] == 2:
-        if before is not None and before["schema_version"] == 2:
+    if after["checkpoint"] == "scope":
+        if before is not None and before["checkpoint"] == "scope":
             fields = ("plan", "path", "setup", "ethos_digest", "handoff_digest")
             if any(before[key] != after[key] for key in fields) and after["decision"] is not None:
                 if after["decision"] == before["decision"]:

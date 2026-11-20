@@ -267,7 +267,7 @@ def next_steps(state: dict, facts: dict, stage: str, *, audit: dict | None = Non
         raise ValueError("Clear the answered review question before presenting the confirmation pause")
     paragraphs = [shared.NEXT_STEPS, checklist(journey, state, audit=audit)]
     expansion = expansion_state.record(state) if journey == "expand" else None
-    if expansion is not None and expansion["schema_version"] == 2 and expansion_state.checkpoint_ready(state):
+    if expansion is not None and expansion["checkpoint"] == "scope" and expansion_state.checkpoint_ready(state):
         scope_progress = expansion_state.derive(state, facts.get("expansion_observations"))
         assert scope_progress is not None
         scope_question = expansion["pending"]["question"] if expansion["pending"] else None
@@ -451,11 +451,11 @@ def render(payload: dict) -> str:
     if (
         expansion is not None
         and not state_only
-        and (expansion["schema_version"] == 1 or not expansion_state.checkpoint_ready(state))
+        and (expansion["checkpoint"] == "entry" or not expansion_state.checkpoint_ready(state))
     ):
         checkpoint = "expansion_continue"
         if (
-            expansion["schema_version"] == 1
+            expansion["checkpoint"] == "entry"
             and expansion_state.checkpoint_ready(state)
             and (expansion["pending"] is not None or state["pending_question"] is None)
         ):
@@ -463,7 +463,7 @@ def render(payload: dict) -> str:
         if expansion["pending"] is not None:
             question = literal(expansion["pending"]["question"], "expansion question")
             if facts.get("question") is not None and literal(facts["question"], "question") == question:
-                if expansion["schema_version"] == 2:
+                if expansion["checkpoint"] == "scope":
                     raise ValueError("Resolve shared prerequisites before rendering the scope question")
                 raise ValueError(f"Use {checkpoint} for the saved expansion question after shared recovery")
             if (

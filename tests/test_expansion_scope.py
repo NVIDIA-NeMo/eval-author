@@ -98,6 +98,29 @@ def test_scope_checkpoint_survives_resume_without_replacing_existing_context(mod
         assert not resumed["scopes"]["expand"]["needs_review"]
 
 
+@pytest.mark.parametrize("mutation", ["old_version", "missing_setup", "missing_tag", "unknown_tag", "mixed_entry"])
+def test_scope_accepts_only_the_current_tagged_format(modules, tmp_path, mutation):
+    state, expansion, _ = modules
+    saved = start(modules, tmp_path)
+    value = copy.deepcopy(expansion.record(saved))
+    assert value["checkpoint"] == "scope"
+    if mutation == "old_version":
+        value["schema_version"] = 2
+        del value["checkpoint"]
+    elif mutation == "missing_setup":
+        del value["setup"]
+    elif mutation == "missing_tag":
+        del value["checkpoint"]
+    elif mutation == "unknown_tag":
+        value["checkpoint"] = "unsupported"
+    else:
+        value["checkpoint"] = "entry"
+    before = state.state_path(tmp_path).read_bytes()
+    with pytest.raises(ValueError):
+        save_scope(modules, tmp_path, saved, value)
+    assert state.state_path(tmp_path).read_bytes() == before
+
+
 @pytest.mark.parametrize("kind", ["approved", "declined", "revise"])
 def test_saved_decision_resumes_at_its_checkpoint_without_completing_the_journey(modules, tmp_path, kind):
     state, expansion, _ = modules

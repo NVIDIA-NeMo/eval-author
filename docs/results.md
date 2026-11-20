@@ -829,6 +829,10 @@ Recording findings alone does not start improvement work.
 Selected improvements survive a later session with their audit context. Their
 scope still needs agreement before implementation. Progress and available
 evidence appear beneath the same recommendation in the Audit coverage report.
+
+Expansion records use named `entry` and `scope` checkpoints with required provider
+bindings. Obsolete local record formats must be regenerated; they are not migrated.
+
 Journey state retains the existing authoring workflow's planning checkpoint,
 including its plan, actual scope decision, and unresolved question. This allows
 planning to resume without repeating settled choices or authorizing agent runs.
