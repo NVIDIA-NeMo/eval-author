@@ -508,3 +508,41 @@ def test_signing_unsigned_execution_preserves_resume_and_validation(tmp_path, ch
         assert execute_benchmark(signed, "run", output, runner=forbidden) == first
         assert validate_experiment_results(signed.inputs, output) == report
     assert file_manifest(output) == before
+
+
+def test_baseline_only_execution_validates_seals_and_reuses(tmp_path):
+    from metric_benchmark.config import ScoringPolicy, load_benchmark
+    from metric_benchmark.validation import validate_experiment_results
+
+    path, _ = prepared_benchmark(tmp_path / "inputs")
+    case = case_definition(path)
+    case["mutants"] = []
+    write_case(path, case)
+    loaded = load_execution(path.parent / "cases.yml", path.parent / "execution.yml")
+    output = tmp_path / "out"
+    calls = []
+
+    def runner(config):
+        calls.append(config.agents[0].name)
+        fake_harbor(config)
+
+    first = execute_benchmark(loaded, "baseline", output, runner=runner)
+    assert calls == ["oracle"]
+    assert execute_benchmark(loaded, "baseline", output, runner=runner) == first
+    assert calls == ["oracle"]
+    raw = read_json(case_root(output, 0) / "results.json")
+    assert isinstance(raw, dict)
+    assert len(raw["execution_results"]) == 3
+    assert {row["agent_bundle_id"] for row in raw["execution_results"]} == {case["baseline"]["agent_bundle_id"]}
+    assert (case_root(output, 0) / "agents/agent-0000/receipt.json").is_file()
+    validate_experiment_results(loaded.inputs, output)
+    with pytest.raises(ValueError, match="analysis requires at least one mutant"):
+        load_benchmark(path)
+    with pytest.raises(ValueError):
+        loaded.inputs.case(case["case_id"]).case.selection(
+            {case["baseline"]["agent_bundle_id"]: "baseline"}, ScoringPolicy()
+        )
+    native = case_root(output, 0) / raw["execution_results"][0]["native_results_path"] / "result.json"
+    native.write_text("{}")
+    with pytest.raises(ValueError, match="job changed"):
+        execute_benchmark(loaded, "baseline", output, runner=runner)

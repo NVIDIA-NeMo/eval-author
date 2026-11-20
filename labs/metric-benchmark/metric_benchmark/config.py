@@ -87,7 +87,7 @@ class CoverageConfig(Model):
 
 class AgentManifest(Model):
     baseline: Agent
-    mutants: list[Agent] = Field(min_length=1)
+    mutants: list[Agent]
 
 
 class TaskSource(Task):
@@ -132,7 +132,7 @@ class Case(Model):
     task_inventory: Tasks
     task_sources: dict[Text, PinnedInput]
     baseline: Agent
-    mutants: list[Agent] = Field(min_length=1)
+    mutants: list[Agent]
 
     @classmethod
     def from_manifests(cls, definition: CaseDefinition, agent: AgentManifest, tasks: TaskManifest) -> Self:
@@ -353,6 +353,11 @@ def load_execution(cases: Path, execution: Path, *, allow_unsigned: bool = False
 
 def load_analysis(cases: Path, analysis: Path, *, allow_unsigned: bool = False) -> LoadedAnalysis:
     inputs = load_cases(cases, allow_unsigned=allow_unsigned)
+    for prepared in inputs.cases.values():
+        if not prepared.case.mutants:
+            raise ValueError(
+                f"case {prepared.case.case_id}: analysis requires at least one mutant; use run_evals.py for baseline-only execution"
+            )
     settings = AnalysisSettings.model_validate(read_yaml(analysis))
     if settings.case_settings.keys() != inputs.cases.keys():
         raise ValueError(
