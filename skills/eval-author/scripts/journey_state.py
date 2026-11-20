@@ -636,7 +636,7 @@ def active_blockers(state: dict, *, state_only: bool = False) -> list[dict]:
     """Present dependencies at the action they block, retaining all saved evidence."""
     shared_done = all(row["complete"] for row in checklist(state, state_only=state_only)[:2])
     if state["journey"] == "expand" and not state_only:
-        shared_done = expansion_state.review_ready(state)
+        shared_done = shared_done or expansion_state.review_ready(state)
     started = downstream_started(state)
     later_requirements = {"environment", "services", "data", *DEFERRED}
     return [

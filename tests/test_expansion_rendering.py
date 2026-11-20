@@ -5,7 +5,7 @@ import copy
 from pathlib import Path
 
 import pytest
-from journey_state_support import expansion_payload, setup_ready
+from journey_state_support import ethos_ready, expansion_payload, setup_ready
 from test_expansion_scope import modules as modules
 from test_expansion_scope import save_scope, start
 
@@ -118,6 +118,48 @@ def test_later_dependencies_remain_deferred_before_expansion_execution(modules, 
     assert not state.downstream_started(saved)
     assert not state.active_blockers(saved)
     assert "Create this partial-refund task?" in renderer.render(payload(modules, saved))
+
+
+@pytest.mark.parametrize("path", [None, "starter_suite", "audit_tool_gap"])
+@pytest.mark.parametrize("blocker_id", ["runtime", "verifier"])
+@pytest.mark.parametrize("state_only", [False, True])
+def test_saved_intent_questions_do_not_hide_blockers_after_shared_completion(
+    modules, tmp_path, path, blocker_id, state_only
+):
+    state, _, renderer = modules
+    if path is None:
+        setup_ready(state, tmp_path, journey="expand")
+        saved = ethos_ready(state, tmp_path)
+    else:
+        saved = start(modules, tmp_path, path)
+    question = "Should refunds above $500 require approval?"
+    saved = state.update(
+        tmp_path,
+        {
+            "ethos": {"remaining_questions": [question]},
+            "pending_question": question,
+        },
+        expected_revision=saved["revision"],
+    )
+    saved = state.update(
+        tmp_path,
+        {"blockers": [{"id": blocker_id, "phase": "expand", "message": "Dependency unavailable"}]},
+        expected_revision=saved["revision"],
+        state_only=state_only,
+    )
+    saved = state.initialize(tmp_path, journey="expand")
+    assert all(row["complete"] for row in state.checklist(saved)[:2])
+    assert {item["id"] for item in state.active_blockers(saved)} == {blocker_id}
+    data = expansion_payload(modules, saved)
+    data["stage"] = "resume"
+    data["facts"]["blockers"] = [
+        {"id": blocker_id, "step": "Dependency", "reason": "Unavailable", "needed": "Restore access"}
+    ]
+    before = state.state_path(tmp_path).read_bytes()
+    output = renderer.render(data)
+    assert "Restore access" in output and question in output
+    assert "Next Steps" not in output
+    assert state.state_path(tmp_path).read_bytes() == before
 
 
 def test_supplied_plan_prose_stays_inside_its_paragraph_or_table_cell(modules, tmp_path):
