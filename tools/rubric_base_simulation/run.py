@@ -36,14 +36,13 @@ from rubric_demo_common import artifact_record, run_measure, write_json  # noqa:
 from rubric_evidence_scoring import (  # noqa: E402
     ROBUSTNESS_OUTCOMES,
     ROBUSTNESS_POLICIES,
-    canonical_definitions,
     definitions_digest,
+    evidence_definitions,
     value_digest,
 )
 
 EXAMPLE = ROOT / "skills/eval-author-rubric/examples/refund"
 FIXTURES = ROOT / "skills/eval-author-rubric/scripts/example_fixtures.py"
-LEAKAGE = ROOT / "skills/eval-author-rubric/references/leakage-and-credit.json"
 
 TASK_MUTATIONS = sorted(p.stem for p in (EXAMPLE / "mutations").glob("*.json"))
 EVIDENCE_MUTATIONS = {
@@ -52,8 +51,21 @@ EVIDENCE_MUTATIONS = {
     "no-native-run": "No retained native run: observed configuration has no run identity.",
     "stale-evidence-combined": "A result from an older task revision is combined with current results.",
     "blind-discovery-failed": "A blind solver could not discover the ledger-reconciliation requirement.",
+    "exploit-accepted-uncontained": "The owner accepts the confirmed completion-only exploit without quarantine.",
+    "exposure-overclaimed": "The statement claims no exposure although the task is in a public repository.",
+    "confirmation-exposed": "The confirmation set was visible to development feedback before the freeze.",
+    "trace-unauthorized-use": "A trace is shared beyond its approved recipients and use.",
+    "state-carryover": "A predecessor episode's refund changes the target episode's credit.",
+    "cue-bypass": "A style-only cue control earns credit without the refund work.",
+    "misreported-config": "The report states a 300 s agent timeout; task.toml declares 30 s.",
+    "unmatched-comparison": "The split-refund policy gets a larger action budget, with no rationale.",
+    "family-cue-bypass": "In the interval-reservation family, a cue-only control earns credit.",
 }
-CASES = ["base", *TASK_MUTATIONS, *EVIDENCE_MUTATIONS]
+# Edits applied to the materialized task after its controls run (the verifier does not read these files).
+LOCAL_EDITS = {
+    "unpinned-image": ("environment/Dockerfile", "FROM python@sha256:", "FROM python:3.12-slim #"),
+}
+CASES = ["base", *TASK_MUTATIONS, *LOCAL_EDITS, *EVIDENCE_MUTATIONS]
 
 # Declared by the task author for the base design; mutations are compared against it.
 DECLARED_GRADER = "reviewed"
@@ -70,27 +82,18 @@ PUBLIC_PHRASES = {
     "protected_state": "Preserve unrelated state and all historical rows",
     "fresh_effect": "a unique fresh ID",
 }
-# Control classes for credit-control facts. Health controls are excluded from credit.
-CONTROL_CLASS = {
-    "reference": "reference",
-    "split-alternative": "valid_alternative",
-    "permitted-zero-balance-inaction": "valid_alternative",
-    "below-approval-threshold": "valid_alternative",
-    "missing-completion": "valid_alternative",
-    "no-work": "attack",
-    "protected-mutation": "attack",
-    "historical-mutation": "attack",
-    "missing-ledger": "attack",
-    "duplicate-ledger": "attack",
-    "late-approval": "attack",
-    "missing-approval": "attack",
-    "approval-threshold-inclusive": "attack",
-    "wrong-customer": "incorrect",
-    "wrong-order": "incorrect",
-    "wrong-amount": "incorrect",
-    "wrong-destination": "incorrect",
+# AUDIT-03 attack classes. Each maps to the real control whose verifier result is its observation.
+# Classes without a local control are proxied by the control that submits the same effect.
+ATTACK_PANEL = {
+    "no_work": "no-work",
+    "all_failure": "all-failure",
+    "forged_success": "stale-carryover",
+    "inert_reference": "no-work",  # reference text with no ledger actions = no events
+    "hardcoded_answer": "missing-ledger",  # claims the answer without reconciling the ledger
+    "valid_inaction": "permitted-zero-balance-inaction",
+    "realistic_wrong": "wrong-amount",
 }
-HELDOUT = ("all-failure", "stale-carryover")
+AUDIT03_HELDOUT = ("duplicate-ledger", "late-approval", "missing-approval", "protected-mutation")
 AUTHOR, INDEPENDENT = "task-author-sim", "independent-reviewer-sim"
 
 
@@ -115,6 +118,11 @@ def observe(case_dir: Path, mutation: str | None) -> dict[str, Any]:
         # The verifier could not run at all (for example, no contract): every control is an execution error.
         results = {name: {"result": {"health": "error"}} for name in expected}
     task = case_dir / "case/assessment/task"
+    if case_dir.name in LOCAL_EDITS:
+        path, old, new = LOCAL_EDITS[case_dir.name]
+        text = (task / path).read_text()
+        assert old in text, case_dir.name
+        (task / path).write_text(text.replace(old, new, 1))
     files = {str(p.relative_to(task)): sha(p.read_bytes()) for p in sorted(task.rglob("*")) if p.is_file()}
     dockerfile = (task / "environment/Dockerfile").read_text()
     verify = (task / "tests/verify.py").read_text()
@@ -129,6 +137,7 @@ def observe(case_dir: Path, mutation: str | None) -> dict[str, Any]:
             "entrypoint": re.search(r"^ENTRYPOINT (.+)$", dockerfile, re.M).group(1),
         },
         "grader": re.search(r'^GRADER = "(\w+)"', verify, re.M).group(1),
+        "task_dir": str(task),
         "instruction": (task / "instruction.md").read_text(),
         "contract": json.loads(contract_path.read_bytes()) if contract_path.is_file() else None,
         "controls": {
@@ -152,7 +161,7 @@ def robust(ident: str, observed: dict[str, bool | None], evidence: str) -> list[
     for role in roles:
         success, failure = ROBUSTNESS_OUTCOMES[ident][role]
         outcome = observed.get(role, True)
-        unrun = outcome is None or (evidence == "heldout-attacks-unrun" and ident == "AC-02")
+        unrun = outcome is None or (evidence == "heldout-attacks-unrun" and ident == "AUDIT-03")
         rows.append(
             {
                 "id": role,
@@ -169,7 +178,7 @@ def robust(ident: str, observed: dict[str, bool | None], evidence: str) -> list[
     return rows
 
 
-def derive(o: dict[str, Any], base: dict[str, Any], evidence: str | None) -> tuple[dict, dict]:
+def derive(o: dict[str, Any], base: dict[str, Any], prior: dict[str, Any], evidence: str | None) -> tuple[dict, dict]:
     """Return (facts by criterion, simulated-premise notes by criterion)."""
     f: dict[str, dict[str, Any]] = {}
     sim: dict[str, str] = {}
@@ -216,6 +225,8 @@ def derive(o: dict[str, Any], base: dict[str, Any], evidence: str | None) -> tup
             for path in ("tests/verify.py", "tests/refund_scorer.py", "environment/contract.json")
         ]
     }
+    misreported = evidence == "misreported-config"
+    unmatched = evidence == "unmatched-comparison"
     flat = {f"{s}.{k}": str(v) for s, table in toml.items() if isinstance(table, dict) for k, v in table.items()}
     f["provenance.declared-configuration"] = {
         "configuration_fields": [
@@ -224,8 +235,8 @@ def derive(o: dict[str, Any], base: dict[str, Any], evidence: str | None) -> tup
                 "value": value,
                 "source_identity": files["task.toml"],
                 "availability": "sourced",
-                "claim_limit": "none",
-                "reported_value": value,
+                "claim_limit": "uninterpretable" if misreported and key == "agent.timeout_sec" else "none",
+                "reported_value": "300" if misreported and key == "agent.timeout_sec" else value,
             }
             for key, value in sorted(flat.items())
         ]
@@ -261,9 +272,11 @@ def derive(o: dict[str, Any], base: dict[str, Any], evidence: str | None) -> tup
                 "id": "reference-vs-split",
                 "left": "reference",
                 "right": "split-alternative",
-                "rationale": "Both policies run the same contract, verifier and limits; only the refund split differs.",
-                "disposition": "justified",
-                "advantage": "none" if matches("split-alternative") else "demonstrated",
+                "rationale": None
+                if unmatched
+                else "Both policies run the same contract, verifier and limits; only the refund split differs.",
+                "disposition": "unjustified" if unmatched else "justified",
+                "advantage": "demonstrated" if unmatched or not matches("split-alternative") else "none",
             }
         ]
     }
@@ -373,66 +386,197 @@ def derive(o: dict[str, Any], base: dict[str, Any], evidence: str | None) -> tup
         ]
     }
     copied = " ".join(docker["copies"])
-    f["AC-01"] = {
-        "information_surfaces": [
+
+    # Leakage and credit criteria.
+    def credit(name: str) -> int:
+        return 1 if ctl[name]["accepted"] else 0
+
+    def expected_credit(name: str) -> int:
+        return 1 if exp[name]["accepted"] else 0
+
+    f["AUDIT-03"] = {
+        "attack_controls": [
             {
-                "id": surface,
-                "contract_role": "protected",
-                "solver_read": "readable" if surface in copied else "denied",
-                "permitted_neighbor": "readable" if contract_ok else "denied",
-                "exposure": "unintended" if surface in copied else "none",
-                "review": "complete",
-            }
-            for surface in PROTECTED
-        ]
-    }
-    sim["AC-01"] = "Solver read denial is simulated from the observed image COPY list."
-    f["AC-02"] = {
-        "credit_controls": [
-            {
-                "id": name,
-                "class": cls,
-                "expected_credit": 1 if exp[name]["accepted"] else 0,
-                "actual_credit": 1 if ctl[name]["accepted"] else 0,
+                "id": f"{cls}:{name}",
+                "attack_class": cls,
+                "applicability": "applicable",
+                "expected_credit": expected_credit(name),
+                "actual_credit": credit(name),
                 "health": "healthy" if ctl[name]["health"] == "ok" else "error",
                 "reach": "reached",
-                "applicability": "applicable",
             }
-            for name, cls in CONTROL_CLASS.items()
+            for cls, name in ATTACK_PANEL.items()
         ]
-    }
-    f["AC-03"] = {
-        "receipt_controls": [
+        + [
             {
-                "id": control,
-                "receipt_kind": kind,
-                "consumer": "credited" if ctl[control]["accepted"] else "rejected",
-                "native_validation": "valid" if kind == "current" else "invalid",
+                "id": f"{cls}:native",
+                "attack_class": cls,
+                "applicability": "applicable",
+                "expected_credit": 0,
+                # Native attacks: denied when protected sources stay out of the image (observed COPY list).
+                "actual_credit": 1 if any(p in copied for p in PROTECTED) else 0,
                 "health": "healthy",
                 "reach": "reached",
             }
-            for control, kind in (("reference", "current"), ("no-work", "forged"), ("stale-carryover", "stale"))
+            for cls in ("scorer_tampering", "answer_access")
         ]
     }
-    sim["AC-03"] = "Receipt kinds map to real controls: a completion claim with no events is the forged receipt."
-    f["AC-04"] = {
-        "reset_surfaces": [
+    sim["AUDIT-03"] = "scorer_tampering and answer_access are simulated native attacks; others are real controls."
+    # The exploit was confirmed by actually running the completion-only revision's verifier on no-work.
+    replay_awarded = ctl["no-work"]["accepted"] is True
+    disposition = "accepted" if evidence == "exploit-accepted-uncontained" else "quarantined"
+    containment = {
+        "affected_revision": prior["task_sha256"] if prior["controls"]["no-work"]["accepted"] else None,
+        "disposition": disposition,
+        "residual_risk": "Results graded by the completion-only revision are excluded from reporting.",
+        "repair_revision": o["task_sha256"],
+        "replay": "credit_awarded" if replay_awarded else "credit_withheld",
+        "valid_after_repair": "credited" if ctl["reference"]["accepted"] else "rejected",
+    }
+    f["AUDIT-04-B"] = {"exploit_containment": [{"id": "completion-only", **containment}]}
+    f["AUDIT-04-B-SUITE"] = {
+        "suite_containment": [
+            {"id": "completion-only:refund", "family": "retained", **containment},
+            {"id": "completion-only:interval-reservation", "family": "new", **containment},
+        ]
+    }
+    sim["AUDIT-04-B"] = "Quarantine decision is a simulated owner premise; confirmation and replay are real runs."
+    sim["AUDIT-04-B-SUITE"] = "The new-family replay is simulated as matching the refund replay."
+    overclaim = evidence == "exposure-overclaimed"
+    f["AUDIT-05-B"] = {
+        "exposure_inventory": [
             {
-                "id": "ledger-record",
-                "sharing": "isolated",
-                "expected_state": "initial",
-                "reset_state": "initial",
-                "target_alone": str(ctl["reference"]["accepted"]),
-                "target_after": str(ctl["reference"]["accepted"]),
-                "consequence": "none",
-                "inspection": "complete",
+                "id": path,
+                "exposure": "public",
+                "overlap": "verified" if overclaim else "unknown",
+                "disclosed": "no" if overclaim else "yes",
+                "statement": "overclaims" if overclaim else "within_support",
+                "sensitivity": "computed",
+            }
+            for path in ("solution/reference.py", "solution/solve.sh")
+        ]
+    }
+    sim["AUDIT-05-B"] = "The task is in a public repository; training overlap is unknown (simulated review)."
+    exposed = evidence == "confirmation-exposed"
+    f["AUDIT-05-S03"] = {
+        "selection_ledger": [
+            {
+                "id": "candidate-policies",
+                "event": "candidate",
+                "alternatives_retained": "yes",
+                "holdout_access": "before_freeze" if exposed else "none",
+                "label": "exploratory",
+            },
+            {
+                "id": "development-feedback",
+                "event": "feedback",
+                "alternatives_retained": "yes",
+                "holdout_access": "none",
+                "label": "exploratory",
+            },
+            {
+                "id": "freeze",
+                "event": "freeze",
+                "alternatives_retained": "yes",
+                "holdout_access": "none",
+                "label": "exploratory",
+            },
+            {
+                "id": "confirmation",
+                "event": "confirmation",
+                "alternatives_retained": "yes",
+                "holdout_access": "after_freeze",
+                "label": "confirmatory",
+            },
+        ]
+    }
+    sim["AUDIT-05-S03"] = "Selection ledger and confirmation are simulated."
+    secret = re.compile(r"AKIA[0-9A-Z]{16}|-----BEGIN [A-Z ]*PRIVATE KEY|ghp_[0-9A-Za-z]{36}")
+    task_dir = Path(o["task_dir"])
+    f["TRACE-04-A"] = {
+        "material_review": [
+            {
+                "id": path,
+                "channel": "task-file",
+                "candidate": "secret" if secret.search((task_dir / path).read_text(errors="replace")) else "none",
+                "reviewed": "yes",
+                "disposition": "authorized",
+                "approval_match": "match",
+            }
+            for path in sorted(files)
+        ]
+        + [
+            {
+                "id": "trace:reference-run",
+                "channel": "trace",
+                "candidate": "none",
+                "reviewed": "yes",
+                "disposition": "unauthorized_use" if evidence == "trace-unauthorized-use" else "authorized",
+                "approval_match": "match",
             }
         ]
     }
-    sim["AC-04"] = "Predecessor/target ordering on a fresh service is simulated."
+    sim["TRACE-04-A"] = "Task files are screened for secrets for real; trace review and approvals are simulated."
+    target = str(ctl["reference"]["accepted"])
+    carried = evidence == "state-carryover"
+    f["ENV-03-S01"] = {
+        "isolation_surfaces": [
+            {
+                "id": "ledger-record",
+                "sharing": "isolated",
+                "reset_verified": "yes",
+                "target_alone": target,
+                "target_after": str(not ctl["reference"]["accepted"]) if carried else target,
+                "consequence": "credit_change" if carried else "none",
+            },
+            {
+                "id": "work-directory",
+                "sharing": "isolated",
+                "reset_verified": "yes",
+                "target_alone": target,
+                "target_after": target,
+                "consequence": "none",
+            },
+        ]
+    }
+    sim["ENV-03-S01"] = "Predecessor/target episodes on a fresh service are simulated."
+    cue = {
+        "qualified": "yes",
+        "health": "healthy",
+    }
+    f["CREATE-02"] = {
+        "cue_controls": [
+            {
+                "id": cls,
+                "cue_class": cls,
+                **cue,
+                "outcome": "bypass" if evidence == "cue-bypass" and cls == "style_only" else "no_bypass",
+            }
+            for cls in ("cue_only", "nuisance_swap", "misleading_cue", "style_only")
+        ]
+    }
+    f["CREATE-02-SUITE"] = {
+        "family_cue_controls": [
+            {"id": f"{family}:{cls}", "family": family, "authorship": "independent", "cue_class": cls, **cue}
+            | {
+                "outcome": "bypass"
+                if evidence == "family-cue-bypass" and family == "interval-reservation" and cls == "cue_only"
+                else "no_bypass"
+            }
+            for family in ("interval-reservation", "dependency-release")
+            for cls in ("cue_only", "nuisance_swap", "misleading_cue", "style_only")
+        ]
+    }
+    sim["CREATE-02"] = "Cue-control outcomes are simulated."
+    sim["CREATE-02-SUITE"] = "Cue controls on two companion families are simulated."
 
-    heldout_ok = all(matches(name) for name in HELDOUT)
     corroboration = {
+        "AUDIT-03": {
+            "heldout_attack": all(matches(n) for n in AUDIT03_HELDOUT),
+            "valid_work": matches("split-alternative"),
+        },
+        "AUDIT-04-B": {"independent_attack": not replay_awarded},
+        "AUDIT-04-B-SUITE": {"independent_attack": not replay_awarded, "cross_family_replay": not replay_awarded},
         "provenance.grading-path": {"selection": o["grader"] == DECLARED_GRADER},
         "provenance.runtime-route": {"clean_setup": ledger_up and contract_ok},
         "provenance.external-state": {"deliberate_drift": True},
@@ -448,8 +592,6 @@ def derive(o: dict[str, Any], base: dict[str, Any], evidence: str | None) -> tup
             "reference": matches("reference"),
             "scoring_contract": all(matches(n) for n in ctl),
         },
-        "AC-02": {"heldout_attack": heldout_ok, "valid_alternative": matches("below-approval-threshold")},
-        "AC-03": {"invalid_rejection": matches("no-work"), "valid_acceptance": matches("reference")},
     }
     for ident in f:
         name, _ = ROBUSTNESS_POLICIES[ident]
@@ -541,9 +683,10 @@ def main() -> int:
     if out.is_relative_to(ROOT):
         parser.error("output must be outside the checkout")
     out.mkdir(mode=0o700)
-    criteria = list(canonical_definitions())
-    current = [item["id"] for item in json.loads(LEAKAGE.read_bytes())["items"]]
+    rubric = list(evidence_definitions())
+    columns = rubric
     base_obs = observe(out / "_base-observation", None)
+    prior = observe(out / "_prior-exploit-revision", "completion-only")
     scores: dict[str, dict[str, int | None]] = {}
     for case in args.case or CASES:
         case_dir = out / case
@@ -551,37 +694,40 @@ def main() -> int:
         mutation = case if case in TASK_MUTATIONS else None
         evidence = case if case in EVIDENCE_MUTATIONS else None
         o = observe(case_dir, mutation)
-        facts, sim = derive(o, base_obs, evidence)
+        facts, sim = derive(o, base_obs, prior, evidence)
         write_json(case_dir / "simulated-premises.json", sim, sort_keys=True)
         report = build(case_dir, facts, o)
         rows = report["criterion_demonstration"]
-        scores[case] = {ident: rows[ident]["score"] for ident in criteria}
-        for ident in current:
-            scores[case][ident] = None  # no criterion_evidence predicate exists for this canonical row
+        scores[case] = {ident: rows[ident]["score"] for ident in columns}
+
+    def rank(score: int | None) -> int:
+        return -1 if score is None else score  # Unassessed ranks below every established score
+
     base = scores.get("base")
     summary = {
-        "scorer": "skills/eval-author-rubric/scripts/measure.py (unchanged), criterion_evidence synthetic scope",
-        "scored_criteria": criteria,
-        "unscorable_current_criteria": current,
+        "scorer": "skills/eval-author-rubric/scripts/measure.py, criterion_evidence synthetic scope",
+        "rubric_criteria": rubric,
         "scores": scores,
-        "base_perfect_on_scorable": base is not None and all(base[i] == 3 for i in criteria),
+        "base_perfect": base is not None and all(base[i] == 3 for i in columns),
         "mutations_below_base": {
-            case: all((row[i] or -1) <= 3 for i in criteria) and any(row[i] != 3 for i in criteria)
+            case: base is not None
+            and all(rank(row[i]) <= rank(base[i]) for i in columns)
+            and any(rank(row[i]) < rank(base[i]) for i in rubric)
             for case, row in scores.items()
             if case != "base"
         },
     }
     write_json(out / "summary.json", summary, sort_keys=True)
-    short = {i: i.replace("provenance.", "p.").replace("task-contract.", "tc.") for i in criteria + current}
-    header = "| case | " + " | ".join(short[i] for i in criteria + current) + " | sum/" + str(3 * len(criteria)) + " |"
-    lines = [header, "|" + "---|" * (len(criteria) + len(current) + 2)]
+    short = {i: i.replace("provenance.", "p.").replace("task-contract.", "tc.") for i in columns}
+    header = f"| case | rubric /{3 * len(rubric)} | " + " | ".join(short[i] for i in columns) + " |"
+    lines = [header, "|" + "---|" * (len(columns) + 2)]
     for case, row in scores.items():
-        cells = ["U" if row[i] is None else str(row[i]) for i in criteria + current]
-        lines.append(f"| {case} | " + " | ".join(cells) + f" | {sum(row[i] or 0 for i in criteria)} |")
+        cells = ["U" if row[i] is None else str(row[i]) for i in columns]
+        lines.append(f"| {case} | {sum(row[i] or 0 for i in rubric)} | " + " | ".join(cells) + " |")
     (out / "summary.md").write_text("\n".join(lines) + "\n")
     print("\n".join(lines))
-    print(json.dumps({k: summary[k] for k in ("base_perfect_on_scorable", "mutations_below_base")}, indent=1))
-    return 0 if summary["base_perfect_on_scorable"] and all(summary["mutations_below_base"].values()) else 1
+    print(json.dumps({k: summary[k] for k in ("base_perfect", "mutations_below_base")}, indent=1))
+    return 0 if summary["base_perfect"] and all(summary["mutations_below_base"].values()) else 1
 
 
 if __name__ == "__main__":

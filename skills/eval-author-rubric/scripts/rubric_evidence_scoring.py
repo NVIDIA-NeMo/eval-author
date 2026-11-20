@@ -216,51 +216,6 @@ FACT_POLICIES.update(
                 semantics=("resolved", "disputed", "contradicted"),
             )
         },
-        "AC-01": {
-            "information_surfaces": _policy(
-                "Declared protected/permitted surface, actual solver read, permitted neighbor and exposure consequence.",
-                contract_role=("protected", "permitted"),
-                solver_read=("readable", "denied", "unrun"),
-                permitted_neighbor=("readable", "denied", "unrun"),
-                exposure=("none", "unintended", "unknown"),
-                review=("complete", "partial", "unrun"),
-            )
-        },
-        "AC-02": {
-            "credit_controls": _policy(
-                "Attack/reference/incorrect/alternative expected and actual credit, health and reach (per-check rows required by scope).",
-                **{
-                    "class": ("attack", "reference", "incorrect", "valid_alternative"),
-                    "expected_credit": "number",
-                    "actual_credit": "number",
-                    "health": ("healthy", "error", "unrun"),
-                    "reach": ("reached", "unresolved", "unreachable"),
-                    "applicability": ("applicable", "excluded"),
-                },
-            )
-        },
-        "AC-03": {
-            "receipt_controls": _policy(
-                "Receipt authenticity/currentness class, owning validator result and consumer credit/rejection.",
-                receipt_kind=("current", "forged", "stale", "mismatched"),
-                consumer=("credited", "rejected", "unresolved"),
-                native_validation=("valid", "invalid", "unrun"),
-                health=("healthy", "error", "unrun"),
-                reach=("reached", "unresolved", "unreachable"),
-            )
-        },
-        "AC-04": {
-            "reset_surfaces": _policy(
-                "Expected/actual reset content and paired target credit, intentional sharing and leak consequence.",
-                sharing=("isolated", "intentional"),
-                expected_state="text",
-                reset_state="nullable_text",
-                target_alone="nullable_text",
-                target_after="nullable_text",
-                consequence=("none", "answer_exposure", "credit_change", "unknown"),
-                inspection=("complete", "partial", "unrun"),
-            )
-        },
     }
 )
 
@@ -282,10 +237,6 @@ ROBUSTNESS_POLICIES = {
     "task-contract.clear-contract": ("boundary_solutions", ("independent_solution", "valid_boundary")),
     "task-contract.discoverable-requirements": ("blind_discovery", ("blind_discovery", "solver_access")),
     "task-contract.scoring-authority": ("authority_corroboration", ("reference", "scoring_contract")),
-    "AC-01": ("heldout_access", ("independent_path", "heldout", "permitted_neighbor")),
-    "AC-02": ("heldout_credit", ("heldout_attack", "valid_alternative")),
-    "AC-03": ("consumer_boundary", ("invalid_rejection", "valid_acceptance")),
-    "AC-04": ("trial_order_controls", ("order", "session")),
 }
 # Role-specific outcome enums, not arbitrary caller-chosen equality assertions.
 ROBUSTNESS_OUTCOMES: dict[str, dict[str, tuple[str, str]]] = {
@@ -341,34 +292,176 @@ ROBUSTNESS_OUTCOMES: dict[str, dict[str, tuple[str, str]]] = {
         "reference": ("reference_agrees", "reference_contradicts"),
         "scoring_contract": ("scoring_contract_agrees", "scoring_contract_contradicts"),
     },
-    "AC-01": {
-        "independent_path": ("protected_read_denied", "protected_read_allowed"),
-        "heldout": ("heldout_read_denied", "heldout_read_allowed"),
-        "permitted_neighbor": ("permitted_read_allowed", "permitted_read_denied"),
-    },
-    "AC-02": {
-        "heldout_attack": ("forbidden_credit_withheld", "forbidden_credit_awarded"),
-        "valid_alternative": ("valid_alternative_credited", "valid_alternative_rejected"),
-    },
-    "AC-03": {
-        "invalid_rejection": ("invalid_receipt_rejected", "invalid_receipt_credited"),
-        "valid_acceptance": ("valid_receipt_credited", "valid_receipt_rejected"),
-    },
-    "AC-04": {
-        "order": ("order_isolation_preserved", "order_carryover_observed"),
-        "session": ("session_isolation_preserved", "session_carryover_observed"),
-    },
 }
 
+ATTACK_CLASSES = (
+    "no_work",
+    "all_failure",
+    "inert_reference",
+    "hardcoded_answer",
+    "forged_success",
+    "scorer_tampering",
+    "answer_access",
+)
+CUE_CLASSES = ("cue_only", "nuisance_swap", "misleading_cue", "style_only")
+_CONTAINMENT = {
+    "affected_revision": "nullable_text",
+    "disposition": ("quarantined", "bounded_use", "accepted", "none"),
+    "residual_risk": "nullable_text",
+    "repair_revision": "nullable_text",
+    "replay": ("credit_withheld", "credit_awarded", "unrun"),
+    "valid_after_repair": ("credited", "rejected", "unrun"),
+}
+_CUE = {
+    "cue_class": CUE_CLASSES,
+    "qualified": ("yes", "no"),
+    "health": ("healthy", "error", "unrun"),
+    "outcome": ("no_bypass", "bypass", "confounded"),
+}
+# Leakage and credit criteria (references/leakage-and-credit.json); predicates follow its anchors.
+FACT_POLICIES.update(
+    {
+        "AUDIT-03": {
+            "attack_controls": _policy(
+                "Per-control attack class, applicability, expected/actual credit, health and reach.",
+                attack_class=(*ATTACK_CLASSES, "valid_inaction", "realistic_wrong"),
+                applicability=("applicable", "excluded"),
+                expected_credit="number",
+                actual_credit="number",
+                health=("healthy", "error", "unrun"),
+                reach=("reached", "unresolved", "unreachable"),
+            )
+        },
+        "AUDIT-04-B": {
+            "exploit_containment": _policy(
+                "Each confirmed mechanism: affected revision, containment disposition and repaired-task replay.",
+                **_CONTAINMENT,
+            )
+        },
+        "AUDIT-04-B-SUITE": {
+            "suite_containment": _policy(
+                "Each confirmed mechanism per retained affected or new task, with disposition and replay.",
+                family=("retained", "new"),
+                **_CONTAINMENT,
+            )
+        },
+        "AUDIT-05-B": {
+            "exposure_inventory": _policy(
+                "Exposed task/solution item, known overlap, disclosure, statement support and sensitivity.",
+                exposure=("public", "private", "unknown"),
+                overlap=("none", "verified", "unknown"),
+                disclosed=("yes", "no"),
+                statement=("within_support", "overclaims"),
+                sensitivity=("computed", "missing"),
+            )
+        },
+        "AUDIT-05-S03": {
+            "selection_ledger": _policy(
+                "Chronological candidate, feedback, freeze and confirmation events with holdout access.",
+                event=("candidate", "feedback", "freeze", "confirmation"),
+                alternatives_retained=("yes", "no"),
+                holdout_access=("none", "before_freeze", "after_freeze"),
+                label=("exploratory", "confirmatory"),
+            )
+        },
+        "TRACE-04-A": {
+            "material_review": _policy(
+                "Eligible channel, candidate category, review, disposition and exact-use approval match.",
+                channel="text",
+                candidate=("secret", "proprietary", "none"),
+                reviewed=("yes", "no"),
+                disposition=("authorized", "withheld", "unauthorized_use", "pending"),
+                approval_match=("match", "mismatch", "not_required"),
+            )
+        },
+        "ENV-03-S01": {
+            "isolation_surfaces": _policy(
+                "Material state surface, declared sharing, reset verification and paired target outcomes.",
+                sharing=("isolated", "intentional"),
+                reset_verified=("yes", "no", "unrun"),
+                target_alone="nullable_text",
+                target_after="nullable_text",
+                consequence=("none", "credit_change", "evidence_change", "unknown"),
+            )
+        },
+        "CREATE-02": {"cue_controls": _policy("Qualified cue-class control outcome and health.", **_CUE)},
+        "CREATE-02-SUITE": {
+            "family_cue_controls": _policy(
+                "Per-family cue-class control outcome, health and family authorship.",
+                family="text",
+                authorship=("independent", "development"),
+                **_CUE,
+            )
+        },
+    }
+)
+ROBUSTNESS_POLICIES.update(
+    {
+        "AUDIT-03": ("heldout_attacks", ("heldout_attack", "valid_work")),
+        "AUDIT-04-B": ("containment_attacks", ("independent_attack",)),
+        "AUDIT-04-B-SUITE": ("suite_containment_attacks", ("independent_attack", "cross_family_replay")),
+        "AUDIT-05-B": ("exposure_review", ("provenance_review", "exposure_sensitivity")),
+        "AUDIT-05-S03": ("confirmation_review", ("independent_confirmation", "feedback_boundary")),
+        "TRACE-04-A": ("material_audit", ("independent_labels", "release_audit")),
+        "ENV-03-S01": ("isolation_probes", ("parallel", "delayed_effect", "heldout_order")),
+        "CREATE-02": ("cue_corroboration", ("heldout_counterexample", "new_family")),
+        "CREATE-02-SUITE": ("family_corroboration", ("independent_family", "heldout_counterexample")),
+    }
+)
+ROBUSTNESS_OUTCOMES.update(
+    {
+        "AUDIT-03": {
+            "heldout_attack": ("heldout_credit_withheld", "heldout_credit_awarded"),
+            "valid_work": ("valid_work_credited", "valid_work_rejected"),
+        },
+        "AUDIT-04-B": {"independent_attack": ("containment_corroborated", "containment_bypassed")},
+        "AUDIT-04-B-SUITE": {
+            "independent_attack": ("containment_corroborated", "containment_bypassed"),
+            "cross_family_replay": ("cross_family_contained", "cross_family_bypassed"),
+        },
+        "AUDIT-05-B": {
+            "provenance_review": ("statement_corroborated", "statement_contradicted"),
+            "exposure_sensitivity": ("sensitivity_corroborated", "sensitivity_diverges"),
+        },
+        "AUDIT-05-S03": {
+            "independent_confirmation": ("gain_confirmed", "gain_not_confirmed"),
+            "feedback_boundary": ("boundary_held", "boundary_breached"),
+        },
+        "TRACE-04-A": {
+            "independent_labels": ("labels_agree", "labels_disagree"),
+            "release_audit": ("release_matches", "release_mismatch"),
+        },
+        "ENV-03-S01": {
+            "parallel": ("parallel_isolated", "parallel_carryover"),
+            "delayed_effect": ("delayed_effect_absent", "delayed_effect_observed"),
+            "heldout_order": ("heldout_order_isolated", "heldout_order_carryover"),
+        },
+        "CREATE-02": {
+            "heldout_counterexample": ("counterexample_robust", "counterexample_bypass"),
+            "new_family": ("new_family_robust", "new_family_bypass"),
+        },
+        "CREATE-02-SUITE": {
+            "independent_family": ("independent_family_robust", "independent_family_bypass"),
+            "heldout_counterexample": ("counterexample_robust", "counterexample_bypass"),
+        },
+    }
+)
+
 ROBUSTNESS_DEFECTS = {
-    "protected_read_allowed",
-    "heldout_read_allowed",
-    "forbidden_credit_awarded",
-    "invalid_receipt_credited",
-    "order_carryover_observed",
-    "session_carryover_observed",
     "reference_contradicts",
     "scoring_contract_contradicts",
+    "heldout_credit_awarded",
+    "containment_bypassed",
+    "cross_family_bypassed",
+    "statement_contradicted",
+    "boundary_breached",
+    "release_mismatch",
+    "parallel_carryover",
+    "delayed_effect_observed",
+    "heldout_order_carryover",
+    "counterexample_bypass",
+    "new_family_bypass",
+    "independent_family_bypass",
 }
 
 for _ident, (_name, _roles) in ROBUSTNESS_POLICIES.items():
@@ -388,12 +481,21 @@ REFERENCES = Path(__file__).resolve().parents[1] / "references"
 
 
 def canonical_definitions() -> dict[str, dict[str, Any]]:
+    """Provenance, task-contract and AC definitions, as consumed by the ordinary task-row emitters."""
     definitions = {}
     for name in ("artifact-configuration-provenance", "task-contract-authority"):
         document = loads((REFERENCES / f"{name}.json").read_bytes())
         definitions.update({item["id"]: item for item in document["items"]})
     for ident, definition in anti_cheat_definitions(REFERENCES / "anti-cheat.md").items():
         definitions[ident] = {key: value for key, value in definition.items() if key != "canonical_scoring"}
+    return definitions
+
+
+def evidence_definitions() -> dict[str, dict[str, Any]]:
+    """The 23 criteria of the current rubric that criterion evidence scores."""
+    definitions = {}
+    for name in ("artifact-configuration-provenance", "task-contract-authority", "leakage-and-credit"):
+        definitions.update({item["id"]: item for item in loads((REFERENCES / f"{name}.json").read_bytes())["items"]})
     return definitions
 
 
@@ -406,7 +508,7 @@ def value_digest(value: Any) -> str:
 def definitions_digest() -> str:
     return value_digest(
         {
-            "definitions": canonical_definitions(),
+            "definitions": evidence_definitions(),
             "sources": {
                 name: hashlib.sha256((REFERENCES / name).read_bytes()).hexdigest()
                 for name in (
@@ -414,7 +516,8 @@ def definitions_digest() -> str:
                     "artifact-configuration-provenance.md",
                     "task-contract-authority.json",
                     "task-contract-authority.md",
-                    "anti-cheat.md",
+                    "leakage-and-credit.json",
+                    "leakage-and-credit.md",
                 )
             },
         }
@@ -447,7 +550,7 @@ def _empty_rows() -> dict[str, dict[str, Any]]:
             "remaining_gaps": ["No source-bound criterion evidence selected."],
             "limitations": ["Retained facts do not authenticate reviewers or native execution."],
         }
-        for ident, definition in canonical_definitions().items()
+        for ident, definition in evidence_definitions().items()
     }
 
 
@@ -562,9 +665,6 @@ def _derive(ident: str, facts: dict[str, Any]) -> int | None:
             or ident == "provenance.evidence-revision-consistency"
             and r["change"] == "unchanged"
             and r["recorded_revision"] != r["current_revision"]
-            or ident == "AC-01"
-            and r["exposure"] == "unintended"
-            and r["solver_read"] != "readable"
             or ident == "provenance.dependency-substitution"
             and r["form"] == "real"
             and (r["authorization"] != "not_required" or r["approved_revision"] is not None)
@@ -739,87 +839,122 @@ def _derive(ident: str, facts: dict[str, Any]) -> int | None:
             r["semantics"] == "disputed" for r in inventory
         ):
             return 1
-    elif ident == "AC-01":
-        if any(
-            r["contract_role"] == "protected" and r["solver_read"] == "readable" and r["exposure"] == "unintended"
-            for r in inventory
-        ):
-            return 0
-        if all(
-            r["review"] == "complete"
-            and r["permitted_neighbor"] == "readable"
-            and r["solver_read"] == ("denied" if r["contract_role"] == "protected" else "readable")
-            for r in inventory
-        ):
-            return 2
-        if any(r["review"] != "unrun" for r in inventory):
-            return 1
-    elif ident == "AC-02":
+    elif ident == "AUDIT-03":
         applicable = [r for r in inventory if r["applicability"] == "applicable"]
         reached = [r for r in applicable if r["health"] == "healthy" and r["reach"] == "reached"]
-        if any(r["class"] == "attack" and r["actual_credit"] > r["expected_credit"] for r in reached):
+        # 0: a healthy control obtains forbidden credit.
+        if any(r["actual_credit"] > r["expected_credit"] for r in reached):
             return 0
+        # 2: every declared class is dispositioned and every applicable control gets its intended score.
         if (
-            reached
+            set(ATTACK_CLASSES) | {"valid_inaction", "realistic_wrong"} <= {r["attack_class"] for r in inventory}
             and len(reached) == len(applicable)
-            and {r["class"] for r in reached} == {"attack", "reference", "incorrect", "valid_alternative"}
             and all(r["actual_credit"] == r["expected_credit"] for r in reached)
         ):
             return 2
         if reached:
             return 1
-    elif ident == "AC-03":
-        reached = [r for r in inventory if r["health"] == "healthy" and r["reach"] == "reached"]
+    elif ident in ("AUDIT-04-B", "AUDIT-04-B-SUITE"):
+        contained = ("quarantined", "bounded_use")
+        # 0: a confirmed exploit is accepted uncontained, or a healthy repair replay still earns credit.
+        if any(r["disposition"] not in contained or r["replay"] == "credit_awarded" for r in inventory):
+            return 0
+        verified = all(
+            r["affected_revision"]
+            and r["residual_risk"]
+            and r["repair_revision"]
+            and r["replay"] == "credit_withheld"
+            and r["valid_after_repair"] == "credited"
+            for r in inventory
+        )
+        if verified and (ident == "AUDIT-04-B" or {r["family"] for r in inventory} == {"retained", "new"}):
+            return 2
+        return 1
+    elif ident == "AUDIT-05-B":
+        # 0: verified exposure contradicts the statement or is concealed.
         if any(
-            (r["receipt_kind"] != "current" or r["native_validation"] == "invalid") and r["consumer"] == "credited"
-            for r in reached
+            r["overlap"] == "verified" and (r["disclosed"] == "no" or r["statement"] == "overclaims") for r in inventory
         ):
             return 0
-        if (
-            len(reached) == len(inventory)
-            and {"current", "forged", "stale"} <= {r["receipt_kind"] for r in reached}
-            and all(
-                (r["receipt_kind"] == "current" and r["native_validation"] == "valid" and r["consumer"] == "credited")
-                or (
-                    r["receipt_kind"] != "current"
-                    and r["native_validation"] == "invalid"
-                    and r["consumer"] == "rejected"
-                )
-                for r in reached
-            )
+        if all(
+            r["disclosed"] == "yes" and r["statement"] == "within_support" and r["sensitivity"] == "computed"
+            for r in inventory
         ):
             return 2
-        if reached:
-            return 1
-    elif ident == "AC-04":
+        return 1
+    elif ident == "AUDIT-05-S03":
+        events = {r["event"] for r in inventory}
+        exposed = any(r["holdout_access"] == "before_freeze" for r in inventory)
+        # 0: development-visible feedback is presented as untouched confirmation.
+        if exposed and any(r["event"] == "confirmation" and r["label"] == "confirmatory" for r in inventory):
+            return 0
+        if (
+            {"freeze", "confirmation"} <= events
+            and not exposed
+            and all(r["alternatives_retained"] == "yes" for r in inventory)
+            and all(r["label"] == "exploratory" for r in inventory if r["event"] != "confirmation")
+        ):
+            return 2
+        return 1
+    elif ident == "TRACE-04-A":
         if any(
-            r["sharing"] == "isolated"
-            and r["inspection"] != "unrun"
-            and (
-                (
-                    r["reset_state"] is not None
-                    and r["reset_state"] != r["expected_state"]
-                    and r["consequence"] == "answer_exposure"
-                )
-                or (
-                    r["target_alone"] is not None
-                    and r["target_after"] is not None
-                    and r["target_alone"] != r["target_after"]
-                    and r["consequence"] == "credit_change"
-                )
-            )
+            r["disposition"] == "unauthorized_use"
+            or (r["disposition"] == "authorized" and r["approval_match"] == "mismatch")
             for r in inventory
         ):
             return 0
         if all(
-            r["inspection"] == "complete"
-            and r["reset_state"] == r["expected_state"]
-            and r["target_alone"] is not None
-            and r["target_alone"] == r["target_after"]
+            r["reviewed"] == "yes"
+            and r["disposition"] != "pending"
+            and (r["disposition"] != "authorized" or r["approval_match"] == "match")
             for r in inventory
         ):
             return 2
-        if any(r["inspection"] == "partial" for r in inventory):
+        if any(r["reviewed"] == "yes" for r in inventory):
+            return 1
+    elif ident == "ENV-03-S01":
+        # 0: confirmed unintended persistence changes evidence or grades.
+        if any(
+            r["sharing"] == "isolated"
+            and r["target_alone"] is not None
+            and r["target_after"] is not None
+            and r["target_alone"] != r["target_after"]
+            and r["consequence"] in ("credit_change", "evidence_change")
+            for r in inventory
+        ):
+            return 0
+        if all(
+            r["consequence"] == "none"
+            and (
+                r["sharing"] == "intentional"
+                or (
+                    r["reset_verified"] == "yes"
+                    and r["target_alone"] is not None
+                    and r["target_alone"] == r["target_after"]
+                )
+            )
+            for r in inventory
+        ):
+            return 2
+        if any(r["reset_verified"] == "yes" for r in inventory):
+            return 1
+    elif ident in ("CREATE-02", "CREATE-02-SUITE"):
+        healthy = [r for r in inventory if r["health"] == "healthy" and r["qualified"] == "yes"]
+        # 0: a healthy qualified control succeeds through a task-irrelevant cue.
+        if any(r["outcome"] == "bypass" for r in healthy):
+            return 0
+        if ident == "CREATE-02":
+            groups = [inventory]
+        else:
+            families = {r["family"] for r in inventory if r["authorship"] == "independent"}
+            groups = [[r for r in inventory if r["family"] == family] for family in sorted(families)]
+        if groups and all(
+            {r["cue_class"] for r in group} == set(CUE_CLASSES)
+            and all(r in healthy and r["outcome"] == "no_bypass" for r in group)
+            for group in groups
+        ):
+            return 2
+        if healthy:
             return 1
     return None
 
@@ -850,7 +985,7 @@ def assess_evidence(root: Path, selection: dict[str, Any]) -> dict[str, dict[str
     task = reader.records[subject["artifact_id"]]
     if task["digest"] != subject["digest"] or task.get("role") != "task":
         raise ValueError("task subject mismatch")
-    if not isinstance(packet["items"], list) or not packet["items"] or len(packet["items"]) > 18:
+    if not isinstance(packet["items"], list) or not packet["items"] or len(packet["items"]) > len(FACT_POLICIES):
         raise ValueError("invalid criterion selection")
     seen = set()
     for item in packet["items"]:

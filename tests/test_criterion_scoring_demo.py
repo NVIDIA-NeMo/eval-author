@@ -31,10 +31,15 @@ IDS = {
     "task-contract.clear-contract",
     "task-contract.discoverable-requirements",
     "task-contract.scoring-authority",
-    "AC-01",
-    "AC-02",
-    "AC-03",
-    "AC-04",
+    "AUDIT-03",
+    "AUDIT-04-B",
+    "AUDIT-04-B-SUITE",
+    "AUDIT-05-B",
+    "AUDIT-05-S03",
+    "TRACE-04-A",
+    "ENV-03-S01",
+    "CREATE-02",
+    "CREATE-02-SUITE",
 }
 
 
@@ -49,7 +54,7 @@ def invoke(*args: str) -> subprocess.CompletedProcess[str]:
     )
 
 
-def test_all_eighteen_anchor_vectors_are_actual_cli_reports(tmp_path: Path) -> None:
+def test_all_rubric_anchor_vectors_are_actual_cli_reports(tmp_path: Path) -> None:
     output = tmp_path / "demo"
     result = invoke("--output", str(output))
     assert result.returncode == 0, result.stdout + result.stderr
@@ -58,8 +63,8 @@ def test_all_eighteen_anchor_vectors_are_actual_cli_reports(tmp_path: Path) -> N
     assert summary["semantic_results_equal"] is True
     assert summary["task_qualification"] is False
     assert summary["native_execution"] == summary["human_review"] == "NOT_RUN"
-    assert summary["criterion_count"] == 18
-    assert summary["vector_count_per_root"] == 90
+    assert summary["criterion_count"] == 23
+    assert summary["vector_count_per_root"] == 115
     for run in ("run-a", "run-b"):
         for vector, expected in (("score-0", 0), ("score-1", 1), ("score-2", 2), ("score-3", 3), ("missing", None)):
             directory = output / run / vector
@@ -128,7 +133,7 @@ def test_verify_existing_rejects_retained_mutations(tmp_path: Path, retained_dem
         path = directory / "measure-report.json"
         document = json.loads(path.read_text())
         if mutation == "score":
-            document["criterion_demonstration"]["AC-01"]["score"] = 3
+            document["criterion_demonstration"]["AUDIT-03"]["score"] = 3
         else:
             del document["criterion_demonstration"]
     elif mutation == "source":

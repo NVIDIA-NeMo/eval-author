@@ -115,11 +115,11 @@ def test_anti_cheat_checks_use_lowercase_unique_method_ids(tmp_path, monkeypatch
     assert checks[0]["action"] == "first comparison."
 
 
-def test_all_eighteen_definitions_preserve_canonical_anchors(tmp_path):
+def test_all_rubric_definitions_preserve_canonical_anchors(tmp_path):
     scorer = module()
-    definitions = scorer.canonical_definitions()
-    assert len(definitions) == 18
-    for name in ("artifact-configuration-provenance", "task-contract-authority"):
+    definitions = scorer.evidence_definitions()
+    assert len(definitions) == 23
+    for name in ("artifact-configuration-provenance", "task-contract-authority", "leakage-and-credit"):
         source = json.loads((SCRIPT.parents[1] / f"references/{name}.json").read_text())
         for item in source["items"]:
             assert definitions[item["id"]] == item
@@ -311,7 +311,7 @@ def assert_cli_score_boundary(report: dict, ident: str, synthetic: bool, expecte
 
 
 @pytest.mark.parametrize("synthetic", [True, False])
-@pytest.mark.parametrize("ident", [row[1] for row in MIGRATED_DEFINITIONS] + ["AC-01", "AC-02", "AC-03", "AC-04"])
+@pytest.mark.parametrize("ident", [row[1] for row in MIGRATED_DEFINITIONS] + ["AUDIT-03", "CREATE-02"])
 def test_measure_cli_separates_demonstration_from_task_scores(tmp_path, synthetic, ident):
     scorer = module()
     selection = packet(tmp_path, scorer, ident, facts_for(ident, 0), synthetic=synthetic)
@@ -325,7 +325,7 @@ def test_measure_cli_separates_demonstration_from_task_scores(tmp_path, syntheti
         row = report["recorded_criterion_evidence"][ident]
         assert report["items"][ident]["score"] is None
         assert row["evidence_strength"] is None
-    definition = scorer.canonical_definitions()[ident]
+    definition = scorer.evidence_definitions()[ident]
     if "source" in definition:
         assert row["source"] == definition["source"]
         assert "skill_id" not in row
@@ -436,10 +436,10 @@ def test_robustness_rejects_untyped_equal_assertions(tmp_path, ident, outcome):
 @pytest.mark.parametrize(
     "ident,role,outcome",
     [
-        ("AC-01", "independent_path", "protected_read_allowed"),
-        ("AC-02", "heldout_attack", "forbidden_credit_awarded"),
-        ("AC-03", "invalid_rejection", "invalid_receipt_credited"),
-        ("AC-04", "order", "order_carryover_observed"),
+        ("AUDIT-03", "heldout_attack", "heldout_credit_awarded"),
+        ("ENV-03-S01", "parallel", "parallel_carryover"),
+        ("TRACE-04-A", "release_audit", "release_mismatch"),
+        ("CREATE-02", "new_family", "new_family_bypass"),
     ],
 )
 def test_completed_scoped_corroboration_defect_overrides_acceptance(tmp_path, ident, role, outcome):
@@ -678,33 +678,24 @@ def test_measure_cli_observed_mismatch_requires_its_own_run_identity(
 
 @pytest.mark.parametrize("synthetic", [True, False])
 @pytest.mark.parametrize(
-    "native_validation,health,reach,consumer,expected",
+    "health,reach,actual_credit,expected",
     [
-        ("invalid", "healthy", "reached", "credited", 0),
-        ("unrun", "healthy", "reached", "credited", 1),
-        ("valid", "healthy", "reached", "credited", 2),
-        ("invalid", "error", "reached", "credited", 1),
-        ("invalid", "unrun", "reached", "credited", 1),
-        ("invalid", "healthy", "unreachable", "credited", 1),
-        ("invalid", "healthy", "reached", "rejected", 1),
+        ("healthy", "reached", 1, 0),
+        ("error", "reached", 1, 1),
+        ("unrun", "reached", 1, 1),
+        ("healthy", "unreachable", 1, 1),
+        ("healthy", "reached", 0, 2),
     ],
 )
-def test_measure_cli_current_receipt_invalid_credit_requires_healthy_reached_validation(
-    tmp_path: Path,
-    synthetic: bool,
-    native_validation: str,
-    health: str,
-    reach: str,
-    consumer: str,
-    expected: int,
+def test_measure_cli_forbidden_credit_requires_healthy_reached_control(
+    tmp_path: Path, synthetic: bool, health: str, reach: str, actual_credit: int, expected: int
 ) -> None:
     scorer = module()
-    facts = facts_for("AC-03", 2)
-    current = next(row for row in facts["receipt_controls"] if row["receipt_kind"] == "current")
-    current.update(native_validation=native_validation, health=health, reach=reach, consumer=consumer)
-    selection = packet(tmp_path, scorer, "AC-03", facts, synthetic=synthetic)
+    facts = facts_for("AUDIT-03", 2)
+    facts["attack_controls"][0].update(health=health, reach=reach, actual_credit=actual_credit)
+    selection = packet(tmp_path, scorer, "AUDIT-03", facts, synthetic=synthetic)
     report = measure_cli(tmp_path, selection)
-    assert_cli_score_boundary(report, "AC-03", synthetic, expected)
+    assert_cli_score_boundary(report, "AUDIT-03", synthetic, expected)
 
 
 @pytest.mark.parametrize("with_neighbor", [False, True])
@@ -738,19 +729,17 @@ def test_completed_probe_without_actual_outcome_stays_unknown(tmp_path, with_nei
 @pytest.mark.parametrize(
     "patch",
     [
-        {"reset_state": None, "inspection": "unrun", "consequence": "answer_exposure"},
-        {"reset_state": None, "inspection": "complete", "consequence": "answer_exposure"},
-        {"reset_state": "answer", "inspection": "unrun", "consequence": "answer_exposure"},
-        {"target_alone": None, "target_after": "1", "inspection": "unrun", "consequence": "credit_change"},
-        {"target_alone": "0", "target_after": None, "inspection": "complete", "consequence": "credit_change"},
+        {"target_alone": None, "target_after": "0", "consequence": "credit_change"},
+        {"target_alone": "1", "target_after": None, "consequence": "credit_change"},
+        {"target_after": "1", "consequence": "credit_change"},
     ],
 )
-def test_reset_defect_requires_observed_state_or_paired_credit(tmp_path, patch):
+def test_isolation_defect_requires_observed_paired_credit(tmp_path, patch):
     scorer = module()
-    facts = facts_for("AC-04", 2)
-    facts["reset_surfaces"][0].update(patch)
-    selection = packet(tmp_path, scorer, "AC-04", facts)
-    assert scorer.assess_evidence(tmp_path, selection)["AC-04"]["score"] is None
+    facts = facts_for("ENV-03-S01", 2)
+    facts["isolation_surfaces"][0].update(patch)
+    selection = packet(tmp_path, scorer, "ENV-03-S01", facts)
+    assert scorer.assess_evidence(tmp_path, selection)["ENV-03-S01"]["score"] == 1
 
 
 @pytest.mark.parametrize("semantics", ["resolved", "disputed", "contradicted"])
@@ -837,7 +826,6 @@ def test_zero_and_partial_merit_do_not_change_evidence_strength(tmp_path):
     [
         ("provenance.observed-configuration", {"observed": "different", "disposition": "agrees"}),
         ("provenance.evidence-revision-consistency", {"current_revision": "other", "change": "unchanged"}),
-        ("AC-01", {"solver_read": "denied", "exposure": "unintended"}),
         (
             "provenance.dependency-substitution",
             {"form": "real", "authorization": "approved", "approved_revision": "v1"},

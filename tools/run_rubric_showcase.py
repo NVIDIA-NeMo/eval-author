@@ -237,10 +237,10 @@ def collect(output):
 
 
 def summarize_reports(output: Path) -> dict:
-    from run_criterion_scoring_demo import canonical_definitions
-
-    definitions = canonical_definitions()
     current, _ = current_modules()
+    from rubric_evidence_scoring import evidence_definitions
+
+    definitions = evidence_definitions()
     identity = read(output / "identity/panel.json")
     provenance = read(output / "provenance/panel.json")
     task_contract = read(output / "task-contract/panel.json")
@@ -249,10 +249,9 @@ def summarize_reports(output: Path) -> dict:
     demonstration = read(output / "criterion-scoring/summary.json")
     inventory = []
     references = ROOT / "skills/eval-author-rubric/references"
-    for name in ("artifact-configuration-provenance", "task-contract-authority"):
+    for name in ("artifact-configuration-provenance", "task-contract-authority", "leakage-and-credit"):
         for item in read(references / f"{name}.json")["items"]:
             inventory.append({"id": item["id"], "area": name})
-    inventory.extend({"id": f"AC-0{number}", "area": "anti-cheat"} for number in range(1, 5))
     for item in inventory:
         definition = definitions[item["id"]]
         item["title"] = definition["title"]
@@ -262,8 +261,6 @@ def summarize_reports(output: Path) -> dict:
         "provenance.task-artifact-access",
         "provenance.grading-path",
         "provenance.grading-dependency-access",
-        "AC-02",
-        "AC-03",
         "task-contract.discoverable-requirements",
     }
     for item in inventory:
@@ -275,7 +272,7 @@ def summarize_reports(output: Path) -> dict:
             else "No source-bound canonical score demonstrated"
         )
         item["scoring_rule_status"] = "Synthetic 0/1/2/3/missing demonstrated"
-    if len(inventory) != 18 or {row["id"] for row in inventory} != set(demonstration["results"]["missing"]):
+    if len(inventory) != 23 or {row["id"] for row in inventory} != set(demonstration["results"]["missing"]):
         raise ValueError("criterion inventory mismatch")
     if identity["status"] != "passed" or provenance["status"] != "passed":
         raise ValueError("identity or provenance demo mismatch")
@@ -1167,11 +1164,10 @@ h1{{font-size:30px;line-height:1.2}}h2{{margin-top:36px;font-size:22px}}a{{color
 <p><a href="task-contract/report.md">Condition crosswalk and expected-versus-observed inspection</a>. {esc(summary["task_contract"]["matched"])}/{esc(summary["task_contract"]["cases"])} task-contract and Ethos scenarios match their expectations. The results come from authored static inspections and real structure checks. No model judgment was measured.</p>
 <div class="scroll"><table><thead><tr><th>Ethos case</th><th>Measurement status</th><th>Structure valid</th><th>Owner confirmation</th><th>Evidence</th></tr></thead><tbody>{ethos_rows}</tbody></table></div>
 <p>A structurally valid but changed Ethos still fails its digest binding. An unavailable validator leaves the result unknown. Valid structure does not establish confirmed owner intent. The owning journey-state validator handles saved-byte confirmation and invalidation. This demo supplies no reviewed user turn. Confirmation is NOT_RUN, and the demo creates no journey-state approval.</p>
-<h2>Historical synthetic scoring-rule coverage</h2>
-<p>The historical {esc(demo["criterion_count"])} criteria have tests for 0, 1, 2, 3 and missing through the actual measurement CLI: {esc(demo["vector_count_per_root"])} criterion vectors per root. These authored synthetic numbers do not qualify a task. They appear only in criterion_demonstration, never in real measured items. The source-bound scores above come from inspecting selected sources or executing local controls. This matrix tests how scoring rules respond to invented observations. Human review, native execution and independent corroboration were NOT_RUN.</p>
+<h2>Synthetic scoring-rule coverage</h2>
+<p>All {esc(demo["criterion_count"])} rubric criteria have tests for 0, 1, 2, 3 and missing through the actual measurement CLI: {esc(demo["vector_count_per_root"])} criterion vectors per root. These authored synthetic numbers do not qualify a task. They appear only in criterion_demonstration, never in real measured items. The source-bound scores above come from inspecting selected sources or executing local controls. This matrix tests how scoring rules respond to invented observations. Human review, native execution and independent corroboration were NOT_RUN.</p>
 <div class="scroll"><table><thead><tr><th>Criterion</th><th>0 anchor</th><th>1 anchor</th><th>2 anchor</th><th>3 anchor</th><th>Missing evidence</th></tr></thead><tbody>{matrix}</tbody></table></div>
 <p><a href="criterion-scoring/summary.json">Synthetic coverage and rejection controls</a>. Each cell links to the full emitted report, including evidence references and limitations. Synthetic E1 does not establish native or authenticated human evidence.</p>
-<p>The historical synthetic matrix does not establish current 23-criterion coverage. The current inventory and ordinary assessments appear first.</p>
 <h2>7. Remaining evidence gaps</h2>
 <p>This demo produces no numeric observation for these {len(summary["production_gaps"])} criteria: {production_gaps}. Synthetic anchor tests do not fill these production evidence gaps. This list describes what the demo covers. It does not mean every adapter is absent.</p>
 <p>The local paired controls match their expected outcomes. A canonical score of 2 requires the remaining applicable attack controls and native evidence. Independent held-out attacks and valid alternatives are required for score 3.</p><ul>{gaps}</ul>

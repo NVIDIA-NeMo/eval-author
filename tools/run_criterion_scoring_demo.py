@@ -28,10 +28,29 @@ ROOT = Path(__file__).resolve().parents[1]
 SCRIPTS = ROOT / "skills/eval-author-rubric/scripts"
 sys.path.insert(0, str(ROOT / "skills/eval-author/scripts"))
 sys.path.insert(0, str(SCRIPTS))
-from rubric_evidence_scoring import canonical_definitions, definitions_digest, value_digest  # noqa: E402
+from rubric_evidence_scoring import (  # noqa: E402
+    ATTACK_CLASSES,
+    CUE_CLASSES,
+    ROBUSTNESS_OUTCOMES,
+    ROBUSTNESS_POLICIES,
+    definitions_digest,
+    evidence_definitions,
+    value_digest,
+)
 from rubric_identity import read_selected  # noqa: E402
 
 # Authored synthetic fixtures shared by the demo and tests, independent of scorer predicates.
+CONTAINED = {
+    "id": "exploit",
+    "affected_revision": "v0",
+    "disposition": "quarantined",
+    "residual_risk": "Affected results excluded",
+    "repair_revision": "v1",
+    "replay": "credit_withheld",
+    "valid_after_repair": "credited",
+}
+CUE = {"qualified": "yes", "health": "healthy", "outcome": "no_bypass"}
+
 VECTORS = {
     "provenance.task-artifact-access": (
         "task_artifacts",
@@ -191,60 +210,94 @@ VECTORS = {
         {"authoritative": "43", "semantics": "contradicted"},
         {"semantics": "disputed"},
     ),
-    "AC-01": (
-        "information_surfaces",
+    "AUDIT-03": (
+        "attack_controls",
         {
-            "id": "answer",
-            "contract_role": "protected",
-            "solver_read": "denied",
-            "permitted_neighbor": "readable",
-            "exposure": "none",
-            "review": "complete",
-        },
-        {"solver_read": "readable", "exposure": "unintended"},
-        {"review": "partial"},
-    ),
-    "AC-02": (
-        "credit_controls",
-        {
-            "id": "shortcut",
-            "class": "attack",
+            "id": "no_work",
+            "attack_class": "no_work",
+            "applicability": "applicable",
             "expected_credit": 0,
             "actual_credit": 0,
             "health": "healthy",
             "reach": "reached",
-            "applicability": "applicable",
         },
         {"actual_credit": 1},
-        {"reach": "unresolved"},
+        {"attack_class": "all_failure"},
     ),
-    "AC-03": (
-        "receipt_controls",
+    "AUDIT-04-B": (
+        "exploit_containment",
+        CONTAINED,
+        {"replay": "credit_awarded"},
+        {"repair_revision": None},
+    ),
+    "AUDIT-04-B-SUITE": (
+        "suite_containment",
+        {**CONTAINED, "family": "retained"},
+        {"disposition": "accepted"},
+        {"family": "new"},
+    ),
+    "AUDIT-05-B": (
+        "exposure_inventory",
         {
-            "id": "stale",
-            "receipt_kind": "stale",
-            "consumer": "rejected",
-            "native_validation": "invalid",
-            "health": "healthy",
-            "reach": "reached",
+            "id": "solution",
+            "exposure": "public",
+            "overlap": "unknown",
+            "disclosed": "yes",
+            "statement": "within_support",
+            "sensitivity": "computed",
         },
-        {"consumer": "credited"},
-        {"reach": "unresolved"},
+        {"overlap": "verified", "statement": "overclaims"},
+        {"sensitivity": "missing"},
     ),
-    "AC-04": (
-        "reset_surfaces",
+    "AUDIT-05-S03": (
+        "selection_ledger",
         {
-            "id": "cache",
+            "id": "confirmation",
+            "event": "confirmation",
+            "alternatives_retained": "yes",
+            "holdout_access": "after_freeze",
+            "label": "confirmatory",
+        },
+        {"holdout_access": "before_freeze"},
+        {"alternatives_retained": "no"},
+    ),
+    "TRACE-04-A": (
+        "material_review",
+        {
+            "id": "trace",
+            "channel": "trace",
+            "candidate": "none",
+            "reviewed": "yes",
+            "disposition": "authorized",
+            "approval_match": "match",
+        },
+        {"disposition": "unauthorized_use"},
+        {"disposition": "pending"},
+    ),
+    "ENV-03-S01": (
+        "isolation_surfaces",
+        {
+            "id": "workspace",
             "sharing": "isolated",
-            "expected_state": "empty",
-            "reset_state": "empty",
-            "target_alone": "0",
-            "target_after": "0",
+            "reset_verified": "yes",
+            "target_alone": "1",
+            "target_after": "1",
             "consequence": "none",
-            "inspection": "complete",
         },
-        {"reset_state": "answer", "consequence": "answer_exposure"},
-        {"inspection": "partial"},
+        {"target_after": "0", "consequence": "credit_change"},
+        {"consequence": "unknown"},
+    ),
+    "CREATE-02": (
+        "cue_controls",
+        {"id": "cue_only", "cue_class": "cue_only", **CUE},
+        {"outcome": "bypass"},
+        {"outcome": "confounded"},
+    ),
+    "CREATE-02-SUITE": (
+        "family_cue_controls",
+        {"id": "cue_only", "cue_class": "cue_only", "family": "new-a", "authorship": "independent", **CUE},
+        {"outcome": "bypass"},
+        {"outcome": "confounded"},
     ),
 }
 
@@ -259,113 +312,41 @@ def facts_for(ident: str, variant: int) -> dict[str, Any]:
         "task-contract.scoring-authority",
     ):
         rows.append({**base, "id": "established-neighbor"})
-    if ident == "AC-02":
+    if ident == "AUDIT-03":
         rows.extend(
-            {**base, "id": kind, "class": kind, "expected_credit": credit, "actual_credit": credit}
-            for kind, credit in (("reference", 1), ("incorrect", 0), ("valid_alternative", 1))
+            {**base, "id": kind, "attack_class": kind}
+            for kind in ATTACK_CLASSES[1:] + ("valid_inaction", "realistic_wrong")
+            if kind != row["attack_class"]
         )
-    if ident == "AC-03":
+    if ident == "AUDIT-04-B-SUITE" and variant != 1:
+        rows.append({**base, "id": "exploit-new", "family": "new"})
+    if ident == "AUDIT-05-S03":
         rows.extend(
-            [
-                {**base, "id": "forged", "receipt_kind": "forged"},
-                {
-                    **base,
-                    "id": "valid",
-                    "receipt_kind": "current",
-                    "consumer": "credited",
-                    "native_validation": "valid",
-                },
-            ]
+            {**base, "id": event, "event": event, "holdout_access": "none", "label": "exploratory"}
+            for event in ("candidate", "freeze")
         )
+    if ident in ("CREATE-02", "CREATE-02-SUITE"):
+        rows.extend({**base, "id": kind, "cue_class": kind} for kind in CUE_CLASSES[1:])
     return {name: rows}
 
 
-ROBUSTNESS = {
-    "provenance.task-artifact-access": "inventory_reconstruction",
-    "provenance.grading-path": "route_reconstruction",
-    "provenance.grading-dependency-access": "dependency_reconstruction",
-    "provenance.declared-configuration": "manifest_reconstruction",
-    "provenance.observed-configuration": "configuration_repeat",
-    "provenance.runtime-route": "compatibility_controls",
-    "provenance.comparison-fairness": "matched_sensitivity",
-    "provenance.solver-tool-access": "clean_access_controls",
-    "provenance.dependency-substitution": "provisioning_reconciliation",
-    "provenance.external-state": "replay_drift",
-    "provenance.evidence-revision-consistency": "change_injection",
-    "task-contract.clear-contract": "boundary_solutions",
-    "task-contract.discoverable-requirements": "blind_discovery",
-    "task-contract.scoring-authority": "authority_corroboration",
-    "AC-01": "heldout_access",
-    "AC-02": "heldout_credit",
-    "AC-03": "consumer_boundary",
-    "AC-04": "trial_order_controls",
-}
-
-
 def robustness_for(ident: str) -> dict[str, Any]:
-    # All requested control roles must be present, not merely one green receipt.
-    roles = {
-        "provenance.task-artifact-access": ["inventory"],
-        "provenance.grading-path": ["selection"],
-        "provenance.grading-dependency-access": ["coverage", "access"],
-        "provenance.declared-configuration": ["manifest", "limitations"],
-        "provenance.observed-configuration": ["configuration", "control"],
-        "provenance.runtime-route": ["clean_setup", "invalid_manifest"],
-        "provenance.comparison-fairness": ["matched_setup", "sensitivity"],
-        "provenance.solver-tool-access": ["reset", "error", "boundary"],
-        "provenance.dependency-substitution": ["provisioning", "approval"],
-        "provenance.external-state": ["replay", "deliberate_drift"],
-        "provenance.evidence-revision-consistency": ["changed_invalidated", "unchanged_preserved", "lineage_preserved"],
-        "task-contract.clear-contract": ["independent_solution", "valid_boundary"],
-        "task-contract.discoverable-requirements": ["blind_discovery", "solver_access"],
-        "task-contract.scoring-authority": ["reference", "scoring_contract"],
-        "AC-01": ["independent_path", "heldout", "permitted_neighbor"],
-        "AC-02": ["heldout_attack", "valid_alternative"],
-        "AC-03": ["invalid_rejection", "valid_acceptance"],
-        "AC-04": ["order", "session"],
-    }[ident]
-    outcomes = {
-        "provenance.task-artifact-access": ["inventory_reconstructed"],
-        "provenance.grading-path": ["route_reconstructed"],
-        "provenance.grading-dependency-access": ["dependencies_complete", "dependencies_accessible"],
-        "provenance.declared-configuration": ["manifest_reconstructed", "limitations_preserved"],
-        "provenance.observed-configuration": ["configuration_reproduced", "configuration_control_agrees"],
-        "provenance.runtime-route": ["clean_setup_accepted", "invalid_manifest_rejected"],
-        "provenance.comparison-fairness": ["matched_setup_comparable", "sensitivity_bounded"],
-        "provenance.solver-tool-access": [
-            "reset_preserved_access",
-            "error_contract_preserved",
-            "access_boundary_preserved",
-        ],
-        "provenance.dependency-substitution": ["provisioning_reconciled", "substitutions_authorized"],
-        "provenance.external-state": ["replay_interpretable", "drift_detected"],
-        "provenance.evidence-revision-consistency": [
-            "changed_result_invalidated",
-            "unchanged_result_preserved",
-            "lineage_preserved",
-        ],
-        "task-contract.clear-contract": ["public_solution_accepted", "valid_boundary_accepted"],
-        "task-contract.discoverable-requirements": ["conditions_discovered", "authority_accessible"],
-        "task-contract.scoring-authority": ["reference_agrees", "scoring_contract_agrees"],
-        "AC-01": ["protected_read_denied", "heldout_read_denied", "permitted_read_allowed"],
-        "AC-02": ["forbidden_credit_withheld", "valid_alternative_credited"],
-        "AC-03": ["invalid_receipt_rejected", "valid_receipt_credited"],
-        "AC-04": ["order_isolation_preserved", "session_isolation_preserved"],
-    }[ident]
+    # All canonical control roles must be present, not merely one green receipt.
+    name, roles = ROBUSTNESS_POLICIES[ident]
     return {
-        ROBUSTNESS[ident]: [
+        name: [
             {
                 "id": role,
                 "role": role,
-                "expected": outcome,
-                "observed": outcome,
+                "expected": ROBUSTNESS_OUTCOMES[ident][role][0],
+                "observed": ROBUSTNESS_OUTCOMES[ident][role][0],
                 "original_actor": "author-a",
                 "corroborating_actor": "reviewer-b",
                 "source_identity": f"independent-{role}",
                 "execution": "completed",
                 "scope": "same-task-revision",
             }
-            for role, outcome in zip(roles, outcomes, strict=True)
+            for role in roles
         ]
     }
 
@@ -533,7 +514,7 @@ def mutate_control(directory: Path, name: str) -> None:
         if name == "missing-report-rows":
             del report["criterion_demonstration"]
         else:
-            report["criterion_demonstration"]["AC-01"]["score"] = 2
+            report["criterion_demonstration"]["AUDIT-03"]["score"] = 2
         write_json(directory / "measure-report.json", report)
     else:
         raise ValueError("unknown rejection control")
@@ -607,7 +588,7 @@ def run(output: Path, *, verify: bool = False) -> dict[str, Any]:
 
 def _run(output: Path, *, verify: bool) -> dict[str, Any]:
     output = output.absolute()
-    if set(canonical_definitions()) != set(VECTORS) or len(VECTORS) != 18:
+    if set(evidence_definitions()) != set(VECTORS):
         raise ValueError("demo does not cover the canonical criterion inventory")
     if not verify:
         output.mkdir(parents=True, exist_ok=False)
