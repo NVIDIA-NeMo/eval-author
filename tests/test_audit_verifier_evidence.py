@@ -482,6 +482,82 @@ def test_unsupported_or_absent_receipts_do_not_qualify_a_task(panel):
     assert result["controls"][0]["classification"] == "unproven"
 
 
+@pytest.fixture
+def regraded_panel(tmp_path, monkeypatch):
+    from test_acceptance_integrity import regrade_panel, task_prepared
+
+    prepared = getattr(task_prepared, "__wrapped__")(tmp_path, monkeypatch)
+    return regrade_panel(tmp_path, prepared)
+
+
+@pytest.mark.parametrize("artifact", ["receipt", "result", "trace"])
+@pytest.mark.parametrize("boundary", ["unselected", "symlink", "oversized", "identity"])
+def test_regrade_provenance_reads_stay_within_review_bounds(tmp_path, regraded_panel, monkeypatch, artifact, boundary):
+    audit = importlib.import_module("audit_verifier_evidence")
+    evidence = audit.task_evidence
+    path = regraded_panel.receipts[0]
+    receipt = evidence.read(path)
+    source_path = regraded_panel.sources[0]
+    source = evidence.read(source_path)
+    target = source_path if artifact == "receipt" else Path(source[artifact])
+    roots = [item for item in tmp_path.iterdir() if item != target]
+    identity = None
+    if boundary == "symlink":
+        retained = target.with_suffix(".retained")
+        target.rename(retained)
+        target.symlink_to(retained)
+    elif boundary == "oversized":
+        with target.open("ab") as stream:
+            stream.truncate(8_000_001)
+    elif boundary == "identity":
+        identity = {
+            "records": [
+                {"path": item.relative_to(tmp_path).as_posix(), "digest": evidence.digest(item), "role": "receipt"}
+                for item in tmp_path.iterdir()
+                if item.is_file() and item != target
+            ]
+        }
+    if boundary != "unselected":
+        roots = [tmp_path]
+    original = Path.read_bytes
+
+    def guarded(item):
+        assert item != target, "read provenance outside the authorized byte boundary"
+        return original(item)
+
+    monkeypatch.setattr(Path, "read_bytes", guarded)
+    review = audit.Review(tmp_path, roots, identity=identity)
+    if boundary == "oversized":
+        row = audit.inspect_receipt(review, path, receipt, {regraded_panel.task}, include_integrity=True)
+        assert row["integrity"]["status"] == row["integrity"]["status_claim"] == "unknown"
+        assert row["integrity"]["code"] == "invalid_evidence"
+        assert "exceeds 8 MB" in row["reason"]
+    else:
+        with pytest.raises(audit.EvidenceScopeError):
+            audit.inspect_receipt(review, path, receipt, {regraded_panel.task}, include_integrity=True)
+    assert target.relative_to(tmp_path).as_posix() not in review.evidence
+
+
+def test_regrade_review_binds_sources_after_repository_relocation(tmp_path, tmp_path_factory, regraded_panel):
+    audit = importlib.import_module("audit_verifier_evidence")
+    destination = tmp_path_factory.mktemp("regrade-relocated") / "repo"
+    shutil.copytree(tmp_path, destination)
+    review = audit.Review(destination, [destination])
+    path = destination / regraded_panel.receipts[0].name
+    row = audit.inspect_receipt(
+        review,
+        path,
+        review.object(path),
+        {destination / regraded_panel.task.name},
+        include_integrity=True,
+    )
+    assert row["classification"] == "passed"
+    assert row["integrity"]["status_claim"] == "consistent"
+    source = audit.task_evidence.read(regraded_panel.sources[0])
+    for original in [regraded_panel.sources[0], Path(source["result"]), Path(source["trace"])]:
+        assert review.evidence[original.name] == audit.task_evidence.digest(original)
+
+
 def test_unselected_native_source_is_not_read(panel, monkeypatch):
     original = Path.read_bytes
 

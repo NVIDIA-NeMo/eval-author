@@ -22,7 +22,9 @@ ENVIRONMENT = frozenset(
         "check-runtime",
     }
 )
-EVIDENCE = frozenset({"probe", "record-run-inputs", "record-validation", "record-repair", "finalize", "check"})
+EVIDENCE = frozenset(
+    {"probe", "record-run-inputs", "record-regrade-inputs", "record-validation", "record-repair", "finalize", "check"}
+)
 PUBLICATION = frozenset({"prepare-publication", "review-publication", "export"})
 
 
@@ -44,7 +46,12 @@ def main(owner, argv=None):
                 raise trace_workspace.ContractError(
                     "native Gym publication is not supported; retain the private handoff"
                 )
-        if owner in {"evidence", "environment"} and argv[0] in {"record-run-inputs", "probe", "record-review-inputs"}:
+        if owner in {"evidence", "environment"} and argv[0] in {
+            "record-run-inputs",
+            "record-regrade-inputs",
+            "probe",
+            "record-review-inputs",
+        }:
             from .admission import assess
 
             if not assess(args.task_dir)["admitted"]:

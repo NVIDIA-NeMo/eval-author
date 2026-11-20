@@ -82,6 +82,9 @@ from .task_evidence import (
     _record_probe as _record_probe,
 )
 from .task_evidence import (
+    _record_regrade_inputs as _record_regrade_inputs,
+)
+from .task_evidence import (
     _record_repair as _record_repair,
 )
 from .task_evidence import (
@@ -2257,6 +2260,15 @@ def _parser() -> argparse.ArgumentParser:
     run_inputs.add_argument("--negative-source", "--control-source", dest="negative_source", type=Path)
     run_inputs.add_argument("--negative-rationale", "--control-rationale", dest="negative_rationale")
     run_inputs.set_defaults(run=_record_run_inputs)
+
+    regrade_inputs = subparsers.add_parser(
+        "record-regrade-inputs",
+        help="bind a future `harbor jobs regrade` job to a fresh proof job after a tests-only change",
+    )
+    regrade_inputs.add_argument("--task-dir", required=True, type=Path)
+    regrade_inputs.add_argument("--source-job-dir", required=True, type=Path, help="fresh proof job to regrade")
+    regrade_inputs.add_argument("--job-dir", required=True, type=Path, help="new job directory the regrade creates")
+    regrade_inputs.set_defaults(run=_record_regrade_inputs)
 
     record = subparsers.add_parser("record-validation", help="derive proof only from retained Harbor results")
     record.add_argument("--task-dir", required=True, type=Path)

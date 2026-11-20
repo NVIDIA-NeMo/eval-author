@@ -38,7 +38,9 @@ _SUMMARY_SCHEMA_PREFIX = "nemo.eval_author.trace_environment_summary."
 
 OLD_WORKSPACE = "workspace was prepared by an older trace workspace version; re-run prepare in a new task directory"
 
-RUN_INPUT_SCHEMA = "nemo.eval_author.trace_environment_run_input.v3"
+RUN_INPUT_SCHEMA = "nemo.eval_author.trace_environment_run_input.v4"
+
+REGRADE_INPUT_SCHEMA = "nemo.eval_author.trace_environment_regrade_input.v1"
 
 VALIDATION_SCHEMA = "nemo.eval_author.trace_environment_validation.v7"
 
@@ -439,8 +441,11 @@ def _validate_mock_tool_call_integration(task_dir: Path, config: dict[str, Any])
         raise ContractError("trace-tool-call-replay MCP server differs from the generated integration contract")
 
 
-def _task_tree_info(root: Path) -> dict[str, Any]:
-    """Hash a task tree with unambiguous framing and executable-bit coverage."""
+def _task_tree_info(root: Path, *, exclude: str | None = None) -> dict[str, Any]:
+    """Hash the task tree with unambiguous framing and executable-bit coverage.
+
+    The exclude argument omits one top-level entry.
+    """
 
     if root.is_symlink() or not root.is_dir():
         raise ContractError("task must be a regular directory")
@@ -448,6 +453,8 @@ def _task_tree_info(root: Path) -> dict[str, Any]:
     file_count = 0
     total_bytes = 0
     for path in sorted(root.rglob("*"), key=lambda candidate: candidate.relative_to(root).as_posix()):
+        if path.relative_to(root).parts[0] == exclude:
+            continue
         relative = path.relative_to(root).as_posix().encode()
         if path.is_symlink():
             raise ContractError(f"task tree refuses symlink: {path.relative_to(root)}")

@@ -8,9 +8,21 @@ import json
 import subprocess
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
-from test_task_evidence import SCRIPTS, complete, evidence, execute, pipeline, write
+from test_task_evidence import (
+    SCRIPTS,
+    TRIALS,
+    complete,
+    evidence,
+    execute,
+    harbor_trial,
+    pipeline,
+    regrade_all,
+    revise_after_trials,
+    write,
+)
 from test_task_evidence import prepared as task_prepared
 
 
@@ -152,6 +164,119 @@ def test_complete_current_controls_support_the_claim(tmp_path, prepared):
     assert result["violations"] == 0
     assert result["required_verification"]["verified"] is True
     assert result["agent_runs"] == "excluded"
+
+
+def regrade_panel(tmp_path, prepared):
+    task, contract, manifest = prepared
+    sources = revise_after_trials(tmp_path, prepared, "tests")
+    trace = tmp_path / "reference-source-trace.json"
+    write(trace, {"session_id": "reference"})
+    write(sources[0], {**evidence.read(sources[0]), "trace": str(trace), "trace_sha256": evidence.digest(trace)})
+    receipts = regrade_all(tmp_path, manifest, sources)
+    return SimpleNamespace(task=task, contract=contract, manifest=manifest, sources=sources, receipts=receipts)
+
+
+@pytest.fixture
+def regraded(tmp_path, prepared):
+    return regrade_panel(tmp_path, prepared)
+
+
+@pytest.mark.parametrize("revision", [1, 2])
+def test_acceptance_integrity_supports_recorded_and_repeated_regrades(tmp_path, regraded, revision):
+    receipts = regraded.receipts
+    if revision == 2:
+        (regraded.task / "tests/test.sh").write_text("#!/bin/sh\nexit 1\n")
+        evidence.prepare(
+            regraded.task, regraded.contract, regraded.manifest, regraded.manifest, "Correct another verifier check"
+        )
+        receipts = [
+            harbor_trial(tmp_path, regraded.manifest, case, run_id + "-r2", agent, reward, source)
+            for (case, run_id, agent, reward), source in zip(TRIALS, receipts)
+        ]
+    assert len(evidence.verify_receipts(receipts, "cover-read")) == 2
+    code, result = integrity(saved(tmp_path, receipts))
+    assert code == 0
+    assert result["status"] == "consistent"
+    assert result["required_verification"]["verified"] is True
+    assert result["violations"] == 0
+
+
+@pytest.mark.parametrize("artifact", ["receipt", "result", "trace"])
+@pytest.mark.parametrize("damage", ["missing", "changed", "outside_root"])
+def test_regrade_source_gaps_are_unknown_not_contradictions(tmp_path, regraded, artifact, damage, monkeypatch):
+    source_path = regraded.sources[0]
+    source = evidence.read(source_path)
+    target = source_path if artifact == "receipt" else Path(source[artifact])
+    if damage == "missing":
+        target.unlink()
+    elif damage == "changed":
+        target.write_text(target.read_text() + "\n")
+    else:
+        outside = tmp_path.parent / (tmp_path.name + "-outside.json")
+        target.rename(outside)
+        receipt = evidence.read(regraded.receipts[0])
+        if artifact == "receipt":
+            receipt["regrade"]["source_receipt"] = str(outside)
+        else:
+            source[artifact] = str(outside)
+            write(source_path, source)
+            receipt["regrade"]["source_receipt_sha256"] = evidence.digest(source_path)
+        write(regraded.receipts[0], receipt)
+        original = Path.read_bytes
+
+        def guarded(path):
+            assert path != outside, "read outside the repository"
+            return original(path)
+
+        monkeypatch.setattr(Path, "read_bytes", guarded)
+    if damage != "outside_root":
+        with pytest.raises(evidence.EvidenceError):
+            evidence.verify_receipts(regraded.receipts, "cover-read")
+    code, result = integrity(saved(tmp_path, regraded.receipts))
+    assert code == 1
+    assert result["status"] == "unknown"
+    assert result["violations"] == result["violation_findings"] == 0
+    assert ("cited_unverified", "unknown") in codes(result)
+    assert result["required_verification"]["verified"] is False
+
+
+@pytest.mark.parametrize("damage", ["unrecorded", "record", "source_identity", "agent", "tests", "contract"])
+def test_regrade_policy_failures_remain_unverified(tmp_path, regraded, damage):
+    path = regraded.receipts[0]
+    receipt = evidence.read(path)
+    if damage == "unrecorded":
+        receipt.pop("regrade")
+    elif damage == "record":
+        receipt["regrade"]["source_trial_id"] = "different-trial"
+    elif damage in ("source_identity", "agent"):
+        native_path = Path(receipt["result"])
+        native = evidence.read(native_path)
+        if damage == "source_identity":
+            native["config"]["source_trial"]["trial_id"] = "different-trial"
+        else:
+            native["config"]["agent"]["name"] = "different-agent"
+        write(native_path, native)
+        receipt["result_sha256"] = evidence.digest(native_path)
+    else:
+        manifest = evidence.read(regraded.manifest)
+        if damage == "tests":
+            manifest["previous_revision"]["tests_sha256"] = manifest["tests_sha256"]
+        else:
+            manifest["previous_revision"]["contract"]["cases"]["reference"]["requirement"] = "Different requirement"
+        write(regraded.manifest, manifest)
+        for other in regraded.receipts:
+            write(other, {**evidence.read(other), "manifest_sha256": evidence.digest(regraded.manifest)})
+        for entry in Path(manifest["attempts"]).glob("*.json"):
+            write(entry, {**evidence.read(entry), "manifest_sha256": evidence.digest(regraded.manifest)})
+        receipt["manifest_sha256"] = evidence.digest(regraded.manifest)
+    write(path, receipt)
+    with pytest.raises(evidence.EvidenceError):
+        evidence.verify_receipts(regraded.receipts, "cover-read")
+    code, result = integrity(saved(tmp_path, regraded.receipts))
+    assert code == 1
+    assert result["status"] == "unknown"
+    assert result["violations"] == 0
+    assert ("cited_unverified", "unknown") in codes(result)
 
 
 @pytest.mark.parametrize("entrypoint", ["function", "cli"])

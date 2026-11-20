@@ -212,6 +212,13 @@ def inspect_receipt(
             raise ValueError("Native result bytes differ from the receipt")
         if task_evidence.native_identity(native, manifest) != receipt.get("native_run_id"):
             raise ValueError("Native run identity differs from the receipt")
+        task_evidence.verify_receipt_provenance(
+            receipt,
+            manifest,
+            native,
+            read_object=review.object,
+            hash_file=lambda source: hashlib.sha256(review.read(source)).hexdigest(),
+        )
         task_evidence._validate_control(native, contract, case)
         if not task_evidence.assertions(native, case["health"]):
             if assessed:

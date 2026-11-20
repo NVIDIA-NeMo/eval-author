@@ -97,7 +97,8 @@ Reason codes: `verifier_defect`, `environment_build_failure`,
 the current proof and active-construction marker without copying superseded
 files, following the [temporary-work policy](../../eval-author/references/shared-prerequisites.md#temporary-work-and-recovery).
 After editing, activate the repaired canonical contract
-first, then run `record-reproducibility` and a complete fresh proof set. Historical
+first, then run `record-reproducibility` and a complete proof set. Use fresh jobs. When only `tests/` changed, you may use [regraded jobs](#regrade-after-a-tests-only-change).
+Historical
 workspaces without an active marker keep their existing construction path. At
 most three repairs are recorded per task; beyond the budget, finalize the
 environment as failed instead of repairing further. Repairs apply before
@@ -271,12 +272,13 @@ before choosing a base class. Built-in Oracle may receive task paths and other
 orchestration arguments that custom import-path agents do not; importing an
 Oracle subclass alone does not prove it can be instantiated as a custom control.
 
-Before **every** invocation, run `record-run-inputs` with its arm and future job
+Before **every** fresh invocation, run `record-run-inputs` with its arm and future job
 directory (see the skill's NOP example). This writes an owner-private receipt
 under `private/run-inputs/` and refuses existing jobs or receipts. It binds the
-full task-tree digest, including executable bits, and Harbor's directory
-checksum to the future job. Proof commands use Harbor's `Task.checksum` API
+full task-tree digest, including executable bits, to the future job. It also binds separate digests of `tests/` and everything else, plus Harbor's directory checksum.
+Proof commands use Harbor's `Task.checksum` API
 directly; use the existing Harbor Python environment.
+For a regrade, use `record-regrade-inputs` instead. See [Regrade after a tests-only change](#regrade-after-a-tests-only-change).
 
 For the negative control, retain the custom agent source and supply its exact
 `module:Class` identity and task-specific mutation rationale before execution:
@@ -325,6 +327,7 @@ The helper requires unique Harbor job IDs, each result's task checksum matching
 the current task and its pre-run receipt, separate verifier mode in every
 result, and matching pre-run/current/reproducibility task-tree digests. Old
 results cannot be attached to a changed task by regenerating its manifest.
+After a tests-only change, regrade them instead.
 The report records `distinct_jobs: true` only after checking unique job paths
 and IDs. It explicitly reports `container_freshness: "unverified"`, including
 in exported results. Neither job identity nor the pre-run task receipt proves
@@ -346,3 +349,28 @@ Validation v7 includes an optional `copy` arm (minimum zero); follow
 `check-grammar.md` to select applicable copy probes and review partial passes.
 The exported `copy_probes` summary reports `not_run` when none were supplied,
 or rewards, exception flags and passing check IDs when they were recorded.
+
+### Regrade after a tests-only change
+
+When a repair changes only `task/tests/`, Harbor can rerun just the verifier on a retained job's recorded agent output. Regrade only when nothing outside `tests/` changed. The construction contract may add negative controls. Existing cases, probes, requirements, and other construction fields must remain unchanged. After `record-repair` and `record-reproducibility`, record each regrade before Harbor creates its job.
+
+```bash
+python <skill_dir>/scripts/trace_environment.py record-regrade-inputs \
+  --task-dir <task-dir> --source-job-dir private/jobs/nop-1 --job-dir private/jobs/nop-1-r1
+harbor jobs regrade <task-dir>/private/jobs/nop-1 -p <task-dir>/task \
+  --jobs-dir <task-dir>/private/jobs --job-name nop-1-r1
+```
+
+Pass the regraded directories to `record-validation` with the same arm options as their sources. Always regrade an original fresh job. After a later tests-only repair, regrade the same fresh jobs into new job names.
+
+The helper refuses a regrade in these cases.
+
+- Files outside `tests/` changed.
+- `tests/` is unchanged.
+- The construction contract changed beyond adding negative controls.
+- The source job raised an exception.
+- Its pre-run receipt predates the `tests/` digests.
+
+Run those arms fresh with `record-run-inputs`. Also run any control added by the repair fresh. Run any job Harbor refuses to regrade fresh. For example, a job may lack an artifact that the new verifier declares.
+
+One fresh job backs at most one proof run, as itself or as a single regrade. You may combine fresh and regraded jobs. In `validation.json`, each regraded run records its source job and its old and new `tests/` digests. Each tests-only change still counts as one bounded repair. NeMo Gym has no regrade equivalent. Rerun its evidence.

@@ -10,6 +10,8 @@ preview: workflows, skills, and saved artifacts may change between releases.
 
 ### Added
 
+- Harbor proof can regrade stored control and agent runs after a tests-only repair. Use `run --regrade-of` for recorded trials or `record-regrade-inputs` for workspace jobs. Regrade records retain source identities and the old and new test digests. Added negative controls run fresh. See [task evidence checks](docs/determinism-checks.md#verification-integrity-checks).
+
 - The experimental rubric scores 23 criteria in one table through one scorer,
   with METHOD-J1 (corroboration method qualification) beside them. Recorded and
   simulated criterion evidence use the same predicates. The
@@ -48,7 +50,7 @@ preview: workflows, skills, and saved artifacts may change between releases.
   aggregate them.
 - **Breaking: legacy trace workspace paths.** `record-validation
   --allow-aggregate-only` is gone; every proof job needs per-check rows.
-  Summary v2/v3, run-input v1/v2 and validation v6 workspaces, the
+  Summary v2/v3, run-input v1/v2/v3 and validation v6 workspaces, the
   `private/workspace.json` creation marker, `construction.v1` and
   `construction.v2`, and the historical trace construction import are no longer
   read. Older workspaces are refused; re-run `prepare` in a new task directory.

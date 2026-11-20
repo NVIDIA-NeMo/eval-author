@@ -355,7 +355,7 @@ After editing, prepare the current manifest with `--previous <current-manifest>
 --reason "<classification and concrete change>"`; `--out` may name that same
 manifest. The new manifest records the replaced digest as `supersedes`. Receipts
 bound to that digest belong to the superseded revision. Then rerun all required
-controls and agent evidence for acceptance.
+controls and agent evidence for acceptance. When only `tests/` changed, you can [regrade them](#regrade-after-a-tests-only-change).
 The recorder keeps the current repair count and reason, with at most three
 repairs after the initial attempt. Do not reset the count to evade that budget.
 Retain unresolved work when exhausted. Source control owns prior task and grader
@@ -363,6 +363,34 @@ versions; do not create authoring archives.
 A process killed before it writes a receipt remains missing evidence; preserve
 its partial job, prepare a repair manifest with `--previous` and `--reason`, and
 use fresh paths when rerunning the required controls and agent attempts.
+
+### Regrade after a tests-only change
+
+When a repair changes only the task's `tests/`, Harbor can rerun just the verifier on a recorded trial's agent output. Prepare the repair as above. Record each regrade against the repaired manifest. Cite the receipt of the trial it replays.
+
+```bash
+python <task_create_dir>/scripts/task_evidence.py run \
+  --manifest .eval-author/task-measurements/cover-read/revision-1.json \
+  --case reference --run-id reference-1-r1 \
+  --regrade-of .eval-author/task-measurements/cover-read/reference-1.json \
+  --result "$TRIALS/reference-1-r1/result.json" \
+  --out .eval-author/task-measurements/cover-read/reference-1-r1.json \
+  -- harbor trial regrade "$TRIALS/reference-1" -p .eval-author/tasks/cover-read \
+  --trial-name reference-1-r1 --trials-dir "$TRIALS"
+```
+
+For an agent run, also pass `--trace "$TRIALS/<new-trial>/agent/trajectory.json"`. Then measure the new trial under its new run ID. The receipt's `regrade` record binds the source receipt and trial to the old and new `tests/` digests. Keep the source receipts, trials and traces unchanged.
+
+Cite only completed (`passed` or `behavior_failed`) receipts of the immediately previous revision. After a second tests-only repair, regrade the previous revision's regraded trials.
+
+The recorder refuses a regrade in these cases.
+
+- Files outside `tests/` changed.
+- `tests/` is unchanged.
+- The construction plan changed beyond adding negative controls.
+- The previous manifest predates `tests/` digests.
+
+Each source trial backs one regraded receipt. Run controls added by the repair fresh. Run any trial Harbor refuses to regrade fresh. Regrading does not change the repair count. NeMo Gym has no regrade equivalent. Rerun its evidence.
 
 
 ## Revalidate saved acceptance

@@ -148,7 +148,9 @@
     "-python <skill_dir>/scripts/trace_environment.py record-run-inputs \\\n",
     "+python <skill_dir>/../eval-author-task-create/scripts/task_evidence.py workspace record-run-inputs \\\n",
     "-python <skill_dir>/scripts/trace_environment.py record-validation \\\n",
-    "+python <skill_dir>/../eval-author-task-create/scripts/task_evidence.py workspace record-validation \\\n"
+    "+python <skill_dir>/../eval-author-task-create/scripts/task_evidence.py workspace record-validation \\\n",
+    "-python <skill_dir>/scripts/trace_environment.py record-regrade-inputs \\\n",
+    "+python <skill_dir>/../eval-author-task-create/scripts/task_evidence.py workspace record-regrade-inputs \\\n"
   ],
   "gym-output.md": [
     "+`<skill_dir>` is the installed `eval-author-environment` directory.\n",
