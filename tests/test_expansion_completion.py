@@ -221,7 +221,7 @@ def test_results_review_resume_requires_current_observations(modules, tmp_path, 
     payload = expansion_payload(modules, saved)
     payload["stage"] = stage
     observed = payload["facts"].pop("expansion_observations")
-    with pytest.raises(ValueError, match="Supply current expansion_observations"):
+    with pytest.raises(ValueError, match="Supply .*observations"):
         modules[2].render(payload)
     payload["facts"]["expansion_observations"] = observed
     observed["revision"] -= 1
@@ -337,12 +337,21 @@ def test_already_reviewed_results_with_unaccepted_task_return_to_task_review(mod
 
 
 @pytest.mark.parametrize("improvements", [False, True])
-@pytest.mark.parametrize("phase", ["setup", "expand"])
+@pytest.mark.parametrize(
+    "phase,blocker_id",
+    [
+        ("setup", "runtime"),
+        *(
+            ("expand", key)
+            for key in ("runtime", "environment", "services", "data", "agent_connection", "model_credentials")
+        ),
+    ],
+)
 @pytest.mark.parametrize("question", ["omitted", "none", "completion", "recovery"])
 @pytest.mark.parametrize("state_only", [False, True])
 @pytest.mark.parametrize("finished", [False, True])
 def test_blocker_recovery_has_one_owner_and_restores_the_saved_choice(
-    modules, tmp_path, improvements, phase, question, state_only, finished
+    modules, tmp_path, improvements, phase, blocker_id, question, state_only, finished
 ):
     state, expansion, renderer = modules
     saved, value = accepted(modules, tmp_path, path="audit_tool_gap" if improvements else "starter_suite")
@@ -357,7 +366,7 @@ def test_blocker_recovery_has_one_owner_and_restores_the_saved_choice(
         original["stage"] = "expansion_completion"
         original_output = renderer.render(original)
     completion = copy.deepcopy(value["execution"]["pending"])
-    patch: dict = {"blockers": [{"id": "runtime", "phase": phase, "message": "Runtime unavailable"}]}
+    patch: dict = {"blockers": [{"id": blocker_id, "phase": phase, "message": "Dependency unavailable"}]}
     if question != "omitted":
         patch["pending_question"] = {
             "none": None,
@@ -369,6 +378,11 @@ def test_blocker_recovery_has_one_owner_and_restores_the_saved_choice(
     blocked = state.update(tmp_path, patch, expected_revision=saved["revision"], state_only=state_only)
     blocked = state.initialize(tmp_path, journey="expand")
     snapshot = state.view(blocked)
+    assert state.downstream_started(blocked)
+    assert {item["id"] for item in state.active_blockers(blocked)} == {blocker_id}
+    assert not snapshot["expansion"]["complete"]
+    with pytest.raises(ValueError, match="Expansion completion requires current user acceptance"):
+        state.update(tmp_path, {"journey_status": {"expand": "complete"}}, expected_revision=blocked["revision"])
     current = expansion.checkpoint(snapshot["state"], snapshot["expansion"])
     assert current["stage"] == "resume"
     before = state.state_path(tmp_path).read_bytes()
@@ -383,7 +397,12 @@ def test_blocker_recovery_has_one_owner_and_restores_the_saved_choice(
             "facts": {
                 "expansion_observations": snapshot["expansion_observations"],
                 "blockers": [
-                    {"id": "runtime", "step": "Runtime", "reason": "Runtime unavailable", "needed": "Restore access"}
+                    {
+                        "id": blocker_id,
+                        "step": "Dependency",
+                        "reason": "Dependency unavailable",
+                        "needed": "Restore access",
+                    }
                 ],
             },
         }

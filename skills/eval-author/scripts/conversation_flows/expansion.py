@@ -428,6 +428,8 @@ def render(payload: dict) -> str:
     if payload["stage"] == "expansion_continue" and value is not None and value["schema_version"] == 2:
         raise ValueError(f"Use {current['stage']} for the saved expansion checkpoint")
     if progress is None:
+        progress = expansion_state.derive(state, None)
+    if progress is None:
         raise ValueError("Save a structured expansion lifecycle before continuation")
     state = expansion_state.presentation_state(state, progress)
     if payload["stage"] in {"expansion_review", "expansion_results"} and progress["complete"]:

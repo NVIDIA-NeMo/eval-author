@@ -704,6 +704,7 @@ def derive(state: dict, observed: object) -> dict | None:
             raise ValueError("Use current task lifecycle observations for acceptance")
     complete = bool(
         creating
+        and checkpoint_ready(state)
         and execution
         and execution["authorized"]
         and execution["results_reviewed"]

@@ -93,6 +93,33 @@ def test_recorded_interaction_and_incomplete_plan_preserve_existing_workflow(mod
     assert text.endswith(value["pending"]["question"] + "\n")
 
 
+@pytest.mark.parametrize("stage", ["expansion_scope", "expansion_progress", "expansion_review"])
+def test_existing_lifecycle_without_observations_requests_current_evidence(modules, tmp_path, stage):
+    from test_expansion_review import ready
+
+    saved, _ = ready(modules, tmp_path) if stage == "expansion_review" else (start(modules, tmp_path), None)
+    data = {**expansion_payload(modules, saved), "stage": stage}
+    data["facts"].pop("expansion_observations")
+    before = modules[0].state_path(tmp_path).read_bytes()
+    with pytest.raises(ValueError, match="Supply expansion observations from the current repository and revision"):
+        modules[2].render(data)
+    assert modules[0].state_path(tmp_path).read_bytes() == before
+
+
+@pytest.mark.parametrize("blocker_id", ["environment", "services", "data", "agent_connection", "model_credentials"])
+def test_later_dependencies_remain_deferred_before_expansion_execution(modules, tmp_path, blocker_id):
+    state, _, renderer = modules
+    saved = start(modules, tmp_path)
+    saved = state.update(
+        tmp_path,
+        {"blockers": [{"id": blocker_id, "phase": "expand", "message": "Needed for later execution"}]},
+        expected_revision=saved["revision"],
+    )
+    assert not state.downstream_started(saved)
+    assert not state.active_blockers(saved)
+    assert "Create this partial-refund task?" in renderer.render(payload(modules, saved))
+
+
 def test_supplied_plan_prose_stays_inside_its_paragraph_or_table_cell(modules, tmp_path):
     _, expansion, renderer = modules
     saved = start(modules, tmp_path)

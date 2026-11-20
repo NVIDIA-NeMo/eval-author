@@ -625,10 +625,17 @@ def _unused_audit_traces(state: dict, blocker: dict) -> bool:
     return audit_state.traces_unused(state) and blocker["id"] == "data" and blocker["phase"] in {"setup", "audit"}
 
 
+def downstream_started(state: dict) -> bool:
+    expansion = expansion_state.record(state) if state["journey"] == "expand" else None
+    return state["journey_status"].get(state["journey"]) in {"in_progress", "complete"} or bool(
+        expansion and expansion.get("execution")
+    )
+
+
 def active_blockers(state: dict, *, state_only: bool = False) -> list[dict]:
     """Present dependencies at the action they block, retaining all saved evidence."""
     shared_done = all(row["complete"] for row in checklist(state, state_only=state_only)[:2])
-    started = state["journey_status"].get(state["journey"]) in {"in_progress", "complete"}
+    started = downstream_started(state)
     later_requirements = {"environment", "services", "data", *DEFERRED}
     return [
         item

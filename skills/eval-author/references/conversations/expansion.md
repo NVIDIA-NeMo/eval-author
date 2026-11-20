@@ -338,8 +338,9 @@ Save the corresponding completion question from
 before rendering. Deliver the complete response unchanged and wait for the
 user's choice; start no audit, additional construction, or agent run automatically.
 
-On a reply, clear the answered pending question through the existing
-revision-checked update. Finishing records `journey_status.expand: complete`
+On a reply, clear `execution.pending` through the revision-checked update. The
+helper clears a matching top-level `pending_question` atomically in the same save
+and preserves any different active question. Finishing records `journey_status.expand: complete`
 only while all agreed tasks remain accepted. On resume, route saved results-review
 checkpoints to `expansion_completion`, using freshly reconciled observations and
 remaining-improvement facts for an unanswered choice. A finished expansion uses
@@ -347,12 +348,7 @@ the same renderer to acknowledge finishing without asking the answered question
 again. Follow the [shared onboarding observation contract](onboarding.md#expansion-observations)
 when presenting shared recovery or resuming through onboarding. Supply current
 `facts.expansion_observations` to `expansion_continue` as well.
-The state helper owns the current checkpoint and pending-question projection.
-Onboarding and expansion use that same projection: shared prerequisites, Ethos,
-active blockers, or a separate current question take precedence over downstream
-choices. A blocker response remains available even when no recovery question has
-been recorded. Supply an explanation for each active blocker under the shared
-onboarding contract; do not invent a question to make routing work.
+That shared contract also owns checkpoint precedence and blocker presentation.
 
 A saved completion question is displayed only while current acceptance holds.
 When acceptance or context changes, the helper retains the saved decision as
@@ -360,10 +356,7 @@ history but removes it from the current presentation. Resolve the owning review
 or recovery checkpoint; do not clear retained choices merely to make rendering
 succeed. Unchanged choices return when their conditions are restored.
 
-When the user answers a completion choice, clear `execution.pending` through the
-revision-checked state update. The helper clears a matching top-level
-`pending_question` atomically in the same save and preserves any different active
-question. Existing records with a leftover completion question are also projected
+Existing records with a leftover completion question are also projected
 without offering an unavailable choice. Task and run evidence remain retained.
 
 An audit choice uses the existing

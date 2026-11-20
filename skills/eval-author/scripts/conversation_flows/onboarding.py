@@ -249,7 +249,7 @@ def next_steps(state: dict, facts: dict, stage: str, *, audit: dict | None = Non
         raise ValueError("Prerequisites are incomplete; record the unresolved blocker and supply its explanation")
     question = pending_question(state, facts)
     journey = state["journey"]
-    started = state["journey_status"].get(journey) in {"in_progress", "complete"}
+    started = journey_state.downstream_started(state)
     shared_continued = any(status in {"in_progress", "complete"} for status in state["journey_status"].values())
     confirmed = progress[1]["complete"]
     source_question = question == first_eval_templates.TRACE_QUESTION

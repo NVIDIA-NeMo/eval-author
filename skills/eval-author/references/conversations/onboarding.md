@@ -303,9 +303,11 @@ Forward that snapshot's `expansion_observations` as
 This also applies during shared prerequisite, Ethos, or blocker recovery after
 results acceptance, even when the retained results review is stale. The renderer
 uses the state helper's checkpoint and pending-question projection for both
-onboarding and expansion. Shared recovery takes precedence, including blockers
-without a saved recovery question. Suspended downstream choices never replace a
-recovery question. Observations do not bypass recovery or grant approval.
+onboarding and expansion. Shared prerequisites, Ethos, active blockers, and a
+separate current question take precedence over downstream choices. Supply an
+explanation for every active blocker; recovery renders even without a saved
+recovery question. Suspended downstream choices never replace a recovery
+question. Observations do not bypass recovery or grant approval.
 Do not supply derived completion flags. Omit these facts from the state-only
 `prerequisite_results` stage, which does not route expansion checkpoints.
 
@@ -367,8 +369,8 @@ The renderer selects active blockers from state:
   Before downstream work starts, `environment`, `services`, `data`,
   `agent_connection`, and `model_credentials` remain deferred; another
   current-journey blocker, such as a missing authoring route, can block the handoff.
-  Once downstream status is `in_progress` or `complete`, every current-journey
-  blocker applies.
+  Once downstream status is `in_progress` or `complete`, or expansion has a saved
+  execution checkpoint, every current-journey blocker applies.
 - Blockers belonging to another journey remain inactive for this response.
 
 Record each blocker's phase according to the work it actually prevents. Early
