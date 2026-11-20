@@ -12,9 +12,16 @@ import re
 from collections import Counter
 from itertools import chain
 from pathlib import Path, PurePosixPath
-from typing import Literal, TypedDict
+from typing import TYPE_CHECKING, Literal, TypedDict
 
 from interaction_types import USER_SIM_SCENARIO_FILENAME, user_simulation_enabled, validate_interaction_plan
+
+if TYPE_CHECKING:
+    from journey_state import ArtifactObservations
+
+    class FirstEvalObservations(ArtifactObservations):
+        directories: dict[str, bool]
+
 
 BUILD_STEPS = ("environment", "environment_check", "grading", "artifacts")
 REMAINING_STEPS = ("tasks", "environment_check", "validation", "artifacts")
@@ -497,12 +504,12 @@ def _sources(value: dict) -> tuple[dict, set]:
     return tasks, files
 
 
-def observe(repo, state: dict) -> dict:
+def observe(repo: Path, state: dict) -> FirstEvalObservations:
     """Read only declared task trees/evidence using the existing bounded lifecycle helpers."""
-    from journey_state import MAX_TASK_BYTES, _file_digest, _task_local_path, task_digest
+    from journey_state import _task_local_path, observe_artifacts
 
     value = record(state)
-    observed = {"tasks": {}, "files": {}, "directories": {}}
+    observed: FirstEvalObservations = {"tasks": {}, "files": {}, "directories": {}}
     if value is None:
         return observed
     validate(value)
@@ -514,17 +521,9 @@ def observe(repo, state: dict) -> dict:
             observed["directories"][directory] = local.is_dir() and not local.is_symlink()
         except (OSError, ValueError):
             observed["directories"][directory] = False
-    tasks, files = _sources(value)
-    for key, path in tasks.items():
-        try:
-            observed["tasks"][key] = task_digest(repo, path)
-        except (OSError, ValueError):
-            observed["tasks"][key] = None
-    for path in sorted(files):
-        try:
-            observed["files"][path] = _file_digest(_task_local_path(repo, path), MAX_TASK_BYTES)[0]
-        except (OSError, ValueError):
-            observed["files"][path] = None
+    artifacts = observe_artifacts(repo, *_sources(value))
+    observed["tasks"] = artifacts["tasks"]
+    observed["files"] = artifacts["files"]
     return observed
 
 

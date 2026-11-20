@@ -270,11 +270,23 @@ def next_steps(state: dict, facts: dict, stage: str, *, audit: dict | None = Non
     if expansion is not None and expansion["checkpoint"] == "scope" and expansion_state.checkpoint_ready(state):
         scope_progress = expansion_state.derive(state, facts.get("expansion_observations"))
         assert scope_progress is not None
-        scope_question = expansion["pending"]["question"] if expansion["pending"] else None
+        saved_question = expansion_state.pending(expansion)
+        scope_question = saved_question["question"] if saved_question else None
         if (not scope_progress["context_current"] or state["scopes"]["expand"].get("needs_review")) and (
             not state["pending_question"] or state["pending_question"] == scope_question
         ):
             raise ValueError("Expansion context changed; save a context-review question before resuming")
+        if scope_progress["stage"] == "creation":
+            from . import expansion
+
+            return expansion.render(
+                {
+                    "stage": "expansion_progress",
+                    "state": state,
+                    "revision": state["revision"],
+                    "facts": {"expansion_observations": facts.get("expansion_observations")},
+                }
+            ).rstrip("\n")
         if question:
             paragraphs.append(literal(question, "pending question"))
         return "\n\n".join(paragraphs)
@@ -454,14 +466,15 @@ def render(payload: dict) -> str:
         and (expansion["checkpoint"] == "entry" or not expansion_state.checkpoint_ready(state))
     ):
         checkpoint = "expansion_continue"
+        saved_question = expansion_state.pending(expansion)
         if (
             expansion["checkpoint"] == "entry"
             and expansion_state.checkpoint_ready(state)
             and (expansion["pending"] is not None or state["pending_question"] is None)
         ):
             raise ValueError(f"Use {checkpoint} for saved expansion checkpoints after shared onboarding is complete")
-        if expansion["pending"] is not None:
-            question = literal(expansion["pending"]["question"], "expansion question")
+        if saved_question is not None:
+            question = literal(saved_question["question"], "expansion question")
             if facts.get("question") is not None and literal(facts["question"], "question") == question:
                 if expansion["checkpoint"] == "scope":
                     raise ValueError("Resolve shared prerequisites before rendering the scope question")

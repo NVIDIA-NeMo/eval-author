@@ -46,6 +46,23 @@ SCOPE_STATUS = {
 }
 
 
+CREATION_HEADING = "### Creation and validation"
+CREATION_TABLE = "| Task | Status |\n|---|---|"
+CREATION_STATUS = {
+    "queued": "Not created",
+    "draft": "Created; checks pending",
+    "passed": "Checks passed",
+    "failed": "Checks failed",
+    "blocked": "Blocked",
+    "stale": "Checks need to be rerun",
+    "missing": "Task files missing",
+    "creating": "Creating",
+    "validating": "Checking",
+    "repairing": "Repairing",
+}
+CREATION_READY = "All agreed tasks passed their checks and are ready for task review."
+
+
 def options_prompt() -> str:
     choices = "\n".join(f"- {option}" for option in OPTIONS)
     return "\n\n".join((OPTIONS_INTRO, choices, OPTIONS_QUESTION))

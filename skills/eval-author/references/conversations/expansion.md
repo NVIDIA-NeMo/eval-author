@@ -5,7 +5,8 @@
 
 Use the [shared rendering entry point](../../scripts/conversation_renderer.py)
 with `stage: expansion_continue` for an unresolved entry decision or
-`stage: expansion_scope` for the selected authoring flow's existing scope review.
+`stage: expansion_scope` for the selected authoring flow's existing scope review,
+then `stage: expansion_progress` during agreed creation and validation.
 Rendering does not construct tasks, validate verifiers, or authorize execution.
 For an unselected improvement path, use the core's
 [expansion entry](../../SKILL.md#expansion-handoff) before shared checks;
@@ -91,7 +92,10 @@ limits and exclusions in `limits`.
 Reload normal state and render `expansion_scope` with its exact revision and
 `facts.expansion_observations`. Record the user's actual answer as lifecycle
 `decision: {kind, source}`: `approved`, `declined`, or `revise`. Approval or decline
-clears both pending questions; revision retains the actual next scope question.
+clears lifecycle `pending`; revision retains the actual next scope question.
+Set top-level `pending_question` to the question from derived progress. Re-approval
+restores any unresolved `creation.pending` question to top-level `pending_question`;
+after a decline, leave `creation.pending` saved and set `pending_question` to null.
 Reuse a prior applicable answer rather than asking again to populate this record.
 Changes to the plan require the user's decision on those changes.
 
@@ -101,6 +105,73 @@ owner. Shared prerequisite and Ethos recovery take precedence. Task-create keeps
 gap selection, eligibility, authoring, native validation, acceptance, and
 execution-authorization rules; this checkpoint adds no construction approval,
 command, or evidence-validation layer.
+
+## Creation and validation progress
+
+After scope agreement, initialize the creation record below and set the first
+task's actual starting activity before substantial environment preparation or
+task construction. The `tasks` map may still be empty; do not wait for task files
+or validation results before showing progress. On resume, reuse the saved record
+and reconcile its current activity and evidence before continuing work.
+
+Render `expansion_progress` and send its complete returned Markdown unchanged in
+an assistant commentary message before that work begins. A renderer call, tool
+output, or saved Markdown file alone is not a visible progress update. Use this
+rendered task table instead of free-form construction narration. Repeat it when
+a task, activity, validation result, or actual blocker meaningfully changes,
+before a long-running validation check, and on resume before more work. The
+coordinating agent owns these messages; delegated workers return milestones and
+evidence so it can update the shared progress.
+
+Continue authorized work in the same turn after progress updates; do not add an
+approval pause. Use the rendered response as the final reply when its actual
+unresolved question requires the user's answer. Shared prerequisite and Ethos
+recovery still take precedence; pause only work that depends on a blocker.
+
+Save `creation` in the existing scope-checkpoint lifecycle through the latest
+revision-checked update. Its `tasks` map uses `expansion_state.task_key(row)` for
+each agreed task row. Each entry retains the native task `path`, current `sha256`,
+and `validation`, initially `null`. A validation record contains
+`sha256`, `status` (`passed`, `failed`, or `blocked`), `source`, and retained
+`evidence: [{path, digest}]`. Record the owning workflow's actual native-control
+outcome, bound to the task revision, following [task validation](../task-validation.md).
+Obtain task `sha256` values from `journey_state.task_digest(repo, task_path)`
+and evidence `digest` values from SHA-256 of the retained files’ actual bytes.
+For failed or blocked validation, use a short user-facing failure or blocker
+reason in `source`. When no task is active, the renderer displays these reasons
+beneath the table. While a task is active, its `detail` appears there instead.
+A scaffold, filename, saved boolean, or intended repair does not establish a
+passing result. The progress observer checks task and evidence freshness; the
+existing workflow owns native validation, without a second receipt validator.
+Controls do not establish agent performance or measured audit-gap closure.
+
+Set `active` to the actually started task and activity as
+`{task: <task key>, status: creating|validating|repairing|blocked, detail: <activity>}`,
+or `null` when no work is active. Save `pending: {question, source}` only for an
+actual unresolved question, keeping top-level `pending_question` in sync; otherwise
+save `null`. Reload normal state and pass current `facts.expansion_observations`
+to the renderer. Fixed copy belongs to the
+[expansion templates](../../scripts/conversation_flows/expansion_templates.py).
+
+Account for every agreed task, including tasks not yet created. Keep partial
+artifacts and failed evidence, and repair drafts only through the existing
+[repair procedure](../task-validation.md#repair-and-retain) and its budgets.
+After task or evidence changes, renew only affected validation. Retain historical
+task-map entries after scope edits; they do not replace or reduce the current
+agreed set. Scope revisions retain unresolved creation questions while clearing
+active work; a budget-only revision does not answer a saved creation question.
+Reconcile its applicability through the owning workflow when scope changes, and
+restore any still-unresolved question on re-approval. Each agreed task needs a
+distinct draft path. Before restoring a historical scenario that shares the
+current draft’s path, move the current draft
+to a distinct path, rebind its creation entry under the existing agreement, and
+renew its validation. Then revise scope to include both scenarios; recreate or
+repair the historical draft through the owning workflow. Return scope or cost
+changes to the existing scope checkpoint.
+Derived `creation.ready_for_review` requires current passing validation for the
+complete agreed set. It permits the owning workflow's authored-task review;
+it does not accept tasks, approve their review, authorize agent execution, or
+complete the journey.
 
 ## Shared checkpoint contract
 
@@ -140,7 +211,8 @@ these are separate decisions, not format versions. Only the current field sets
 are accepted; regenerate obsolete local records instead of migrating them.
 The scope record saves the selected authoring workflow's existing coverage-planning checkpoint
 through `expansion_state.new_scope`: a plan for display, its actual user decision,
-and an optional unresolved question. The
+and an optional unresolved question, with optional
+[creation and validation progress](#creation-and-validation-progress). The
 [validator](../../scripts/expansion_state.py) owns the exact presentation fields.
 Follow [Existing scope checkpoint](#existing-scope-checkpoint) for workflow
 ownership, recovery priority, and continuation after scope review. Preserve the

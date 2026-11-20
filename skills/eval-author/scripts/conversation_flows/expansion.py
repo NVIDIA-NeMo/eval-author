@@ -12,7 +12,7 @@ from . import expansion_templates as copy
 from . import onboarding
 
 JOURNEYS = ("expand",)
-STAGES = {"expansion_audit_opening", "expansion_continue", "expansion_scope"}
+STAGES = {"expansion_audit_opening", "expansion_continue", "expansion_scope", "expansion_progress"}
 PREVIEWS: set[str] = set()
 
 
@@ -44,7 +44,7 @@ def _audit_opening(state: dict, facts: dict) -> str:
     return "\n\n".join(parts) + "\n"
 
 
-def _scope(state: dict, progress: dict) -> str:
+def _checkpoint(state: dict, progress: expansion_state.ExpansionProgress) -> expansion_state.ScopeRecord:
     value = expansion_state.record(state)
     if value is None or value["checkpoint"] != "scope":
         raise ValueError("Save the existing authoring workflow's planning checkpoint first")
@@ -54,6 +54,11 @@ def _scope(state: dict, progress: dict) -> str:
         raise ValueError("Expansion context changed; reconcile it through the selected authoring workflow")
     if state["pending_question"] != progress["pending_question"]:
         raise ValueError("Continue the current question through its owning authoring workflow")
+    return value
+
+
+def _scope(state: dict, progress: expansion_state.ExpansionProgress) -> str:
+    value = _checkpoint(state, progress)
     plan = value["plan"]
     parts = (
         [copy.SCOPE_HEADING]
@@ -80,6 +85,25 @@ def _scope(state: dict, progress: dict) -> str:
     return "\n\n".join(parts) + "\n"
 
 
+def _progress(state: dict, progress: expansion_state.ExpansionProgress) -> str:
+    value = _checkpoint(state, progress)
+    creation = progress.get("creation")
+    if progress["stage"] != "creation" or creation is None:
+        raise ValueError("Save creation progress for the agreed task plan first")
+    rows = [copy.CREATION_TABLE]
+    for task in creation["rows"]:
+        rows.append(f"| {literal(task['task'], 'task title', table=True)} | {copy.CREATION_STATUS[task['status']]} |")
+    parts = [copy.CREATION_HEADING, "\n".join(rows)]
+    if creation["detail"] is not None:
+        parts.append(literal(creation["detail"], "creation detail"))
+    parts.append(copy.SCOPE_FIELDS["limits"].format(value=literal(value["plan"]["limits"], "scope limits")))
+    if creation["ready_for_review"]:
+        parts.append(copy.CREATION_READY)
+    if progress["pending_question"] is not None:
+        parts.append(literal(progress["pending_question"], "creation question"))
+    return "\n\n".join(parts) + "\n"
+
+
 def render(payload: dict) -> str:
     state = payload.get("state")
     if not isinstance(state, dict):
@@ -99,13 +123,18 @@ def render(payload: dict) -> str:
         )
         return _audit_opening(state, facts)
     value = expansion_state.record(state)
-    if payload["stage"] == "expansion_continue" and value is not None and value["checkpoint"] == "scope":
-        raise ValueError("Use expansion_scope for the saved planning checkpoint")
     facts = mapping(payload.get("facts", {}), "expansion facts", {"expansion_observations"})
     progress = expansion_state.derive(state, facts.get("expansion_observations"))
     if progress is None:
         raise ValueError("Save a structured expansion lifecycle before continuation")
+    if payload["stage"] == "expansion_continue" and value is not None and value["checkpoint"] == "scope":
+        checkpoint = "expansion_progress" if progress["stage"] == "creation" else "expansion_scope"
+        raise ValueError(f"Use {checkpoint} for the saved expansion checkpoint")
+    if payload["stage"] == "expansion_progress":
+        return _progress(state, progress)
     if payload["stage"] == "expansion_scope":
+        if progress["stage"] == "creation":
+            raise ValueError("Use expansion_progress for saved creation and validation progress")
         return _scope(state, progress)
     if not progress["context_current"]:
         raise ValueError("Expansion context changed; reconcile provider, intent, and handoff before continuation")

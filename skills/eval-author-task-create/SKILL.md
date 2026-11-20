@@ -64,9 +64,9 @@ For an approved `user_sim` task, call [user-sim authoring](../eval-author-user-s
 
 Apply the [simulation opt-in gate](../eval-author/references/coverage-planning.md#enable-experimental-user-simulation) before selecting interaction types, authoring scenarios, or executing simulation.
 Use `eval-author` for shared evidence rules and `eval-author-audit` for measurement and aggregation. Use Step 1 for explicitly requested recommendations or planning across tools, capabilities,
-and failure cases. Proposal-only requests stop after Step 1. Keep shared lifecycle decisions
-and pending work only in `.eval-author/.working/journey-state.json`.
-Recommendations remain user-facing and native evidence stays immutable.
+and failure cases. Proposal-only requests stop after Step 1. Keep shared lifecycle decisions and pending work
+only in `.eval-author/.working/journey-state.json`; recommendations stay user-facing and native evidence immutable.
+For journey `expand`, follow [creation and validation progress](../eval-author/references/conversations/expansion.md#creation-and-validation-progress).
 Reuse prior findings and answers. For guided audits and `scopes.expand.audit_handoff`, follow the
 [selected audit continuation](../eval-author/references/conversations/expansion.md#selected-audit-improvements)
 instead of requiring another proposal step. Recording findings alone does not

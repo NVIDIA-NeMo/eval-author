@@ -22,6 +22,7 @@ import stat
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import TypedDict
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import audit_state  # noqa: E402
@@ -512,6 +513,27 @@ def task_digest(repo: Path, task: str) -> str:
                     raise ValueError("Task content must contain only regular files and directories, no symlinks")
                 entries.append([relative, info.st_mode & 0o777, checksum])
     return digest(json.dumps(sorted(entries)).encode())
+
+
+class ArtifactObservations(TypedDict):
+    tasks: dict[str, str | None]
+    files: dict[str, str | None]
+
+
+def observe_artifacts(repo: Path, tasks: dict[str, str], files: set[str]) -> ArtifactObservations:
+    """Read declared task trees and evidence without interpreting native results."""
+    observed: ArtifactObservations = {"tasks": {}, "files": {}}
+    for key, path in tasks.items():
+        try:
+            observed["tasks"][key] = task_digest(repo, path)
+        except (OSError, ValueError):
+            observed["tasks"][key] = None
+    for path in sorted(files):
+        try:
+            observed["files"][path] = _file_digest(_task_local_path(repo, path), MAX_TASK_BYTES)[0]
+        except (OSError, ValueError):
+            observed["files"][path] = None
+    return observed
 
 
 def record_task(repo: Path, *, task: str, status: str, source: str, evidence: list[str] | None = None) -> dict:

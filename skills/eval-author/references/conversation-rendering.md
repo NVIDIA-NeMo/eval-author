@@ -141,7 +141,8 @@ post-onboarding entry decision using current intent and retained handoff binding
 Use `expansion_audit_opening` in commentary immediately after audit selection,
 then continue without a pause. Use `expansion_continue` for an unresolved entry
 decision and `expansion_scope` for the existing authoring workflow's saved planning
-checkpoint.
+checkpoint. Use `expansion_progress` for creation and validation of that agreed
+task set.
 
 [conversation_renderer.py](../scripts/conversation_renderer.py) dispatches through
 an explicit [journey/stage registry](../scripts/conversation_flows/__init__.py)
