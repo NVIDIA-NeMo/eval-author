@@ -8,6 +8,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+from collections.abc import Mapping
 from pathlib import Path
 from typing import TYPE_CHECKING, Literal, NotRequired, TypedDict, cast
 
@@ -123,6 +124,7 @@ class ExecutionRecord(TypedDict):
     execution_settings_presented: BoundSource | None
     declined: BoundSource | None
     pending: PendingDecision | None
+    results_review: NotRequired[BoundSource | None]
 
 
 class ScopeRecord(TypedDict):
@@ -171,6 +173,7 @@ class ReviewProgress(TypedDict):
     presented: bool
     decision: Literal["approved", "changes_requested", "declined"] | None
     approved: bool
+    approval_current: bool
     ready: bool
 
 
@@ -179,6 +182,8 @@ class ExecutionProgress(TypedDict):
     selection_current: bool
     presented: bool
     authorized: bool
+    results_inspectable: bool
+    results_reviewed: bool
     declined: bool
 
 
@@ -214,6 +219,13 @@ def pending(value: EntryRecord | ScopeRecord) -> PendingDecision | None:
                 return value["execution"]["pending"]
             return review["pending"]
     return None
+
+
+def results_pending(progress: ExpansionProgress | None) -> bool:
+    if progress is None:
+        return False
+    execution = progress.get("execution")
+    return bool(execution and execution["results_inspectable"] and progress["pending_question"] is not None)
 
 
 def record(state: dict) -> EntryRecord | ScopeRecord | None:
@@ -304,7 +316,7 @@ def _validate_review(value: dict) -> None:
             if key not in value:
                 continue
             checkpoint = value[key]
-            allowed = fields | ({"provider"} if key == "execution" else set())
+            allowed = fields | ({"provider", "results_review"} if key == "execution" else set())
             if "creation" not in value or not isinstance(checkpoint, dict) or not fields <= set(checkpoint) <= allowed:
                 raise ValueError("Review and execution checkpoints extend saved creation progress")
             question = checkpoint["pending"]
@@ -342,6 +354,7 @@ def _validate_review(value: dict) -> None:
             validate_selection(provider, execution["selection"])
             for key in ("execution_settings_presented", "declined"):
                 _bound(execution[key])
+            _bound(execution.get("results_review"))
     except (KeyError, TypeError, AttributeError) as exc:
         raise ValueError("Malformed expansion review or execution checkpoint") from exc
 
@@ -573,6 +586,12 @@ def _review_digest(value: ScopeRecord) -> str:
     )
 
 
+def execution_blockers(state: dict) -> list[dict]:
+    from journey_state import DEFERRED
+
+    return [item for item in state["blockers"] if item["phase"] == "expand" and item["id"] not in DEFERRED]
+
+
 def _review(
     state: dict, value: ScopeRecord, observed: dict, creation: CreationProgress, approved_scope: bool
 ) -> ReviewProgress:
@@ -586,37 +605,36 @@ def _review(
         and artifacts["digest"] == digest
         and all(observed["files"].get(ref["path"]) == ref["digest"] for ref in artifacts["evidence"])
     )
-    from journey_state import DEFERRED
-
     validated = bool(
         approved_scope
-        and review_ready(state)
+        and review_ready(state, inspect_results=True)
         and creation["rows"]
         and all(row["status"] == "passed" for row in creation["rows"])
         and not value["creation"]["pending"]
         and all(key in tasks and observed["files"].get(tasks[key]["path"] + "/README.md") for key in planned)
-        and not any(item["phase"] == "expand" and item["id"] not in DEFERRED for item in state["blockers"])
     )
     decision = saved["decision"]
     kind = decision["decision"] if approved_scope and decision and decision["digest"] == digest else None
     presented = bool(approved_scope and saved["presented"] and saved["presented"]["digest"] == digest)
+    approval_current = kind == "approved" and presented and validated
+    unblocked = not execution_blockers(state)
     return {
         "digest": digest,
         "artifacts_current": artifacts_current,
         "presented": presented,
         "decision": kind,
-        "approved": kind == "approved" and presented and validated,
-        "ready": validated and artifacts_current,
+        "approval_current": approval_current,
+        "approved": approval_current and unblocked,
+        "ready": validated and artifacts_current and unblocked,
     }
 
 
-def _execution(state: dict, value: ScopeRecord, observed: dict, review: ReviewProgress) -> ExecutionProgress:
-    saved = value["execution"]
-    selection = saved["selection"]
-    settings = saved["execution_settings"]
-    digest = fingerprint(
+def _execution_digest(state: dict, value: ScopeRecord, review_digest: str) -> str:
+    selection = value["execution"]["selection"]
+    settings = value["execution"]["execution_settings"]
+    return fingerprint(
         {
-            "review": review["digest"],
+            "review": review_digest,
             "agent": state["agent"],
             "settings": settings,
             "selection": {key: item for key, item in selection.items() if key != "authorization"}
@@ -624,30 +642,43 @@ def _execution(state: dict, value: ScopeRecord, observed: dict, review: ReviewPr
             else None,
         }
     )
+
+
+def _execution(state: dict, value: ScopeRecord, observed: dict, review: ReviewProgress) -> ExecutionProgress:
+    saved = value["execution"]
+    selection = saved["selection"]
+    settings = saved["execution_settings"]
+    digest = _execution_digest(state, value, review["digest"])
     selected = {case["task_id"] for case in selection["cases"]} if selection else set()
-    current = bool(
-        review["approved"]
+    selection_bound = bool(
+        review["approval_current"]
         and saved.get("provider", value["setup"]) == value["setup"]
         and selection
         and not settings["open_questions"]
         and selected == {task_key(task) for task in value["plan"]["tasks"]}
         and all(observed["files"].get(ref["path"]) == ref["digest"] for ref in _selection_evidence(selection))
     )
-    presented = bool(
-        review["approved"]
-        and saved.get("provider", value["setup"]) == value["setup"]
+    display_bound = bool(
+        saved.get("provider", value["setup"]) == value["setup"]
         and saved["execution_settings_presented"]
         and saved["execution_settings_presented"]["digest"] == digest
     )
+    current = bool(review["approved"] and selection_bound)
+    presented = bool(review["approved"] and display_bound)
     authorization = (selection or {}).get("authorization")
     declined = bool(saved["declined"] and saved["declined"]["digest"] == digest)
+    results_inspectable = bool(
+        selection_bound and display_bound and not declined and authorization and authorization["digest"] == digest
+    )
+    authorized = bool(review["approved"] and results_inspectable)
+    results_review = saved.get("results_review")
     return {
         "selection_digest": digest,
         "selection_current": current,
         "presented": presented,
-        "authorized": bool(
-            current and presented and not declined and authorization and authorization["digest"] == digest
-        ),
+        "authorized": authorized,
+        "results_inspectable": results_inspectable,
+        "results_reviewed": bool(authorized and results_review and results_review["digest"] == digest),
         "declined": bool(review["approved"] and presented and declined),
     }
 
@@ -694,7 +725,11 @@ def derive(state: dict, observed: object) -> ExpansionProgress | None:
         if value.get("execution"):
             execution = _execution(state, value, observed["artifacts"], review)
     stage: ExpansionStage = (
-        "execution" if review and review["approved"] and execution else "task_review" if review else "creation"
+        "execution"
+        if review and execution and (review["approved"] or execution["results_inspectable"])
+        else "task_review"
+        if review
+        else "creation"
     )
     question = (value.get("creation") or {}).get("pending") if creating else value["pending"]
     if creating and question is None and value["checkpoint"] == "scope":
@@ -704,6 +739,7 @@ def derive(state: dict, observed: object) -> ExpansionProgress | None:
             saved_execution = value["execution"]
             if (
                 execution["selection_current"]
+                or execution["results_inspectable"]
                 or saved_execution["selection"] is None
                 or saved_execution["execution_settings"]["open_questions"]
             ):
@@ -770,19 +806,26 @@ def checkpoint_ready(state: dict) -> bool:
     )
 
 
-def review_ready(state: dict) -> bool:
+def review_ready(state: dict, *, inspect_results: bool = False) -> bool:
     from journey_state import DEFERRED
 
     return checkpoint_ready(
         {
             **state,
-            "blockers": [item for item in state["blockers"] if item["phase"] != "expand" or item["id"] not in DEFERRED],
+            "blockers": [
+                item
+                for item in state["blockers"]
+                if item["phase"] != "expand" or not inspect_results and item["id"] not in DEFERRED
+            ],
         }
     )
 
 
 def question_ready(state: dict, progress: ExpansionProgress) -> bool:
-    return review_ready(state) if progress["stage"] in {"task_review", "execution"} else checkpoint_ready(state)
+    if progress["stage"] in {"task_review", "execution"}:
+        execution = progress["execution"]
+        return review_ready(state, inspect_results=bool(execution and execution["results_inspectable"]))
+    return checkpoint_ready(state)
 
 
 def presentation_state(state: dict, progress: ExpansionProgress | None, *, answered_ethos_review: bool = False) -> dict:
@@ -843,6 +886,13 @@ def reconcile_question(repo, state: dict, *, answered_ethos_review: bool = False
     ]
 
 
+def _only_clears(previous: Mapping[str, object], updated: Mapping[str, object] | None, fields: tuple[str, ...]) -> bool:
+    return updated is not None and all(
+        previous.get(key) == updated.get(key) or key in fields and updated.get(key) is None
+        for key in previous.keys() | updated.keys()
+    )
+
+
 def _review_transition(previous: dict, updated: dict, old: ExpansionProgress | None, now: ExpansionProgress) -> None:
     before = dict(record(previous) or {})
     after = record(updated)
@@ -857,8 +907,10 @@ def _review_transition(previous: dict, updated: dict, old: ExpansionProgress | N
     for key in ("review", "execution"):
         if key in before and key not in after:
             raise ValueError("Retain saved task review and execution decisions when revising scope")
-        clearing_question = key in before and after.get(key) == {**before[key], "pending": None}
-        if key in after and after.get(key) != before.get(key) and not now["scope_approved"] and not clearing_question:
+        clearing_decisions = key in before and _only_clears(
+            before[key], after.get(key), ("pending", "results_review") if key == "execution" else ("pending",)
+        )
+        if key in after and after.get(key) != before.get(key) and not now["scope_approved"] and not clearing_decisions:
             raise ValueError("Agree the current scope before updating task review or execution settings")
     review = after.get("review")
     if review:
@@ -895,7 +947,18 @@ def _review_transition(previous: dict, updated: dict, old: ExpansionProgress | N
         return
     assert review is not None and now["review"] is not None and now["execution"] is not None
     prior = before.get("execution") or {}
-    if execution != prior and execution != {**prior, "pending": None} and not now["review"]["approved"]:
+    results_question_only = bool(
+        old
+        and old["execution"]
+        and old["execution"]["results_inspectable"]
+        and now["execution"]["results_inspectable"]
+        and execution == {**prior, "pending": execution["pending"]}
+    )
+    if (
+        not _only_clears(prior, execution, ("pending", "results_review"))
+        and not results_question_only
+        and not now["review"]["approved"]
+    ):
         raise ValueError("Approve the current generated tasks before updating execution settings")
     presentation = execution["execution_settings_presented"]
     if presentation and presentation != prior.get("execution_settings_presented"):
@@ -910,6 +973,35 @@ def _review_transition(previous: dict, updated: dict, old: ExpansionProgress | N
             raise ValueError("Save the current execution settings and selection before recording their display")
     authorization = (execution["selection"] or {}).get("authorization")
     previous_authorization = (prior.get("selection") or {}).get("authorization")
+    results_review = execution.get("results_review")
+    if results_review and (
+        authorization != previous_authorization
+        or old
+        and old["execution"]
+        and old["execution"]["selection_digest"] != now["execution"]["selection_digest"]
+    ):
+        raise ValueError(
+            "Clear the prior results review when changing tasks, scope, settings, selection, or authorization"
+        )
+    if results_review and results_review != prior.get("results_review"):
+        if not (
+            old
+            and old["execution"]
+            and old["execution"]["authorized"]
+            and prior.get("pending")
+            and execution["pending"] is None
+            and now["execution"]["results_reviewed"]
+            and old["execution"]["selection_digest"] == now["execution"]["selection_digest"]
+            and results_review["source"]
+            not in {
+                (authorization or {}).get("source"),
+                (prior.get("pending") or {}).get("source"),
+                (review["decision"] or {}).get("source"),
+                (after.get("decision") or {}).get("source"),
+                (presentation or {}).get("source"),
+            }
+        ):
+            raise ValueError("Bind the actual post-run review reply to the current authorized execution")
     for decision, previous_decision, approved in (
         (authorization, previous_authorization, True),
         (execution["declined"], prior.get("declined"), False),

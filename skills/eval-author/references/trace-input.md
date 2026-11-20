@@ -109,6 +109,9 @@ Harbor workspace ledgers do not stand in for Gym evidence. A trace task's
 qualification is reported separately from real-agent performance and audit closure.
 Before real-agent runs in journey `expand`, use the
 [task review and execution approval checkpoint](conversations/expansion.md#task-review-and-execution-approval).
+After execution in journey `expand`, use [results review and task acceptance](conversations/expansion.md#results-review-and-task-acceptance)
+for per-attempt evidence and explicit post-run acceptance; keep candidates Draft
+until the user approves their current results and the owning checks pass.
 
 ## Finalize and check Harbor workspaces
 
