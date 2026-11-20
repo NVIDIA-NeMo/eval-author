@@ -357,3 +357,46 @@ def test_duplicate_draft_during_creation_requests_a_distinct_path(modules, tmp_p
     with pytest.raises(ValueError, match="^Each agreed task needs its own draft path$"):
         save(modules, tmp_path, saved, value)
     assert state.state_path(tmp_path).read_bytes() == before
+
+
+@pytest.mark.parametrize("path", ["starter_suite", "audit_tool_gap", "recorded_interaction"])
+def test_budget_revision_preserves_creation_question_through_reapproval(modules, tmp_path, path):
+    state, expansion, _ = modules
+    saved, value = begin(modules, tmp_path, path)
+    author(modules, tmp_path, value, 0)
+    question = {"question": "Which refund policy applies?", "source": "Missing policy decision"}
+    value["creation"]["pending"] = question
+    value["creation"]["active"] = {
+        "task": expansion.task_key(value["plan"]["tasks"][1]),
+        "status": "blocked",
+        "detail": "The refund policy is missing.",
+    }
+    saved = save(modules, tmp_path, saved, value)
+    plan = copy.deepcopy(value["plan"])
+    plan["limits"] = "At most three construction attempts; running the agent requires separate approval"
+    revised = expansion.new_scope(
+        saved, path=path, plan=plan, question="Use the revised construction budget?", source="User revises budget"
+    )
+    assert revised["creation"]["tasks"] == value["creation"]["tasks"]
+    assert revised["creation"]["active"] is None
+    assert revised["creation"]["pending"] == question
+    assert revised["creation"]["pending"] is not value["creation"]["pending"]
+    saved = save(modules, tmp_path, saved, revised)
+    resumed = state.initialize(tmp_path, journey="expand")
+    assert progress(modules, tmp_path, resumed)["stage"] == "scope"
+    assert resumed["pending_question"] == "Use the revised construction budget?"
+    assert expansion.record(resumed)["creation"]["pending"] == question
+    invalid = copy.deepcopy(revised)
+    invalid["creation"]["pending"] = {"question": "A different question?", "source": "Not agreed"}
+    before = state.state_path(tmp_path).read_bytes()
+    with pytest.raises(ValueError, match="Agree the current task scope"):
+        save(modules, tmp_path, resumed, invalid)
+    assert state.state_path(tmp_path).read_bytes() == before
+    revised.update(decision={"kind": "approved", "source": "User agrees to the new budget"}, pending=None)
+    saved = save(modules, tmp_path, resumed, revised)
+    assert saved["pending_question"] == question["question"]
+    assert progress(modules, tmp_path, saved)["stage"] == "creation"
+    assert not progress(modules, tmp_path, saved)["creation"]["ready_for_review"]
+    assert render(modules, saved).count(question["question"]) == 1
+    resumed = state.initialize(tmp_path, journey="expand")
+    assert resumed["pending_question"] == question["question"]

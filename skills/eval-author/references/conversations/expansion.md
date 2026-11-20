@@ -90,7 +90,8 @@ Reload normal state and render `expansion_scope` with its exact revision and
 `decision: {kind, source}`: `approved`, `declined`, or `revise`. Approval or decline
 clears lifecycle `pending`; revision retains the actual next scope question.
 Set top-level `pending_question` to the question from derived progress. Re-approval
-restores any unresolved `creation.pending` question there; decline clears it.
+restores any unresolved `creation.pending` question to top-level `pending_question`;
+after a decline, leave `creation.pending` saved and set `pending_question` to null.
 Reuse a prior applicable answer rather than asking again to populate this record.
 Changes to the plan require the user's decision on those changes.
 
@@ -152,8 +153,12 @@ artifacts and failed evidence, and repair drafts only through the existing
 [repair procedure](../task-validation.md#repair-and-retain) and its budgets.
 After task or evidence changes, renew only affected validation. Retain historical
 task-map entries after scope edits; they do not replace or reduce the current
-agreed set. Each agreed task needs a distinct draft path. Before restoring a
-historical scenario that shares the current draft’s path, move the current draft
+agreed set. Scope revisions retain unresolved creation questions while clearing
+active work; a budget-only revision does not answer a saved creation question.
+Reconcile its applicability through the owning workflow when scope changes, and
+restore any still-unresolved question on re-approval. Each agreed task needs a
+distinct draft path. Before restoring a historical scenario that shares the
+current draft’s path, move the current draft
 to a distinct path, rebind its creation entry under the existing agreement, and
 renew its validation. Then revise scope to include both scenarios; recreate or
 repair the historical draft through the owning workflow. Return scope or cost

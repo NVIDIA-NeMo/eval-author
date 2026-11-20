@@ -9,7 +9,10 @@ import hashlib
 import json
 import re
 from pathlib import Path
-from typing import Literal, NotRequired, TypedDict, cast
+from typing import TYPE_CHECKING, Literal, NotRequired, TypedDict, cast
+
+if TYPE_CHECKING:
+    from journey_state import ArtifactObservations
 
 
 class EntryChoice(TypedDict):
@@ -103,6 +106,38 @@ class ScopeRecord(TypedDict):
     plan: ScopePlan
     decision: ScopeDecision | None
     creation: NotRequired[CreationRecord]
+
+
+CreationStatus = Literal[
+    "queued", "missing", "stale", "draft", "passed", "failed", "blocked", "creating", "validating", "repairing"
+]
+ExpansionStage = Literal["creation", "entry", "scope_approved", "scope_declined", "scope_revision", "scope"]
+
+
+class CreationProgressRow(TypedDict):
+    task: str
+    status: CreationStatus
+
+
+class CreationProgress(TypedDict):
+    rows: list[CreationProgressRow]
+    detail: str | None
+    ready_for_review: bool
+
+
+class ExpansionObservations(TypedDict):
+    repository: str
+    revision: int
+    ethos_digest: str | None
+    artifacts: NotRequired[ArtifactObservations]
+
+
+class ExpansionProgress(TypedDict):
+    stage: ExpansionStage
+    context_current: bool
+    pending_question: str | None
+    creation: CreationProgress | None
+    complete: Literal[False]
 
 
 def task_key(task: ScopeTask) -> str:
@@ -293,7 +328,11 @@ def new_scope(state: dict, *, path: str, plan: dict, question: str | None, sourc
     }
     previous = record(state)
     if previous and previous["schema_version"] == 2 and previous.get("creation") is not None:
-        value["creation"] = {"tasks": copy.deepcopy(previous["creation"]["tasks"]), "active": None, "pending": None}
+        value["creation"] = {
+            "tasks": copy.deepcopy(previous["creation"]["tasks"]),
+            "active": None,
+            "pending": copy.deepcopy(previous["creation"]["pending"]),
+        }
     validate(value)
     return cast(ScopeRecord, value)
 
@@ -306,7 +345,7 @@ def _sources(value: EntryRecord | ScopeRecord) -> tuple[dict[str, str], set[str]
     )
 
 
-def observe(repo: Path, state: dict) -> dict:
+def observe(repo: Path, state: dict) -> ExpansionObservations:
     from journey_state import ethos_digest, observe_artifacts
 
     digest = None
@@ -315,14 +354,18 @@ def observe(repo: Path, state: dict) -> dict:
             digest = ethos_digest(repo, state["ethos"]["path"])
         except (OSError, ValueError):
             pass
-    observed = {"repository": state["repository"], "revision": state["revision"], "ethos_digest": digest}
+    observed: ExpansionObservations = {
+        "repository": state["repository"],
+        "revision": state["revision"],
+        "ethos_digest": digest,
+    }
     value = record(state)
     if value and "creation" in value:
         observed["artifacts"] = observe_artifacts(repo, *_sources(value))
     return observed
 
 
-def _creation(value: ScopeRecord, observed: object) -> dict:
+def _creation(value: ScopeRecord, observed: object) -> CreationProgress:
     tasks, files = _sources(value)
     if not isinstance(observed, dict) or set(observed) != {"tasks", "files"}:
         raise ValueError("Supply current creation task and evidence observations")
@@ -334,24 +377,25 @@ def _creation(value: ScopeRecord, observed: object) -> dict:
             for item in observed[field].values()
         ):
             raise ValueError("Creation observations require SHA-256 digests or missing evidence")
+    artifacts = cast("ArtifactObservations", observed)
     creation = value["creation"]
     active = creation["active"]
-    rows = []
+    rows: list[CreationProgressRow] = []
     failures = []
     for planned in value["plan"]["tasks"]:
         key = task_key(planned)
         task = creation["tasks"].get(key)
-        status = "queued"
+        status: CreationStatus = "queued"
         if task:
             check = task["validation"]
-            if observed["tasks"][key] is None:
+            if artifacts["tasks"][key] is None:
                 status = "missing"
-            elif observed["tasks"][key] != task["sha256"]:
+            elif artifacts["tasks"][key] != task["sha256"]:
                 status = "stale"
             elif check is None:
                 status = "draft"
             elif check["sha256"] != task["sha256"] or any(
-                observed["files"][ref["path"]] != ref["digest"] for ref in check["evidence"]
+                artifacts["files"][ref["path"]] != ref["digest"] for ref in check["evidence"]
             ):
                 status = "stale"
             else:
@@ -368,7 +412,7 @@ def _creation(value: ScopeRecord, observed: object) -> dict:
     }
 
 
-def derive(state: dict, observed: object) -> dict | None:
+def derive(state: dict, observed: object) -> ExpansionProgress | None:
     value = record(state)
     if value is None:
         return None
@@ -401,14 +445,17 @@ def derive(state: dict, observed: object) -> dict | None:
     if creation is not None:
         creation["ready_for_review"] = creation["ready_for_review"] and creating and checkpoint_ready(state)
     question = pending(value) if creating else value["pending"]
+    stages: dict[str, ExpansionStage] = {
+        "approved": "scope_approved",
+        "declined": "scope_declined",
+        "revise": "scope_revision",
+    }
     return {
         "stage": "creation"
         if creating
         else "entry"
         if value["schema_version"] == 1
-        else {"approved": "scope_approved", "declined": "scope_declined", "revise": "scope_revision"}.get(
-            decision["kind"] if decision else None, "scope"
-        ),
+        else stages.get(decision["kind"] if decision else None, "scope"),
         "context_current": current,
         "pending_question": question["question"] if current and question else None,
         "creation": creation,
@@ -490,7 +537,7 @@ def transition(repo, previous: dict, updated: dict) -> None:
                 prior_creation is not None
                 and creation["tasks"] == prior_creation["tasks"]
                 and creation["active"] is None
-                and creation["pending"] is None
+                and creation["pending"] in (None, prior_creation["pending"])
             ):
                 raise ValueError("Agree the current task scope before recording creation progress")
             previous_tasks = prior_creation["tasks"] if prior_creation else {}

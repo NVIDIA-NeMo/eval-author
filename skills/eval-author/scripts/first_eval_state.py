@@ -11,7 +11,11 @@ import math
 import re
 from collections import Counter
 from itertools import chain
-from pathlib import PurePosixPath
+from pathlib import Path, PurePosixPath
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from journey_state import ArtifactObservations
 
 BUILD_STEPS = ("environment", "environment_check", "grading", "artifacts")
 REMAINING_STEPS = ("tasks", "environment_check", "validation", "artifacts")
@@ -375,12 +379,12 @@ def _sources(value: dict) -> tuple[dict, set]:
     return tasks, files
 
 
-def observe(repo, state: dict) -> dict:
+def observe(repo: Path, state: dict) -> ArtifactObservations:
     """Read only declared task trees/evidence using the existing bounded lifecycle helpers."""
     from journey_state import observe_artifacts
 
     value = record(state)
-    observed = {"tasks": {}, "files": {}}
+    observed: ArtifactObservations = {"tasks": {}, "files": {}}
     if value is None:
         return observed
     validate(value)

@@ -22,6 +22,7 @@ import stat
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import TypedDict
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import audit_state  # noqa: E402
@@ -505,9 +506,14 @@ def task_digest(repo: Path, task: str) -> str:
     return digest(json.dumps(sorted(entries)).encode())
 
 
-def observe_artifacts(repo: Path, tasks: dict[str, str], files: set[str]) -> dict:
+class ArtifactObservations(TypedDict):
+    tasks: dict[str, str | None]
+    files: dict[str, str | None]
+
+
+def observe_artifacts(repo: Path, tasks: dict[str, str], files: set[str]) -> ArtifactObservations:
     """Read declared task trees and evidence without interpreting native results."""
-    observed: dict = {"tasks": {}, "files": {}}
+    observed: ArtifactObservations = {"tasks": {}, "files": {}}
     for key, path in tasks.items():
         try:
             observed["tasks"][key] = task_digest(repo, path)

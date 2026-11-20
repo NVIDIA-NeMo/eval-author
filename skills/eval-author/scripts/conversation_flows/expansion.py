@@ -38,7 +38,7 @@ def _audit_opening(state: dict, facts: dict) -> str:
     return "\n\n".join(parts) + "\n"
 
 
-def _checkpoint(state: dict, progress: dict) -> expansion_state.ScopeRecord:
+def _checkpoint(state: dict, progress: expansion_state.ExpansionProgress) -> expansion_state.ScopeRecord:
     value = expansion_state.record(state)
     if value is None or value["schema_version"] != 2:
         raise ValueError("Save the existing authoring workflow's planning checkpoint first")
@@ -51,7 +51,7 @@ def _checkpoint(state: dict, progress: dict) -> expansion_state.ScopeRecord:
     return value
 
 
-def _scope(state: dict, progress: dict) -> str:
+def _scope(state: dict, progress: expansion_state.ExpansionProgress) -> str:
     value = _checkpoint(state, progress)
     plan = value["plan"]
     parts = (
@@ -79,7 +79,7 @@ def _scope(state: dict, progress: dict) -> str:
     return "\n\n".join(parts) + "\n"
 
 
-def _progress(state: dict, progress: dict) -> str:
+def _progress(state: dict, progress: expansion_state.ExpansionProgress) -> str:
     value = _checkpoint(state, progress)
     creation = progress.get("creation")
     if progress["stage"] != "creation" or creation is None:
