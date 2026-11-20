@@ -102,9 +102,13 @@ this manifest. The runner passes that object through as `case_description`.
 ## Tasks
 
 Task entries match the metric [tasks manifest](../../metric-benchmark/docs/benchmark-format.md#tasks-tasksyml).
-During a run the driver may append new tasks to `tasks.generated.yml` beside
-the case root, using the same task entry shape. `tasks.yml` stays the prepared
-inventory. The loader merges `tasks.generated.yml` when that file is present.
+During a run the driver appends new tasks to `tasks.generated.yml` beside
+the case root and copies their directories under `generated-runtime/`.
+`tasks.yml` stays the prepared inventory. The loader merges
+`tasks.generated.yml` when that file is present, so a later run would score
+those saved tasks instead of a new draft. The driver refuses to start when
+`tasks.generated.yml` or a non-empty `generated-runtime/` directory is already
+present. Delete both before starting another experiment.
 
 ## Generation: `generation.yml`
 

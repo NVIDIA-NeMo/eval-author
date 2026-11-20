@@ -1,0 +1,8 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+- case_id: gen-agent
+  agent:
+    path: agents/gen-agent/agent.yml
+  tasks:
+    path: tasks/workspace/tasks.yml
