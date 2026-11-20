@@ -161,7 +161,7 @@ def results_pending(progress: dict | None) -> bool:
     if progress is None:
         return False
     execution = progress.get("execution")
-    return bool(execution and execution["authorized"] and progress["pending_question"] is not None)
+    return bool(execution and execution["results_inspectable"] and progress["pending_question"] is not None)
 
 
 def record(state: dict) -> EntryRecord | ScopeRecord | None:
@@ -519,6 +519,12 @@ def _review_digest(value: ScopeRecord) -> str:
     )
 
 
+def execution_blockers(state: dict) -> list[dict]:
+    from journey_state import DEFERRED
+
+    return [item for item in state["blockers"] if item["phase"] == "expand" and item["id"] not in DEFERRED]
+
+
 def _review(state: dict, value: ScopeRecord, observed: dict, creation: dict, approved_scope: bool) -> dict:
     planned = {task_key(task) for task in value["plan"]["tasks"]}
     tasks = value["creation"]["tasks"]
@@ -530,8 +536,6 @@ def _review(state: dict, value: ScopeRecord, observed: dict, creation: dict, app
         and artifacts["digest"] == digest
         and all(observed["files"].get(ref["path"]) == ref["digest"] for ref in artifacts["evidence"])
     )
-    from journey_state import DEFERRED
-
     validated = bool(
         approved_scope
         and review_ready(state)
@@ -539,18 +543,20 @@ def _review(state: dict, value: ScopeRecord, observed: dict, creation: dict, app
         and all(row["status"] == "passed" for row in creation["rows"])
         and not value["creation"]["pending"]
         and all(key in tasks and observed["files"].get(tasks[key]["path"] + "/README.md") for key in planned)
-        and not any(item["phase"] == "expand" and item["id"] not in DEFERRED for item in state["blockers"])
     )
     decision = saved["decision"]
     kind = decision["decision"] if approved_scope and decision and decision["digest"] == digest else None
     presented = bool(approved_scope and saved["presented"] and saved["presented"]["digest"] == digest)
+    approval_current = kind == "approved" and presented and validated
+    unblocked = not execution_blockers(state)
     return {
         "digest": digest,
         "artifacts_current": artifacts_current,
         "presented": presented,
         "decision": kind,
-        "approved": kind == "approved" and presented and validated,
-        "ready": validated and artifacts_current,
+        "approval_current": approval_current,
+        "approved": approval_current and unblocked,
+        "ready": validated and artifacts_current and unblocked,
     }
 
 
@@ -575,27 +581,31 @@ def _execution(state: dict, value: ScopeRecord, observed: dict, review: dict) ->
     settings = saved["execution_settings"]
     digest = _execution_digest(state, value, review["digest"])
     selected = {case["task_id"] for case in selection["cases"]} if selection else set()
-    current = bool(
-        review["approved"]
+    selection_bound = bool(
+        review["approval_current"]
         and selection
         and not settings["open_questions"]
         and selected == {task_key(task) for task in value["plan"]["tasks"]}
         and all(observed["files"].get(ref["path"]) == ref["digest"] for ref in _selection_evidence(selection))
     )
-    presented = bool(
-        review["approved"]
-        and saved["execution_settings_presented"]
-        and saved["execution_settings_presented"]["digest"] == digest
+    display_bound = bool(
+        saved["execution_settings_presented"] and saved["execution_settings_presented"]["digest"] == digest
     )
+    current = bool(review["approved"] and selection_bound)
+    presented = bool(review["approved"] and display_bound)
     authorization = (selection or {}).get("authorization")
     declined = bool(saved["declined"] and saved["declined"]["digest"] == digest)
-    authorized = bool(current and presented and not declined and authorization and authorization["digest"] == digest)
+    results_inspectable = bool(
+        selection_bound and display_bound and not declined and authorization and authorization["digest"] == digest
+    )
+    authorized = bool(review["approved"] and results_inspectable)
     results_review = saved.get("results_review")
     return {
         "selection_digest": digest,
         "selection_current": current,
         "presented": presented,
         "authorized": authorized,
+        "results_inspectable": results_inspectable,
         "results_reviewed": bool(authorized and results_review and results_review["digest"] == digest),
         "declined": bool(review["approved"] and presented and declined),
     }
@@ -639,7 +649,13 @@ def derive(state: dict, observed: object) -> dict | None:
         review = _review(state, value, observed["artifacts"], creation, creating)
         if value.get("execution"):
             execution = _execution(state, value, observed["artifacts"], review)
-    stage = "execution" if review and review["approved"] and execution else "task_review" if review else "creation"
+    stage = (
+        "execution"
+        if review and execution and (review["approved"] or execution["results_inspectable"])
+        else "task_review"
+        if review
+        else "creation"
+    )
     question = (value.get("creation") or {}).get("pending") if creating else value["pending"]
     if creating and question is None and value["schema_version"] == 2:
         if stage == "task_review" and review:
@@ -648,6 +664,7 @@ def derive(state: dict, observed: object) -> dict | None:
             saved_execution = value["execution"]
             if (
                 execution["selection_current"]
+                or execution["results_inspectable"]
                 or saved_execution["selection"] is None
                 or saved_execution["execution_settings"]["open_questions"]
             ):
@@ -790,7 +807,18 @@ def _review_transition(previous: dict, updated: dict, old: dict | None, now: dic
         return
     assert review is not None
     prior = before.get("execution") or {}
-    if not _only_clears(prior, execution, ("pending", "results_review")) and not now["review"]["approved"]:
+    results_question_only = bool(
+        old
+        and old["execution"]
+        and old["execution"]["results_inspectable"]
+        and now["execution"]["results_inspectable"]
+        and execution == {**prior, "pending": execution["pending"]}
+    )
+    if (
+        not _only_clears(prior, execution, ("pending", "results_review"))
+        and not results_question_only
+        and not now["review"]["approved"]
+    ):
         raise ValueError("Approve the current generated tasks before updating execution settings")
     presentation = execution["execution_settings_presented"]
     if presentation and presentation != prior.get("execution_settings_presented"):

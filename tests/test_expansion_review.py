@@ -23,7 +23,7 @@ def bound(modules, repo, saved, checkpoint, source):
     return {"digest": current["digest" if checkpoint == "review" else "selection_digest"], "source": source}
 
 
-def ready(modules, repo, statuses=("passed", "passed"), *, setup="gym"):
+def ready(modules, repo, statuses=("passed", "passed"), *, setup="gym", same_title=False):
     saved, value = begin(modules, repo)
     if setup == "harbor":
         setup_ready(modules[0], repo, journey="expand", setup=setup)
@@ -32,6 +32,14 @@ def ready(modules, repo, statuses=("passed", "passed"), *, setup="gym"):
             saved, path=value["path"], plan=value["plan"], question=None, source="Harbor task plan"
         )
         value["decision"] = {"kind": "approved", "source": "User approves Harbor task plan"}
+        saved = save(modules, repo, saved, value)
+    if same_title:
+        value["plan"]["tasks"][1].update(
+            task=value["plan"]["tasks"][0]["task"],
+            scenario="Repeat the same refund request",
+            outcome="Keep the remaining balance unchanged",
+        )
+        value["decision"]["source"] = "User approves distinct same-title cases"
         saved = save(modules, repo, saved, value)
     for index, status in enumerate(statuses):
         if status != "queued":
@@ -110,8 +118,8 @@ def execution(modules, repo, saved, value, *, present=True):
     return saved
 
 
-def authorized(modules, repo, *, setup="gym"):
-    saved, value = ready(modules, repo, setup=setup)
+def authorized(modules, repo, *, setup="gym", same_title=False):
+    saved, value = ready(modules, repo, setup=setup, same_title=same_title)
     saved = approve(modules, repo, present_review(modules, repo, saved, value), value)
     saved = execution(modules, repo, saved, value)
     value["execution"]["selection"]["authorization"] = bound(
@@ -419,9 +427,9 @@ def test_harbor_ignores_non_gym_row_metadata_when_rendering(modules, tmp_path):
     assert "Attempts per task" in output
 
 
-def result_payload(modules, repo, *, setup="gym"):
+def result_payload(modules, repo, *, setup="gym", same_title=False):
     state, _, _ = modules
-    saved, value = authorized(modules, repo, setup=setup)
+    saved, value = authorized(modules, repo, setup=setup, same_title=same_title)
     for task in value["creation"]["tasks"].values():
         saved = state.record_task(repo, task=task["path"], status="draft", source="New authored task")
     value["execution"]["pending"] = {
@@ -543,13 +551,8 @@ def test_post_run_review_requires_a_distinct_answer_to_the_saved_question(module
 
 @pytest.mark.parametrize("change", ["rerun", "selection", "settings"])
 def test_post_run_review_must_be_cleared_on_reauthorization_or_changed_settings(modules, tmp_path, change):
-    saved, value, _ = result_payload(modules, tmp_path)
+    saved, value = reviewed(modules, tmp_path)
     execution = value["execution"]
-    execution["results_review"] = bound(
-        modules, tmp_path, saved, "execution", "User accepts the displayed actual-agent results"
-    )
-    execution["pending"] = None
-    saved = save(modules, tmp_path, saved, value)
     assert saved["pending_question"] is None
     assert progress(modules, tmp_path, saved)["execution"]["results_reviewed"]
     resumed = modules[0].initialize(tmp_path, journey="expand")
@@ -752,3 +755,106 @@ def test_reviewed_run_resumes_without_pre_run_copy_or_settled_questions(modules,
     assert output.replace(str(tmp_path), "/repo") == expected
     assert "The next step is to run the selected tasks" not in output
     assert resumed["pending_question"] is None and RUN_QUESTION not in output
+
+
+@pytest.mark.parametrize("setup", ["gym", "harbor"])
+@pytest.mark.parametrize("question_first", [False, True])
+def test_execution_blocker_keeps_partial_results_visible_without_permitting_advancement(
+    modules, tmp_path, setup, question_first
+):
+    state, _, renderer = modules
+    saved, value, data = result_payload(modules, tmp_path, setup=setup)
+    question = value["execution"]["pending"]
+    if not question_first:
+        value["execution"]["pending"] = None
+        saved = save(modules, tmp_path, saved, value)
+    saved = state.update(
+        tmp_path,
+        {"blockers": [{"id": "services", "phase": "expand", "message": "Refund service unavailable"}]},
+        expected_revision=saved["revision"],
+    )
+    if not question_first:
+        value["execution"]["pending"] = question
+        saved = save(modules, tmp_path, saved, value)
+    resumed = state.initialize(tmp_path, journey="expand")
+    current = progress(modules, tmp_path, resumed)
+    assert current["execution"]["results_inspectable"]
+    assert not current["execution"]["authorized"] and not current["execution"]["results_reviewed"]
+    assert not current["review"]["approved"] and not current["complete"]
+    payload = expansion_payload(modules, resumed)
+    for stage in ("resume", "expansion_continue", "expansion_review"):
+        with pytest.raises(ValueError, match="Use expansion_results"):
+            renderer.render({**payload, "stage": stage})
+    payload["stage"] = "expansion_results"
+    payload["facts"]["attempts"] = data["facts"]["attempts"]
+    before = state.state_path(tmp_path).read_bytes()
+    output = renderer.render(payload)
+    assert output == renderer.render(payload)
+    assert state.state_path(tmp_path).read_bytes() == before
+    assert "Completed; score 1" in output and "Execution error; score not available" in output
+    assert "Provider timeout" in output and "Missing result" in output
+    assert "### Blockers" in output and "Refund service unavailable" in output
+    assert "Resolve the blockers before accepting tasks or running the agent again" in output
+    assert all(
+        state.task_lifecycle(tmp_path, resumed, task["path"])["status"] == "draft"
+        for task in value["creation"]["tasks"].values()
+    )
+    if setup == "gym":
+        expected = (FIXTURES / "results-blocked.md").read_text().split("\n\n", 1)[1]
+        assert output.replace(str(tmp_path), "/repo") == expected
+    for decision in ("results_review", "authorization", "settings"):
+        attempted = copy.deepcopy(value)
+        attempted["execution"]["pending"] = None
+        if decision == "settings":
+            attempted["execution"]["execution_settings"]["limits"] = "Unapproved new limits"
+        else:
+            target = attempted["execution"]["selection"] if decision == "authorization" else attempted["execution"]
+            target[decision] = bound(modules, tmp_path, resumed, "execution", "User requests advancement while blocked")
+        assert_unchanged_error(modules, tmp_path, resumed, attempted)
+    recovered = state.update(tmp_path, {"blockers": []}, expected_revision=resumed["revision"])
+    assert progress(modules, tmp_path, recovered)["execution"]["authorized"]
+    assert not progress(modules, tmp_path, recovered)["execution"]["results_reviewed"]
+
+
+def test_same_title_harbor_tasks_have_distinct_labels_even_without_results(modules, tmp_path):
+    saved, value, data = result_payload(modules, tmp_path, setup="harbor", same_title=True)
+    data["facts"]["attempts"] = []
+    output = modules[2].render(data)
+    assert len({case["task_id"] for case in value["execution"]["selection"]["cases"]}) == 2
+    for task in value["creation"]["tasks"].values():
+        assert output.count("Partial refund (" + task["path"] + ") — attempt") == 2
+    assert output.count("Missing result") == 4
+    assert output.endswith(saved["pending_question"] + "\n")
+
+
+@pytest.mark.parametrize("stage", ["expansion_review", "expansion_progress", "expansion_scope", "expansion_results"])
+def test_saved_lifecycle_requires_observations_instead_of_another_state_save(modules, tmp_path, stage):
+    saved, _ = reviewed(modules, tmp_path)
+    before = modules[0].state_path(tmp_path).read_bytes()
+    with pytest.raises(ValueError, match="Supply expansion observations from the current repository and revision"):
+        modules[2].render({"stage": stage, "state": saved, "revision": saved["revision"]})
+    assert modules[0].state_path(tmp_path).read_bytes() == before
+
+
+@pytest.mark.parametrize("change", ["task", "validation", "config"])
+def test_execution_blocker_does_not_allow_displaying_results_with_stale_bindings(modules, tmp_path, change):
+    saved, _, data = result_payload(modules, tmp_path)
+    saved = modules[0].update(
+        tmp_path,
+        {"blockers": [{"id": "services", "phase": "expand", "message": "Refund service unavailable"}]},
+        expected_revision=saved["revision"],
+    )
+    path = {
+        "task": ".eval-author/tasks/refund-0/instruction.md",
+        "validation": ".eval-author/.working/refund-0-passed.json",
+        "config": ".eval-author/.working/agent.yaml",
+    }[change]
+    (tmp_path / path).write_text("Changed evidence after the run")
+    saved = modules[0].initialize(tmp_path, journey="expand")
+    assert not progress(modules, tmp_path, saved)["execution"]["results_inspectable"]
+    attempts = data["facts"]["attempts"]
+    data.update(expansion_payload(modules, saved))
+    data["stage"] = "expansion_results"
+    data["facts"]["attempts"] = attempts
+    with pytest.raises(ValueError, match="Reconcile the current tasks, settings, and run authorization"):
+        modules[2].render(data)

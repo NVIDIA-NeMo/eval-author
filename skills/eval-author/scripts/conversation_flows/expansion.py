@@ -3,7 +3,8 @@
 
 """Render expansion entry, planning, and creation checkpoints."""
 
-from typing import Literal, TypedDict, cast
+from collections import Counter
+from typing import Literal, NamedTuple, TypedDict, cast
 
 import conversation_templates as shared
 import expansion_state
@@ -23,6 +24,12 @@ STAGES = {
     "expansion_results",
 }
 PREVIEWS: set[str] = set()
+
+
+class AttemptKey(NamedTuple):
+    task_id: str
+    example_id: str | None
+    attempt: int
 
 
 class AttemptResult(TypedDict):
@@ -273,7 +280,7 @@ def _execution(state: dict, value: expansion_state.ScopeRecord, progress: dict, 
 
 def _results(state: dict, progress: dict, facts: dict) -> str:
     value = _checkpoint(state, progress, reviewing=True)
-    if not progress.get("execution") or not progress["execution"]["authorized"]:
+    if not progress.get("execution") or not progress["execution"]["results_inspectable"]:
         raise ValueError("Reconcile the current tasks, settings, and run authorization before presenting results")
     if progress["pending_question"] is None:
         raise ValueError("Save the post-run results review question before presenting results")
@@ -281,7 +288,7 @@ def _results(state: dict, progress: dict, facts: dict) -> str:
     assert selection is not None
     titles = {expansion_state.task_key(task): task["task"] for task in value["plan"]["tasks"]}
     expected = [
-        (case["task_id"], example, attempt)
+        AttemptKey(case["task_id"], example, attempt)
         for case in selection["cases"]
         for example in (case["example_ids"] if state["setup"] == "gym" else [None])
         for attempt in range(1, case["attempts"] + 1)
@@ -290,7 +297,7 @@ def _results(state: dict, progress: dict, facts: dict) -> str:
     if not isinstance(supplied, list) or len(supplied) > len(expected):
         raise ValueError("Supply only inspected attempts from the authorized selection")
     expected_keys = set(expected)
-    attempts: dict[tuple[str, str | None, int], AttemptResult] = {}
+    attempts: dict[AttemptKey, AttemptResult] = {}
     fields = set(AttemptResult.__annotations__)
     for item in supplied:
         item = mapping(item, "attempt result", fields)
@@ -302,7 +309,7 @@ def _results(state: dict, progress: dict, facts: dict) -> str:
             and not isinstance(item["example_id"], str)
         ):
             raise ValueError("Attempt results require the selected task and example identities")
-        key = (item["task_id"], item["example_id"], item["attempt"])
+        key = AttemptKey(item["task_id"], item["example_id"], item["attempt"])
         if type(item["attempt"]) is not int or key not in expected_keys or key in attempts:
             raise ValueError("Attempt results must uniquely identify an authorized task, example, and attempt")
         if (
@@ -318,11 +325,15 @@ def _results(state: dict, progress: dict, facts: dict) -> str:
         if item["status"] == "completed" and item["error"] is not None:
             raise ValueError("An execution error cannot be reported as completed")
         attempts[key] = cast(AttemptResult, item)
+    title_counts = Counter(titles.values())
     rows = [copy.RESULTS_TABLE]
     for key in expected:
-        task_id, example, number = key
-        label = titles[task_id] + (f" / {example}" if example is not None else "")
-        label = literal(copy.RESULT_ATTEMPT.format(task=label, number=number), "attempt", table=True)
+        label = titles[key.task_id]
+        if title_counts[label] > 1:
+            label = copy.RESULT_TASK_PATH.format(task=label, path=value["creation"]["tasks"][key.task_id]["path"])
+        if key.example_id is not None:
+            label += f" / {key.example_id}"
+        label = literal(copy.RESULT_ATTEMPT.format(task=label, number=key.attempt), "attempt", table=True)
         item = attempts.get(key)
         result = copy.RESULT_MISSING
         links = [copy.RESULT_UNAVAILABLE] * 3
@@ -347,7 +358,18 @@ def _results(state: dict, progress: dict, facts: dict) -> str:
                     journey_state._relative_task_path(path[len(state["repository"].rstrip("/")) + 1 :])
                     links[index] = link(path, copy.RESULT_LINK_LABELS[field])
         rows.append("| " + " | ".join((label, result, *links)) + " |")
-    parts = [copy.RESULTS_HEADING, "\n".join(rows), copy.RESULTS_REVIEW]
+    parts = [copy.RESULTS_HEADING, "\n".join(rows)]
+    blockers = expansion_state.execution_blockers(state)
+    if blockers:
+        parts.extend(
+            [
+                shared.BLOCKERS,
+                "\n".join("- " + literal(item["message"], "execution blocker") for item in blockers),
+                copy.RESULTS_BLOCKED,
+            ]
+        )
+    else:
+        parts.append(copy.RESULTS_REVIEW)
     if progress["pending_question"] is not None:
         parts.append(literal(progress["pending_question"], "results review question"))
     return "\n\n".join(parts) + "\n"
@@ -389,6 +411,8 @@ def render(payload: dict) -> str:
             else "expansion_scope"
         )
         raise ValueError(f"Use {checkpoint} for the saved expansion checkpoint")
+    if progress is None:
+        progress = expansion_state.derive(state, facts.get("expansion_observations"))
     if progress is None:
         raise ValueError("Save a structured expansion lifecycle before continuation")
     if payload["stage"] == "expansion_results":

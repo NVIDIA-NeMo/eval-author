@@ -267,7 +267,13 @@ link the native rollout and explanation that contain the selected example and
 attempt, retaining its exact identity in the suite guide. The caller owns evidence
 inspection and freshness under the shared rendering contract. The renderer
 lists every authorized attempt, including missing results, and never accepts a
-task or treats a score as task validation.
+task or treats a score as task validation. Retain unresolved execution blockers
+and show them with bound results; the derived `execution.results_inspectable`
+flag permits this read-only display while `execution.authorized` remains false. Do not accept tasks,
+record final results review, or execute another run until those blockers are
+resolved. Stale task, validation, configuration, input, or settings bindings still
+prevent results display. Duplicate task titles include their draft paths,
+including missing attempts.
 
 Save the actual post-run decision question in `execution.pending` and top-level
 `pending_question`. Use `RESULTS_QUESTION` from

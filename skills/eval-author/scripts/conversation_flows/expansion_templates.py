@@ -137,6 +137,7 @@ def options_prompt() -> str:
 
 RESULTS_HEADING = "### Agent run results"
 RESULTS_TABLE = "| Attempt | Result | Output and actions | Full trace | Verification |\n|---|---|---|---|---|"
+RESULT_TASK_PATH = "{task} ({path})"
 RESULT_ATTEMPT = "{task} — attempt {number}"
 RESULT_STATUS = {"completed": "Completed", "error": "Execution error", "incomplete": "Incomplete"}
 RESULT_SCORE = "; score {value}"
@@ -149,6 +150,10 @@ RESULT_LINK_LABELS = {"output": "Output and actions", "trace": "Full trace", "ve
 RESULTS_REVIEW = (
     "Review the outputs and verifier explanations. Passing checks does not accept a task; "
     "final acceptance requires your approval of these results. You can give feedback or request changes."
+)
+RESULTS_BLOCKED = (
+    "You can inspect these retained attempts and give feedback. Resolve the blockers before accepting tasks "
+    "or running the agent again."
 )
 RESULTS_REVIEWED = (
     "You’ve reviewed the results for this run. Individual task acceptance still requires "

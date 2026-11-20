@@ -101,7 +101,9 @@ or use the Harbor viewer, where available, for a closer look.
 When improving an existing suite, the post-run chat shows one row per authorized
 attempt, with its score or execution error and links to the available output and
 actions, full trace, and verifier explanation. Missing attempts and unavailable
-evidence remain visible. Review those outputs, request changes, or explicitly
+evidence remain visible. Execution blockers appear with retained results and must
+be resolved before acceptance or another run. Tasks with the same title include
+their draft paths so you can distinguish them. Review those outputs, request changes, or explicitly
 approve the tasks. Task-design approval, permission to run, and passing checks
 do not move new tasks out of **Draft**. Only your post-run approval together with
 the workflow's current technical checks makes them **Accepted**; approving a
