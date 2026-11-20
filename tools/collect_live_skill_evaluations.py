@@ -28,7 +28,13 @@ from license_duplication_policy import POLICY, expected_license_duplicate
 from live_evaluation_diagnostics import diagnostics
 from patched_opencode_runtime import CONFIGURED_VERSION as OPENCODE_VERSION
 from patched_opencode_runtime import LIVE_EXECUTION_SECONDS, LIVE_HANDOFF_SECONDS, live_job_remaining
-from run_pinned_evaluator import CONTEXT_POLICY, CONTEXT_SCALAR_LIMIT
+from run_pinned_evaluator import (
+    CONTEXT_CHUNK_LIMIT,
+    CONTEXT_POLICY,
+    CONTEXT_SCALAR_LIMIT,
+    UPSTREAM_CONTEXT_CHUNK_LIMIT,
+    UPSTREAM_CONTEXT_SCALAR_LIMIT,
+)
 
 HUB_BASE_URL = "https://inference-api.nvidia.com/v1"
 HUB_KEY = "INFERENCE_HUB_API_KEY"
@@ -492,7 +498,8 @@ def _collect(
             "context_duplication_exception": POLICY,
             "requested_check": check_name,
             "context_comparison_policy": CONTEXT_POLICY if ci_context_budget else "upstream",
-            "context_scalar_limit": CONTEXT_SCALAR_LIMIT if ci_context_budget else 25_000_000,
+            "context_chunk_limit": CONTEXT_CHUNK_LIMIT if ci_context_budget else UPSTREAM_CONTEXT_CHUNK_LIMIT,
+            "context_scalar_limit": CONTEXT_SCALAR_LIMIT if ci_context_budget else UPSTREAM_CONTEXT_SCALAR_LIMIT,
         },
         "observations": [],
     }

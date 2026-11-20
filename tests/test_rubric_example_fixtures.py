@@ -2,8 +2,10 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import json
+import socket
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 import pytest
@@ -57,19 +59,172 @@ def test_ledger_action_path_exports_real_state_and_resets(tmp_path):
     assert json.loads(state.read_text()) == initial
 
 
-def test_oracle_uses_ledger_service_and_verifier_ignores_forged_submission(tmp_path, monkeypatch):
-    import socket
-    import time
+def stop_process(process: subprocess.Popen) -> tuple[bytes | None, bytes | None]:
+    return fixture_module().stop_process(process)
 
+
+def wait_for_ledger(endpoint: Path, process: subprocess.Popen, *, timeout: float = 5) -> None:
+    fixture_module().wait_for_ledger(endpoint, process, timeout=timeout)
+
+
+def observe_ledger_probe(monkeypatch) -> None:
+    popen = subprocess.Popen
+    hook = """
+import pathlib, socket
+connect = socket.socket.connect
+sendall = socket.socket.sendall
+recv = socket.socket.recv
+def observed_connect(client, address):
+    try:
+        result = connect(client, address)
+    except ConnectionRefusedError:
+        pathlib.Path("probe-refused").touch()
+        raise
+    pathlib.Path("probe-connected").touch()
+    return result
+def observed_sendall(client, data, *args):
+    result = sendall(client, data, *args)
+    with pathlib.Path("probe-requests.jsonl").open("ab") as stream:
+        stream.write(data)
+    return result
+def observed_recv(client, *args):
+    pathlib.Path("probe-reading").touch()
+    return recv(client, *args)
+socket.socket.connect = observed_connect
+socket.socket.sendall = observed_sendall
+socket.socket.recv = observed_recv
+"""
+
+    def launch(args, **kwargs):
+        args = list(args)
+        if "-c" in args:
+            index = args.index("-c") + 1
+            if "_probe_ledger" in args[index]:
+                args[index] = hook + "\n" + args[index]
+        return popen(args, **kwargs)
+
+    monkeypatch.setattr(subprocess, "Popen", launch)
+
+
+def assert_ledger_probe_observed(folder: Path, startup: str) -> None:
+    if startup == "bound-without-listening":
+        assert (folder / "probe-refused").exists(), "Probe must observe connection refusal"
+        assert not (folder / "probe-connected").exists()
+    elif startup == "listening-without-response":
+        assert (folder / "probe-connected").exists(), "Probe must complete the socket handshake"
+        requests = [json.loads(line) for line in (folder / "probe-requests.jsonl").read_text().splitlines()]
+        assert requests == [{"operation": "read"}]
+        assert (folder / "probe-reading").exists(), "Probe must wait for the missing response"
+
+
+@pytest.mark.parametrize("startup", ["exited", "bound-without-listening", "listening-without-response"])
+def test_ledger_readiness_failure_reports_child_and_reaps(tmp_path, monkeypatch, startup):
+    monkeypatch.chdir(tmp_path)
+    observe_ledger_probe(monkeypatch)
+    endpoint = Path("ledger.sock")
+    command = "import sys; print('startup_failed', file=sys.stderr); sys.exit(7)"
+    if startup != "exited":
+        command = "import signal; signal.pause()"
+    with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as bound:
+        bound.bind(str(endpoint))
+        if startup == "listening-without-response":
+            bound.listen()
+        process = subprocess.Popen([sys.executable, "-c", command], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        try:
+            if startup == "exited":
+                process.wait(timeout=5)
+            started = time.monotonic()
+            with pytest.raises(ValueError, match="ledger_start_failed at ledger.sock") as failure:
+                wait_for_ledger(endpoint, process, timeout=5)
+            assert time.monotonic() - started < 10
+            assert process.poll() is not None
+            assert_ledger_probe_observed(tmp_path, startup)
+            if startup == "exited":
+                assert "exit=7" in str(failure.value)
+                assert "startup_failed" in str(failure.value)
+        finally:
+            stop_process(process)
+
+
+def delay_ledger_start(monkeypatch, phase: str) -> list[subprocess.Popen]:
+    processes = []
+    popen = subprocess.Popen
+    hook = """
+import pathlib, socketserver, sys, time
+sys.path.insert(0, sys.argv.pop(1))
+import server
+phase = sys.argv.pop(1)
+method = "server_bind" if phase == "before-bind" else "server_activate"
+original = getattr(socketserver.UnixStreamServer, method)
+def paused(self):
+    record = pathlib.Path(sys.argv[sys.argv.index("--record") + 1])
+    pathlib.Path("initial-record.json").write_bytes(record.read_bytes())
+    pathlib.Path("startup-paused").touch()
+    deadline = time.monotonic() + 10
+    while not pathlib.Path("release-startup").exists():
+        if time.monotonic() >= deadline:
+            raise RuntimeError("activation_timeout")
+        time.sleep(0.01)
+    original(self)
+setattr(socketserver.UnixStreamServer, method, paused)
+server.main()
+"""
+    client_hook = """
+import pathlib, socket
+connect = socket.socket.connect
+def release_after_refusal(client, address):
+    try:
+        return connect(client, address)
+    except (FileNotFoundError, ConnectionRefusedError):
+        if pathlib.Path("startup-paused").exists():
+            pathlib.Path("connection-refused").touch()
+            pathlib.Path("release-startup").touch()
+        raise
+socket.socket.connect = release_after_refusal
+sendall = socket.socket.sendall
+def record_request(client, data, *args):
+    request = __import__("json").loads(data)
+    if request["operation"] == "read":
+        record = pathlib.Path("record.json")
+        if not record.exists():
+            record = pathlib.Path("private/record.json")
+        assert record.read_bytes() == pathlib.Path("initial-record.json").read_bytes()
+    with pathlib.Path("requests.jsonl").open("ab") as stream:
+        stream.write(data)
+    return sendall(client, data, *args)
+socket.socket.sendall = record_request
+"""
+
+    def launch(args, **kwargs):
+        args = list(args)
+        if any(str(arg).endswith("/server.py") for arg in args):
+            index = next(index for index, arg in enumerate(args) if str(arg).endswith("/server.py"))
+            args = [*args[:index], "-c", hook, str(Path(args[index]).parent), phase, *args[index + 1 :]]
+            process = popen(args, **kwargs)
+            processes.append(process)
+            return process
+        if "-c" in args:
+            index = args.index("-c") + 1
+            args[index] = client_hook + "\n" + args[index]
+        return popen(args, **kwargs)
+
+    monkeypatch.setattr(subprocess, "Popen", launch)
+    return processes
+
+
+@pytest.mark.parametrize("startup", ["normal", "bound-before-listen"])
+def test_oracle_uses_ledger_service_and_verifier_ignores_forged_submission(tmp_path, monkeypatch, startup):
     server = BASE / "environment/server.py"
     assert server.is_file(), "The Oracle needs the solver action interface"
     monkeypatch.chdir(tmp_path)
     endpoint = Path("ledger.sock")
     record = tmp_path / "private/record.json"
+    command = [sys.executable, str(server)]
+    if startup == "bound-before-listen":
+        delay_ledger_start(monkeypatch, "before-listen")
     process = subprocess.Popen(
         [
-            sys.executable,
-            str(server),
+            *command,
             "--contract",
             str(BASE / "environment/contract.json"),
             "--socket",
@@ -81,12 +236,10 @@ def test_oracle_uses_ledger_service_and_verifier_ignores_forged_submission(tmp_p
         stderr=subprocess.PIPE,
     )
     try:
-        deadline = time.monotonic() + 5
-        while not endpoint.exists() and process.poll() is None and time.monotonic() < deadline:
-            time.sleep(0.01)
-        assert endpoint.exists(), process.communicate(timeout=1)
+        wait_for_ledger(endpoint, process)
         initial = json.loads(record.read_text())
         with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as client:
+            client.settimeout(5)
             client.connect(str(endpoint))
             client.sendall(b'{"operation":"reset"}\n')
             response = json.loads(client.makefile("rb").readline())
@@ -123,16 +276,15 @@ def test_oracle_uses_ledger_service_and_verifier_ignores_forged_submission(tmp_p
         )
         assert result.returncode == 0, result.stderr
         assert json.loads((tmp_path / "logs/checks.json").read_text())["accepted"] is True
+        if startup == "bound-before-listen":
+            assert Path("connection-refused").exists(), "The test must exercise the bind-before-listen interval"
     finally:
-        process.terminate()
-        process.communicate(timeout=5)
+        stop_process(process)
 
 
 @pytest.mark.parametrize("control", ["reference", "split-alternative"])
 @pytest.mark.parametrize("schedule", ["late", "inflight", "committed"])
 def test_verifier_closes_ledger_before_scoring_and_repeats(tmp_path, monkeypatch, control, schedule):
-    import socket
-    import time
     from concurrent.futures import ThreadPoolExecutor
 
     monkeypatch.chdir(tmp_path)
@@ -191,7 +343,7 @@ server.main()
     pool = ThreadPoolExecutor(max_workers=1)
     pending = None
     try:
-        wait_for(endpoint, service)
+        wait_for_ledger(endpoint, service)
         controls = json.loads((EXAMPLES / "refund/controls.json").read_text())["cases"]
         candidate = next(row["candidate"] for row in controls if row["id"] == control)
         initial = record.read_bytes()
@@ -272,8 +424,7 @@ raise SystemExit(verify.main())
         if verifier is not None and verifier.poll() is None:
             verifier.kill()
             verifier.communicate(timeout=5)
-        service.terminate()
-        service.communicate(timeout=5)
+        stop_process(service)
         pool.shutdown(wait=True)
 
 
@@ -365,11 +516,36 @@ def test_record_state_disagreement_is_an_error(tmp_path):
     assert not (tmp_path / "logs/reward.txt").exists()
 
 
-def test_ledger_controls_run_actions_and_preserve_input_errors(tmp_path):
+@pytest.mark.parametrize("startup", ["normal", "before-bind", "before-listen"])
+def test_ledger_controls_run_actions_and_preserve_input_errors(tmp_path, monkeypatch, startup):
     module = fixture_module()
     module.materialize(tmp_path / "selected")
+    processes = delay_ledger_start(monkeypatch, startup) if startup != "normal" else []
+    if startup != "normal":
+        wait = module.wait_for_ledger
+
+        def unchanged_after_read(endpoint, process):
+            wait(endpoint, process)
+            folder = endpoint.parent
+            assert (folder / "record.json").read_bytes() == (folder / "initial-record.json").read_bytes()
+
+        monkeypatch.setattr(module, "wait_for_ledger", unchanged_after_read)
     assert hasattr(module, "run_ledger_controls"), "Run controls through the real action service"
     panel = module.run_ledger_controls(tmp_path / "selected", tmp_path / "actions")
+    assert all(process.poll() is not None for process in processes)
+    if startup != "normal":
+        assert len(processes) == len(panel["cases"])
+        controls = json.loads((EXAMPLES / "refund/controls.json").read_text())["cases"]
+        for name in panel["cases"]:
+            folder = tmp_path / "actions" / name
+            assert (folder / "connection-refused").exists()
+            candidate = next(row["candidate"] for row in controls if row["id"] == name)
+            requests = [json.loads(line) for line in (folder / "requests.jsonl").read_text().splitlines()]
+            assert requests == [
+                {"operation": "read"},
+                *({"operation": "act", "event": event} for event in candidate["events"]),
+                {"operation": "complete", "success": candidate["success"]},
+            ]
     assert panel["execution_kind"] == "local_ledger_service_not_native"
     expected = current_control_expectations()
     assert set(panel["cases"]) == set(expected)
@@ -389,6 +565,44 @@ def test_ledger_controls_run_actions_and_preserve_input_errors(tmp_path):
             assert row["result"] == expected[name]
     assert panel["cases"]["no-work"]["result"]["total_credit"] == 0
     assert panel["cases"]["permitted-zero-balance-inaction"]["result"]["accepted"] is True
+
+
+@pytest.mark.parametrize("startup", ["exited", "bound-without-listening", "listening-without-response"])
+def test_ledger_controls_start_failure_reaps_before_actions(tmp_path, monkeypatch, startup):
+    module = fixture_module()
+    module.materialize(tmp_path / "selected")
+    observe_ledger_probe(monkeypatch)
+    processes = []
+    popen = subprocess.Popen
+
+    def launch(args, **kwargs):
+        if any(str(arg).endswith("/server.py") for arg in args):
+            code = "import sys; print('startup_failed', file=sys.stderr); sys.exit(7)"
+            if startup != "exited":
+                code = "import signal,socket; s=socket.socket(socket.AF_UNIX); s.bind('ledger.sock'); "
+                if startup == "listening-without-response":
+                    code += "s.listen(); "
+                code += "signal.pause()"
+            process = popen([sys.executable, "-I", "-S", "-B", "-c", code], **kwargs)
+            processes.append(process)
+            return process
+        if args[-1].startswith("{"):
+            assert json.loads(args[-1])["operation"] == "read", "Action started before readiness"
+        return popen(args, **kwargs)
+
+    monkeypatch.setattr(subprocess, "Popen", launch)
+    started = time.monotonic()
+    with pytest.raises(ValueError, match="ledger_start_failed"):
+        module.run_ledger_controls(tmp_path / "selected", tmp_path / "failed")
+    assert time.monotonic() - started < 10
+    assert len(processes) == 1
+    assert processes[0].poll() is not None
+    assert_ledger_probe_observed(tmp_path / "failed/reference", startup)
+    assert not (tmp_path / "failed/ledger-results.json").exists()
+    assert not (tmp_path / "failed/reference/logs").exists()
+    if startup == "exited":
+        assert processes[0].returncode == 7
+        assert "startup_failed" in (tmp_path / "failed/reference/server.stderr").read_text()
 
 
 def test_ledger_cli_runs_without_model_or_docker(tmp_path):

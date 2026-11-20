@@ -54,16 +54,15 @@ execution boundary before accepting native results; an unverified teardown
 fails closed and requires destruction of the disposable shard VM. Case counts,
 metrics, attempts, concurrency, models, and strict completeness checks are unchanged.
 
-CI permits up to 300 million scalar comparisons per context check using the
-pinned evaluator's unchanged pairwise algorithm, with a five-minute timeout.
-The allowance is recorded as `full-pairwise-300m-v1` in report policy and applies
-only after verifying the installed evaluator commit. All content and pairs are
-retained; the 512-chunk limit, vector validation, and similarity thresholds are
-unchanged. Exceeding either work or time bounds remains incomplete.
-The allowance accommodates the maximum 512 chunks at 2048 embedding dimensions:
-`512 × 511 / 2 × 2048 = 267,911,168` scalar comparisons. Switching
-`SKILL_EVAL_EMBEDDING_MODEL` to a higher-dimensional model requires revisiting
-the allowance; the actual vector dimension in the original incident was not retained.
+CI permits up to 640 chunks and 450 million scalar comparisons per context check using the pinned evaluator's unchanged pairwise algorithm, with a five-minute timeout.
+The report records `full-pairwise-640chunks-450m-v1`, `context_chunk_limit`, and `context_scalar_limit` in its policy.
+The wrapper verifies the installed evaluator commit, both validator and clustering bindings for the upstream 512-chunk and 25-million-scalar limits, and the upstream SPDX recognizer binding before changing any of them.
+All content and pairs are retained. Vector validation, similarity thresholds, and timeouts are unchanged.
+Exceeding either work or time bounds remains incomplete. Chunk overflow stops before embedding provider construction. Scalar overflow stops after the first validated embedding batch establishes the dimension and before another batch is requested.
+At an assumed 2048 embedding dimensions, the maximum allowance requires `640 * 639 / 2 * 2048 = 418,775,040` scalar comparisons.
+The actual vector dimension has not been observed. The scalar guard uses the returned dimension, not this assumption, and rejects 640 chunks at 2201 dimensions.
+Review the allowance before switching `SKILL_EVAL_EMBEDDING_MODEL` to a higher-dimensional model. Without the CI wrapper, reports retain the upstream 512-chunk and 25-million-scalar policy.
+The credential-free `context-policy` CI job tests the pinned native evaluator on pull requests, including complete current-tree admission with synthetic embeddings. It checks policy mechanics, not semantic quality or live-provider acceptance.
 
 The workflow files and their checked-in phase runner are the source of truth for tool versions, limits, and
 artifact configuration:
