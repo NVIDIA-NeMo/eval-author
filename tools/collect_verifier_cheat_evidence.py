@@ -407,17 +407,10 @@ def run(output):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", type=Path, required=True, help="new directory for exact native evidence")
-    parser.add_argument("--panel", choices=("normalizer", "refund"), default="normalizer")
     args = parser.parse_args()
     summary_name = "verifier-cheat-summary.json"
     try:
-        if args.panel == "refund":
-            from scorer_native import run as run_refund
-
-            code = run_refund(args.output)
-            summary_name = "scorer-native-summary.json"
-        else:
-            code = run(args.output)
+        code = run(args.output)
     except FileExistsError:
         parser.error("output directory already exists; use a fresh path")
     print(json.dumps({"summary": str(args.output.resolve() / summary_name), "exit_code": code}))

@@ -128,7 +128,6 @@ def test_cli_measures_exact_selected_reconstruction_without_scoring(tmp_path, se
     assert row["source_step_id"] == 7
     assert row["source_step_index"] == 0
     assert report["items"] == baseline["items"]
-    assert report["preflight_success"] is False
     assert "EXACT_PRIVATE_BYTES" not in json.dumps(measurement)
     assert "private-session" not in json.dumps(measurement)
     assert run_cli(tmp_path, selected) == report

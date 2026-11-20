@@ -40,17 +40,6 @@ item in the other areas, are task criteria.
 AUDIT-04-B and CREATE-02 were split: their cross-task clauses (retained and new
 tasks, cross-family replay, new task families) moved to the `-SUITE` items.
 
-The [anti-cheat criteria](anti-cheat.md) AC-01 to AC-04 predate these IDs and
-remain the evidence-floor guidance for the scorer-control panel. Map them as
-follows and report the canonical ID:
-
-| Anti-cheat criterion | Canonical criteria |
-| --- | --- |
-| AC-01, protected information | AUDIT-05-B, CREATE-02, and AUDIT-03's forbidden-answer-access control |
-| AC-02, shortcuts | AUDIT-03 |
-| AC-03, current trusted results | AUDIT-03 |
-| AC-04, prior trials | ENV-03-S01 |
-
 ## Measurements
 
 Run these through `measure.py`; each is documented in
@@ -112,7 +101,7 @@ rather than copying controls or rewards.
 
 **Methods and evidence:** Select attack classes with the shared
 [simple-cheat screen](../../eval-author/references/task-validation.md#screen-simple-cheats)
-and the AC-02 and AC-03 guidance. For forbidden answer access, use `leakage`'s
+and the attack classes named in this criterion. For forbidden answer access, use `leakage`'s
 `hidden_cases` for each task and the hidden-case read with its paired read as the
 executed control.
 

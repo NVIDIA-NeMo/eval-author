@@ -180,7 +180,8 @@ class BoundaryVerifier(Verifier):
             "consumer": None,
             "error": None,
         }
-        output = self.trial_paths.verifier_dir / "boundary.json"
+        # The trial root is host-owned; the verifier directory may belong to the container user on Linux.
+        output = self.trial_paths.trial_dir / "boundary-observation.json"
         if case in ("forged-text", "forged-json", "wrong-task"):
             checks = control_specs()["reference"]["expected"]
             files = {"/logs/verifier/checks.json": json.dumps(checks)}

@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Native refund controls and exact AC-02 credit comparisons."""
+"""Native refund attack controls with exact expected-versus-actual credit."""
 
 from __future__ import annotations
 
@@ -96,7 +96,6 @@ def producer_identity() -> dict[str, Any]:
             SCRIPTS / "rubric_refund_agent.py",
             EXAMPLE / "controls.json",
             EXAMPLE / "expectations/controls.json",
-            SCRIPTS.parent / "references/anti-cheat.md",
         )
     ]
     return identity
@@ -472,12 +471,10 @@ def validate(
         for c in controls
     )
     complete = all(c["status"] == "passed" for c in controls)
-    score = 0 if excess else 2 if complete else 1
     return {
         "scope": SCHEMA,
-        "status": "passed" if complete else "partial",
+        "status": "excess_credit" if excess else "passed" if complete else "partial",
         "task_freshness": "current",
-        "ac02_score": score,
         "native_execution": True,
         "human_review": False,
         "independence": False,
@@ -502,50 +499,14 @@ def validate(
     }
 
 
-def apply(rows: dict[str, Any], panel: dict[str, Any]) -> None:
-    row = rows["AC-02"]
-    score = panel["ac02_score"]
-    if row["score"] == 0:
-        score = 0
-    ref = {"measurement": "example_assessment.native", "digest": panel["index_digest"]}
-    gap = "Independent held-out attacks and alternatives are absent. Current task-credit rules are preserved; unanswered owner intent remains unresolved."
-    if score == 1:
-        gap = "Applicable native controls remain incomplete or differ from declared credit. " + gap
-    row.update(
-        score=score,
-        status="ASSESSED",
-        assessment_state="ASSESSED",
-        execution_state="COMPLETE" if score == 2 else "PARTIAL",
-        evidence_strength="E2",
-    )
-    row["remaining_gaps"] = [gap]
-    row["limitations"].append(gap)
-    row["evidence_refs"].append(ref)
-    row["findings"].append(
-        {
-            "code": "native.ac02_panel",
-            "message": "Every declared applicable attack receives intended credit and required valid controls pass."
-            if score == 2
-            else "Native attacks remain incomplete or show a credit mismatch.",
-        }
-    )
-    for check in row["check_results"]:
-        check.update(
-            outcome="PASS" if score == 2 else "FAIL" if score == 0 else "PARTIAL",
-            remaining_gap=None if score == 2 else gap,
-            evidence_boundary="Current locally registered Harbor controls; no independent authorship claim.",
-        )
-        check["evidence_refs"].append(deepcopy(ref))
-
-
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--docker-cli-plugins", type=Path)
     args = parser.parse_args(argv)
     result = collect(args.output, args.docker_cli_plugins)
-    print(json.dumps({"counts": result["counts"], "AC-02": result["ac02_score"]}))
-    return 0 if result["ac02_score"] == 2 else 2
+    print(json.dumps({"counts": result["counts"], "status": result["status"]}))
+    return 0 if result["status"] == "passed" else 2
 
 
 if __name__ == "__main__":

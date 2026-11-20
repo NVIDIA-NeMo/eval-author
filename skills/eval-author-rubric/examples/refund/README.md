@@ -3,8 +3,9 @@
 
 # Refund example
 
-The base uses the refund contract and scorer from `evals/scorer-controls`.
-The scorer retains its original bytes. The public contract now states that new
+The refund task is the base task for the rubric base simulation
+(`tools/rubric_base_simulation/run.py` in the repository checkout), which scores it
+3 on all 23 rubric criteria. The public contract states that new
 refunds must be positive and ledger entries may precede or follow refunds.
 Required approval still precedes every refund. Refund defines amount,
 entity, destination, approval order, preservation, and ledger obligations.
@@ -19,9 +20,6 @@ The old event-file control panel remains available as a scorer regression.
 
 This is a financial simulation. It neither moves money nor authenticates managers.
 Business approval events are task data, not human rubric adjudication.
-The base is not qualified at every rubric criterion. The completion gate remains
-3 for every populated criterion. Local rewards do not establish canonical scores,
-native permissions, human decisions, or independent corroboration.
 
 ## Prepare a selected package
 
@@ -135,58 +133,3 @@ fresh files and retains the prior task digest. Verification reconstructs the
 expected bytes from bundled sources. Resealing a changed manifest cannot make
 altered task bytes current. The prompt is fixed across all task mutations.
 
-## Native AC-02 controls
-
-Run the credential-free panel on local Docker after approval. Use the repository
-`.venv/bin/python` for collection, selection, and replay. The exact interpreter
-path forms part of each native command receipt.
-
-```bash
-export PYTHONDONTWRITEBYTECODE=1
-export EVAL_AUTHOR_NATIVE_REGISTRY="$HOME/.local/state/eval-author/native"
-# Choose a new private directory outside the task.
-NATIVE="$HOME/refund-native-panel"
-.venv/bin/python skills/eval-author-rubric/scripts/rubric_refund_panel.py \
-  --output "$NATIVE" \
-  --docker-cli-plugins /Applications/Docker.app/Contents/Resources/cli-plugins
-```
-
-The plugin option is for Docker Desktop on macOS. Omit it when Docker already
-finds its Compose and Buildx plugins. The collector uses a private HOME and an
-allowlisted environment. It does not forward model credentials or enable network
-access. Keep selected sources unchanged until collection and replay finish.
-
-The panel runs reference, split-payment, permitted inaction, wrong-answer,
-no-work, all-failure, early-exit, inert-answer, forged/stale-output, and private
-tamper controls as UID 65534. A declared zero-balance companion supplies legitimate
-inaction. Other controls retain the base task bytes. Each control compares every
-check and total with the existing credit declaration. Optional completion retains
-its legitimate partial credit. Infrastructure errors remain unresolved controls.
-
-Use `rubric_example_native.py` to add the admitted bundle to a normal task
-selection. Pass a `--root` that contains both the task and bundle, then supply
-root-relative `--task` and `--bundle` paths. Run `rubric_table.py --selection` and
-its `--verify-existing` command with the same registry and interpreter. The registry
-is private local-host admission, not independent authentication.
-
-AC-02 can reach 2 only when every declared applicable attack and required valid
-control matches its exact credit. This panel does not establish independent
-held-out authorship, resolve unanswered business rules, or qualify other criteria.
-
-## Qualification gaps
-
-Harbor 0.24.0 parses the task and runs the AC-02 panel through Docker. Its Compose
-keepalive arguments are handled by the service entrypoint. The declared image uses
-a digest-pinned Python base and no-network agent/verifier phases. The panel verifies
-solver UID 65534 and denied writes to private service state. It does not establish
-complete image-layer confidentiality, predecessor isolation, or independent reset
-coverage. The current report keeps those criteria separate from AC-02.
-
-All-criterion 0/1/2 examples, human reviews, independent held-out controls,
-configuration/comparison companions, and native receipt consumers remain incomplete.
-This slice covers meaningful task, configuration, state, and evidence mutations.
-It does not claim all-area qualification or the live review benefit comparison.
-
-Authored prose received an STE80 review. The approved simulation-policy clarification
-changes public task bytes and requires fresh evidence. Copied scorer comments,
-commands, identifiers, and original control expectations retain their bytes.

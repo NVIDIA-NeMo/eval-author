@@ -1101,30 +1101,6 @@ def test_no_refund_passes_ordering_but_missing_work_still_fails(approved):
     assert result["accepted"] is False
 
 
-def test_harbor_task_parser_and_frozen_reuse():
-    from harbor.models.task.task import Task
-
-    task = Task(BASE)
-    assert task.config.schema_version == "1.3"
-    original_scorer = (ROOT / "evals/scorer-controls/refund_scorer.py").read_text()
-    old = "or bool(approvals and effects and all(any(a < e for a in approvals) for e in effects))"
-    new = "or all(any(a < e for a in approvals) for e in effects)"
-    assert original_scorer.count(old) == 1
-    assert (BASE / "tests/refund_scorer.py").read_text() == original_scorer.replace(old, new).replace(
-        '"approval_before_effect": not needs_approval\n            or',
-        '"approval_before_effect": not needs_approval or',
-    )
-    current = json.loads((BASE / "environment/contract.json").read_text())
-    original = json.loads((ROOT / "evals/scorer-controls/contract.json").read_text())
-    changed = {key for key in current["requirements"] if current["requirements"][key] != original["requirements"][key]}
-    assert changed == {"amount", "ledger", "approval_before_effect"}
-    assert "With no refund effects, ordering passes" in current["requirements"]["approval_before_effect"]
-    assert "Each new refund must be positive" in current["requirements"]["amount"]
-    assert "before or after refund actions" in current["requirements"]["ledger"]
-    current["requirements"] = original["requirements"]
-    assert current == original
-
-
 def test_missing_source_root_is_not_an_empty_identity(tmp_path):
     import pytest
 

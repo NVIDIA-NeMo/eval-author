@@ -105,7 +105,7 @@ instructions. The individual skill files document each workflow in detail.
 | [`eval-author-environment`](skills/eval-author-environment/SKILL.md) | Build and prove the environment a Harbor or NeMo Gym task runs in; reached from first-eval and task-create. |
 | [`eval-author-user-sim`](skills/eval-author-user-sim/SKILL.md) | Author and validate neutral scenarios for approved Harbor User-sim tasks; reached through the authoring flows. Execution integration is not yet supplied. |
 | [`eval-author-inspect-trace`](skills/eval-author-inspect-trace/SKILL.md) | Explain an Intake trace selected through the entry skill. |
-| [`eval-author-rubric`](skills/eval-author-rubric/SKILL.md) | **Experimental; explicit end-user opt-in only.** Assess validity, coverage, and diversity; populated validity areas are anti-cheat; artifact, configuration, and provenance; and task contract and scoring authority. |
+| [`eval-author-rubric`](skills/eval-author-rubric/SKILL.md) | **Experimental; explicit end-user opt-in only.** Score 23 criteria in one table: artifact, configuration and provenance; task contract and scoring authority; and data leakage and forged credit, with METHOD-J1 beside them. |
 | [`eval-author-trace-environment`](skills/eval-author-trace-environment/SKILL.md) | **Experimental.** Derive and validate a private Harbor or native NeMo Gym task from trace evidence. |
 
 ## Validation
@@ -267,6 +267,7 @@ CI retains separate aggregate artifacts:
 | ATIF trace (`gym-trace-ledger-controls-v1`) | `gym-trace-evidence` | 90 days |
 | [Scripted verifier-cheat panel](docs/determinism-checks.md#verifier-cheat-panel) | `verifier-cheat-evidence` | 30 days |
 | [Live anti-cheat experiment](docs/determinism-checks.md#live-anti-cheat-experiment) | `anti-cheat-live` | 90 days |
+| [Rubric base simulation](docs/determinism-checks.md#rubric-base-simulation) | `rubric-simulation` | 30 days |
 
 Each name ends with `-<run-id>-<attempt>`. JUnit, native rollouts, and detailed
 logs use the corresponding `*-native` prefix and are retained for 30 days only
