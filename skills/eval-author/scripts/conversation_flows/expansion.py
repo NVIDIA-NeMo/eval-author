@@ -46,7 +46,7 @@ def _audit_opening(state: dict, facts: dict) -> str:
 
 def _scope(state: dict, progress: dict) -> str:
     value = expansion_state.record(state)
-    if value is None or value["schema_version"] != 2:
+    if value is None or value["checkpoint"] != "scope":
         raise ValueError("Save the existing authoring workflow's planning checkpoint first")
     if not expansion_state.checkpoint_ready(state):
         raise ValueError("Continue the saved prerequisite or intent question through shared onboarding")

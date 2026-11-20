@@ -189,10 +189,8 @@ Neither establishes deterministic task generation or evaluation results.
 ## State authority
 
 Reuse the normal reconciled state from `journey_state.py show`, never
-`--state-only`. Entry requires complete shared prerequisites and Ethos. Scope
-review uses the selected authoring flow's requirements, including trace-source
-mode's existing scoped Ethos exception; resolve its applicable blockers first.
-The expansion checkpoint is saved
+`--state-only`. Shared prerequisites and Ethos must be complete and active
+blockers resolved before this checkpoint. The expansion checkpoint is saved
 under `scopes.expand.lifecycle`; existing audit handoff, legacy context, and
 other scope fields remain available alongside it. No additional state file is
 introduced.
