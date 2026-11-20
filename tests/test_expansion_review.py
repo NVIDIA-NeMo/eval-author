@@ -2,7 +2,9 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import copy
+import json
 import shutil
+import sys
 
 import pytest
 from journey_state_support import ethos_ready, expansion_payload, setup_ready
@@ -140,6 +142,8 @@ def test_review_and_distinct_run_decision_resume_deterministically(modules, tmp_
     assert not progress(modules, tmp_path, saved)["execution"]["authorized"]
     plan = render(modules, saved)
     assert plan.count(RUN_QUESTION) == 1
+    for task in value["plan"]["tasks"]:
+        assert task["scenario"] in plan and task["outcome"] in plan
     assert "Running your agent will test its performance" in plan
     assert plan.index("**Run limits:**") < plan.index("**Run configuration:**") < plan.index(RUN_QUESTION)
     target = value["execution"]["selection"] if decision == "authorize" else value["execution"]
@@ -199,7 +203,8 @@ def test_requested_draft_changes_revalidate_only_affected_task_and_require_revie
     assert not progress(modules, tmp_path, saved)["review"]["approved"]
     author(modules, tmp_path, value, 1)
     saved = save(modules, tmp_path, saved, value)
-    assert value["creation"]["tasks"][modules[1].task_key(value["plan"]["tasks"][0])] == unchanged
+    persisted = modules[1].record(modules[0].load_state(tmp_path))
+    assert persisted["creation"]["tasks"][modules[1].task_key(value["plan"]["tasks"][0])] == unchanged
     assert not progress(modules, tmp_path, saved)["review"]["ready"]
     value["review"]["artifacts"]["digest"] = bound(modules, tmp_path, saved, "review", "Refresh")["digest"]
     saved = save(modules, tmp_path, saved, value)
@@ -650,3 +655,74 @@ def test_ethos_reconfirmation_restores_review_question_with_run_only_blocker(mod
     assert resumed["pending_question"] == question
     output = render(modules, resumed)
     assert output.count(question) == 1 and ethos_question not in output
+
+
+@pytest.mark.parametrize("journey", ["audit", "create"])
+def test_show_with_retained_expansion_never_observes_its_artifacts(modules, tmp_path, monkeypatch, capsys, journey):
+    saved, _ = authorized(modules, tmp_path)
+    retained = copy.deepcopy(modules[1].record(saved))
+    modules[0].initialize(tmp_path, journey=journey, state_only=True)
+
+    def forbidden(*args, **kwargs):
+        pytest.fail("An inactive expansion must not observe authoring evidence")
+
+    monkeypatch.setattr(modules[1], "observe", forbidden)
+    monkeypatch.setattr(modules[0], "observe_artifacts", forbidden)
+    monkeypatch.setattr(sys, "argv", ["journey_state.py", "--repo", str(tmp_path), "show"])
+    before = modules[0].state_path(tmp_path).read_bytes()
+    assert modules[0].main() == 0
+    shown = json.loads(capsys.readouterr().out)
+    assert shown["expansion_observations"] is shown["expansion"] is None
+    assert modules[1].record(shown["state"]) == retained
+    assert modules[0].state_path(tmp_path).read_bytes() == before
+
+
+def test_harbor_execution_survives_gym_scope_recovery_without_invented_fields(modules, tmp_path):
+    saved, value = ready(modules, tmp_path, setup="harbor")
+    saved = approve(modules, tmp_path, present_review(modules, tmp_path, saved, value), value)
+    saved = execution(modules, tmp_path, saved, value, present=False)
+    value["execution"]["selection"].pop("inputs")
+    for case in value["execution"]["selection"]["cases"]:
+        case.pop("rows")
+    saved = save(modules, tmp_path, saved, value)
+    value["execution"]["execution_settings_presented"] = bound(modules, tmp_path, saved, "execution", "Harbor plan")
+    saved = save(modules, tmp_path, saved, value)
+    value["execution"]["selection"]["authorization"] = bound(
+        modules, tmp_path, saved, "execution", "User approves Harbor run"
+    )
+    value["execution"]["pending"] = None
+    saved = save(modules, tmp_path, saved, value)
+    original = copy.deepcopy(value["execution"])
+    modules[0].initialize(tmp_path, setup="gym")
+    saved = setup_ready(modules[0], tmp_path, journey="expand", setup="gym")
+    value = modules[1].new_scope(
+        saved,
+        path=value["path"],
+        plan=value["plan"],
+        question="Use Gym for these tasks?",
+        source="User changes runtime",
+    )
+    saved = save(modules, tmp_path, saved, value)
+    assert modules[1].record(saved)["execution"] == {**original, "provider": "harbor"}
+    assert not progress(modules, tmp_path, saved)["execution"]["authorized"]
+    value.update(decision={"kind": "approved", "source": "User agrees to Gym scope"}, pending=None)
+    saved = save(modules, tmp_path, saved, value)
+    value["review"]["artifacts"]["digest"] = bound(modules, tmp_path, saved, "review", "Gym review")["digest"]
+    saved = save(modules, tmp_path, saved, value)
+    saved = approve(modules, tmp_path, present_review(modules, tmp_path, saved, value), value)
+    assert not progress(modules, tmp_path, saved)["execution"]["selection_current"]
+    assert "update the selected cases" in render(modules, saved)
+    assert modules[1].record(modules[0].initialize(tmp_path, journey="expand"))["execution"] == {
+        **original,
+        "provider": "harbor",
+    }
+    saved = modules[0].load_state(tmp_path)
+    saved = execution(modules, tmp_path, saved, value)
+    assert progress(modules, tmp_path, saved)["execution"]["selection_current"]
+    assert not progress(modules, tmp_path, saved)["execution"]["authorized"]
+    value["execution"]["selection"]["authorization"] = bound(
+        modules, tmp_path, saved, "execution", "User approves Gym run"
+    )
+    value["execution"]["pending"] = None
+    saved = save(modules, tmp_path, saved, value)
+    assert progress(modules, tmp_path, saved)["execution"]["authorized"]

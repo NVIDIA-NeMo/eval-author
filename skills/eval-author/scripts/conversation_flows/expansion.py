@@ -176,7 +176,7 @@ def _execution(state: dict, value: expansion_state.ScopeRecord, progress: dict, 
     if saved is None or execution is None or not progress["review"]["approved"]:
         raise ValueError("Approve the reviewed task set before presenting execution settings")
     settings = saved["execution_settings"]
-    selection = saved["selection"]
+    selection = saved["selection"] if saved.get("provider", value["setup"]) == value["setup"] else None
     parts = [copy.EXECUTION_HEADING, copy.REVIEW_APPROVED, copy.EXECUTION_PURPOSE]
     config_link = None
     if selection:
@@ -206,7 +206,10 @@ def _execution(state: dict, value: expansion_state.ScopeRecord, progress: dict, 
                 else copy.EXECUTION_NO_ROWS
             )
             rows.append(
-                f"| {literal(planned['task'], 'selected task', table=True)} | {examples} | {attempts} | {dataset_rows} |"
+                f"| {literal(planned['task'], 'selected task', table=True)} "
+                f"| {literal(planned['scenario'], 'selected scenario', table=True)} "
+                f"| {literal(planned['outcome'], 'expected result', table=True)} "
+                f"| {examples} | {attempts} | {dataset_rows} |"
             )
         parts.append("\n".join(rows))
     else:

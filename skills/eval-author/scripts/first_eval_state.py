@@ -12,12 +12,55 @@ import re
 from collections import Counter
 from itertools import chain
 from pathlib import PurePosixPath
+from typing import NotRequired, TypedDict, cast
 
 BUILD_STEPS = ("environment", "environment_check", "grading", "artifacts")
 REMAINING_STEPS = ("tasks", "environment_check", "validation", "artifacts")
 ARTIFACT_EVIDENCE = {".eval-author/report.html", ".eval-author/report_markdown/tasks.md"}
 # Receipts saved before the task table moved out of the suite README; still valid, never current.
 LEGACY_ARTIFACT_EVIDENCE = {".eval-author/report.html", ".eval-author/README.md"}
+
+
+class EvidenceReference(TypedDict):
+    path: str
+    digest: str
+
+
+class BoundSource(TypedDict):
+    digest: str
+    source: str
+
+
+class ExecutionSettings(TypedDict):
+    agent_model: str
+    attempts: str
+    validation: str
+    limits: str
+    open_questions: list[str]
+
+
+class SelectedCase(TypedDict):
+    task_id: str
+    example_ids: list[str]
+    attempts: int
+    rows: NotRequired[list[int]]
+
+
+class SelectionBridge(TypedDict):
+    source: str
+    evidence: list[EvidenceReference]
+
+
+class ExecutionSelection(TypedDict):
+    agent: str
+    model: str
+    source: str
+    config: EvidenceReference
+    cases: list[SelectedCase]
+    inputs: NotRequired[list[EvidenceReference]]
+    authorization: NotRequired[BoundSource | None]
+    settings_digest: NotRequired[str]
+    bridge: NotRequired[SelectionBridge | None]
 
 
 def fingerprint(value: object) -> str:
@@ -86,7 +129,8 @@ def validate_execution_settings(settings: object) -> None:
         raise ValueError("Malformed structured creation record") from exc
 
 
-def validate_selection(provider: str, selection: dict | None) -> None:
+def validate_selection(provider: str, selection: object) -> None:
+    selection = cast(dict | None, selection)
     try:
         if selection is not None:
             _evidence([selection["config"], *selection.get("inputs", [])])

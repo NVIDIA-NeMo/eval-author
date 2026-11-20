@@ -112,7 +112,9 @@ EXECUTION_PURPOSE = (
 EXECUTION_IDENTITY = "Agent to test: **{agent}**, using **{model}**."
 EXECUTION_CONFIG = "**Run configuration:** {config}"
 EXECUTION_UNSELECTED = "Not selected"
-EXECUTION_TABLE = "| Task | Examples | Attempts per {unit} | Dataset rows |\n|---|---|---|---|"
+EXECUTION_TABLE = (
+    "| Task | Scenario | Expected result | Examples | Attempts per {unit} | Dataset rows |\n|---|---|---|---|---|---|"
+)
 EXECUTION_ATTEMPT_UNIT = {"gym": "example", "harbor": "task"}
 EXECUTION_SETTINGS = "**Checks:** {validation}\n\n**Run limits:** {limits}"
 EXECUTION_QUESTIONS = "**Open questions:** {questions}"

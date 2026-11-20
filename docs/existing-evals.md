@@ -320,8 +320,9 @@ Once all agreed tasks have current passing checks, the authored tasks are ready
 for review. Review the task inputs, expected behavior, and grading in the existing
 reports and task READMEs, then approve the complete agreed set or request draft
 changes. Eval Author presents execution settings after task approval; running
-the agent requires separate permission. Returning preserves applicable answers;
-task or validation changes reopen affected review, while changed execution
+the agent requires separate permission. The run plan includes each task’s scenario
+and expected result alongside its selected examples and attempts. Returning
+preserves applicable answers; task or validation changes reopen affected review, while changed execution
 settings reopen run permission without repeating unchanged validation.
 
 ### What Eval Author can create or improve

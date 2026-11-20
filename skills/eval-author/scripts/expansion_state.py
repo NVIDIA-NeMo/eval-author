@@ -11,7 +11,15 @@ import re
 from pathlib import Path
 from typing import Literal, NotRequired, TypedDict, cast
 
-from first_eval_state import fingerprint, validate_execution_settings, validate_selection
+from first_eval_state import (
+    BoundSource,
+    EvidenceReference,
+    ExecutionSelection,
+    ExecutionSettings,
+    fingerprint,
+    validate_execution_settings,
+    validate_selection,
+)
 
 
 class EntryChoice(TypedDict):
@@ -65,11 +73,6 @@ class ScopeDecision(TypedDict):
     source: str
 
 
-class EvidenceReference(TypedDict):
-    path: str
-    digest: str
-
-
 class ValidationResult(TypedDict):
     sha256: str
     status: Literal["passed", "failed", "blocked"]
@@ -95,11 +98,6 @@ class CreationRecord(TypedDict):
     pending: PendingDecision | None
 
 
-class BoundSource(TypedDict):
-    digest: str
-    source: str
-
-
 class ReviewArtifacts(BoundSource):
     evidence: list[EvidenceReference]
 
@@ -116,8 +114,9 @@ class ReviewRecord(TypedDict):
 
 
 class ExecutionRecord(TypedDict):
-    execution_settings: dict
-    selection: dict | None
+    execution_settings: ExecutionSettings
+    selection: ExecutionSelection | None
+    provider: NotRequired[Literal["gym", "harbor"]]
     execution_settings_presented: BoundSource | None
     declined: BoundSource | None
     pending: PendingDecision | None
@@ -247,7 +246,8 @@ def _validate_review(value: dict) -> None:
             if key not in value:
                 continue
             checkpoint = value[key]
-            if "creation" not in value or not isinstance(checkpoint, dict) or set(checkpoint) != fields:
+            allowed = fields | ({"provider"} if key == "execution" else set())
+            if "creation" not in value or not isinstance(checkpoint, dict) or not fields <= set(checkpoint) <= allowed:
                 raise ValueError("Review and execution checkpoints extend saved creation progress")
             question = checkpoint["pending"]
             if question is not None and (
@@ -278,7 +278,10 @@ def _validate_review(value: dict) -> None:
             if not review:
                 raise ValueError("Retain task review before execution settings")
             validate_execution_settings(execution["execution_settings"])
-            validate_selection(value["setup"], execution["selection"])
+            provider = execution.get("provider", value["setup"])
+            if provider not in {"gym", "harbor"}:
+                raise ValueError("Retain the execution selection's original provider")
+            validate_selection(provider, execution["selection"])
             for key in ("execution_settings_presented", "declined"):
                 _bound(execution[key])
     except (KeyError, TypeError, AttributeError) as exc:
@@ -286,7 +289,7 @@ def _validate_review(value: dict) -> None:
 
 
 def _validate_creation(value: dict) -> None:
-    from journey_state import MAX_TASK_EVIDENCE, _relative_task_path
+    from journey_state import _relative_task_path
 
     creation = value["creation"]
     if not isinstance(creation, dict) or set(creation) != {"tasks", "active", "pending"}:
@@ -308,16 +311,10 @@ def _validate_creation(value: dict) -> None:
                 or set(check) != {"sha256", "status", "source", "evidence"}
                 or check["status"] not in ("passed", "failed", "blocked")
                 or not _text(check["source"])
-                or not isinstance(check["evidence"], list)
-                or not 0 < len(check["evidence"]) <= MAX_TASK_EVIDENCE
             ):
                 raise ValueError("Record the owning workflow's validation result and retained evidence")
             digests.append(check["sha256"])
-            for ref in check["evidence"]:
-                if not isinstance(ref, dict) or set(ref) != {"path", "digest"}:
-                    raise ValueError("Validation evidence requires a path and digest")
-                _relative_task_path(ref["path"])
-                digests.append(ref["digest"])
+            _evidence(check["evidence"])
         if any(not isinstance(item, str) or not re.fullmatch(r"[a-f0-9]{64}", item) for item in digests):
             raise ValueError("Bind draft and evidence revisions using SHA-256 digests")
     planned = {task_key(task) for task in value["plan"]["tasks"]}
@@ -415,6 +412,8 @@ def new_scope(state: dict, *, path: str, plan: dict, question: str | None, sourc
             if key in previous:
                 value[key] = copy.deepcopy(previous.get(key))
                 value[key]["pending"] = None
+                if key == "execution" and previous["setup"] != value["setup"]:
+                    value[key].setdefault("provider", previous["setup"])
     validate(value)
     return cast(ScopeRecord, value)
 
@@ -433,7 +432,7 @@ def _sources(value: EntryRecord | ScopeRecord) -> tuple[dict[str, str], set[str]
     return {key: task["path"] for key, task in tasks.items()}, files
 
 
-def _selection_evidence(selection: dict) -> list[dict]:
+def _selection_evidence(selection: ExecutionSelection) -> list[EvidenceReference]:
     return [selection["config"], *selection.get("inputs", []), *(selection.get("bridge") or {}).get("evidence", [])]
 
 
@@ -562,6 +561,7 @@ def _execution(state: dict, value: ScopeRecord, observed: dict, review: dict) ->
     selected = {case["task_id"] for case in selection["cases"]} if selection else set()
     current = bool(
         review["approved"]
+        and saved.get("provider", value["setup"]) == value["setup"]
         and selection
         and not settings["open_questions"]
         and selected == {task_key(task) for task in value["plan"]["tasks"]}
@@ -569,6 +569,7 @@ def _execution(state: dict, value: ScopeRecord, observed: dict, review: dict) ->
     )
     presented = bool(
         review["approved"]
+        and saved.get("provider", value["setup"]) == value["setup"]
         and saved["execution_settings_presented"]
         and saved["execution_settings_presented"]["digest"] == digest
     )
@@ -714,7 +715,7 @@ def presentation_state(state: dict, progress: dict | None, *, answered_ethos_rev
 
 
 def reconcile_question(repo, state: dict, *, answered_ethos_review: bool = False) -> None:
-    if record(state) is None:
+    if state["journey"] != "expand" or record(state) is None:
         return
     state["pending_question"] = presentation_state(
         state, derive(state, observe(repo, state)), answered_ethos_review=answered_ethos_review
@@ -725,6 +726,13 @@ def _review_transition(previous: dict, updated: dict, old: dict | None, now: dic
     before = dict(record(previous) or {})
     after = record(updated)
     assert after is not None
+    prior_execution = before.get("execution")
+    if (
+        prior_execution
+        and "provider" not in prior_execution
+        and (after.get("execution") or {}).get("provider") == before.get("setup")
+    ):
+        before["execution"] = {**prior_execution, "provider": before["setup"]}
     for key in ("review", "execution"):
         if key in before and key not in after:
             raise ValueError("Retain saved task review and execution decisions when revising scope")

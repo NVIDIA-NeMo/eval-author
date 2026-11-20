@@ -210,7 +210,11 @@ settings and obtain separate bounded permission. Save optional `execution` with
 [selection contract](first-eval.md#saving-the-agreed-design-and-evidence) and
 [execution settings fields](first-eval.md#stages-and-review-boundaries).
 Set each selected case's `task_id` to `expansion_state.task_key(agreed_row)`,
-including every agreed task.
+including every agreed task. A retained execution record may include `provider`
+(`harbor` or `gym`); when absent it uses the scope's `setup`. Scope recovery
+preserves the original provider on historical execution records. After changing
+providers, retain that history and save a fresh selection for the current provider
+only after renewing task review; previous run permission does not transfer.
 Use the saved task scenarios and expected results to explain what the agent will
 do and what counts as success. Write `execution_settings.validation` in plain
 language, distinguishing completed task/verifier checks from remaining checks
