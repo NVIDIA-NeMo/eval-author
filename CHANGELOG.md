@@ -10,6 +10,13 @@ preview: workflows, skills, and saved artifacts may change between releases.
 
 ### Added
 
+- First-eval proposals and expansion task plans explain how Eval Author will
+  connect your agent before you agree to them. Simple single-turn and
+  conversational runners are built in the same chat; broader integration work
+  goes to a separate engineering chat. Every runner saves your agent's
+  trajectory to `agent/trajectory.json` for the Harbor viewer, including in
+  User Simulation trials, where a structured customer runner chooses each user
+  message. See [first evals](docs/first-evals.md).
 - The experimental rubric scores 23 criteria in one table through one scorer,
   with METHOD-J1 (corroboration method qualification) beside them. Recorded and
   simulated criterion evidence use the same predicates. The

@@ -76,7 +76,10 @@ as `scopes.expand.lifecycle` through the latest revision-checked update. Use
 `starter_suite`, `audit_tool_gap`, or `recorded_interaction` for `path`. The plan
 contains `summary`, `tasks` (`task`, `scenario`, `outcome`, `verification`),
 `breadth`, `limits`, and `deferred`; the [validator](../../scripts/expansion_state.py)
-owns its shape. Retain corpus/example selection and counts in `breadth` as saved
+owns its shape. Give each added task row an `interaction_type`. When the plan
+adds or changes agent execution, save the
+[runner assessment](../runner-creation.md#assess-during-planning) as
+`plan.runner`; User-sim rows require it. Retain corpus/example selection and counts in `breadth` as saved
 planning context. Present material counts and source/scenario choices in
 `summary` or the task rows, and exclusions, attempt settings, and cost constraints
 in `limits`; do not add a separate breadth section. Preserve unaffected scope fields.

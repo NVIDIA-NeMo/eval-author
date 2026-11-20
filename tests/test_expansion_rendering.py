@@ -102,6 +102,44 @@ def test_supplied_plan_prose_stays_inside_its_paragraph_or_table_cell(modules, t
     assert "\\[click\\](https://example.com) &lt;tag&gt;" in text
 
 
+CONVERSATION_RUNNER = {
+    "target_action": "create",
+    "transport": "cli",
+    "capability": "conversation",
+    "reason": "`ura chat send` keeps history per project.",
+    "source": "src/cli.py:88",
+}
+
+
+@pytest.mark.parametrize(
+    ("runner", "error"),
+    [
+        (None, "Assess the conversational target runner"),
+        ({**CONVERSATION_RUNNER, "capability": "single_turn"}, "requires a conversational target runner"),
+        (CONVERSATION_RUNNER, None),
+    ],
+)
+def test_user_sim_scope_explains_the_runner_plan_before_agreement(modules, tmp_path, runner, error):
+    _, expansion, renderer = modules
+    saved = start(modules, tmp_path)
+    value = copy.deepcopy(expansion.record(saved))
+    value["plan"]["tasks"][0]["interaction_type"] = "user_sim"
+    if runner is not None:
+        value["plan"]["runner"] = runner
+    if error:
+        before = modules[0].state_path(tmp_path).read_bytes()
+        with pytest.raises(ValueError, match=error):
+            save_scope(modules, tmp_path, saved, value)
+        assert modules[0].state_path(tmp_path).read_bytes() == before
+        return
+    text = renderer.render(payload(modules, save_scope(modules, tmp_path, saved, value)))
+    assert "| **User Simulation:** Partial refund |" in text
+    assert "I’ll build a small conversational runner here. It saves your agent’s trajectory for review. " in text
+    assert "\\`ura chat send\\` keeps history per project." in text
+    assert "**User simulation:** I’ll add a customer runner alongside your agent’s runner." in text
+    assert text.index("**User simulation:**") < text.index("**Limits:**")
+
+
 @pytest.mark.parametrize(("count", "all_unsupported"), [(1, True), (2, False), (2, True), (3, False)])
 def test_audit_selection_opening_precedes_planning_without_changing_saved_decisions(
     modules, tmp_path, count, all_unsupported

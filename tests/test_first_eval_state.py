@@ -47,6 +47,15 @@ def assert_current_record_only(repo, value):
     assert not (repo / ".eval-author/.working/archives").exists()
 
 
+CONVERSATION_RUNNER = {
+    "target_action": "create",
+    "transport": "python",
+    "capability": "conversation",
+    "reason": "agent.chat(session_id, message) keeps history and returns tool events.",
+    "source": "src/agent/app.py",
+}
+
+
 def start(modules, repo, provider="harbor", examples=None):
     state, _ = modules
     state.initialize(repo, agent="support", journey="create", setup=provider)
@@ -74,6 +83,8 @@ def start(modules, repo, provider="harbor", examples=None):
         "run_review": None,
         "audit_invitation": None,
     }
+    if any(task.get("interaction_type") == "user_sim" for task in value["plan"]["tasks"]):
+        value["plan"]["runner"] = CONVERSATION_RUNNER.copy()
     save(modules, repo, value)
     return value
 
@@ -117,6 +128,43 @@ def test_retargeting_same_content_ethos_does_not_reuse_creation_approval(modules
     assert confirmed["scopes"]["create"]["needs_review"]
 
 
+USER_SIM_TASK = {
+    "id": "refund",
+    "example_ids": ["refund-1"],
+    "interaction_type": "user_sim",
+    "state_requirements": "Keep the same session.",
+    "conversation_scenario": "Choose an offered option and confirm it.",
+}
+
+
+@pytest.mark.parametrize(
+    ("runner", "message"),
+    [
+        (None, "Assess the conversational target runner"),
+        ({"capability": "single_turn"}, "requires a conversational target runner"),
+        ({"target_action": "delegate"}, "Unknown runner target_action"),
+        ({"source": " "}, "finding and inspected source"),
+        ({"unmet": ["Isolation"]}, "requires target_action"),
+    ],
+)
+def test_user_sim_design_requires_a_conversational_runner_assessment(modules, tmp_path, runner, message):
+    value = start(modules, tmp_path, examples=[USER_SIM_TASK])
+    if runner is None:
+        value["plan"].pop("runner")
+    else:
+        value["plan"]["runner"].update(runner)
+    with pytest.raises(ValueError, match=message):
+        save(modules, tmp_path, value)
+
+
+def test_runner_assessment_is_optional_for_single_turn_designs_and_binds_approval(modules, tmp_path):
+    value = start(modules, tmp_path)
+    approve(modules, tmp_path, value)
+    value["plan"]["runner"] = {**CONVERSATION_RUNNER, "capability": "single_turn"}
+    save(modules, tmp_path, value)
+    assert not facts(modules, tmp_path)["scope_approved"]
+
+
 def test_interaction_change_invalidates_design_approval(modules, tmp_path):
     value = start(modules, tmp_path)
     value["plan"]["tasks"][0].update(interaction_type="single_turn")
@@ -128,6 +176,7 @@ def test_interaction_change_invalidates_design_approval(modules, tmp_path):
         state_requirements="Preserve the same session and cart.",
         conversation_scenario="Choose a returned option and confirm it when asked.",
     )
+    value["plan"]["runner"] = CONVERSATION_RUNNER.copy()
     saved = save(modules, tmp_path, value)
     assert saved["scopes"]["create"]["first_eval"]["plan"]["tasks"][0]["interaction_type"] == "user_sim"
     assert not facts(modules, tmp_path)["scope_approved"]

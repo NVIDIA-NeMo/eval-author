@@ -84,8 +84,11 @@ Translation rejects tasks with `trajectory.json` and target
 their behavior with user simulation.
 
 An interactive runner and checked information boundaries are still required
-before execution. The generated prompt requests the exact opening message, but
-the conversation evidence must confirm that the simulator sent it. Valid files
+before execution. You can select `harbor_structured_user:StructuredACPUser` as
+the customer runner to avoid model-written terminal commands. It sends the exact
+opening and retains customer inference, ACP events, and timing under `user-agent/`.
+The target adapter must export its own audit trajectory at `agent/trajectory.json`.
+The conversation evidence must confirm message delivery. Valid files
 and passing synthetic controls do not establish an actual-agent run or measured
 coverage. Native NeMo Gym User-sim authoring is not supported yet.
 

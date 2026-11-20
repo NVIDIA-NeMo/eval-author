@@ -14,6 +14,7 @@ import first_eval_state
 import journey_state
 from conversation_formatting import checklist, json_context, link, literal, mapping, text
 from interaction_types import USER_SIM_SCENARIO_FILENAME
+from runner_plan import needs_conversation, runner_plan
 
 from . import first_eval_templates as copy
 
@@ -136,6 +137,11 @@ def adapter_task(record: dict, task: dict) -> dict:
     return context
 
 
+def external_handoff(record: dict | None) -> bool:
+    assessment = runner_plan(record["plan"]) if record else None
+    return assessment is not None and assessment["target_action"] == "handoff"
+
+
 def adapter_handoff(state: dict, reason: str) -> str:
     record = first_eval_state.record(state)
     provider = state["setup"]
@@ -164,7 +170,8 @@ def adapter_handoff(state: dict, reason: str) -> str:
                 "config": selection["config"],
                 "inputs": selection.get("inputs", []),
             }
-    return copy.ADAPTER_HANDOFF.format(context=json_context(context))
+    template = copy.ADAPTER_HANDOFF if external_handoff(record) else copy.RUNNER_SETUP
+    return template.format(context=json_context(context))
 
 
 def blocker_section(state: dict, facts: dict, stage: str) -> str | None:
@@ -186,7 +193,11 @@ def blocker_section(state: dict, facts: dict, stage: str) -> str | None:
         explained[copy.ADAPTER_BLOCKER_ID] = {
             "step": copy.ADAPTER_BLOCKER_STEP,
             "reason": text(entry.get("reason") or adapter["message"], "missing agent integration"),
-            "needed": copy.ADAPTER_BLOCKER_NEEDED,
+            "needed": (
+                copy.ADAPTER_BLOCKER_NEEDED
+                if external_handoff(first_eval_state.record(state))
+                else copy.RUNNER_SETUP_NEEDED
+            ),
         }
     if full_blockers and set(explained) != set(saved):
         raise ValueError("Saved blockers must be explained with a specific needed action")
@@ -216,6 +227,22 @@ def source_prompt(state: dict) -> str:
     if not first_eval_state.trace_choice(state):
         result += "\n\n" + copy.TRACE_QUESTION + "\n\n" + "\n".join(f"- {label}" for label in copy.TRACE_CHOICES)
     return result
+
+
+def runner_connection(plan: dict) -> list[str]:
+    """Explain the saved runner assessment for a task plan before the user agrees to it."""
+    lines = []
+    assessment = runner_plan(plan)
+    if assessment:
+        lines.append(
+            copy.RUNNER_PLAN[assessment["target_action"]].format(
+                capability=copy.RUNNER_CAPABILITIES[assessment["capability"]],
+                reason=literal(assessment["reason"], "runner reason"),
+            )
+        )
+    if needs_conversation(plan["tasks"]):
+        lines.append(copy.CUSTOMER_RUNNER)
+    return lines
 
 
 def task_table(tasks: list[dict]) -> str:
@@ -334,6 +361,7 @@ def proposal(record: dict) -> str:
             copy.PROPOSAL_INTRO,
             task_table(rows),
             *interactions,
+            *runner_connection(plan),
             literal(presentation.get("coverage_note"), "coverage_note"),
             copy.FIRST_CHOICE.format(task_id=literal(record["first_task"], "first task ID")),
             copy.PROPOSAL_PROCESS.format(tasks=len(tasks), examples=examples),

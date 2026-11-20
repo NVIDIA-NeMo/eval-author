@@ -104,7 +104,18 @@ A passing result still reports `runtime_verified: false` until an actual session
 has been checked. Keep its concrete failures in the existing integration handoff.
 
 The target must declare ACP support and implement Harbor's `ACPAgentMixin`.
-The simulator must support the shell interaction used by `acpx`. Verify both
+[Runner creation](runner-creation.md#build-after-approval) covers building one.
+For a structured customer, select `harbor_structured_user:StructuredACPUser`
+and put the bundled `eval-author/scripts` directory on the host's `PYTHONPATH`.
+Translation binds its `kwargs.config` to the generated private scenario. It sends
+the exact opening itself, then uses the selected model to choose a customer
+message or a stop action. Code delivers JSON content blocks through ACPX and
+waits for each turn. No model generates shell commands or polling requests.
+Its options are `api_base`, `api_key_env` (default `OPENAI_API_KEY`),
+`max_messages` (default 30), `turn_timeout_sec` (300), and
+`model_timeout_sec` (120). The selected model must support JSON schema responses
+through Harbor's installed LiteLLM dependency. Existing terminal simulators remain
+available when explicitly selected. Verify both
 roles' model access and the actual target's policy, tools, and state continuity.
 Use one single-step Harbor task containing the adaptive conversation. Harbor
 rejects user-agent bridges on tasks with `[[steps]]` and rejects a target
@@ -114,8 +125,8 @@ and target prompt templates, which ACP does not apply. Do not remove required
 prior context or target policy just to make translation pass.
 
 Harbor's stock ACP bridge asks the simulator to send the first message. The
-generated prompt instructs it to send the exact `start_prompt`, but translation
-doesn't enforce delivery. Require trusted conversation evidence to check the
+generated prompt instructs terminal simulators to send the exact `start_prompt`,
+but translation doesn't enforce their delivery. Require trusted conversation evidence to check the
 opening, later messages, and their order. Use the selected target's effective
 agent timeout to bound the whole conversation. A simulator-only timeout field
 doesn't set that limit in Harbor 0.24.0. Stopping rules in prose are not a
@@ -127,9 +138,19 @@ instructions through files, logs, environment variables, or mounted directories,
 and that the simulator can't inspect hidden grading data or bypass the target's
 tools. Keep unmet visibility requirements as integration blockers.
 
-Retain `agent/bridge-trajectory.json`, simulator logs under `user-agent/`, native
+Retain the target's ATIF at `agent/trajectory.json`, which Harbor 0.24 through 0.26 doesn't
+write in user-sim trials, so the [target runner records it](runner-creation.md#target-atif-is-required).
+Also retain `agent/bridge-trajectory.json`, simulator logs under `user-agent/`, native
 target tool/action evidence, verifier results, and native `config.json`,
 `lock.json`, and `result.json`. Bridge export failures can appear as warnings
 even when the native run finishes. Missing conversation evidence stays missing.
 Simulator activity and simulator token usage aren't target-agent activity or
 cost. Audit trace normalization remains a separate step.
+
+The structured customer saves `conversation.jsonl`, raw model responses, ACP turn
+events, and `simulation.json` under `user-agent/`. Its context tokens describe
+only customer inference. Timings separate customer inference from combined
+delivery and target execution. Target inference and tool timing need the target's
+own instrumentation. Timeouts, invalid responses, and exhausted message limits
+fail the run and retain partial evidence. Delivery isn't retried because the
+target may already have acted.

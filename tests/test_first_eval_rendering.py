@@ -122,6 +122,35 @@ def observations(record):
     }
 
 
+@pytest.mark.parametrize("action", ["reuse", "create", "extend", "handoff"])
+@pytest.mark.parametrize("interaction_type", ["single_turn", "user_sim"])
+def test_proposal_explains_the_runner_plan_before_design_approval(creation, action, interaction_type):
+    state, record, _, renderer, copy = creation
+    state["scopes"]["create"]["user_simulation"] = {"enabled": True, "source": "enable user simulation"}
+    record["plan"]["tasks"][0].update(
+        interaction_type=interaction_type,
+        state_requirements="Keep the same customer session.",
+        conversation_scenario="Ask for a return, then confirm.",
+    )
+    if interaction_type == "single_turn":
+        for key in ("state_requirements", "conversation_scenario"):
+            record["plan"]["tasks"][0].pop(key)
+    runner(record, action)
+    record["plan"]["runner"]["reason"] = "agent.chat(<session>, message) keeps history."
+    output = renderer.render(payload(creation, "proposal"))
+    connection = copy.RUNNER_PLAN[action].format(
+        capability="conversational", reason="agent.chat(&lt;session&gt;, message) keeps history."
+    )
+    assert connection in output
+    assert output.index(connection) < output.index(record["plan"]["presentation"]["coverage_note"].split(".")[0])
+    assert (copy.CUSTOMER_RUNNER in output) is (interaction_type == "user_sim")
+
+
+def test_proposal_without_a_runner_assessment_omits_connection_copy(creation):
+    _, _, _, renderer, _ = creation
+    assert "**Agent connection:**" not in renderer.render(payload(creation, "proposal"))
+
+
 def test_proposal_displays_selected_interaction_without_inferring_legacy_type(creation):
     state, record, _, renderer, _ = creation
     state["scopes"]["create"]["user_simulation"] = {"enabled": True, "source": "enable user simulation"}
@@ -130,6 +159,7 @@ def test_proposal_displays_selected_interaction_without_inferring_legacy_type(cr
         state_requirements="Keep the same customer session.",
         conversation_scenario="Ask for a return | then answer <confirm>.",
     )
+    runner(record)
     output = renderer.render(payload(creation, "proposal"))
     assert "| **User Simulation:** **refund** - Respect policy |" in output
     assert "**State carried between requests:** Keep the same customer session." in output
@@ -1897,6 +1927,12 @@ def test_blockers_are_saved_and_only_interrupt_dependent_steps(creation):
     assert "### Blockers" in output and "**Needed:** Configure the selected credential." in output
 
 
+def runner(record, action="create"):
+    from test_first_eval_state import CONVERSATION_RUNNER
+
+    record["plan"]["runner"] = {**CONVERSATION_RUNNER, "target_action": action}
+
+
 def adapter_context(output):
     decoder = json.JSONDecoder()
     for start, char in enumerate(output):
@@ -1911,9 +1947,12 @@ def adapter_context(output):
     pytest.fail("Adapter handoff must include its saved context as parseable JSON")
 
 
+@pytest.mark.parametrize("action", [None, "create", "handoff"])
 @pytest.mark.parametrize("stage", ["blockers", "execution_settings", "ready_to_run", "run_progress", "results"])
-def test_missing_agent_integration_always_offers_the_coding_harness_handoff(creation, stage, monkeypatch):
-    state, _, _, renderer, copy = creation
+def test_missing_agent_integration_follows_the_saved_runner_assessment(creation, stage, action, monkeypatch):
+    state, record, _, renderer, copy = creation
+    if action:
+        runner(record, action)
     facts = {}
     if stage == "results":
         finished(creation)
@@ -1939,8 +1978,15 @@ def test_missing_agent_integration_always_offers_the_coding_harness_handoff(crea
     assert request == before
     assert "### Blockers" in output
     assert f"- **{copy.ADAPTER_BLOCKER_STEP}:**" in output
-    assert f"**Needed:** {copy.ADAPTER_BLOCKER_NEEDED}" in output
-    assert copy.ADAPTER_HANDOFF.split("{context}", 1)[0] in output
+    external = action == "handoff"
+    needed, notice = (
+        (copy.ADAPTER_BLOCKER_NEEDED, copy.ADAPTER_HANDOFF)
+        if external
+        else (copy.RUNNER_SETUP_NEEDED, copy.RUNNER_SETUP)
+    )
+    assert f"**Needed:** {needed}" in output
+    assert notice.split("{context}", 1)[0] in output
+    assert ("separate chat with your coding harness" in output) is external
     assert adapter_context(output)["missing_connection"] == "No existing agent connection"
     assert copy.RUN_PROGRESS not in output and copy.AUDIT_QUESTION not in output
 
@@ -1982,6 +2028,7 @@ def test_adapter_handoff_carries_approved_interaction_requirements(creation, int
         task["state_requirements"] = "Keep the same cart and conversation. Reset between attempts."
     if interaction_type == "scripted_multi_step":
         task["prerequisite_checks"] = ["Confirm the cart contains one item before removal."]
+    runner(record, "handoff")
     if interaction_type == "user_sim":
         task["conversation_scenario"] = "Select an option actually offered, then confirm it."
         record["execution_settings"]["user_sim"] = {
@@ -2004,6 +2051,7 @@ def test_adapter_handoff_carries_approved_interaction_requirements(creation, int
         assert context["simulator_settings"] == record["execution_settings"]["user_sim"]
     assert "one continuing session" in output
     assert "Simulator messages are not target actions" in output
+    assert "<trial>/agent/trajectory.json" in output
 
 
 @pytest.mark.parametrize("current", [True, False])
@@ -2015,6 +2063,7 @@ def test_adapter_handoff_includes_only_inputs_for_current_settings(creation, cur
         state_requirements="Keep session",
         conversation_scenario="Confirm the actual offer",
     )
+    runner(record)
     record["execution_settings"]["user_sim"] = {
         "agent_model": "neutral-simulator / chosen-model",
         "conversation_limits": "120 seconds",
@@ -2039,6 +2088,7 @@ def test_adapter_handoff_does_not_leak_unapproved_scenario_requirements(creation
         state_requirements="Keep session",
         conversation_scenario="UNAPPROVED_SCENARIO",
     )
+    runner(record)
     state["blockers"] = [{"id": "agent-integration", "phase": "create", "message": "Needs a connection"}]
     output = renderer.render(payload(creation, "blockers"))
     assert adapter_context(output)["tasks"] == []
@@ -2066,11 +2116,11 @@ def test_adapter_handoff_replaces_scope_override_questions_without_changing_othe
     state["blockers"] = [{"id": "agent-integration", "phase": "create", "message": "Missing connection"}]
     override = "May I build the adapter for you?"
     output = renderer.render(payload(creation, "ready_to_run", missing_execution_question=override))
-    assert override not in output and copy.ADAPTER_BLOCKER_NEEDED in output
+    assert override not in output and copy.RUNNER_SETUP_NEEDED in output
     state["blockers"] = []
     ordinary_question = "Which existing model credential should this run use?"
     output = renderer.render(payload(creation, "ready_to_run", missing_execution_question=ordinary_question))
-    assert ordinary_question in output and copy.ADAPTER_BLOCKER_NEEDED not in output
+    assert ordinary_question in output and copy.RUNNER_SETUP_NEEDED not in output
 
 
 def test_adapter_handoff_exists_before_a_task_design_is_saved(creation):
@@ -2129,7 +2179,7 @@ def test_adapter_handoff_cannot_be_replaced_with_in_workflow_authorization(creat
         )
     )
     assert "CUSTOM_STEP" not in output and "AUTHORIZE_ME_TO_BUILD_THE_ADAPTER" not in output
-    assert copy.ADAPTER_BLOCKER_NEEDED in output
+    assert copy.RUNNER_SETUP_NEEDED in output
     assert adapter_context(output)["missing_connection"] == "Inspected compatible registry; no adapter found"
 
 
@@ -2139,10 +2189,10 @@ def test_adapter_run_dependency_does_not_interrupt_independent_authoring(creatio
     if stage != "proposal":
         build_started(creation)
     state["blockers"] = [{"id": "agent-integration", "phase": "create", "message": "Missing connection"}]
-    assert copy.ADAPTER_BLOCKER_NEEDED not in renderer.render(payload(creation, stage))
+    assert copy.RUNNER_SETUP_NEEDED not in renderer.render(payload(creation, stage))
     if stage != "proposal":
         explicit = [{"id": "agent-integration", "step": "Run tasks", "reason": "Missing connection", "needed": "X"}]
-        assert copy.ADAPTER_BLOCKER_NEEDED in renderer.render(payload(creation, stage, blockers=explicit))
+        assert copy.RUNNER_SETUP_NEEDED in renderer.render(payload(creation, stage, blockers=explicit))
 
 
 @pytest.mark.parametrize("blocker_id", ["judge", "credentials"])
@@ -2151,7 +2201,7 @@ def test_judge_or_credential_blockers_do_not_offer_an_agent_adapter(creation, bl
     state["blockers"] = [{"id": blocker_id, "phase": "create", "message": "Configuration missing"}]
     entries = [{"id": blocker_id, "step": "Run checks", "reason": "Configuration missing", "needed": "Configure it"}]
     output = renderer.render(payload(creation, "blockers", blockers=entries))
-    assert "**Needed:** Configure it" in output and copy.ADAPTER_BLOCKER_NEEDED not in output
+    assert "**Needed:** Configure it" in output and copy.RUNNER_SETUP_NEEDED not in output
     assert '"missing_connection"' not in output
 
 
@@ -2165,7 +2215,7 @@ def test_automatic_adapter_handoff_does_not_hide_other_saved_blockers(creation):
         renderer.render(payload(creation, "blockers"))
     entries = [{"id": "credentials", "step": "Run tasks", "reason": "Missing credential", "needed": "Configure it"}]
     output = renderer.render(payload(creation, "blockers", blockers=entries))
-    assert copy.ADAPTER_BLOCKER_NEEDED in output and "**Needed:** Configure it" in output
+    assert copy.RUNNER_SETUP_NEEDED in output and "**Needed:** Configure it" in output
 
 
 def test_adapter_handoff_requires_a_current_creation_blocker_and_disappears_when_cleared(creation):
@@ -2173,14 +2223,14 @@ def test_adapter_handoff_requires_a_current_creation_blocker_and_disappears_when
     built(creation, all_tasks=True, reviewed=True)
     suite_approved(creation)
     state["blockers"] = [{"id": "agent-integration", "phase": "create", "message": "Missing connection"}]
-    assert copy.ADAPTER_BLOCKER_NEEDED in renderer.render(payload(creation, "execution_settings"))
+    assert copy.RUNNER_SETUP_NEEDED in renderer.render(payload(creation, "execution_settings"))
     state["blockers"] = []
-    assert copy.ADAPTER_BLOCKER_NEEDED not in renderer.render(payload(creation, "execution_settings"))
+    assert copy.RUNNER_SETUP_NEEDED not in renderer.render(payload(creation, "execution_settings"))
     stale = [{"id": "agent-integration", "step": "Run tasks", "reason": "Missing connection", "needed": "X"}]
     with pytest.raises(ValueError, match="unique saved blocker"):
         renderer.render(payload(creation, "blockers", blockers=stale))
     state["blockers"] = [{"id": "agent-integration", "phase": "audit", "message": "Other flow's missing connection"}]
-    assert copy.ADAPTER_BLOCKER_NEEDED not in renderer.render(payload(creation, "execution_settings"))
+    assert copy.RUNNER_SETUP_NEEDED not in renderer.render(payload(creation, "execution_settings"))
 
 
 def test_adapter_handoff_safely_quotes_untrusted_context_inside_its_copyable_prompt(creation):

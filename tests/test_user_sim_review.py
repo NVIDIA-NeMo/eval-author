@@ -326,6 +326,7 @@ def test_settings_and_results_show_simulator_identity_without_adding_example_cou
     record["plan"]["tasks"][0].update(
         {key: value for key, value in design()[0].items() if key not in {"id", "example_ids"}}
     )
+    record["plan"]["runner"] = creation.CONVERSATION_RUNNER.copy()
     build = conversations.built
     monkeypatch.setattr(
         conversations, "built", lambda fixture, **kwargs: build(fixture, **{**kwargs, "all_tasks": False})
@@ -432,6 +433,7 @@ def test_legacy_simulation_suite_is_readable_but_off_without_explicit_choice(mod
 def test_disabled_simulation_resume_explains_enable_trigger_without_authoring(rendering):
     state, record, _, renderer, _ = rendering
     record["plan"]["tasks"] = design()
+    record["plan"]["runner"] = creation.CONVERSATION_RUNNER.copy()
     before = copy.deepcopy(state)
     output = renderer.render(conversations.payload(rendering, "simulation_disabled"))
     assert "User simulation is disabled" in output

@@ -110,6 +110,22 @@ def test_native_translation_preserves_selection_and_scenario(inputs: tuple) -> N
         assert output.stat().st_mode & 0o777 == 0o700
 
 
+def test_structured_customer_binds_generated_scenario(inputs: tuple) -> None:
+    scenario, config, output, data = inputs
+    data["user_agent"] = {
+        "import_path": "harbor_structured_user:StructuredACPUser",
+        "model_name": "selected-customer",
+        "kwargs": {"max_messages": 12},
+    }
+    config.write_text(yaml.safe_dump(data))
+    result = translate(scenario, config, output)
+    native = JobConfig.model_validate(yaml.safe_load(result.run_config_path.read_text()))
+    assert native.user_agent is not None
+    assert native.user_agent.kwargs == {"config": str(output / "persona.txt"), "max_messages": 12}
+    assert str(output / "persona.txt") in result.input_digests
+    assert "acpx prompt" not in (output / "bridge-prompt.md").read_text()
+
+
 @pytest.mark.parametrize(
     "change",
     [

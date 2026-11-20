@@ -15,6 +15,7 @@ from pathlib import Path, PurePosixPath
 from typing import TYPE_CHECKING, Literal, TypedDict
 
 from interaction_types import USER_SIM_SCENARIO_FILENAME, user_simulation_enabled, validate_interaction_plan
+from runner_plan import runner_plan
 
 if TYPE_CHECKING:
     from journey_state import ArtifactObservations
@@ -213,6 +214,7 @@ def validate(value: dict) -> None:
         if not isinstance(planned, list) or not isinstance(value["tasks"], dict) or not isinstance(value["runs"], list):
             raise ValueError("Creation tasks, task observations, and native runs require explicit collections")
         _strings([task["id"] for task in planned])
+        runner_plan(value["plan"])
         for task in planned:
             _strings(task["example_ids"])
             validate_interaction_plan(task)

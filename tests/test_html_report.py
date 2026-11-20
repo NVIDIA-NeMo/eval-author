@@ -796,7 +796,7 @@ def test_browser_task_titles_graders_and_gym_actions(tmp_path, grading_kind, wit
     if with_proposals:
         import first_eval_state
         import journey_state
-        from test_first_eval_state import save, start
+        from test_first_eval_state import CONVERSATION_RUNNER, save, start
 
         record = start((journey_state, first_eval_state), tmp_path)
         record["plan"]["tasks"][0]["interaction_type"] = "single_turn"
@@ -805,6 +805,7 @@ def test_browser_task_titles_graders_and_gym_actions(tmp_path, grading_kind, wit
             state_requirements="Keep the same session.",
             conversation_scenario="Choose an offered option and confirm it.",
         )
+        record["plan"]["runner"] = CONVERSATION_RUNNER.copy()
         save((journey_state, first_eval_state), tmp_path, record)
     data = report.refresh(
         tmp_path,
@@ -1176,6 +1177,7 @@ def test_copied_script_and_template_installation(tmp_path):
         "journey_state.py",
         "first_eval_state.py",
         "interaction_types.py",
+        "runner_plan.py",
         "expansion_state.py",
         "audit_state.py",
         "conversation_templates.py",

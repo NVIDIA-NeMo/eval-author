@@ -3,13 +3,18 @@
 
 """Render the existing expansion entry and task-planning checkpoints."""
 
+from typing import cast
+
 import conversation_templates as shared
 import expansion_state
 import journey_state
 from conversation_formatting import literal, mapping
+from interaction_types import interaction_type_label
 
 from . import expansion_templates as copy
 from . import onboarding
+from .first_eval import runner_connection
+from .first_eval_templates import INTERACTION_TYPE
 
 JOURNEYS = ("expand",)
 STAGES = {"expansion_audit_opening", "expansion_continue", "expansion_scope", "expansion_progress"}
@@ -68,11 +73,14 @@ def _scope(state: dict, progress: expansion_state.ExpansionProgress) -> str:
     parts.append(copy.SCOPE_FIELDS["summary"].format(value=literal(plan["summary"], "scope summary")))
     rows = [copy.SCOPE_TABLE]
     for task in plan["tasks"]:
-        cells = (
+        cells = [
             literal(task[key], f"scope {key}", table=True) for key in ("task", "scenario", "outcome", "verification")
-        )
+        ]
+        if "interaction_type" in task:
+            cells[0] = INTERACTION_TYPE.format(label=interaction_type_label(task["interaction_type"])) + cells[0]
         rows.append("| " + " | ".join(cells) + " |")
     parts.append("\n".join(rows) if plan["tasks"] else copy.SCOPE_EMPTY)
+    parts.extend(runner_connection(cast(dict, plan)))
     parts.append(copy.SCOPE_FIELDS["limits"].format(value=literal(plan["limits"], "scope limits")))
     if plan["deferred"]:
         parts.append(

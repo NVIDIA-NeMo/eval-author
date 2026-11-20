@@ -32,6 +32,26 @@ SAVED_DESIGN_CHOICES = (
 )
 SAVED_DESIGN_QUESTION = "Would you like to continue this saved design, revise it, or start a new proposal?"
 PROPOSAL_INTRO = "Here are the proposed evaluation tasks."
+RUNNER_CAPABILITIES = {"single_turn": "single-turn", "conversation": "conversational"}
+RUNNER_PLAN = {
+    "reuse": "**Agent connection:** I’ll reuse your existing {capability} runner. {reason}",
+    "create": (
+        "**Agent connection:** After you approve these tasks, I’ll build a small {capability} runner here. "
+        "It saves your agent’s trajectory for review. {reason}"
+    ),
+    "extend": (
+        "**Agent connection:** After you approve these tasks, I’ll add {capability} support to your existing runner "
+        "and save your agent’s trajectory for review. {reason}"
+    ),
+    "handoff": (
+        "**Agent connection:** A {capability} runner needs broader engineering work, so I’ll prepare a prompt "
+        "for a separate chat before running your agent. {reason}"
+    ),
+}
+CUSTOMER_RUNNER = (
+    "**User simulation:** I’ll add a customer runner alongside your agent’s runner. "
+    "It chooses each user message; its evidence stays separate from your agent’s trajectory."
+)
 TASK_TABLE = "| Task | Expected outcome | Verifier |\n|---|---|---|"
 PROPOSAL_TABLE = TASK_TABLE
 INTERACTION_TYPE = "**{label}:** "
@@ -248,6 +268,15 @@ AUDIT_QUESTION = (
 BLOCKER = "- **{step}:** {reason} **Needed:** {needed}"
 ADAPTER_BLOCKER_ID = "agent-integration"
 ADAPTER_BLOCKER_STEP = "Connect your agent"
+RUNNER_SETUP_NEEDED = "I’ll build the runner in this chat, then recheck the connection."
+RUNNER_SETUP = """I’ll connect your agent here with a small evaluation runner for the agreed tasks.
+It will invoke your actual agent and save its trajectory for review. If inspection shows the connection needs broader application work, I’ll explain the gap and give you a prompt for a separate engineering chat instead.
+
+Saved connection context:
+
+```json
+{context}
+```"""
 ADAPTER_BLOCKER_NEEDED = (
     "Use the prompt below in a separate chat with your coding harness, "
     "then return with the adapter and configuration paths and verification results."
@@ -291,7 +320,10 @@ context and tools. Harbor's stock ACP roles share a filesystem, so prompt text
 alone cannot enforce this separation. Retain raw bridge conversation, separate
 simulator and target logs, target tool observations, independent state checks,
 native grading, and errors. Verify export files exist even when the native job
-succeeds. Simulator messages are not target actions. Report unsupported
+succeeds. Simulator messages are not target actions. Write the target's ATIF
+trajectory to <trial>/agent/trajectory.json in every mode, using Eval Author's
+harbor_target_trajectory.py recorder, and keep simulator evidence under
+user-agent/. Report unsupported
 capabilities without changing the chosen type or substituting another agent.
 
 Keep this as repository engineering work outside Eval Author. Do not modify its

@@ -60,6 +60,10 @@ Do not inspect files, call the target's tools, edit the workspace, or perform th
 requested task yourself. Use only supplied user facts and the public conversation.
 When the scenario ends, stop sending messages and finish your session.
 """
+STRUCTURED_USER = "harbor_structured_user:StructuredACPUser"
+STRUCTURED_BRIDGE_PROMPT = """The host delivers each customer message through ACP and waits for the target turn.
+Choose only customer messages or a stop action. Follow the private scenario's stopping conditions.
+"""
 
 
 class HarborTranslationError(ValueError):
@@ -148,6 +152,11 @@ def _configure_user(data: dict[str, Any], output_dir: Path) -> None:
     user["user_persona_path"] = str(output_dir / PERSONA_FILENAME)
     user["user_prompt_template_path"] = str(output_dir / USER_PROMPT_FILENAME)
     bridge["prompt_path"] = str(output_dir / BRIDGE_PROMPT_FILENAME)
+    if user.get("import_path") == STRUCTURED_USER:
+        options = user.setdefault("kwargs", {})
+        if "config" in options:
+            raise HarborTranslationError("Structured customer config is bound by translation to the selected scenario")
+        options["config"] = str(output_dir / PERSONA_FILENAME)
 
 
 def _input_path_without_alias(path: Path) -> Path:
@@ -183,7 +192,8 @@ def _external_inputs(native: JobConfig) -> tuple[Path, ...]:
             )
         config = role.kwargs.get("config")
         if isinstance(config, (str, Path)):
-            paths.append(Path(config))
+            if not (role is native.user_agent and role.import_path == STRUCTURED_USER):
+                paths.append(Path(config))
     target_prompt = native.agents[0].kwargs.get("prompt_template_path")
     if target_prompt is not None:
         # Harbor 0.24.0 applies target templates in run(), which ACP bypasses.
@@ -258,6 +268,7 @@ def translate(scenario_path: Path, config_path: Path, output_dir: Path) -> Trans
     data = _selected_job(config_path)
     _configure_user(data, output_dir)
     native = JobConfig.model_validate(data)
+    assert native.user_agent is not None
     # JobConfig does not check the trial's user-agent/load-trajectory exclusion.
     TrialConfig.model_validate({"task": native.tasks[0], "agent": native.agents[0], "user_agent": native.user_agent})
     external_inputs = _external_inputs(native)
@@ -270,7 +281,9 @@ def translate(scenario_path: Path, config_path: Path, output_dir: Path) -> Trans
     files = {
         PERSONA_FILENAME: json.dumps(scenario.to_dict(), indent=2, ensure_ascii=False, allow_nan=False) + "\n",
         USER_PROMPT_FILENAME: template,
-        BRIDGE_PROMPT_FILENAME: BRIDGE_PROMPT,
+        BRIDGE_PROMPT_FILENAME: (
+            STRUCTURED_BRIDGE_PROMPT if native.user_agent.import_path == STRUCTURED_USER else BRIDGE_PROMPT
+        ),
         RUN_CONFIG_FILENAME: yaml.safe_dump(data, sort_keys=False, allow_unicode=True),
     }
     output_dir.mkdir(mode=0o700, parents=True, exist_ok=False)

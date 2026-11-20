@@ -138,7 +138,9 @@ before saving the proposal.
 
 Reuse prerequisite findings and the selected source to make the proposal.
 Read only the additional agent interface or selected evidence needed to describe
-its input, observable result, and verifier. Defer adapter investigation, hook
+its input, observable result, and verifier, plus the read-only
+[runner assessment](../eval-author/references/runner-creation.md#assess-during-planning)
+saved as `plan.runner`. Defer runner building, hook
 design, environment preparation, and runtime implementation until design approval;
 unresolved execution details do not prevent this design review. Consult
 [execution dependencies](../eval-author/references/execution-dependencies.md) and
@@ -296,8 +298,9 @@ never selects tasks. Native Gym retains native composition, complete selected
 dataset rows, and repeats. A Gym–Harbor run must use its configured bridge.
 Never substitute another agent or direct Harbor execution for that requirement.
 When the supported connection is missing, follow the
-[external integration handoff](../eval-author/references/conversations/first-eval.md#missing-actual-agent-integration-handoff)
-instead of requesting permission to implement it inside Eval Author.
+[missing-integration procedure](../eval-author/references/conversations/first-eval.md#missing-actual-agent-integration-handoff):
+build the runner here when the saved runner assessment allows it, or use the
+external handoff when it doesn't.
 
 After successful checks, render `first_eval_ready_to_run`. Announce execution only
 when current authorization, selected configuration, and actual access are ready;

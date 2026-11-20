@@ -11,6 +11,9 @@ import re
 from pathlib import Path
 from typing import TYPE_CHECKING, Literal, NotRequired, TypedDict, cast
 
+from interaction_types import INTERACTION_TYPE_LABELS, SINGLE_TURN, InteractionType
+from runner_plan import RunnerPlan, runner_plan
+
 if TYPE_CHECKING:
     from journey_state import ArtifactObservations
 
@@ -51,6 +54,7 @@ class ScopeTask(TypedDict):
     scenario: str
     outcome: str
     verification: str
+    interaction_type: NotRequired[InteractionType]
 
 
 class ScopePlan(TypedDict):
@@ -59,6 +63,11 @@ class ScopePlan(TypedDict):
     breadth: str
     limits: str
     deferred: list[str]
+    runner: NotRequired[RunnerPlan]
+
+
+SCOPE_TASK_FIELDS = {"task", "scenario", "outcome", "verification"}
+SCOPE_PLAN_FIELDS = {"summary", "tasks", "breadth", "limits", "deferred"}
 
 
 class ScopeDecision(TypedDict):
@@ -269,7 +278,7 @@ def _validate_plan(value: dict) -> None:
     if value["path"] not in ("starter_suite", "audit_tool_gap", "recorded_interaction"):
         raise ValueError("Use the existing supported authoring workflow")
     plan = value["plan"]
-    if not isinstance(plan, dict) or set(plan) != {"summary", "tasks", "breadth", "limits", "deferred"}:
+    if not isinstance(plan, dict) or set(plan) - {"runner"} != SCOPE_PLAN_FIELDS:
         raise ValueError("Save the existing coverage-planning checkpoint's presentation fields")
     if not all(_text(plan[key]) for key in ("summary", "breadth", "limits")):
         raise ValueError("Scope summary, breadth and limits require bounded nonempty text")
@@ -279,10 +288,13 @@ def _validate_plan(value: dict) -> None:
     if not all(_text(item) for item in plan["deferred"]):
         raise ValueError("Retain deferred work as bounded nonempty text")
     for task in plan["tasks"]:
-        if not isinstance(task, dict) or set(task) != {"task", "scenario", "outcome", "verification"}:
+        if not isinstance(task, dict) or set(task) - {"interaction_type"} != SCOPE_TASK_FIELDS:
             raise ValueError("Scope task rows require the task, scenario, outcome and verification")
-        if not all(_text(item) for item in task.values()):
+        if not all(_text(task[key]) for key in SCOPE_TASK_FIELDS):
             raise ValueError("Scope task cells require bounded nonempty text")
+        if task.get("interaction_type", SINGLE_TURN) not in INTERACTION_TYPE_LABELS:
+            raise ValueError("Unknown task interaction_type")
+    runner_plan(plan)
     if "creation" in value and len({task_key(task) for task in plan["tasks"]}) != len(plan["tasks"]):
         raise ValueError("Distinguish agreed task scenarios before recording creation progress")
     decision = value["decision"]

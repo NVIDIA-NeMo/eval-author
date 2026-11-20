@@ -102,8 +102,13 @@ field binds the proposal to that request. It does not grant approval or executio
 authorization. Existing records remain readable and previously approved scope
 is retained.
 
-The proposal states the counts, shows the task table and coverage limitations,
-names the first task, and explains the one-task build/review pause before the
+Before rendering the proposal, [assess the agent runner](../runner-creation.md#assess-during-planning)
+that the whole task set needs and save it as `plan.runner`. A plan with a User-sim
+task requires a conversational assessment. Keep this to read-only inspection; build
+nothing before design approval.
+
+The proposal states the counts, shows the task table, the runner plan, and coverage
+limitations, names the first task, and explains the one-task build/review pause before the
 remainder. Its fixed feedback question is the final content. End the turn and
 wait for actual design approval before implementation or further integration
 work. Source selection and readiness to continue do not approve the design.
@@ -739,11 +744,14 @@ without duplicating the report or README links.
 
 When actual-agent execution is being prepared and inspection establishes that
 its supported adapter, entry point, or configured Gym–Harbor bridge is missing,
-use the renderer's external engineering handoff. Do not ask for an Eval Author
-scope override to implement the production integration or offer to build it in
-this workflow. Preserve independent task authoring, grader validation, and review;
-a target-agent connection is not a judge dependency, and a working judge does
-not prove the target-agent connection.
+follow the saved `plan.runner`. For `create` or `extend`, build and prove the
+runner in this chat using [runner creation](../runner-creation.md#build-after-approval).
+For `handoff`, use the renderer's external engineering handoff and don't build
+the integration here. Inspection during building that fails an eligibility check
+changes the saved assessment to `handoff` through a revision-checked update that
+names the unmet check. Preserve independent task authoring, grader validation, and
+review; a target-agent connection is not a judge dependency, and a working judge
+does not prove the target-agent connection.
 
 Save the missing integration through the existing state helper as a blocker
 with `id: "agent-integration"`, `phase: "create"`, and a concrete `message`
@@ -753,38 +761,40 @@ to this ID and phase through a revision-checked update, retaining its findings
 and unrelated blockers rather than duplicating it. Execution, results, and the
 dedicated blocker stage include this saved blocker automatically; an optional
 matching `facts.blockers` entry can supply the observed reason. The renderer
-owns its step label and needed action regardless of caller wording, and adds a
-copyable coding-agent prompt after **Blockers**; fixed handoff copy lives only in
+owns its step label and needed action regardless of caller wording, and adds the
+in-chat runner notice or the copyable coding-agent prompt after **Blockers**;
+fixed copy lives only in
 [first_eval_templates.py](../../scripts/conversation_flows/first_eval_templates.py).
 Do not replace that output with a permission question. Defer this run-only
 blocker during independent proposals, task preparation, validation, and authored
-task review rather than appending the handoff to those checkpoints.
+task review rather than appending it to those checkpoints.
 
-The prompt takes its context from the saved repository, actual agent, confirmed
+The saved context comes from the repository, actual agent, confirmed
 `ETHOS.md` path, selected provider or configured Gym–Harbor path, and agreed task
 and example IDs, plus each agreed interaction type, state requirements,
 prerequisite checks, and conversation scenario. Expected scenario paths are
 locations to verify, not proof that files exist. For user-sim, carry the saved
 simulator settings and the execution input bindings when they belong to the
-current plan. The handoff retains the requirements for opening-message fidelity,
-continuing sessions, information visibility, termination, reset, and separate
-target/simulator evidence. Include the actual retained paths for already created selected
+current plan. Either path retains the requirements for opening-message fidelity,
+continuing sessions, information visibility, termination, reset, target ATIF
+export, and separate target/simulator evidence. Include the actual retained paths for already created selected
 tasks; planned tasks have no invented paths. Unrelated task directories are not
 selected by membership. Keep existing tasks, graders, source selections,
-construction declarations, and evidence intact. The user can copy the prompt
-into a separate chat in their chosen coding harness; displaying it does not
-authorize dispatching that chat, changing the agent, or starting a model run.
+construction declarations, and evidence intact. For a handoff, the user can copy
+the prompt into a separate chat in their chosen coding harness; displaying it does
+not authorize dispatching that chat, changing the agent, or starting a model run.
 
-On return, inspect the changed integration and its reported checks. Recheck the
-installed adapter or entry point, native configuration, selected task/row and
-example mapping, reset behavior, and output collection against the actual agent.
+After building here or on return from a handoff, inspect the integration and its
+reported checks. Recheck the installed runner or entry point, native
+configuration, selected task/row and example mapping, reset behavior, target ATIF
+export, and output collection against the actual agent.
 A configured Gym–Harbor path must use that bridge; direct Harbor execution of
 converted tasks does not satisfy it. Do not substitute controls, a fixture/demo
 target, or another agent for the user's agent. Preserve limitations and failed
 checks, and clear the saved blocker only when the missing supported connection
-is established. Engineering completion alone is not native execution evidence
-or run authorization: reuse applicable authorization and resolve missing run
-settings through their existing checkpoint before any target-agent attempt.
+is established. A created runner or completed engineering work alone is not native
+execution evidence or run authorization: reuse applicable authorization and resolve
+missing run settings through their existing checkpoint before any target-agent attempt.
 
 ## Blockers and the audit invitation
 
