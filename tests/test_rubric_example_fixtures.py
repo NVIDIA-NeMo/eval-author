@@ -67,13 +67,64 @@ def wait_for_ledger(endpoint: Path, process: subprocess.Popen, *, timeout: float
     fixture_module().wait_for_ledger(endpoint, process, timeout=timeout)
 
 
+def observe_ledger_probe(monkeypatch) -> None:
+    popen = subprocess.Popen
+    hook = """
+import pathlib, socket
+connect = socket.socket.connect
+sendall = socket.socket.sendall
+recv = socket.socket.recv
+def observed_connect(client, address):
+    try:
+        result = connect(client, address)
+    except ConnectionRefusedError:
+        pathlib.Path("probe-refused").touch()
+        raise
+    pathlib.Path("probe-connected").touch()
+    return result
+def observed_sendall(client, data, *args):
+    result = sendall(client, data, *args)
+    with pathlib.Path("probe-requests.jsonl").open("ab") as stream:
+        stream.write(data)
+    return result
+def observed_recv(client, *args):
+    pathlib.Path("probe-reading").touch()
+    return recv(client, *args)
+socket.socket.connect = observed_connect
+socket.socket.sendall = observed_sendall
+socket.socket.recv = observed_recv
+"""
+
+    def launch(args, **kwargs):
+        args = list(args)
+        if "-c" in args:
+            index = args.index("-c") + 1
+            if "_probe_ledger" in args[index]:
+                args[index] = hook + "\n" + args[index]
+        return popen(args, **kwargs)
+
+    monkeypatch.setattr(subprocess, "Popen", launch)
+
+
+def assert_ledger_probe_observed(folder: Path, startup: str) -> None:
+    if startup == "bound-without-listening":
+        assert (folder / "probe-refused").exists(), "Probe must observe connection refusal"
+        assert not (folder / "probe-connected").exists()
+    elif startup == "listening-without-response":
+        assert (folder / "probe-connected").exists(), "Probe must complete the socket handshake"
+        requests = [json.loads(line) for line in (folder / "probe-requests.jsonl").read_text().splitlines()]
+        assert requests == [{"operation": "read"}]
+        assert (folder / "probe-reading").exists(), "Probe must wait for the missing response"
+
+
 @pytest.mark.parametrize("startup", ["exited", "bound-without-listening", "listening-without-response"])
 def test_ledger_readiness_failure_reports_child_and_reaps(tmp_path, monkeypatch, startup):
     monkeypatch.chdir(tmp_path)
+    observe_ledger_probe(monkeypatch)
     endpoint = Path("ledger.sock")
     command = "import sys; print('startup_failed', file=sys.stderr); sys.exit(7)"
     if startup != "exited":
-        command = "import time; time.sleep(30)"
+        command = "import signal; signal.pause()"
     with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as bound:
         bound.bind(str(endpoint))
         if startup == "listening-without-response":
@@ -84,9 +135,10 @@ def test_ledger_readiness_failure_reports_child_and_reaps(tmp_path, monkeypatch,
                 process.wait(timeout=5)
             started = time.monotonic()
             with pytest.raises(ValueError, match="ledger_start_failed at ledger.sock") as failure:
-                wait_for_ledger(endpoint, process, timeout=0.1)
-            assert time.monotonic() - started < 2
+                wait_for_ledger(endpoint, process, timeout=5)
+            assert time.monotonic() - started < 10
             assert process.poll() is not None
+            assert_ledger_probe_observed(tmp_path, startup)
             if startup == "exited":
                 assert "exit=7" in str(failure.value)
                 assert "startup_failed" in str(failure.value)
@@ -519,18 +571,18 @@ def test_ledger_controls_run_actions_and_preserve_input_errors(tmp_path, monkeyp
 def test_ledger_controls_start_failure_reaps_before_actions(tmp_path, monkeypatch, startup):
     module = fixture_module()
     module.materialize(tmp_path / "selected")
+    observe_ledger_probe(monkeypatch)
     processes = []
     popen = subprocess.Popen
-    wait = module.wait_for_ledger
 
     def launch(args, **kwargs):
         if any(str(arg).endswith("/server.py") for arg in args):
             code = "import sys; print('startup_failed', file=sys.stderr); sys.exit(7)"
             if startup != "exited":
-                code = "import socket,time; s=socket.socket(socket.AF_UNIX); s.bind('ledger.sock'); "
+                code = "import signal,socket; s=socket.socket(socket.AF_UNIX); s.bind('ledger.sock'); "
                 if startup == "listening-without-response":
                     code += "s.listen(); "
-                code += "time.sleep(30)"
+                code += "signal.pause()"
             process = popen([sys.executable, "-I", "-S", "-B", "-c", code], **kwargs)
             processes.append(process)
             return process
@@ -538,17 +590,14 @@ def test_ledger_controls_start_failure_reaps_before_actions(tmp_path, monkeypatc
             assert json.loads(args[-1])["operation"] == "read", "Action started before readiness"
         return popen(args, **kwargs)
 
-    def bounded_wait(endpoint, process):
-        wait(endpoint, process, timeout=0.3)
-
     monkeypatch.setattr(subprocess, "Popen", launch)
-    monkeypatch.setattr(module, "wait_for_ledger", bounded_wait)
     started = time.monotonic()
     with pytest.raises(ValueError, match="ledger_start_failed"):
         module.run_ledger_controls(tmp_path / "selected", tmp_path / "failed")
-    assert time.monotonic() - started < 2
+    assert time.monotonic() - started < 10
     assert len(processes) == 1
     assert processes[0].poll() is not None
+    assert_ledger_probe_observed(tmp_path / "failed/reference", startup)
     assert not (tmp_path / "failed/ledger-results.json").exists()
     assert not (tmp_path / "failed/reference/logs").exists()
     if startup == "exited":
