@@ -302,8 +302,10 @@ Forward that snapshot's `expansion_observations` as
 `facts.expansion_observations`, alongside its `state` and matching `revision`.
 This also applies during shared prerequisite, Ethos, or blocker recovery after
 results acceptance, even when the retained results review is stale. The renderer
-uses these observations to select the saved expansion checkpoint before applying
-shared recovery; observations do not bypass that recovery or grant approval.
+uses the state helper's checkpoint and pending-question projection for both
+onboarding and expansion. Shared recovery takes precedence, including blockers
+without a saved recovery question. Suspended downstream choices never replace a
+recovery question. Observations do not bypass recovery or grant approval.
 Do not supply derived completion flags. Omit these facts from the state-only
 `prerequisite_results` stage, which does not route expansion checkpoints.
 

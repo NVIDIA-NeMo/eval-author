@@ -330,6 +330,10 @@ they were not already selected and a supported authoring workflow can implement
 them. Your choice is required before more work starts. Passing task runs alone
 do not establish improved audit coverage; a follow-up audit checks that evidence.
 
+Returning during a setup or dependency interruption shows recovery first and retains your unanswered next-step choice or decision to finish.
+After recovery, Eval Author resumes that decision when the accepted evidence is
+still current. Changed evidence returns you to review without offering finishing.
+
 ### What Eval Author can create or improve
 
 | Work | Current support |

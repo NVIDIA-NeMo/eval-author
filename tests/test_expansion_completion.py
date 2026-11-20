@@ -290,7 +290,7 @@ def test_shared_recovery_forwards_observations_after_results_acceptance(modules,
 
 @pytest.mark.parametrize("improvements", [False, True])
 @pytest.mark.parametrize("change", ["draft", "task", "missing", "evidence", "agent"])
-def test_saved_completion_question_must_be_cleared_after_acceptance_changes(modules, tmp_path, improvements, change):
+def test_stale_completion_is_suppressed_without_discarding_its_saved_decision(modules, tmp_path, improvements, change):
     state, expansion, renderer = modules
     saved, value = accepted(modules, tmp_path, path="audit_tool_gap" if improvements else "starter_suite")
     remaining = {"R2": "Add an inspection task"} if improvements else {}
@@ -308,22 +308,19 @@ def test_saved_completion_question_must_be_cleared_after_acceptance_changes(modu
         state.save(tmp_path, saved)
     resumed = state.initialize(tmp_path, journey="expand")
     before = state.state_path(tmp_path).read_bytes()
-    for stage in ("expansion_review", "expansion_results", "expansion_completion"):
-        payload = expansion_payload(modules, resumed)
-        payload["stage"] = stage
-        with pytest.raises(ValueError, match="Clear the stale completion question"):
-            renderer.render(payload)
-    assert state.state_path(tmp_path).read_bytes() == before
-    value = copy.deepcopy(expansion.record(resumed))
-    value["execution"]["pending"] = None
-    repaired = save(modules, tmp_path, resumed, value)
-    assert repaired["pending_question"] is None
-    output = renderer.render({**expansion_payload(modules, repaired), "stage": "expansion_review"})
+    output = renderer.render({**expansion_payload(modules, resumed), "stage": "expansion_review"})
     assert "finish here" not in output
     assert "work on one of these improvements" not in output
     assert "final acceptance requires your approval of these results" not in output
+    assert expansion.record(resumed)["execution"]["pending"] == value["execution"]["pending"]
+    assert state.state_path(tmp_path).read_bytes() == before
+    for stage in ("resume", "expansion_continue", "expansion_completion"):
+        payload = expansion_payload(modules, resumed)
+        payload["stage"] = stage
+        with pytest.raises(ValueError, match="Use expansion_review"):
+            renderer.render(payload)
     with pytest.raises(ValueError, match="Expansion completion requires current user acceptance"):
-        state.update(tmp_path, {"journey_status": {"expand": "complete"}}, expected_revision=repaired["revision"])
+        state.update(tmp_path, {"journey_status": {"expand": "complete"}}, expected_revision=resumed["revision"])
 
 
 def test_already_reviewed_results_with_unaccepted_task_return_to_task_review(modules, tmp_path):
@@ -341,25 +338,63 @@ def test_already_reviewed_results_with_unaccepted_task_return_to_task_review(mod
 
 @pytest.mark.parametrize("improvements", [False, True])
 @pytest.mark.parametrize("phase", ["setup", "expand"])
-def test_blocker_recovery_restores_the_unanswered_completion_choice(modules, tmp_path, improvements, phase):
+@pytest.mark.parametrize("question", ["omitted", "none", "completion", "recovery"])
+@pytest.mark.parametrize("state_only", [False, True])
+@pytest.mark.parametrize("finished", [False, True])
+def test_blocker_recovery_has_one_owner_and_restores_the_saved_choice(
+    modules, tmp_path, improvements, phase, question, state_only, finished
+):
     state, expansion, renderer = modules
     saved, value = accepted(modules, tmp_path, path="audit_tool_gap" if improvements else "starter_suite")
     remaining = {"R2": "Add an inspection task"} if improvements else {}
     saved, _, original_output = render(modules, tmp_path, saved, value, remaining)
+    completion_question = value["execution"]["pending"]["question"]
+    if finished:
+        value["execution"]["pending"] = None
+        saved = save(modules, tmp_path, saved, value)
+        saved = state.update(tmp_path, {"journey_status": {"expand": "complete"}}, expected_revision=saved["revision"])
+        original = expansion_payload(modules, saved)
+        original["stage"] = "expansion_completion"
+        original_output = renderer.render(original)
     completion = copy.deepcopy(value["execution"]["pending"])
-    patch: dict = {
-        "blockers": [{"id": "runtime", "phase": phase, "message": "Runtime unavailable"}],
-        "pending_question": "Restore the runtime.",
-    }
+    patch: dict = {"blockers": [{"id": "runtime", "phase": phase, "message": "Runtime unavailable"}]}
+    if question != "omitted":
+        patch["pending_question"] = {
+            "none": None,
+            "completion": completion_question,
+            "recovery": "Restore the runtime.",
+        }[question]
     if phase == "setup":
         patch["prerequisites"] = {"runtime": {"status": "missing", "source": "Runtime probe failed"}}
-    blocked = state.update(tmp_path, patch, expected_revision=saved["revision"], state_only=True)
+    blocked = state.update(tmp_path, patch, expected_revision=saved["revision"], state_only=state_only)
     blocked = state.initialize(tmp_path, journey="expand")
-    with pytest.raises(ValueError, match="through shared onboarding"):
-        renderer.render({**expansion_payload(modules, blocked), "stage": "expansion_review"})
-    assert blocked["pending_question"] == "Restore the runtime."
+    snapshot = state.view(blocked)
+    current = expansion.checkpoint(snapshot["state"], snapshot["expansion"])
+    assert current["stage"] == "resume"
+    before = state.state_path(tmp_path).read_bytes()
+    for stage in ("expansion_continue", "expansion_review", "expansion_results", "expansion_completion"):
+        with pytest.raises(ValueError, match="shared onboarding"):
+            renderer.render({**expansion_payload(modules, blocked), "stage": stage})
+    output = renderer.render(
+        {
+            "stage": "resume",
+            "state": snapshot["state"],
+            "revision": blocked["revision"],
+            "facts": {
+                "expansion_observations": snapshot["expansion_observations"],
+                "blockers": [
+                    {"id": "runtime", "step": "Runtime", "reason": "Runtime unavailable", "needed": "Restore access"}
+                ],
+            },
+        }
+    )
+    assert "Restore access" in output
+    assert "finish here" not in output
+    if question == "recovery":
+        assert "Restore the runtime." in output
     assert expansion.record(blocked)["execution"]["pending"] == completion
     assert blocked["tasks"] == saved["tasks"]
+    assert state.state_path(tmp_path).read_bytes() == before
     restored = state.update(
         tmp_path,
         {
@@ -370,7 +405,9 @@ def test_blocker_recovery_restores_the_unanswered_completion_choice(modules, tmp
         expected_revision=blocked["revision"],
     )
     restored = state.initialize(tmp_path, journey="expand")
-    assert restored["pending_question"] == completion["question"]
+    assert restored["pending_question"] == (completion["question"] if completion else None)
+    if finished:
+        assert restored["journey_status"]["expand"] == "complete"
     assert_completion_resume(modules, restored, original_output, remaining)
 
 
@@ -382,7 +419,7 @@ def test_clearing_a_stale_completion_choice_preserves_an_unrelated_current_quest
     saved = state.record_task(tmp_path, task=task["path"], status="draft", source="User withdraws task acceptance")
     question = "Which task evidence should we inspect first?"
     saved = state.update(tmp_path, {"pending_question": question}, expected_revision=saved["revision"], state_only=True)
-    with pytest.raises(ValueError, match="preserve any other pending question"):
+    with pytest.raises(ValueError, match="shared onboarding"):
         renderer.render({**expansion_payload(modules, saved), "stage": "expansion_review"})
     value = copy.deepcopy(expansion.record(saved))
     value["execution"]["pending"] = None
@@ -394,5 +431,59 @@ def test_clearing_a_stale_completion_choice_preserves_an_unrelated_current_quest
     resumed = state.initialize(tmp_path, journey="expand")
     assert cleared["pending_question"] == resumed["pending_question"] == question
     assert expansion.record(resumed)["execution"]["pending"] is None
-    with pytest.raises(ValueError, match="owning authoring workflow"):
+    with pytest.raises(ValueError, match="shared onboarding"):
         renderer.render({**expansion_payload(modules, resumed), "stage": "expansion_review"})
+
+
+@pytest.mark.parametrize("accepted_current", [False, True])
+@pytest.mark.parametrize("top_question", ["matching", "none", "unrelated"])
+def test_consuming_completion_decision_reconciles_matching_question_atomically(
+    modules, tmp_path, accepted_current, top_question
+):
+    state, expansion, renderer = modules
+    saved, value = accepted(modules, tmp_path)
+    saved, _, _ = render(modules, tmp_path, saved, value)
+    completion = value["execution"]["pending"]["question"]
+    if not accepted_current:
+        task = next(iter(value["creation"]["tasks"].values()))
+        saved = state.record_task(tmp_path, task=task["path"], status="draft", source="User withdraws acceptance")
+    value["execution"]["pending"] = None
+    current = {"matching": completion, "none": None, "unrelated": "Which evidence should we inspect?"}[top_question]
+    cleared = state.update(
+        tmp_path,
+        {"scopes": {"expand": {"lifecycle": value}}, "pending_question": current},
+        expected_revision=saved["revision"],
+    )
+    expected = current if top_question == "unrelated" else None
+    assert cleared["pending_question"] == expected
+    resumed = state.initialize(tmp_path, journey="expand")
+    assert resumed["pending_question"] == expected
+    if top_question == "unrelated":
+        payload = expansion_payload(modules, resumed)
+        payload["stage"] = "resume"
+        output = renderer.render(payload)
+        assert current in output
+        assert "finish here" not in output
+    elif not accepted_current:
+        with pytest.raises(ValueError, match="Use expansion_review"):
+            renderer.render({**expansion_payload(modules, resumed), "stage": "resume"})
+        output = renderer.render({**expansion_payload(modules, resumed), "stage": "expansion_review"})
+        assert "finish here" not in output
+
+
+def test_orphaned_legacy_completion_question_cannot_escape_through_onboarding(modules, tmp_path):
+    state, _, renderer = modules
+    saved, value = accepted(modules, tmp_path)
+    saved, _, _ = render(modules, tmp_path, saved, value)
+    task = next(iter(value["creation"]["tasks"].values()))
+    saved = state.record_task(tmp_path, task=task["path"], status="draft", source="User withdraws acceptance")
+    value["execution"]["pending"] = None
+    saved["scopes"]["expand"]["lifecycle"] = value
+    state.save(tmp_path, saved)
+    for current in (saved, state.initialize(tmp_path, journey="expand")):
+        payload = expansion_payload(modules, current)
+        payload["stage"] = "resume"
+        with pytest.raises(ValueError, match="Use expansion_review"):
+            renderer.render(payload)
+        output = renderer.render({**expansion_payload(modules, current), "stage": "expansion_review"})
+        assert "finish here" not in output

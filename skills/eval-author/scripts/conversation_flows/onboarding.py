@@ -435,24 +435,22 @@ def render(payload: dict) -> str:
         raise ValueError("Use audit_resume for saved audit checkpoints after shared onboarding is complete")
     expansion = expansion_state.record(state) if state["journey"] == "expand" else None
     if expansion is not None and not state_only:
-        checkpoint = expansion_state.resume_stage(state, facts.get("expansion_observations"))
-        reviewing = checkpoint in {"expansion_review", "expansion_results", "expansion_completion"}
-        pending = expansion_state.pending(expansion)
-        ready = expansion_state.review_ready(state) if reviewing else expansion_state.checkpoint_ready(state)
-        if ready and (
-            state["pending_question"] is None or pending and state["pending_question"] == pending["question"]
-        ):
+        observed = facts.get("expansion_observations")
+        progress = expansion_state.derive(state, observed) if observed is not None else None
+        current = expansion_state.checkpoint(state, progress)
+        checkpoint = current["continuation"]
+        if current["stage"] != "resume":
             raise ValueError(f"Use {checkpoint} for saved expansion checkpoints after shared onboarding is complete")
-        if pending is not None:
-            question = literal(pending["question"], "expansion question")
-            if facts.get("question") is not None and literal(facts["question"], "question") == question:
-                raise ValueError(f"Use {checkpoint} for the saved expansion question after shared recovery")
-            if (
-                state["pending_question"] is not None
-                and literal(state["pending_question"], "pending question") == question
-            ):
-                state = state.copy()
-                state["pending_question"] = None
+        if facts.get("question") is not None and (
+            any(
+                literal(facts["question"], "question") == literal(question, "expansion question")
+                for question in expansion_state.saved_questions(expansion)
+            )
+            or expansion_state.is_completion_question(facts["question"])
+        ):
+            raise ValueError(f"Use {checkpoint} for the saved expansion question after shared recovery")
+        state = state.copy()
+        state["pending_question"] = current["pending_question"]
     audit = None
     if "audit_observations" in facts:
         observed = facts["audit_observations"]

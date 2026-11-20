@@ -65,10 +65,14 @@ def test_scope_continuation_leaves_other_questions_with_their_owner(modules, tmp
                 blockers=[{"id": "runtime", "phase": "setup", "message": "Runtime unavailable"}],
             )
         saved = state.update(tmp_path, patch, expected_revision=saved["revision"])
-        message = "shared onboarding" if change == "recovery" else "owning authoring workflow"
+        message = "shared onboarding"
     before = state.state_path(tmp_path).read_bytes()
     with pytest.raises(ValueError, match=message):
         renderer.render(payload(modules, saved))
+    if change == "later_question":
+        output = renderer.render({**expansion_payload(modules, saved), "stage": "resume"})
+        assert "Which account should this task use?" in output
+        assert "Create this partial-refund task?" not in output
     assert state.state_path(tmp_path).read_bytes() == before
 
 

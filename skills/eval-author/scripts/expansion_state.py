@@ -139,6 +139,42 @@ class ScopeRecord(TypedDict):
     execution: NotRequired[ExecutionRecord]
 
 
+ExpansionStage = Literal[
+    "expansion_continue",
+    "expansion_scope",
+    "expansion_progress",
+    "expansion_review",
+    "expansion_results",
+    "expansion_completion",
+]
+
+
+class ExpansionCheckpoint(TypedDict):
+    stage: ExpansionStage | Literal["resume"]
+    continuation: ExpansionStage
+    pending_question: str | None
+
+
+def is_completion_question(question: object) -> bool:
+    from conversation_flows.expansion_templates import COMPLETION_QUESTION, COMPLETION_WITH_IMPROVEMENTS
+
+    return isinstance(question, str) and " ".join(question.split()) in {
+        COMPLETION_QUESTION,
+        COMPLETION_WITH_IMPROVEMENTS,
+    }
+
+
+def saved_questions(value: EntryRecord | ScopeRecord) -> set[str]:
+    return {
+        item["question"]
+        for item in (
+            value["pending"],
+            *((value.get(key) or {}).get("pending") for key in ("creation", "review", "execution")),
+        )
+        if item
+    }
+
+
 def task_key(task: ScopeTask) -> str:
     return hashlib.sha256(json.dumps(task, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
 
@@ -666,6 +702,14 @@ def derive(state: dict, observed: object) -> dict | None:
             for item in accepted.values()
         ):
             raise ValueError("Use current task lifecycle observations for acceptance")
+    complete = bool(
+        creating
+        and execution
+        and execution["authorized"]
+        and execution["results_reviewed"]
+        and accepted
+        and all(item["status"] == "accepted" for item in accepted.values())
+    )
     stage = "execution" if review and review["approved"] and execution else "task_review" if review else "creation"
     question = (value.get("creation") or {}).get("pending") if creating else value["pending"]
     if creating and question is None and value["schema_version"] == 2:
@@ -679,6 +723,8 @@ def derive(state: dict, observed: object) -> dict | None:
                 or saved_execution["execution_settings"]["open_questions"]
             ):
                 question = saved_execution["pending"]
+    if question and is_completion_question(question["question"]) and not complete:
+        question = None
     return {
         "stage": stage
         if creating
@@ -693,38 +739,50 @@ def derive(state: dict, observed: object) -> dict | None:
         "review": review,
         "execution": execution,
         "scope_approved": creating,
-        "complete": bool(
-            creating
-            and execution
-            and execution["authorized"]
-            and execution["results_reviewed"]
-            and accepted
-            and all(item["status"] == "accepted" for item in accepted.values())
-        ),
+        "complete": complete,
     }
 
 
-def resume_stage(state: dict, observed: object = None) -> str:
+def checkpoint(state: dict, progress: dict | None) -> ExpansionCheckpoint:
+    from journey_state import active_blockers
+
     value = record(state)
-    if value is None or value["schema_version"] != 2:
-        return "expansion_continue"
-    progress = derive(state, observed) if observed is not None else None
-    if (value.get("execution") or {}).get("results_review") and progress is None:
-        raise ValueError("Supply current expansion_observations to route saved results review")
-    if progress and progress["complete"]:
-        return "expansion_completion"
-    if (
-        not value["decision"]
-        or value["decision"]["kind"] != "approved"
-        or state["scopes"]["expand"].get("needs_review")
-        or value.get("creation") is None
-    ):
-        return "expansion_scope"
-    if results_pending(progress):
-        return "expansion_results"
-    if value.get("review") is not None:
-        return "expansion_review"
-    return "expansion_progress"
+    stage: ExpansionStage = "expansion_continue"
+    if value and value["schema_version"] == 2:
+        if (value.get("execution") or {}).get("results_review") and progress is None:
+            raise ValueError("Supply current expansion_observations to route saved results review")
+        if progress and progress["complete"]:
+            stage = "expansion_completion"
+        elif (
+            not value["decision"]
+            or value["decision"]["kind"] != "approved"
+            or state["scopes"]["expand"].get("needs_review")
+            or value.get("creation") is None
+        ):
+            stage = "expansion_scope"
+        elif results_pending(progress):
+            stage = "expansion_results"
+        elif value.get("review") is not None:
+            stage = "expansion_review"
+        else:
+            stage = "expansion_progress"
+    question = state["pending_question"]
+    unrelated = bool(
+        question
+        and value
+        and " ".join(question.split()) not in {" ".join(item.split()) for item in saved_questions(value)}
+        and not is_completion_question(question)
+    )
+    ready = review_ready(state) if value and value.get("review") else checkpoint_ready(state)
+    shared = bool(not ready or active_blockers(state) or unrelated)
+    if shared:
+        current_question = question if unrelated else None
+    elif progress:
+        current_question = progress["pending_question"]
+    else:
+        retained = pending(value) if value else None
+        current_question = retained["question"] if retained else None
+    return {"stage": "resume" if shared else stage, "continuation": stage, "pending_question": current_question}
 
 
 def entry_ready(state: dict) -> bool:
@@ -760,34 +818,27 @@ def review_ready(state: dict) -> bool:
 
 def presentation_state(state: dict, progress: dict | None, *, answered_ethos_review: bool = False) -> dict:
     value = record(state)
-    if (
-        value is None
-        or progress is None
-        or not progress["context_current"]
-        or not (review_ready(state) if value.get("review") else checkpoint_ready(state))
-    ):
+    if value is None or progress is None:
         return state
-    questions = {
-        item["question"]
-        for item in (
-            value["pending"],
-            *((value.get(key) or {}).get("pending") for key in ("creation", "review", "execution")),
-        )
-        if item
-    }
-    if (
-        answered_ethos_review
-        and checkpoint_ready(state)
-        or state["pending_question"] is None
-        or state["pending_question"] in questions
-    ):
-        return {**state, "pending_question": progress["pending_question"]}
-    return state
+    if not value.get("execution"):
+        if not progress["context_current"] or not checkpoint_ready(state):
+            return state
+        if (
+            answered_ethos_review
+            or state["pending_question"] is None
+            or state["pending_question"] in saved_questions(value)
+        ):
+            return {**state, "pending_question": progress["pending_question"]}
+        return state
+    routing_state = state
+    if answered_ethos_review and checkpoint_ready(state):
+        routing_state = {**state, "pending_question": None}
+    current = checkpoint(routing_state, progress)
+    return {**state, "pending_question": current["pending_question"]}
 
 
 def reconcile_question(repo, state: dict, *, answered_ethos_review: bool = False) -> None:
-    value = record(state)
-    if value is None or not (review_ready(state) if value.get("review") else checkpoint_ready(state)):
+    if record(state) is None:
         return
     state["pending_question"] = presentation_state(
         state, derive(state, observe(repo, state)), answered_ethos_review=answered_ethos_review
@@ -923,6 +974,15 @@ def transition(repo, previous: dict, updated: dict) -> None:
         raise ValueError("Retain structured expansion progress when updating its scope")
     if after is None:
         return
+    prior_pending = (before.get("execution") or {}).get("pending") if before else None
+    current_pending = (after.get("execution") or {}).get("pending")
+    if (
+        prior_pending
+        and is_completion_question(prior_pending["question"])
+        and current_pending is None
+        and updated["pending_question"] == prior_pending["question"]
+    ):
+        updated["pending_question"] = None
     if before and any(key in before for key in ("creation", "review", "execution")) and after["schema_version"] != 2:
         raise ValueError("Retain creation progress when returning to scope decisions")
     if after["schema_version"] == 2:
@@ -977,7 +1037,8 @@ def transition(repo, previous: dict, updated: dict) -> None:
         if updated["journey_status"].get("expand") == "complete" and not progress["complete"]:
             if previous["journey_status"].get("expand") != "complete":
                 raise ValueError("Expansion completion requires current user acceptance of every agreed task")
-            updated["journey_status"]["expand"] = "in_progress"
+            if checkpoint(updated, progress)["stage"] != "resume":
+                updated["journey_status"]["expand"] = "in_progress"
         question = progress["pending_question"]
         ready = review_ready(updated) if after.get("review") else checkpoint_ready(updated)
         if question is not None and ready:

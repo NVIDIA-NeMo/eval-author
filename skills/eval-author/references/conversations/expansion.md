@@ -347,14 +347,25 @@ the same renderer to acknowledge finishing without asking the answered question
 again. Follow the [shared onboarding observation contract](onboarding.md#expansion-observations)
 when presenting shared recovery or resuming through onboarding. Supply current
 `facts.expansion_observations` to `expansion_continue` as well.
-Stale acceptance routes to `expansion_review`; a changed, unresolved scope routes
-to `expansion_scope`. Preserve the completion choice and the current recovery
-question while prerequisites, Ethos, or blockers need recovery. Only once the context
-is current and task review is ready, clear a completion question that outlives
-acceptance from `execution.pending` through the revision-checked state helper.
-Clear top-level `pending_question` only if it matches that completion question;
-otherwise retain the current question. Preserve task and run evidence. Resolve
-the owning checkpoint before presenting completion.
+The state helper owns the current checkpoint and pending-question projection.
+Onboarding and expansion use that same projection: shared prerequisites, Ethos,
+active blockers, or a separate current question take precedence over downstream
+choices. A blocker response remains available even when no recovery question has
+been recorded. Supply an explanation for each active blocker under the shared
+onboarding contract; do not invent a question to make routing work.
+
+A saved completion question is displayed only while current acceptance holds.
+When acceptance or context changes, the helper retains the saved decision as
+history but removes it from the current presentation. Resolve the owning review
+or recovery checkpoint; do not clear retained choices merely to make rendering
+succeed. Unchanged choices return when their conditions are restored.
+
+When the user answers a completion choice, clear `execution.pending` through the
+revision-checked state update. The helper clears a matching top-level
+`pending_question` atomically in the same save and preserves any different active
+question. Existing records with a leftover completion question are also projected
+without offering an unavailable choice. Task and run evidence remain retained.
+
 An audit choice uses the existing
 [return-to-audit route](../shared-prerequisites.md#return-to-an-audit), preserving
 the task and run evidence. Selecting another recommendation uses the existing

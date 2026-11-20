@@ -360,7 +360,7 @@ def _results(state: dict, progress: dict, facts: dict) -> str:
 def _completion(state: dict, progress: dict, facts: dict) -> str:
     _checkpoint(state, progress, reviewing=True)
     if not progress["complete"]:
-        checkpoint = expansion_state.resume_stage(state, facts.get("expansion_observations"))
+        checkpoint = expansion_state.checkpoint(state, progress)["stage"]
         raise ValueError(f"Use {checkpoint} to resolve stale or unaccepted expansion results")
     if state["journey_status"].get("expand") == "complete":
         return (
@@ -416,33 +416,20 @@ def render(payload: dict) -> str:
     elif payload["stage"] == "expansion_completion":
         allowed.add("remaining_improvements")
     facts = mapping(payload.get("facts", {}), "expansion facts", allowed)
+    progress = (
+        expansion_state.derive(state, facts["expansion_observations"]) if "expansion_observations" in facts else None
+    )
+    current = expansion_state.checkpoint(state, progress)
+    if value and value["schema_version"] == 2 and current["stage"] == "resume":
+        state = expansion_state.presentation_state(state, progress)
+        if progress is not None and (not progress["context_current"] or not expansion_state.review_ready(state)):
+            _checkpoint(state, progress, reviewing=value.get("review") is not None)
+        raise ValueError("Use resume through shared onboarding to resolve saved blockers and recovery")
     if payload["stage"] == "expansion_continue" and value is not None and value["schema_version"] == 2:
-        checkpoint = expansion_state.resume_stage(state, facts.get("expansion_observations"))
-        raise ValueError(f"Use {checkpoint} for the saved expansion checkpoint")
-    progress = expansion_state.derive(state, facts.get("expansion_observations"))
+        raise ValueError(f"Use {current['stage']} for the saved expansion checkpoint")
     if progress is None:
         raise ValueError("Save a structured expansion lifecycle before continuation")
-    execution_pending = (value.get("execution") or {}).get("pending") if value else None
-    if (
-        progress["context_current"]
-        and not state["scopes"]["expand"].get("needs_review")
-        and expansion_state.review_ready(state)
-        and not progress["complete"]
-        and any(
-            question in {copy.COMPLETION_QUESTION, copy.COMPLETION_WITH_IMPROVEMENTS}
-            for question in (
-                state["pending_question"],
-                progress["pending_question"],
-                (execution_pending or {}).get("question"),
-            )
-        )
-    ):
-        if journey_state.active_blockers(state):
-            raise ValueError("Continue the saved recovery question through shared onboarding")
-        raise ValueError(
-            "Clear the stale completion question from execution.pending through a revision-checked state update. "
-            "Clear pending_question only if it matches that completion question; preserve any other pending question."
-        )
+    state = expansion_state.presentation_state(state, progress)
     if payload["stage"] in {"expansion_review", "expansion_results"} and progress["complete"]:
         raise ValueError("Use expansion_completion for accepted expansion results")
     if payload["stage"] == "expansion_completion":
