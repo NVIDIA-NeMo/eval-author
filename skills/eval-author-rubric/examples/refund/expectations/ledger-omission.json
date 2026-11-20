@@ -1,0 +1,39 @@
+{
+  "schema": "rubric-example-expectation-v1",
+  "id": "ledger-omission",
+  "category": "task_or_scorer_defect",
+  "target_criteria": [
+    "AC-02",
+    "task-contract.scoring-authority"
+  ],
+  "target_checks": [
+    "AC-02:Review",
+    "AC-02:Probe",
+    "AC-02:Deterministic",
+    "task-contract.scoring-authority.human-review",
+    "task-contract.scoring-authority.llm-judge",
+    "task-contract.scoring-authority.deterministic"
+  ],
+  "intended_score": 0,
+  "observed_score": null,
+  "status": "planned_expectation_not_measurement",
+  "finding": "Accepts a refund with no ledger entry.",
+  "evidence_basis": {
+    "control": "missing-ledger",
+    "method": "actual_local_verifier_subprocess",
+    "limit": "Local simulation cannot establish native boundaries or independent corroboration."
+  },
+  "collateral_criteria": [
+    "provenance.grading-path",
+    "provenance.evidence-revision-consistency"
+  ],
+  "unchanged_neighbors": [
+    "reference",
+    "split-alternative"
+  ],
+  "rerun_controls": [
+    "all_local_controls",
+    "all_source_bound_native_controls"
+  ],
+  "repair": "Restore the base in a fresh directory. Rerun controls and keep the failed revision."
+}

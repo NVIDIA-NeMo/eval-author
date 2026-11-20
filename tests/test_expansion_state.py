@@ -36,7 +36,7 @@ def test_entry_resume_retains_context_and_question(modules, tmp_path, handoff):
     assert renderer.render(payload(modules, resumed)) == rendered
     assert not state.view(resumed)["expansion"]["complete"]
     assert not state.checklist(resumed)[2]["complete"]
-    assert expansion.record(resumed)["schema_version"] == 1
+    assert expansion.record(resumed)["checkpoint"] == "entry"
 
 
 def test_audit_handoff_can_enter_planning_before_scope_agreement(modules, tmp_path):
@@ -129,13 +129,21 @@ def test_context_changes_block_stale_entry_without_erasing_it(modules, tmp_path,
         renderer.render(payload(modules, current))
 
 
-@pytest.mark.parametrize("mutation", ["version", "extra", "binding", "setup", "question", "source", "approval"])
+@pytest.mark.parametrize(
+    "mutation",
+    ["checkpoint", "old_version", "missing_setup", "extra", "binding", "setup", "question", "source", "approval"],
+)
 def test_invalid_lifecycle_is_rejected_without_writes(modules, tmp_path, mutation):
     state, expansion, _ = modules
     saved = start(modules, tmp_path)
     value = copy.deepcopy(expansion.record(saved))
-    if mutation == "version":
-        value["schema_version"] = True
+    if mutation == "checkpoint":
+        value["checkpoint"] = "unsupported"
+    elif mutation == "old_version":
+        value["schema_version"] = 1
+        del value["checkpoint"]
+    elif mutation == "missing_setup":
+        del value["setup"]
     elif mutation == "extra":
         value["complete"] = True
     elif mutation == "binding":
@@ -152,27 +160,21 @@ def test_invalid_lifecycle_is_rejected_without_writes(modules, tmp_path, mutatio
     assert state.state_path(tmp_path).read_bytes() == before
 
 
-@pytest.mark.parametrize("change", ["provider", "legacy"])
-def test_provider_binding_requires_entry_reconciliation(modules, tmp_path, change):
+def test_provider_binding_requires_entry_reconciliation(modules, tmp_path):
     state, expansion, renderer = modules
     saved = start(modules, tmp_path, handoff=True)
-    if change == "provider":
-        saved = state.initialize(tmp_path, setup="harbor")
-        assert saved["pending_question"] is None
-        saved = state.update(
-            tmp_path,
-            {
-                "prerequisites": {
-                    key: {"status": "verified", "source": "Rechecked Harbor prerequisites"}
-                    for key in state.PROVIDER_DEPENDENT
-                }
-            },
-            expected_revision=saved["revision"],
-        )
-    else:
-        expansion.record(saved).pop("setup", None)
-        saved["pending_question"] = None
-        state.save(tmp_path, saved)
+    saved = state.initialize(tmp_path, setup="harbor")
+    assert saved["pending_question"] is None
+    saved = state.update(
+        tmp_path,
+        {
+            "prerequisites": {
+                key: {"status": "verified", "source": "Rechecked Harbor prerequisites"}
+                for key in state.PROVIDER_DEPENDENT
+            }
+        },
+        expected_revision=saved["revision"],
+    )
     original_scope = copy.deepcopy(saved["scopes"]["expand"])
     resumed = state.initialize(tmp_path, journey="expand")
     current = state.load_state(tmp_path)

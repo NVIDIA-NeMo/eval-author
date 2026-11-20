@@ -99,7 +99,7 @@ Replace `claude-code` with your assistant's identifier:
 See the [Skills CLI documentation](https://github.com/vercel-labs/skills#supported-agents)
 for other assistants.
 
-Installation adds nine skill directories with their instructions, scripts,
+Installation adds ten skill directories with their instructions, scripts,
 schemas, templates, and references. Harbor and Python dependencies are separate
 [workflow requirements](docs/getting-started.md#requirements).
 
@@ -194,15 +194,14 @@ Include the relevant file paths, trace IDs, or workspace names in your request.
 
 ### Experimental rubric assessment
 
-The rubric covers validity, coverage, and diversity. Its populated validity areas
-are anti-cheat; artifact, configuration, and provenance; and task contract and
-scoring authority. Each is selected separately and reuses existing task controls
-and validation evidence. It is off by default: installing the skills or
-requesting an ordinary review, audit, or anti-cheat check does not opt you in.
-Explicitly ask, naming the area: "Apply eval-author-rubric's task contract and
-scoring authority area to these tasks." Consent applies to that assessment,
-not future tasks or sessions. This produces a scoped assessment,
-not a coverage audit or overall quality certification.
+The rubric scores 23 criteria in one table: artifact, configuration and
+provenance; task contract and scoring authority; and data leakage and forged
+credit. A separate row, METHOD-J1, scores the corroboration behind the 3s. It is
+off by default: installing the skills or requesting an ordinary review, audit, or
+anti-cheat check does not opt you in. Explicitly ask: "Apply eval-author-rubric to
+these tasks." Consent applies to that assessment, not future tasks or sessions.
+The [rubric base simulation](docs/determinism-checks.md#rubric-base-simulation)
+shows a perfect task and its mutations scored through the same table.
 See the [rubric skill](skills/eval-author-rubric/SKILL.md).
 
 ### Experimental trace-environment loop

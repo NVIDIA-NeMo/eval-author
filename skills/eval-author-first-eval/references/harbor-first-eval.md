@@ -37,6 +37,10 @@ Use Harbor’s [reference solution](https://docs.harborframework.com/tasks/solut
 and [verifier](https://docs.harborframework.com/tasks/verifier) documentation
 when explaining the reference and grader. Environment proof precedes both.
 
+For a `user_sim` task, the parent flow's
+[user-sim authoring handoff](../../eval-author-user-sim/SKILL.md) adds the scenario
+and conversation-dependent controls to these native task files.
+
 Write the task README following the shared
 [Task documentation](../../eval-author/references/suite-readme.md#task-documentation)
 requirements. Generate and refresh the suite report following the
@@ -62,6 +66,11 @@ access and the work it blocks. Show only blockers affecting current work;
 defer run-only settings and blockers during independent authoring and review.
 
 ## 7. Connect the agent
+
+A User-sim task uses the shared [Harbor translator](../../eval-author/references/harbor-user-simulation.md)
+to prepare native simulator inputs. It also needs a verified interactive runner.
+Retain the User-sim design and report unmet runtime requirements instead of
+treating scenario YAML as a native job configuration or running a single-turn substitute.
 
 Establish a supported Harbor integration for the actual repository agent from
 its entry point, installed adapter code, registry, and CLI help. If the adapter

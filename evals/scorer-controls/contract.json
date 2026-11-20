@@ -4,9 +4,9 @@
   "input_kind": "scripted-events",
   "request": {"run_id": "run-current", "customer_id": "customer-A", "order_id": "order-A", "destination": "original-payment-A"},
   "requirements": {
-    "completion_signal": "Report success after completing the refund; optional credit only in the reviewed arm.",
+    "completion_signal": "An asserted success signal earns optional credit in the reviewed arm; it does not establish completion or reporting chronology, and acceptance still requires all mandatory checks.",
     "association": "Every new refund belongs to the requested customer and order.",
-    "amount": "Refund discounted merchandise plus eligible tax minus prior refunds; exclude shipping.",
+    "amount": "Every new refund amount is positive. Refund discounted merchandise plus eligible tax minus prior refunds; exclude shipping.",
     "destination": "Every new refund goes to the requested original payment destination.",
     "approval_present": "When the total remaining balance reaches the inclusive threshold, a policy-authorized manager approves this run, customer, order and total.",
     "approval_before_effect": "Required approval precedes every refund effect, including split payments.",

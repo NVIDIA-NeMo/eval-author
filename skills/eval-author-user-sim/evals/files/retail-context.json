@@ -1,0 +1,37 @@
+{
+  "purpose": "Synthetic fixture for an isolated authoring evaluation. Not an actual retail-agent run or native environment proof.",
+  "task_id": "return-headphones",
+  "user_known": {
+    "customer_id": "customer_1042",
+    "order_id": "order_2084",
+    "item_name": "Wireless headphones",
+    "return_reason": "They are uncomfortable to wear.",
+    "refund_preference": "original payment method"
+  },
+  "environment": {
+    "orders": [
+      {
+        "order_id": "order_2084",
+        "customer_id": "customer_1042",
+        "status": "delivered",
+        "days_since_delivery": 4,
+        "items": [{"item_id": "item_301", "name": "Wireless headphones"}]
+      },
+      {
+        "order_id": "order_2085",
+        "customer_id": "customer_9000",
+        "status": "delivered",
+        "days_since_delivery": 40,
+        "items": [{"item_id": "item_302", "name": "Wireless headphones"}]
+      }
+    ]
+  },
+  "policy": {
+    "return_window_days": 30,
+    "require_explicit_confirmation_before_return": true
+  },
+  "verifier_only": {
+    "canary": "VERIFIER_ONLY_SENTINEL_8173",
+    "expected_return_item_id": "item_301"
+  }
+}

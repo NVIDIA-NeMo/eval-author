@@ -147,7 +147,7 @@ def checkpoint(modules, stage):
         "traces": "selected",
         "checks": "selected",
         "measurement": "approved",
-        "findings": "measured",
+        "findings": "reviewed",
         "next_action": "reviewed",
         "blockers": "measured",
     }[stage]
@@ -213,14 +213,15 @@ def checkpoint(modules, stage):
                 "an incorrect result would receive a passing grade.",
             ],
             recommendations=[
-                {"kind": "improve", "label": label, "reason": reason}
-                for label, reason in [
+                {"kind": "improve", "label": label, "reason": reason, "support": support}
+                for label, reason, support in [
                     (
-                        "grader improvement",
+                        "verifier improvement",
                         "Verify the refund transaction instead of accepting a keyword in the final response. "
-                        "Applying this recommendation to the existing grader inside Eval Author is not yet supported.",
+                        "Applying this recommendation to the existing verifier inside Eval Author is not yet supported.",
+                        "separate_work",
                     ),
-                    ("new scenario", "Exercise a refund request after identity verification fails."),
+                    ("new scenario", "Exercise a refund request after identity verification fails.", "supported"),
                 ]
             ],
             report_action="updated",
@@ -332,6 +333,7 @@ def continuation(modules, scenario):
         if scenario == "specific_improvement":
             lifecycle["next_action"]["recommendation_ids"] = ["R1", "R2"]
     elif scenario in {"limited_findings", "partial_findings"}:
+        payload["state"]["journey_status"]["audit"] = "in_progress"
         lifecycle["measurement"].update(
             status="partial" if scenario == "partial_findings" else "deferred",
             source=(
@@ -397,6 +399,9 @@ def test_reviewed_transcripts_are_exact_and_render_without_side_effects(modules,
     monkeypatch.setattr(audit, "observe", forbid_io)
     monkeypatch.setattr(subprocess, "run", forbid_io)
     for scenario, payload in requests:
+        if payload["stage"] == "audit_findings":
+            expected_status = "complete" if progress(payload, modules)["complete"] else "in_progress"
+            assert payload["state"]["journey_status"]["audit"] == expected_status, scenario
         original = copy.deepcopy(payload)
         assert renderer.render(payload) == expected[scenario], scenario
         assert renderer.render(copy.deepcopy(payload)) == expected[scenario], scenario
@@ -432,7 +437,7 @@ def test_partial_findings_are_reviewed_without_a_question(modules):
     assert "Measurement is partial" in output
     assert "Current audit step" not in output and "Do these findings look right" not in output
     assert "The limited findings review is complete; the full measured audit remains incomplete." in output
-    assert "You can finish here or choose a recommended next action." in output
+    assert "You can finish here." in output
     assert "?" not in output
     assert payload == original
 
@@ -476,7 +481,9 @@ def test_deferral_provenance_is_not_rendered_as_a_reason(modules):
     assert "Measurement was explicitly deferred for the failed inputs." in output
 
 
-@pytest.mark.parametrize("label,heading", [("grader improvement", "Grader improvement"), ("API grader", "API grader")])
+@pytest.mark.parametrize(
+    "label,heading", [("verifier improvement", "Verifier improvement"), ("API verifier", "API verifier")]
+)
 def test_recommendation_headings_capitalize(modules, label, heading):
     payload = continuation(modules, "single_recommendation")
     payload["facts"]["recommendations"][0]["label"] = label
@@ -682,6 +689,16 @@ def test_explicit_pending_next_action_still_resumes(modules):
     assert modules[2].render(payload).rstrip().endswith(question)
 
 
+def test_findings_reuse_saved_next_action_question(modules):
+    payload = checkpoint(modules, "findings")
+    question = "Would you like Eval Author to create the new scenario, or finish here?"
+    remember_question(payload, modules, question)
+    output = modules[2].render(payload)
+    assert output.rstrip().endswith(question)
+    assert output.count("?") == 1
+    assert "### Next Steps" not in output
+
+
 @pytest.mark.parametrize("change", ["missing", "changed"])
 def test_accepted_partial_findings_resume_without_a_new_question(modules, change):
     payload = checkpoint(modules, "next_action")
@@ -692,7 +709,7 @@ def test_accepted_partial_findings_resume_without_a_new_question(modules, change
     assert modules[2].render(payload) == output
     assert "The audit findings are recorded." in output and "?" not in output
     assert "Measurement is partial; the successful subset does not complete the agreed scope." in output
-    assert "- [ ] **Review evaluation coverage, identify gaps, and recommend improvements**" in output
+    assert "### Next Steps" not in output
     evidence = lifecycle["measurement"]["evidence"][0]
     payload["facts"]["audit_observations"]["files"][evidence["path"]] = (
         None if change == "missing" else modules[1].fingerprint("Changed evidence")
@@ -754,9 +771,49 @@ def test_recommendation_ids_stay_internal(modules):
     for item, identifier in zip(payload["facts"]["recommendations"], ["R4", "R2"], strict=True):
         item["id"] = identifier
     rendered = modules[2].render(payload)
-    assert "1. **Grader improvement:**" in rendered
+    assert "1. **Verifier improvement:**" in rendered
     assert "2. **New scenario:**" in rendered
     assert "R4" not in rendered and "R2" not in rendered
+
+
+@pytest.mark.parametrize(
+    "supports",
+    [
+        ("separate_work", "supported"),
+        ("supported", "separate_work"),
+        ("supported", "supported"),
+        ("separate_work", "separate_work"),
+        ("unknown", "separate_work"),
+        (None, None),
+    ],
+)
+def test_findings_label_support_and_offer_only_supported_actions(modules, supports):
+    payload = checkpoint(modules, "findings")
+    recommendations = payload["facts"]["recommendations"]
+    labels = {
+        "supported": "Supported in Eval Author",
+        "separate_work": "Requires separate work",
+        "unknown": "Support not yet confirmed",
+    }
+    for item, support in zip(recommendations, supports, strict=True):
+        item.pop("support") if support is None else item.update(support=support)
+    original = copy.deepcopy(payload)
+    output = modules[2].render(payload)
+    offer = output.rstrip().split("\n\n")[-1]
+    assert "### Next Steps" not in output
+    assert ("?" in offer) == ("supported" in supports)
+    for item, support in zip(recommendations, supports, strict=True):
+        assert f"**{labels[support or 'unknown']}.**" in output
+        assert (item["label"] in offer) == (support == "supported")
+    assert payload == original
+
+
+@pytest.mark.parametrize("support", [None, True, [], "automatic"])
+def test_recommendation_support_rejects_invalid_values(modules, support):
+    payload = checkpoint(modules, "findings")
+    payload["facts"]["recommendations"][0]["support"] = support
+    with pytest.raises(ValueError, match="Recommendation support"):
+        modules[2].render(payload)
 
 
 @pytest.mark.parametrize("ids", [["R1", "R1"], ["R0", "R2"], ["<script>", "R2"]])
@@ -766,3 +823,39 @@ def test_findings_reject_invalid_recommendation_ids(modules, ids):
         item["id"] = identifier
     with pytest.raises(ValueError, match="recommendation IDs"):
         modules[2].render(payload)
+
+
+def test_findings_preserve_all_report_recommendations_in_priority_order(modules):
+    payload = checkpoint(modules, "findings")
+    items = payload["facts"]["recommendations"]
+    for item, identifier in zip(items, ["R1", "R2"], strict=True):
+        item["id"] = identifier
+    items.extend(
+        [
+            {
+                "id": "R4",
+                "kind": "fix_agent",
+                "label": "agent correction",
+                "reason": "Fix the observed refund behavior separately before rerunning the evaluations.",
+                "support": "separate_work",
+            },
+            {
+                "id": "R3",
+                "kind": "collect_evidence",
+                "label": "additional evidence",
+                "reason": "Collect lower-priority evidence; support for this source has not been confirmed.",
+                "support": "unknown",
+            },
+        ]
+    )
+    original = copy.deepcopy(payload)
+    output = modules[2].render(payload)
+    positions = []
+    offer = output.rstrip().split("\n\n")[-1]
+    for index, item in enumerate(items, 1):
+        positions.append(output.index(f"{index}. **{item['label'].capitalize()}:**"))
+        assert item["reason"] in output
+        assert item["id"] not in output
+        assert (item["label"] in offer) == (item["support"] == "supported")
+    assert positions == sorted(positions)
+    assert payload == original

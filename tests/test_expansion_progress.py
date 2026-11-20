@@ -78,6 +78,7 @@ def test_starting_activity_is_visible_before_task_files_and_survives_resume(modu
     assert not (tmp_path / ".eval-author/tasks").exists()
     resumed = state.initialize(tmp_path, journey="expand")
     assert render(modules, resumed) == message
+    assert modules[2].render({**expansion_payload(modules, resumed), "stage": "resume"}) == message
     assert resumed["journey_status"].get("expand") != "complete"
     assert resumed["pending_question"] is None
 
@@ -223,8 +224,8 @@ def test_scope_agreement_cannot_be_reactivated_by_recording_creation_activity(mo
     if change == "provider_round_trip":
         state.initialize(tmp_path, setup="harbor")
         saved = setup_ready(state, tmp_path, journey="expand")
-        with pytest.raises(ValueError, match="Use expansion_scope"):
-            modules[2].render({"stage": "resume", "state": saved, "revision": saved["revision"]})
+        with pytest.raises(ValueError, match="context changed"):
+            modules[2].render({**expansion_payload(modules, saved), "stage": "resume"})
     else:
         value["decision"] = {"kind": "declined", "source": "User declines"} if change == "declined" else None
         saved = save(modules, tmp_path, saved, value)
@@ -288,6 +289,14 @@ def test_provider_round_trip_does_not_require_a_hidden_creation_question(modules
     assert expansion.record(saved)["creation"]["pending"] == value["creation"]["pending"]
     value = copy.deepcopy(expansion.record(saved))
     value["decision"] = {"kind": "approved", "source": "User reconfirms scope after provider recovery"}
+    before = state.state_path(tmp_path).read_bytes()
+    with pytest.raises(ValueError, match="^Save the actual unresolved creation question$"):
+        state.update(
+            tmp_path,
+            {"scopes": {"expand": {"lifecycle": value}}, "pending_question": None},
+            expected_revision=saved["revision"],
+        )
+    assert state.state_path(tmp_path).read_bytes() == before
     saved = save(modules, tmp_path, saved, value)
     assert saved["pending_question"] == value["creation"]["pending"]["question"]
     assert progress(modules, tmp_path, saved)["stage"] == "creation"
@@ -326,7 +335,7 @@ def test_shared_historical_draft_path_has_a_recoverable_scope_revision(modules, 
     both = copy.deepcopy(plan)
     both["tasks"].append(original)
     before = state.state_path(tmp_path).read_bytes()
-    with pytest.raises(ValueError, match="before revising scope, move the current draft"):
+    with pytest.raises(ValueError, match="^Each agreed task needs its own draft path$"):
         expansion.new_scope(saved, path=value["path"], plan=both, question=None, source="User wants both")
     assert state.state_path(tmp_path).read_bytes() == before
     moved = ".eval-author/tasks/revised-refund"
@@ -341,3 +350,90 @@ def test_shared_historical_draft_path_has_a_recoverable_scope_revision(modules, 
     statuses = [row["status"] for row in progress(modules, tmp_path, saved)["creation"]["rows"]]
     assert statuses == ["queued", "draft", "missing"]
     assert not progress(modules, tmp_path, saved)["creation"]["ready_for_review"]
+
+
+def test_duplicate_draft_during_creation_requests_a_distinct_path(modules, tmp_path):
+    state, expansion, _ = modules
+    saved, value = begin(modules, tmp_path)
+    task = author(modules, tmp_path, value, 0)
+    saved = save(modules, tmp_path, saved, value)
+    value["creation"]["tasks"][expansion.task_key(value["plan"]["tasks"][1])] = copy.deepcopy(task)
+    before = state.state_path(tmp_path).read_bytes()
+    with pytest.raises(ValueError, match="^Each agreed task needs its own draft path$"):
+        save(modules, tmp_path, saved, value)
+    assert state.state_path(tmp_path).read_bytes() == before
+
+
+@pytest.mark.parametrize("path", ["starter_suite", "audit_tool_gap", "recorded_interaction"])
+def test_budget_revision_preserves_creation_question_through_reapproval(modules, tmp_path, path):
+    state, expansion, _ = modules
+    saved, value = begin(modules, tmp_path, path)
+    author(modules, tmp_path, value, 0)
+    question = {"question": "Which refund policy applies?", "source": "Missing policy decision"}
+    value["creation"]["pending"] = question
+    value["creation"]["active"] = {
+        "task": expansion.task_key(value["plan"]["tasks"][1]),
+        "status": "blocked",
+        "detail": "The refund policy is missing.",
+    }
+    saved = save(modules, tmp_path, saved, value)
+    plan = copy.deepcopy(value["plan"])
+    plan["limits"] = "At most three construction attempts; running the agent requires separate approval"
+    revised = expansion.new_scope(
+        saved, path=path, plan=plan, question="Use the revised construction budget?", source="User revises budget"
+    )
+    assert revised["creation"]["tasks"] == value["creation"]["tasks"]
+    assert revised["creation"]["active"] is None
+    assert revised["creation"]["pending"] == question
+    assert revised["creation"]["pending"] is not value["creation"]["pending"]
+    saved = save(modules, tmp_path, saved, revised)
+    resumed = state.initialize(tmp_path, journey="expand")
+    assert progress(modules, tmp_path, resumed)["stage"] == "scope"
+    assert resumed["pending_question"] == "Use the revised construction budget?"
+    assert expansion.record(resumed)["creation"]["pending"] == question
+    invalid = copy.deepcopy(revised)
+    invalid["creation"]["pending"] = {"question": "A different question?", "source": "Not agreed"}
+    before = state.state_path(tmp_path).read_bytes()
+    with pytest.raises(ValueError, match="Agree the current task scope"):
+        save(modules, tmp_path, resumed, invalid)
+    assert state.state_path(tmp_path).read_bytes() == before
+    revised.update(decision={"kind": "approved", "source": "User agrees to the new budget"}, pending=None)
+    saved = save(modules, tmp_path, resumed, revised)
+    assert saved["pending_question"] == question["question"]
+    assert progress(modules, tmp_path, saved)["stage"] == "creation"
+    assert not progress(modules, tmp_path, saved)["creation"]["ready_for_review"]
+    assert render(modules, saved).count(question["question"]) == 1
+    resumed = state.initialize(tmp_path, journey="expand")
+    assert resumed["pending_question"] == question["question"]
+
+
+@pytest.mark.parametrize("path", ["starter_suite", "audit_tool_gap", "recorded_interaction"])
+def test_shared_recovery_hides_the_retained_creation_question(modules, tmp_path, path):
+    state, _, renderer = modules
+    saved, value = begin(modules, tmp_path, path)
+    question = "Which refund policy applies?"
+    value["creation"]["pending"] = {"question": question, "source": "Missing policy"}
+    saved = save(modules, tmp_path, saved, value)
+    saved = state.update(
+        tmp_path,
+        {
+            "prerequisites": {"runtime": {"status": "missing", "source": "Runtime probe failed"}},
+            "blockers": [{"id": "fixture_access", "phase": "setup", "message": "Runtime unavailable"}],
+        },
+        expected_revision=saved["revision"],
+    )
+    payload: dict = {**expansion_payload(modules, saved), "stage": "resume"}
+    payload["facts"]["blockers"] = [
+        {
+            "id": "fixture_access",
+            "step": "Restore runtime",
+            "reason": "Runtime unavailable",
+            "needed": "Install runtime",
+        }
+    ]
+    before = state.state_path(tmp_path).read_bytes()
+    message = renderer.render(payload)
+    assert "Runtime unavailable" in message
+    assert question not in message
+    assert state.state_path(tmp_path).read_bytes() == before
+    assert saved["pending_question"] == question

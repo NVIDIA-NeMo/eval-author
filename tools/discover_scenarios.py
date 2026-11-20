@@ -20,7 +20,7 @@ restored: a step either adds something, often broken, or copies in the fix.
 Before you start
 ----------------
 - uv on PATH: step 1 creates the venvs with it, and steps 2-3 install into them. Network access is
-  needed to download harbor==0.23.0 (Python 3.12) and nemo-gym==0.6.0 (Python 3.13) from PyPI.
+  needed to download the runtime-policy.json manual_discovery profiles from PyPI.
 - Docker Desktop: step 4 asks you to quit it, step 6 to start it again, and Solve runs containers.
 - A NeMo Gym checkout at GYM_REPO: step 1 copies the NeMo Gym workloads for the fixtures from it.
 

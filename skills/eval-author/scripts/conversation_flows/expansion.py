@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Render expansion entry, planning, and creation checkpoints."""
+"""Render the existing expansion entry and task-planning checkpoints."""
 
 import conversation_templates as shared
 import expansion_state
@@ -25,34 +25,42 @@ def _audit_opening(state: dict, facts: dict) -> str:
     labels = mapping(facts.get("selected_improvements"), "selected improvements", set(selected))
     if set(labels) != set(selected):
         raise ValueError("Supply labels for exactly the retained audit improvement selection")
+    all_unsupported = facts.get("all_selected_unsupported", False)
+    if type(all_unsupported) is not bool:
+        raise ValueError("all_selected_unsupported must be a boolean")
+    if all_unsupported and "limits" not in facts:
+        raise ValueError("Explain the known support limits when all selected improvements are unsupported")
     count = "one" if len(selected) == 1 else "two" if len(selected) == 2 else "many"
     parts = [
         copy.AUDIT_SELECTION_ACKNOWLEDGMENTS[count],
         copy.AUDIT_SELECTIONS.format(
             value="; ".join(literal(labels[key], "selected improvement label") for key in selected)
         ),
-        copy.AUDIT_NEXT_STEPS,
     ]
+    if not all_unsupported:
+        parts.append(copy.AUDIT_NEXT_STEPS)
     if "limits" in facts:
         parts.append(copy.AUDIT_LIMITS.format(value=literal(facts["limits"], "known support limits")))
     return "\n\n".join(parts) + "\n"
 
 
-def _checkpoint(state: dict, progress: dict, *, reviewing: bool = False) -> expansion_state.ScopeRecord:
+def _checkpoint(
+    state: dict, progress: expansion_state.ExpansionProgress, *, reviewing: bool = False
+) -> expansion_state.ScopeRecord:
     value = expansion_state.record(state)
-    if value is None or value["schema_version"] != 2:
+    if value is None or value["checkpoint"] != "scope":
         raise ValueError("Save the existing authoring workflow's planning checkpoint first")
-    if not progress["context_current"] or state["scopes"]["expand"].get("needs_review"):
-        raise ValueError("Expansion context changed; reconcile it through the selected authoring workflow")
     ready = expansion_state.review_ready(state) if reviewing else expansion_state.checkpoint_ready(state)
     if not ready:
         raise ValueError("Continue the saved prerequisite or intent question through shared onboarding")
+    if not progress["context_current"] or state["scopes"]["expand"].get("needs_review"):
+        raise ValueError("Expansion context changed; reconcile it through the selected authoring workflow")
     if state["pending_question"] != progress["pending_question"]:
         raise ValueError("Continue the current question through its owning authoring workflow")
     return value
 
 
-def _scope(state: dict, progress: dict) -> str:
+def _scope(state: dict, progress: expansion_state.ExpansionProgress) -> str:
     value = _checkpoint(state, progress)
     plan = value["plan"]
     parts = (
@@ -82,7 +90,7 @@ def _scope(state: dict, progress: dict) -> str:
     return "\n\n".join(parts) + "\n"
 
 
-def _progress(state: dict, progress: dict) -> str:
+def _progress(state: dict, progress: expansion_state.ExpansionProgress) -> str:
     value = _checkpoint(state, progress)
     creation = progress.get("creation")
     if progress["stage"] != "creation" or creation is None:
@@ -111,7 +119,7 @@ def _artifact(state: dict, path: str, label: str) -> str:
     return link(state["repository"].rstrip("/") + "/" + path, label)
 
 
-def _review(state: dict, progress: dict, observed: dict) -> str:
+def _review(state: dict, progress: expansion_state.ExpansionProgress, observed: dict) -> str:
     value = _checkpoint(state, progress, reviewing=True)
     review = progress.get("review")
     if review is None or progress["stage"] not in {"task_review", "execution"}:
@@ -170,10 +178,12 @@ def _review(state: dict, progress: dict, observed: dict) -> str:
     return "\n\n".join(parts) + "\n"
 
 
-def _execution(state: dict, value: expansion_state.ScopeRecord, progress: dict, observed: dict) -> str:
+def _execution(
+    state: dict, value: expansion_state.ScopeRecord, progress: expansion_state.ExpansionProgress, observed: dict
+) -> str:
     saved = value.get("execution")
     execution = progress.get("execution")
-    if saved is None or execution is None or not progress["review"]["approved"]:
+    if saved is None or execution is None or progress["review"] is None or not progress["review"]["approved"]:
         raise ValueError("Approve the reviewed task set before presenting execution settings")
     settings = saved["execution_settings"]
     selection = saved["selection"] if saved.get("provider", value["setup"]) == value["setup"] else None
@@ -261,14 +271,18 @@ def render(payload: dict) -> str:
     if type(payload.get("revision")) is not int or payload["revision"] != state["revision"]:
         raise ValueError("State revision differs; reload before rendering expansion")
     if payload["stage"] == "expansion_audit_opening":
-        facts = mapping(payload.get("facts", {}), "audit opening facts", {"selected_improvements", "limits"})
+        facts = mapping(
+            payload.get("facts", {}),
+            "audit opening facts",
+            {"selected_improvements", "limits", "all_selected_unsupported"},
+        )
         return _audit_opening(state, facts)
     value = expansion_state.record(state)
     facts = mapping(payload.get("facts", {}), "expansion facts", {"expansion_observations"})
     progress = expansion_state.derive(state, facts.get("expansion_observations"))
     if progress is None:
         raise ValueError("Save a structured expansion lifecycle before continuation")
-    if payload["stage"] == "expansion_continue" and value is not None and value["schema_version"] == 2:
+    if payload["stage"] == "expansion_continue" and value is not None and value["checkpoint"] == "scope":
         checkpoint = (
             "expansion_review"
             if progress["stage"] in {"task_review", "execution"}

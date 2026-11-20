@@ -1,0 +1,12 @@
+{
+  "schema": "rubric-example-mutation-v1",
+  "id": "approval-after-effect",
+  "category": "task_or_scorer_defect",
+  "edits": [
+    {
+      "path": "tests/refund_scorer.py",
+      "old": "or all(any(a < e for a in approvals) for e in effects)",
+      "new": "or bool(approvals)"
+    }
+  ]
+}

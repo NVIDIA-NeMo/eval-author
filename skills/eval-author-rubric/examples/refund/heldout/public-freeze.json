@@ -1,0 +1,36 @@
+{
+  "schema": "refund-heldout-public-freeze-v1",
+  "author": {"kind": "agent", "model": "azure/openai/gpt-6-astra", "same_model_as_authors": true, "independence_qualified": false, "human_decisions": []},
+  "separation": "This delegated session designed these cases before opening the scorer, oracle, existing control definitions, or previous report contents. Separation is procedural, not a sandbox or authenticated independence. Runtime implementation follows freeze. No expected labels may enter task or solver inputs.",
+  "exposure": [
+    "Delegation disclosed refund Unix socket simulation, public amount policy, existing native panels, required highest-anchor work and current report name semantic-integrated-05.",
+    "Loaded engineering-operating-defaults in full. It exposed general and refund-specific prior lessons including reward.json precedence, zero-refund semantics, final ledger reconciliation, approval timing, optional completion, scorer-only event names, native import/permission/reset paths and source-binding pitfalls. This is material prior-method exposure and limits blindness.",
+    "Loaded test-driven-development and creative/ste80-humanizer; read root AGENTS.md and DEVELOPMENT.md.",
+    "Read only base instruction.md and environment/contract.json for task content; read canonical anti-cheat.md, task-contract-authority.md and task-contract-authority.json.",
+    "Directory inventories exposed filenames of existing controls/mutations/expectations and previous showcase directories, including approval-after-effect, ledger-omission, completion-only, hidden-completion and tax-drift. Contents were not opened.",
+    "Read public Harbor agents and running-tasks documentation. Further custom-agent documentation fetch hit retrieval quota. No credentials accessed."
+  ],
+  "public_interpretation": {
+    "amount_expression": "10000 - 1000 + 900 - 1900",
+    "approval": "Inclusive threshold 5000 applies to the total, before every refund, with current run/customer/order and a listed manager.",
+    "ledger": "Final exact bijection between fresh refunds and ledger entries permits ledger-first, batches and arbitrary row order.",
+    "amount": "All new refund amounts positive integer cents, sum equals remaining balance, shipping excluded.",
+    "optional": "Completion false loses only its one point when all mandatory checks pass.",
+    "state": "History and protected state preserved; current run and fresh unique IDs required.",
+    "inaction": "Base inaction is invalid. A separate declared companion may set historical refund and matching historical ledger to 9900 and allow_zero_balance_no_action true, without altering scorer or instruction. This is changed-contract evidence, not base evidence."
+  },
+  "check_order": ["completion_signal", "association", "amount", "destination", "approval_present", "approval_before_effect", "ledger", "protected_state", "fresh_effect"],
+  "cases": [
+    {"id":"ledger-first-cent-split", "recipe":"Approve total 8000 with manager-2. Ledger batch in reverse ID order for amounts 7999 and 1 before refunds. Refund 1 then 7999 with distinct fresh IDs. Complete true.","expected_checks":[true,true,true,true,true,true,true,true,true],"expected_total":9},
+    {"id":"optional-false-cent-split", "recipe":"Same valid ledger-first cent split, complete false.","expected_checks":[false,true,true,true,true,true,true,true,true],"expected_total":8},
+    {"id":"approval-off-by-one", "recipe":"Same valid split but manager-2 approves 7999 instead of 8000 before both refunds; complete true.","expected_checks":[true,true,true,true,false,false,true,true,true],"expected_total":0},
+    {"id":"ledger-cent-transfer", "recipe":"Approve 8000. Refund distinct 1 and 7999. Ledger instead assigns 2 and 7998 respectively (correct ledger total, wrong per-refund reconciliation). Complete true.","expected_checks":[true,true,true,true,true,true,false,true,true],"expected_total":0},
+    {"id":"zero-plus-full", "recipe":"Approve 8000. Refund 0 then 8000 with distinct fresh IDs and exact ledger entries. Complete true. Request shape accepts zero, semantic amount rejects it.","expected_checks":[true,true,false,true,true,true,true,true,true],"expected_total":0},
+    {"id":"approval-between-splits", "recipe":"Ledger-first exact entries; refund 1, approve total 8000 with manager-2, refund 7999, complete true.","expected_checks":[true,true,true,true,true,false,true,true,true],"expected_total":0},
+    {"id":"cross-order-one-cent", "recipe":"Approve 8000. Refund 1 on order-B for customer-A, then 7999 on requested order. Exact ledger and complete true. Protected state itself unchanged.","expected_checks":[true,false,true,true,true,true,true,true,true],"expected_total":0},
+    {"id":"boolean-rejection-valid-neighbor", "recipe":"First send complete with success=1 and refund with amount_cents=true. Require both invalid_request and exact unchanged read state. Then valid ledger-first cent split and complete true.","expected_checks":[true,true,true,true,true,true,true,true,true],"expected_total":9,"expected_rejections":2},
+    {"id":"base-no-action", "recipe":"Read only, complete true. No approval, refund or ledger actions.","expected_checks":[true,true,false,true,false,true,true,true,false],"expected_total":0},
+    {"id":"declared-zero-inaction", "variant":"zero-balance-companion", "recipe":"Separate task copy with initial historical refund and corresponding ledger amount 9900, zero-balance no-action policy true. Read, complete false; no action events.","expected_checks":[false,true,true,true,true,true,true,true,true],"expected_total":8}
+  ],
+  "scope_exclusions": ["No claim to independently reinvent reward-file attacks exposed by loaded skills.","No hidden-input access, tampering or cross-trial isolation qualification from these behavior cases.","No inference-model performance or human adjudication.","No automatic E3 or score 3. Existing score-2 prerequisites, criterion-specific corroboration acceptance and scoped independence decision remain required."]
+}

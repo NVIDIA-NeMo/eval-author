@@ -9,7 +9,10 @@ import hashlib
 import json
 import re
 from pathlib import Path
-from typing import Literal, NotRequired, TypedDict, cast
+from typing import TYPE_CHECKING, Literal, NotRequired, TypedDict, cast
+
+if TYPE_CHECKING:
+    from journey_state import ArtifactObservations
 
 from first_eval_state import (
     BoundSource,
@@ -46,8 +49,8 @@ class PendingDecision(TypedDict):
 
 
 class EntryRecord(TypedDict):
-    schema_version: Literal[1]
-    setup: NotRequired[Literal["gym", "harbor"]]
+    checkpoint: Literal["entry"]
+    setup: Literal["gym", "harbor"]
     ethos_digest: str
     handoff_digest: str | None
     pending: PendingDecision
@@ -123,7 +126,7 @@ class ExecutionRecord(TypedDict):
 
 
 class ScopeRecord(TypedDict):
-    schema_version: Literal[2]
+    checkpoint: Literal["scope"]
     setup: Literal["gym", "harbor"]
     ethos_digest: str | None
     handoff_digest: str | None
@@ -136,6 +139,60 @@ class ScopeRecord(TypedDict):
     execution: NotRequired[ExecutionRecord]
 
 
+CreationStatus = Literal[
+    "queued", "missing", "stale", "draft", "passed", "failed", "blocked", "creating", "validating", "repairing"
+]
+ExpansionStage = Literal[
+    "creation", "entry", "scope_approved", "scope_declined", "scope_revision", "scope", "task_review", "execution"
+]
+
+
+class CreationProgressRow(TypedDict):
+    task: str
+    status: CreationStatus
+
+
+class CreationProgress(TypedDict):
+    rows: list[CreationProgressRow]
+    detail: str | None
+    ready_for_review: bool
+
+
+class ExpansionObservations(TypedDict):
+    repository: str
+    revision: int
+    ethos_digest: str | None
+    artifacts: NotRequired[ArtifactObservations]
+
+
+class ReviewProgress(TypedDict):
+    digest: str
+    artifacts_current: bool
+    presented: bool
+    decision: Literal["approved", "changes_requested", "declined"] | None
+    approved: bool
+    ready: bool
+
+
+class ExecutionProgress(TypedDict):
+    selection_digest: str
+    selection_current: bool
+    presented: bool
+    authorized: bool
+    declined: bool
+
+
+class ExpansionProgress(TypedDict):
+    stage: ExpansionStage
+    context_current: bool
+    pending_question: str | None
+    creation: CreationProgress | None
+    review: ReviewProgress | None
+    execution: ExecutionProgress | None
+    scope_approved: bool
+    complete: Literal[False]
+
+
 def task_key(task: ScopeTask) -> str:
     return hashlib.sha256(json.dumps(task, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
 
@@ -143,7 +200,7 @@ def task_key(task: ScopeTask) -> str:
 def pending(value: EntryRecord | ScopeRecord) -> PendingDecision | None:
     if value["pending"] is not None:
         return value["pending"]
-    if value["schema_version"] == 2 and value["decision"] and value["decision"]["kind"] == "approved":
+    if value["checkpoint"] == "scope" and value["decision"] and value["decision"]["kind"] == "approved":
         if question := (value.get("creation") or {}).get("pending"):
             return question
         review = value.get("review")
@@ -175,20 +232,21 @@ def handoff_digest(state: dict) -> str | None:
 def validate(value: object) -> None:
     if not isinstance(value, dict):
         raise ValueError("Expansion requires a saved checkpoint")
-    scope = value.get("schema_version") == 2
+    scope = value.get("checkpoint") == "scope"
     fields = {
-        "schema_version",
+        "checkpoint",
+        "setup",
         "ethos_digest",
         "handoff_digest",
         "pending",
     }
     if scope:
-        fields |= {"setup", "path", "plan", "decision"}
-    if (set(value) - {"creation", "review", "execution"} if scope else set(value) - {"setup"}) != fields:
-        raise ValueError("Expansion entry requires versioned context bindings and a pending decision")
-    if type(value["schema_version"]) is not int or value["schema_version"] not in (1, 2):
-        raise ValueError("Unsupported expansion lifecycle version")
-    if "setup" in value and value["setup"] not in ("gym", "harbor"):
+        fields |= {"path", "plan", "decision"}
+    if (set(value) - {"creation", "review", "execution"} if scope else set(value)) != fields:
+        raise ValueError("Expansion checkpoint requires current context bindings and its decision fields")
+    if value["checkpoint"] not in ("entry", "scope"):
+        raise ValueError("Unsupported expansion checkpoint")
+    if value["setup"] not in ("gym", "harbor"):
         raise ValueError("Expansion entry requires a supported provider")
     for field in ("ethos_digest", "handoff_digest"):
         digest = value[field]
@@ -320,10 +378,7 @@ def _validate_creation(value: dict) -> None:
     planned = {task_key(task) for task in value["plan"]["tasks"]}
     paths = [task["path"] for key, task in tasks.items() if key in planned]
     if len(set(paths)) != len(paths):
-        raise ValueError(
-            "Each agreed task needs its own draft; before revising scope, move the current draft to a distinct "
-            "path, rebind its creation entry, and renew its validation under the existing agreement"
-        )
+        raise ValueError("Each agreed task needs its own draft path")
     active = creation["active"]
     if active is not None and (
         not isinstance(active, dict)
@@ -382,7 +437,7 @@ def _validate_plan(value: dict) -> None:
 
 def new_record(state: dict, *, question: str, source: str) -> EntryRecord:
     value: EntryRecord = {
-        "schema_version": 1,
+        "checkpoint": "entry",
         "setup": state["setup"],
         "ethos_digest": state["ethos"]["confirmed_digest"],
         "handoff_digest": handoff_digest(state),
@@ -396,7 +451,7 @@ def new_scope(state: dict, *, path: str, plan: dict, question: str | None, sourc
     import copy
 
     value: dict = {
-        "schema_version": 2,
+        "checkpoint": "scope",
         "setup": state["setup"],
         "ethos_digest": state["ethos"]["confirmed_digest"],
         "handoff_digest": handoff_digest(state),
@@ -406,8 +461,12 @@ def new_scope(state: dict, *, path: str, plan: dict, question: str | None, sourc
         "pending": {"question": question, "source": source} if question is not None else None,
     }
     previous = record(state)
-    if previous and previous["schema_version"] == 2 and previous.get("creation") is not None:
-        value["creation"] = {"tasks": copy.deepcopy(previous["creation"]["tasks"]), "active": None, "pending": None}
+    if previous and previous["checkpoint"] == "scope" and previous.get("creation") is not None:
+        value["creation"] = {
+            "tasks": copy.deepcopy(previous["creation"]["tasks"]),
+            "active": None,
+            "pending": copy.deepcopy(previous["creation"]["pending"]),
+        }
         for key in ("review", "execution"):
             if key in previous:
                 value[key] = copy.deepcopy(previous.get(key))
@@ -436,7 +495,7 @@ def _selection_evidence(selection: ExecutionSelection) -> list[EvidenceReference
     return [selection["config"], *selection.get("inputs", []), *(selection.get("bridge") or {}).get("evidence", [])]
 
 
-def observe(repo: Path, state: dict) -> dict:
+def observe(repo: Path, state: dict) -> ExpansionObservations:
     from journey_state import ethos_digest, observe_artifacts
 
     digest = None
@@ -445,14 +504,18 @@ def observe(repo: Path, state: dict) -> dict:
             digest = ethos_digest(repo, state["ethos"]["path"])
         except (OSError, ValueError):
             pass
-    observed = {"repository": state["repository"], "revision": state["revision"], "ethos_digest": digest}
+    observed: ExpansionObservations = {
+        "repository": state["repository"],
+        "revision": state["revision"],
+        "ethos_digest": digest,
+    }
     value = record(state)
     if value and "creation" in value:
         observed["artifacts"] = observe_artifacts(repo, *_sources(value))
     return observed
 
 
-def _creation(value: ScopeRecord, observed: object) -> dict:
+def _creation(value: ScopeRecord, observed: object) -> CreationProgress:
     tasks, files = _sources(value)
     if not isinstance(observed, dict) or set(observed) != {"tasks", "files"}:
         raise ValueError("Supply current creation task and evidence observations")
@@ -464,24 +527,25 @@ def _creation(value: ScopeRecord, observed: object) -> dict:
             for item in observed[field].values()
         ):
             raise ValueError("Creation observations require SHA-256 digests or missing evidence")
+    artifacts = cast("ArtifactObservations", observed)
     creation = value["creation"]
     active = creation["active"]
-    rows = []
+    rows: list[CreationProgressRow] = []
     failures = []
     for planned in value["plan"]["tasks"]:
         key = task_key(planned)
         task = creation["tasks"].get(key)
-        status = "queued"
+        status: CreationStatus = "queued"
         if task:
             check = task["validation"]
-            if observed["tasks"][key] is None:
+            if artifacts["tasks"][key] is None:
                 status = "missing"
-            elif observed["tasks"][key] != task["sha256"]:
+            elif artifacts["tasks"][key] != task["sha256"]:
                 status = "stale"
             elif check is None:
                 status = "draft"
             elif check["sha256"] != task["sha256"] or any(
-                observed["files"][ref["path"]] != ref["digest"] for ref in check["evidence"]
+                artifacts["files"][ref["path"]] != ref["digest"] for ref in check["evidence"]
             ):
                 status = "stale"
             else:
@@ -509,7 +573,9 @@ def _review_digest(value: ScopeRecord) -> str:
     )
 
 
-def _review(state: dict, value: ScopeRecord, observed: dict, creation: dict, approved_scope: bool) -> dict:
+def _review(
+    state: dict, value: ScopeRecord, observed: dict, creation: CreationProgress, approved_scope: bool
+) -> ReviewProgress:
     planned = {task_key(task) for task in value["plan"]["tasks"]}
     tasks = value["creation"]["tasks"]
     digest = _review_digest(value)
@@ -544,7 +610,7 @@ def _review(state: dict, value: ScopeRecord, observed: dict, creation: dict, app
     }
 
 
-def _execution(state: dict, value: ScopeRecord, observed: dict, review: dict) -> dict:
+def _execution(state: dict, value: ScopeRecord, observed: dict, review: ReviewProgress) -> ExecutionProgress:
     saved = value["execution"]
     selection = saved["selection"]
     settings = saved["execution_settings"]
@@ -586,7 +652,7 @@ def _execution(state: dict, value: ScopeRecord, observed: dict, review: dict) ->
     }
 
 
-def derive(state: dict, observed: object) -> dict | None:
+def derive(state: dict, observed: object) -> ExpansionProgress | None:
     value = record(state)
     if value is None:
         return None
@@ -601,11 +667,10 @@ def derive(state: dict, observed: object) -> dict | None:
     ):
         raise ValueError("Supply expansion observations from the current repository and revision")
     scoped_trace = (
-        value["schema_version"] == 2 and value["path"] == "recorded_interaction" and value["ethos_digest"] is None
+        value["checkpoint"] == "scope" and value["path"] == "recorded_interaction" and value["ethos_digest"] is None
     )
     current = (
-        "setup" in value
-        and value["setup"] == state["setup"]
+        value["setup"] == state["setup"]
         and value["ethos_digest"] == state["ethos"]["confirmed_digest"]
         and value["handoff_digest"] == handoff_digest(state)
         and (
@@ -613,20 +678,26 @@ def derive(state: dict, observed: object) -> dict | None:
         )
     )
     scope = state["scopes"]["expand"]
-    decision = value["decision"] if value["schema_version"] == 2 and current and not scope.get("needs_review") else None
-    creation = _creation(value, observed["artifacts"]) if value["schema_version"] == 2 and "creation" in value else None
+    decision = (
+        value["decision"] if value["checkpoint"] == "scope" and current and not scope.get("needs_review") else None
+    )
+    creation = (
+        _creation(value, observed["artifacts"]) if value["checkpoint"] == "scope" and "creation" in value else None
+    )
     creating = bool(creation and decision and decision["kind"] == "approved")
     if creation is not None:
         creation["ready_for_review"] = creation["ready_for_review"] and creating and checkpoint_ready(state)
     review = execution = None
-    if value["schema_version"] == 2 and value.get("review"):
+    if value["checkpoint"] == "scope" and value.get("review"):
         assert creation is not None
         review = _review(state, value, observed["artifacts"], creation, creating)
         if value.get("execution"):
             execution = _execution(state, value, observed["artifacts"], review)
-    stage = "execution" if review and review["approved"] and execution else "task_review" if review else "creation"
+    stage: ExpansionStage = (
+        "execution" if review and review["approved"] and execution else "task_review" if review else "creation"
+    )
     question = (value.get("creation") or {}).get("pending") if creating else value["pending"]
-    if creating and question is None and value["schema_version"] == 2:
+    if creating and question is None and value["checkpoint"] == "scope":
         if stage == "task_review" and review:
             question = value["review"]["pending"] if review["ready"] else None
         elif stage == "execution" and execution:
@@ -637,14 +708,17 @@ def derive(state: dict, observed: object) -> dict | None:
                 or saved_execution["execution_settings"]["open_questions"]
             ):
                 question = saved_execution["pending"]
+    stages: dict[str, ExpansionStage] = {
+        "approved": "scope_approved",
+        "declined": "scope_declined",
+        "revise": "scope_revision",
+    }
     return {
         "stage": stage
         if creating
         else "entry"
-        if value["schema_version"] == 1
-        else {"approved": "scope_approved", "declined": "scope_declined", "revise": "scope_revision"}.get(
-            decision["kind"] if decision else None, "scope"
-        ),
+        if value["checkpoint"] == "entry"
+        else stages.get(decision["kind"] if decision else None, "scope"),
         "context_current": current,
         "pending_question": question["question"] if current and question else None,
         "creation": creation,
@@ -666,19 +740,33 @@ def entry_ready(state: dict) -> bool:
     )
 
 
-def checkpoint_ready(state: dict) -> bool:
+def trace_scope(state: dict) -> bool:
     value = record(state)
-    if value is None or value["schema_version"] == 1 or value["path"] != "recorded_interaction":
-        return entry_ready(state)
     return (
         state["journey"] == "expand"
-        and all(
-            state["prerequisites"].get(key, {}).get("status") in ("verified", "confirmed")
-            for key in ("python", "runtime")
-        )
-        and not any(row["phase"] in ("setup", "ethos", "expand") for row in state["blockers"])
+        and value is not None
+        and value["checkpoint"] == "scope"
+        and value["path"] == "recorded_interaction"
+    )
+
+
+def trace_ethos_optional(state: dict) -> bool:
+    return (
+        trace_scope(state)
         and state["ethos"]["stage"] not in ("review", "interview", "draft", "write")
         and not state["ethos"]["remaining_questions"]
+    )
+
+
+def checkpoint_ready(state: dict) -> bool:
+    from journey_state import active_blockers, checklist
+
+    if not trace_scope(state):
+        return entry_ready(state)
+    return (
+        trace_ethos_optional(state)
+        and checklist(state)[0]["complete"]
+        and not active_blockers(state, ethos_optional=True)
     )
 
 
@@ -693,13 +781,20 @@ def review_ready(state: dict) -> bool:
     )
 
 
-def question_ready(state: dict, progress: dict) -> bool:
+def question_ready(state: dict, progress: ExpansionProgress) -> bool:
     return review_ready(state) if progress["stage"] in {"task_review", "execution"} else checkpoint_ready(state)
 
 
-def presentation_state(state: dict, progress: dict | None, *, answered_ethos_review: bool = False) -> dict:
+def presentation_state(state: dict, progress: ExpansionProgress | None, *, answered_ethos_review: bool = False) -> dict:
     value = record(state)
-    if value is None or progress is None or not progress["context_current"] or not question_ready(state, progress):
+    if (
+        value is None
+        or progress is None
+        or not progress["context_current"]
+        or value["checkpoint"] == "scope"
+        and state["scopes"]["expand"].get("needs_review")
+        or not question_ready(state, progress)
+    ):
         return state
     questions = {
         item["question"]
@@ -715,14 +810,40 @@ def presentation_state(state: dict, progress: dict | None, *, answered_ethos_rev
 
 
 def reconcile_question(repo, state: dict, *, answered_ethos_review: bool = False) -> None:
-    if state["journey"] != "expand" or record(state) is None:
+    value = record(state)
+    if state["journey"] != "expand" or value is None:
         return
-    state["pending_question"] = presentation_state(
-        state, derive(state, observe(repo, state)), answered_ethos_review=answered_ethos_review
-    )["pending_question"]
+    progress = derive(state, observe(repo, state))
+    if (
+        value["checkpoint"] == "scope"
+        and progress is not None
+        and progress["stage"] not in {"task_review", "execution"}
+    ):
+        from conversation_templates import ETHOS_CHANGED_QUESTION, ETHOS_DRAFT_CHANGED_QUESTION, ETHOS_SELECTED_QUESTION
+        from journey_state import active_blockers, checklist
+
+        question = pending(value)
+        scope_question = question["question"] if question else None
+        ethos_question = state["pending_question"] in {
+            ETHOS_CHANGED_QUESTION,
+            ETHOS_DRAFT_CHANGED_QUESTION,
+            ETHOS_SELECTED_QUESTION,
+        } or (
+            state["next_handoff"] == "ethos-orchestrate"
+            and checklist(state)[0]["complete"]
+            and not active_blockers(state)
+        )
+        if answered_ethos_review and (
+            ethos_question or state["pending_question"] == scope_question and checkpoint_ready(state)
+        ):
+            state["pending_question"] = None
+        answered_ethos_review = False
+    state["pending_question"] = presentation_state(state, progress, answered_ethos_review=answered_ethos_review)[
+        "pending_question"
+    ]
 
 
-def _review_transition(previous: dict, updated: dict, old: dict | None, now: dict) -> None:
+def _review_transition(previous: dict, updated: dict, old: ExpansionProgress | None, now: ExpansionProgress) -> None:
     before = dict(record(previous) or {})
     after = record(updated)
     assert after is not None
@@ -741,6 +862,7 @@ def _review_transition(previous: dict, updated: dict, old: dict | None, now: dic
             raise ValueError("Agree the current scope before updating task review or execution settings")
     review = after.get("review")
     if review:
+        assert now["review"] is not None
         prior = before.get("review") or {}
         presentation = review["presented"]
         if presentation and presentation != prior.get("presented"):
@@ -771,7 +893,7 @@ def _review_transition(previous: dict, updated: dict, old: dict | None, now: dic
     execution = after.get("execution")
     if not execution:
         return
-    assert review is not None
+    assert review is not None and now["review"] is not None and now["execution"] is not None
     prior = before.get("execution") or {}
     if execution != prior and execution != {**prior, "pending": None} and not now["review"]["approved"]:
         raise ValueError("Approve the current generated tasks before updating execution settings")
@@ -779,6 +901,7 @@ def _review_transition(previous: dict, updated: dict, old: dict | None, now: dic
     if presentation and presentation != prior.get("execution_settings_presented"):
         if not (
             old
+            and old["review"]
             and old["review"]["approved"]
             and old["execution"]
             and old["execution"]["selection_digest"] == now["execution"]["selection_digest"]
@@ -820,16 +943,18 @@ def transition(repo, previous: dict, updated: dict) -> None:
         raise ValueError("Retain structured expansion progress when updating its scope")
     if after is None:
         return
-    if before and any(key in before for key in ("creation", "review", "execution")) and after["schema_version"] != 2:
+    if updated["journey_status"].get("expand") == "complete":
+        raise ValueError("An unresolved expansion entry decision cannot establish completion")
+    if before and any(key in before for key in ("creation", "review", "execution")) and after["checkpoint"] != "scope":
         raise ValueError("Retain creation progress when returning to scope decisions")
-    if after["schema_version"] == 2:
+    if after["checkpoint"] == "scope":
         prior_creation = before.get("creation") if before else None
         creation = after.get("creation")
         observed = observe(repo, updated)
         old = derive(previous, observe(repo, previous))
         if prior_creation and (not creation or set(prior_creation["tasks"]) - set(creation["tasks"])):
             raise ValueError("Retain partial creation artifacts when revising scope")
-        if before is not None and before["schema_version"] == 2:
+        if before is not None and before["checkpoint"] == "scope":
             fields = ("plan", "path", "setup", "ethos_digest", "handoff_digest")
             if any(before[key] != after[key] for key in fields) and after["decision"] is not None:
                 if after["decision"] == before["decision"]:
@@ -840,6 +965,18 @@ def transition(repo, previous: dict, updated: dict) -> None:
             scope = updated["scopes"]["expand"]
             progress = derive(updated, observed)
             assert progress is not None
+            if not checkpoint_ready(updated):
+                raise ValueError("Expansion scope requires its journey and shared prerequisites")
+            if not progress["context_current"]:
+                raise ValueError("Bind the expansion scope to the current provider, intent, and handoff")
+            if (
+                before is not None
+                and before["pending"] is not None
+                and after["pending"] is None
+                and updated["pending_question"] == before["pending"]["question"]
+            ):
+                raise ValueError("Clear or replace the answered scope question")
+            scope = updated["scopes"]["expand"]
             current = progress["context_current"]
             scope["confirmed"] = bool(current and after["decision"] and after["decision"]["kind"] == "approved")
             scope["needs_review"] = not current
@@ -850,7 +987,7 @@ def transition(repo, previous: dict, updated: dict) -> None:
                 prior_creation is not None
                 and creation["tasks"] == prior_creation["tasks"]
                 and creation["active"] is None
-                and creation["pending"] is None
+                and creation["pending"] in (None, prior_creation["pending"])
             ):
                 raise ValueError("Agree the current task scope before recording creation progress")
             previous_tasks = prior_creation["tasks"] if prior_creation else {}
@@ -872,12 +1009,17 @@ def transition(repo, previous: dict, updated: dict) -> None:
         assert progress is not None
         _review_transition(previous, updated, old, progress)
         question = progress["pending_question"]
-        if question is not None and question_ready(updated, progress):
+        if (
+            question is not None
+            and not updated["scopes"]["expand"].get("needs_review")
+            and question_ready(updated, progress)
+        ):
             if updated["pending_question"] != question:
                 if not checkpoint_ready(previous) and updated["pending_question"] is None:
                     reconcile_question(repo, updated)
                 else:
-                    raise ValueError("Save the actual unresolved scope question")
+                    phase = "creation" if progress["stage"] == "creation" else "scope"
+                    raise ValueError(f"Save the actual unresolved {phase} question")
         return
     progress = derive(updated, observe(repo, updated))
     assert progress is not None
@@ -897,5 +1039,3 @@ def transition(repo, previous: dict, updated: dict) -> None:
             reconcile_question(repo, updated)
         else:
             raise ValueError("Retain the unresolved expansion question until its lifecycle decision changes")
-    if updated["journey_status"].get("expand") == "complete":
-        raise ValueError("An unresolved expansion entry decision cannot establish completion")

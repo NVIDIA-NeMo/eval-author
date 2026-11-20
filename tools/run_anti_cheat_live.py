@@ -19,6 +19,8 @@ import tempfile
 import time
 from pathlib import Path
 
+import collect_verifier_cheat_evidence as common
+
 ROOT = Path(__file__).resolve().parents[1]
 PANEL = ROOT / "evals/anti-cheat-live"
 CONTROLS = ("reference", "early-exit", "fake-report")
@@ -208,24 +210,12 @@ def partial_observation(job, cell):
 
 def native_check(job, cell):
     aggregate = load_json(job / "result.json")
-    integer(aggregate["n_total_trials"], 1, 1)
-    counts = {
-        "n_completed_trials": 1,
-        "n_errored_trials": 0,
-        "n_pending_trials": 0,
-        "n_running_trials": 0,
-        "n_cancelled_trials": 0,
-        "n_retries": 0,
-    }
-    for name, count in counts.items():
-        integer(aggregate["stats"][name], count, count)
-    require(bool(aggregate["finished_at"]))
+    common.completed_job(aggregate, errors=("invalid evidence", "invalid evidence", "invalid evidence"))
     paths = list(job.glob("*/result.json"))
     require(len(paths) == 1)
     trial_dir = paths[0].parent
     trial = load_json(paths[0])
-    require(trial["task_name"] == cell["task"] and trial["trial_name"] == trial_dir.name)
-    require(trial["exception_info"] is None and bool(trial["finished_at"]))
+    common.completed_trial(trial, cell["task"], trial_dir.name, errors=("invalid evidence", "invalid evidence"))
     spec = importlib.util.spec_from_file_location("anti_cheat_agent", PANEL / "live_agent.py")
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
@@ -241,8 +231,7 @@ def native_check(job, cell):
         model_name=panel().MODEL["model"] if cell["arm"] in ARMS else None,
     )
     require(trial["agent_info"] == expected_agent.to_agent_info().model_dump(mode="json"))
-    for phase in ("agent_execution", "verifier"):
-        require(bool(trial[phase]["started_at"]) and bool(trial[phase]["finished_at"]))
+    common.completed_phases(trial, error="invalid evidence")
     agent = load_json(trial_dir / "agent/receipt.json")
     require(agent["task_id"] == cell["task_id"] and agent["arm"] == cell["arm"])
     require(agent["uid"] == 65534 and agent["protected"] is True)
@@ -392,7 +381,11 @@ def bindings(runtime=None, observed_models=None):
         "model_digest": sha(canonical({"requested": fixture.MODEL, "observed": observed_models or []})),
         "prompt_digest": sha(canonical(fixture.PROMPTS)),
         "task_digest": sha(canonical(fixture.TASKS)),
-        "measurement_digest": sha(Path(__file__).read_bytes() + b"".join(path.read_bytes() for path in files)),
+        "measurement_digest": sha(
+            Path(__file__).read_bytes()
+            + Path(common.__file__).read_bytes()
+            + b"".join(path.read_bytes() for path in files)
+        ),
     }
     values["comparison_digest"] = sha(canonical(values))
     return values

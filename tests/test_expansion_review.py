@@ -376,8 +376,8 @@ def test_scope_revision_retains_history_and_clears_later_questions(modules, tmp_
     assert revised["creation"]["tasks"] == value["creation"]["tasks"]
     assert revised["review"]["decision"] == value["review"]["decision"]
     assert revised["review"]["pending"] is revised["execution"]["pending"] is None
-    with pytest.raises(ValueError, match="Use expansion_scope"):
-        modules[2].render({"stage": "resume", "state": saved, "revision": saved["revision"]})
+    output = modules[2].render({**expansion_payload(modules, saved), "stage": "resume"})
+    assert output.count(revised["pending"]["question"]) == 1
     revised.update(decision={"kind": "approved", "source": "User agrees to revised scope"}, pending=None)
     saved = save(modules, tmp_path, saved, revised)
     assert saved["pending_question"] is None and RUN_QUESTION not in render(modules, saved)

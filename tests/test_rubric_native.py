@@ -270,8 +270,6 @@ def test_cli_retains_failed_control_and_native_references(panel):
     assert native["subjects"][0]["native_identity"] == "verified"
     assert native["status"] == "unknown"
     assert native["native_execution"] is False
-    assert report["preflight_success"] is False
-    assert report["anti_cheat_scores"] is None
     assert result.returncode == 1
     assert result.stderr == ""
     assert "PRIVATE-" not in result.stdout
@@ -284,10 +282,9 @@ def test_cli_rejects_malformed_native_id_lists(panel, key, value):
     result = run_rubric_cli(panel, {"artifacts": panel.identity["records"], "native": selection})
     assert result.returncode == 2
     assert json.loads(result.stdout) == {
-        "schema": "rubric-measurements-v3",
+        "schema": "rubric-measurements-v4",
         "status": "invalid",
         "code": "selection.invalid",
-        "preflight_success": False,
     }
     assert result.stderr == ""
     assert "PRIVATE-" not in result.stdout
@@ -299,10 +296,9 @@ def test_cli_rejects_nonobject_native_selection(panel, value):
     assert result.stderr == ""
     assert result.returncode == 2
     assert json.loads(result.stdout) == {
-        "schema": "rubric-measurements-v3",
+        "schema": "rubric-measurements-v4",
         "status": "invalid",
         "code": "selection.invalid",
-        "preflight_success": False,
     }
 
 
@@ -317,10 +313,9 @@ def test_cli_requires_exact_native_selector_keys(panel, key):
     assert result.returncode == 2
     assert result.stderr == ""
     assert json.loads(result.stdout) == {
-        "schema": "rubric-measurements-v3",
+        "schema": "rubric-measurements-v4",
         "status": "invalid",
         "code": "selection.invalid",
-        "preflight_success": False,
     }
 
 
@@ -346,7 +341,6 @@ def test_cli_broken_native_references_cannot_pass(panel, damage):
         assert native["controls"][0]["classification"] == "false_rejection"
         assert native["subjects"]
         assert "native.tool_call_unresolved" in {row["code"] for row in native["diagnostics"]}
-    assert report["preflight_success"] is False
     assert native["native_execution"] is False
     assert result.returncode == 1
     assert result.stderr == ""
@@ -357,7 +351,6 @@ def test_cli_native_projection_is_optional(panel):
     result = run_rubric_cli(panel, {"artifacts": panel.identity["records"]})
     report = json.loads(result.stdout)
     assert "native" not in report["measurements"]
-    assert report["preflight_success"] is False
     assert result.stderr == ""
 
 

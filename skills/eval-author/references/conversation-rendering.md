@@ -27,6 +27,10 @@ checklist labels, status labels, and generic headings live in
 [conversation_templates.py](../scripts/conversation_templates.py). Flow-specific
 copy belongs to that flow's template module, not a second prose template.
 
+The formatter keeps table cells on one Markdown line, joining multiline prose
+with spaces. Labels and separate details use inline Markdown and text separators
+so the same output renders in terminal interfaces without HTML support.
+
 The renderer presents decisions; it never makes them. It does not inspect the
 repository, load or save journey state, probe prerequisites, validate files,
 delegate work, choose sources, run evaluations, or grant approval. Reading its

@@ -29,7 +29,15 @@ def bound_audit(root: Path, tool: str, *, source: Path | None = None) -> Path:
     return audit
 
 
-def bound_gap(root: Path, output: Path, tool: str, *, source: Path | None = None) -> Path:
+def bound_gap(
+    root: Path,
+    output: Path,
+    tool: str,
+    *,
+    source: Path | None = None,
+    run_id: str | None = None,
+    methods: list[str] | None = None,
+) -> Path:
     source = source or Path(__file__).resolve().parents[1]
     skill = source / "skills/eval-author-audit"
     audit = bound_audit(root, tool, source=source)
@@ -57,6 +65,8 @@ def bound_gap(root: Path, output: Path, tool: str, *, source: Path | None = None
                 "agent_under_test",
                 "--out-dir",
                 measurements,
+                *(["--run-id", run_id] if run_id else []),
+                *([part for method in methods for part in ("--measure", method)] if methods else []),
             ],
         ),
         ("report.py", ["--coverage-dir", measurements, "--out", output]),

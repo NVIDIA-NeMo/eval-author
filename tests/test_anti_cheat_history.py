@@ -16,7 +16,11 @@ SCRIPT = ROOT / "tools/compare_anti_cheat_live.py"
 spec = importlib.util.spec_from_file_location("history_runner", ROOT / "tools/run_anti_cheat_live.py")
 assert spec and spec.loader
 runner = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(runner)
+sys.path.insert(0, str(ROOT / "tools"))
+try:
+    spec.loader.exec_module(runner)
+finally:
+    sys.path.pop(0)
 
 
 def synthetic(batch, mode="live", repetitions=1, run_id=0):
