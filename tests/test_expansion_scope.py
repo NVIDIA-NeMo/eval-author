@@ -8,6 +8,8 @@ from pathlib import Path
 
 import pytest
 from journey_state_support import ethos_ready, expansion_start, setup_ready
+from journey_state_support import expansion_scope_decide as decide
+from journey_state_support import expansion_scope_save as save_scope
 
 SCRIPTS = Path(__file__).resolve().parents[1] / "skills/eval-author/scripts"
 QUESTION = "Create this partial-refund task?"
@@ -42,17 +44,6 @@ def resume_payload(modules, repo, saved):
         "revision": saved["revision"],
         "facts": {"expansion_observations": modules[1].observe(repo, saved)},
     }
-
-
-def save_scope(modules, repo, saved, value):
-    return modules[0].update(
-        repo,
-        {
-            "scopes": {"expand": {"lifecycle": value}},
-            "pending_question": value["pending"]["question"] if value["pending"] else None,
-        },
-        expected_revision=saved["revision"],
-    )
 
 
 def approve_scope(modules, repo, saved):
@@ -132,12 +123,8 @@ def test_scope_accepts_only_the_current_tagged_format(modules, tmp_path, mutatio
 def test_saved_decision_resumes_at_its_checkpoint_without_completing_the_journey(modules, tmp_path, kind):
     state, expansion, _ = modules
     saved = start(modules, tmp_path)
-    value = copy.deepcopy(expansion.record(saved))
-    value["decision"] = {"kind": kind, "source": f"User reply: {kind}"}
-    value["pending"] = (
-        {"question": "Which refund scenario instead?", "source": "User requests revision"} if kind == "revise" else None
-    )
-    saved = save_scope(modules, tmp_path, saved, value)
+    saved = decide(modules, tmp_path, saved, kind)
+    value = expansion.record(saved)
     resumed = state.initialize(tmp_path, journey="expand")
     progress = expansion.derive(resumed, expansion.observe(tmp_path, resumed))
     assert (

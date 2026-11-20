@@ -4,9 +4,9 @@
 # Expansion continuation
 
 Use the [shared rendering entry point](../../scripts/conversation_renderer.py)
-with `stage: expansion_continue` for the unresolved post-onboarding expansion
-entry decision. This slice does not approve scope, construct tasks, validate
-grading, or authorize execution. Only this implemented stage is registered.
+with `stage: expansion_continue` for an unresolved entry decision or
+`stage: expansion_scope` for the selected authoring flow's existing scope review.
+Rendering does not construct tasks, validate verifiers, or authorize execution.
 For an unselected improvement path, use the core's
 [expansion entry](../../SKILL.md#expansion-handoff) before shared checks;
 continuation retains an already-selected path and its unresolved decision.
@@ -16,6 +16,22 @@ continuation retains an already-selected path and its unresolved decision.
 The audit already records the recommended changes, and its handoff identifies
 which ones the user selected. Reuse that report and the retained decisions;
 do not offer to prepare another proposal or repeat the recommendation pass.
+
+Immediately after retaining the selection and entering `expand`, render
+`expansion_audit_opening` with the complete saved state and exact revision.
+Supply `facts.selected_improvements` as an object mapping exactly the handoff's
+selected recommendation IDs to their current report labels, plus `facts.limits`
+when a support limit is already known. Set `facts.all_selected_unsupported: true`
+only when the caller has established that those limits cover every selected
+improvement; supply `facts.limits` explaining them. The renderer then omits the
+support-check, planning, and execution next steps. Leave the flag absent or false
+when support remains unresolved for any selection. Show the returned Markdown
+unchanged in commentary before eligibility checks, adapter investigation, or task-plan details,
+then continue in the same turn. This opening needs no ready prerequisites or
+planning lifecycle and asks no new question. It acknowledges only the saved
+selection, without approving construction or execution. Resolve changed or
+missing recommendation context before rendering; do not repeat the opening on
+every planning reply or resume of an unchanged selection.
 
 Check which selected changes have a supported authoring path. For an audit
 tool-gap addition, continue at [task-create Step 2](../../../eval-author-task-create/SKILL.md#step-2-select-one-actionable-gap),
@@ -30,10 +46,12 @@ For repairs within an existing authoring flow, use the
 The audit handoff does not add a general workflow for editing existing suite
 cases or graders. Describe an unavailable implementation path as not yet
 supported, retaining the audit's recommendation without offering to write it
-again. For an unsupported grader repair, use `UNSUPPORTED_GRADER_REPAIR` from
+again. For an unsupported verifier repair, use `UNSUPPORTED_GRADER_REPAIR` from
 [expansion_templates.py](../../scripts/conversation_flows/expansion_templates.py).
-Lead with that explanation without a bookkeeping preamble. Keep any report-update
-failure in a separate paragraph. Do not apply this limitation to supported
+Include known limits in the opening above without repeating them afterward. If a
+limit is discovered later, explain it without another selection acknowledgment.
+When all selected changes are unsupported, do not offer or enter task planning.
+Keep any report-update failure in a separate paragraph. Do not apply this limitation to supported
 authoring or repair work or describe it as a blanket prohibition on source edits.
 
 `expansion_continue` presents a saved unresolved entry question; it is not a
@@ -42,6 +60,47 @@ entry input prevents that work from proceeding. If a retained entry question
 repeats the audit's settled selection, replace it with the actual unresolved
 decision through the revision-checked update below. Preserve the lifecycle and
 update its question and the top-level `pending_question` together.
+
+## Existing scope checkpoint
+
+Use `expansion_scope` for the selected workflow's existing
+[coverage-planning checkpoint](../coverage-planning.md), not a separate proposal
+or approval step. Starter expansion keeps its
+[existing owner](../../../eval-author-first-eval/SKILL.md#starter-expansion);
+recorded interactions keep the [trace handoff](../trace-input.md), including
+privacy review and admission before planning that depends on those inputs.
+
+Save `expansion_state.new_scope(state, path=..., plan=..., question=..., source=...)`
+as `scopes.expand.lifecycle` through the latest revision-checked update. Use
+`starter_suite`, `audit_tool_gap`, or `recorded_interaction` for `path`. The plan
+contains `summary`, `tasks` (`task`, `scenario`, `outcome`, `verification`),
+`breadth`, `limits`, and `deferred`; the [validator](../../scripts/expansion_state.py)
+owns its shape. Retain corpus/example selection and counts in `breadth` as saved
+planning context. Present material counts and source/scenario choices in
+`summary` or the task rows, and exclusions, attempt settings, and cost constraints
+in `limits`; do not add a separate breadth section. Preserve unaffected scope fields.
+Save the actual unanswered scope question in both lifecycle
+`pending` and top-level `pending_question`; use no question when it is settled.
+
+Populate `deferred` only with work the user explicitly selected or postponed
+that remains outside this plan, including selected unsupported audit improvements.
+Otherwise save `[]` so the section is omitted. Do not add speculative cases or
+routine later authoring, validation, or execution steps. Keep relevant coverage
+limits and exclusions in `limits`.
+
+Reload normal state and render `expansion_scope` with its exact revision and
+`facts.expansion_observations`. Record the user's actual answer as lifecycle
+`decision: {kind, source}`: `approved`, `declined`, or `revise`. Approval or decline
+clears both pending questions; revision retains the actual next scope question.
+Reuse a prior applicable answer rather than asking again to populate this record.
+Changes to the plan require the user's decision on those changes.
+
+Resume an unanswered scope question through `expansion_scope`. After an answer,
+continue the existing authoring workflow and leave its later questions with that
+owner. Shared prerequisite and Ethos recovery take precedence. Task-create keeps
+gap selection, eligibility, authoring, native validation, acceptance, and
+execution-authorization rules; this checkpoint adds no construction approval,
+command, or evidence-validation layer.
 
 ## Shared checkpoint contract
 
@@ -83,16 +142,12 @@ The scope record saves the selected authoring workflow's existing coverage-plann
 through `expansion_state.new_scope`: a plan for display, its actual user decision,
 and an optional unresolved question. The
 [validator](../../scripts/expansion_state.py) owns the exact presentation fields.
-Task-create continues to own gap selection, authoring, native validation, and
-acceptance; starter expansion and trace mode retain their existing workflows.
-There is no additional construction approval or command. Once its question is
-answered, this checkpoint leaves later authoring questions with their owner.
-Use the registered `resume` stage to show its checklist and saved question;
-`expansion_continue` remains specific to the unresolved entry decision.
+Follow [Existing scope checkpoint](#existing-scope-checkpoint) for workflow
+ownership, recovery priority, and continuation after scope review. Preserve the
+existing context bindings.
 All stateful onboarding stages follow the [scope observation contract](onboarding.md#stateful-responses).
 Stale bindings require a saved context-review question; shared blockers suppress
 the retained scope question until recovery.
-Preserve shared prerequisite/Ethos recovery and the existing context bindings.
 Do not save a parallel checklist, introduce another state file, or register
 future-stage placeholders. Reuse shared formatting and labels.
 
@@ -177,8 +232,9 @@ it does not inspect tasks, source traces, or native receipts.
 After saving, reload normal state and pass the complete `state`, exact
 `revision`, and `facts.expansion_observations` from the same `show` result.
 `expansion_state.observe` obtains current Ethos content outside rendering;
-`derive` checks supplied observations without I/O. The renderer shows the shared
-checklist and saved question without a generic selection or scope preamble.
+`derive` checks supplied observations without I/O. Entry shows the shared
+checklist and saved question. Scope shows the saved plan and actual unresolved
+question, without a generic selection preamble.
 
 Render and present the complete response unchanged. Wrong revisions, missing
 observations, mismatched pending questions, active blockers, and changed context

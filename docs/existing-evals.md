@@ -307,8 +307,10 @@ See [audit results](results.md#coverage-audits) for where protections and later
 findings belong.
 An explicit planning request produces recommendations. Selecting an existing
 audit recommendation reuses it. Construction design, validation, and execution
-keep their applicable scope and authorization requirements. The supported
-authoring paths are summarized below.
+keep their applicable scope and authorization requirements. See
+[selected audit improvements](results.md#selected-audit-improvements) for saved
+planning checkpoints and review requirements. The supported authoring paths are
+summarized below.
 
 ### What Eval Author can create or improve
 
