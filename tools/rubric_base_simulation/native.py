@@ -80,7 +80,7 @@ def credit(expected: dict[str, Any]) -> float:
     return expected["total_credit"] / expected["max_credit"] if expected.get("max_credit") else 0.0
 
 
-def native_facts(native: dict[str, dict[str, Any]]) -> tuple[dict[str, dict[str, Any]], dict[str, str]]:
+def native_facts(native: dict[str, dict[str, Any]]) -> tuple[dict[str, Any], dict[str, bool | None]]:
     """Primary facts from native controls, keyed by criterion, plus the corroboration outcomes."""
     attack = {c["case"]: c for c in native["attack"]["controls"]}
     boundaries = {c["case"]: c for c in native["boundaries"]["controls"]}

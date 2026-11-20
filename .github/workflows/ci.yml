@@ -227,7 +227,9 @@ jobs:
       - name: Install pinned Harbor and test dependencies
         run: uv sync --locked
       - name: Score the rubric simulation with native refund panels
-        run: uv run --locked python tools/rubric_base_simulation/run.py --output "$RUNNER_TEMP/rubric-simulation" --collect-native
+        env:
+          PYTHONDONTWRITEBYTECODE: "1"
+        run: uv run --locked python -B tools/rubric_base_simulation/run.py --output "$RUNNER_TEMP/rubric-simulation" --collect-native
       - name: Publish rubric simulation report
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4

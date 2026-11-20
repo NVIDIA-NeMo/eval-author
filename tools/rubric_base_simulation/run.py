@@ -25,6 +25,7 @@ import subprocess
 import sys
 import time
 import tomllib
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
@@ -392,11 +393,11 @@ def observe(case_dir: Path, mutation: str | None) -> dict[str, Any]:
         "files": files,
         "task_toml": tomllib.loads((task / "task.toml").read_text()),
         "dockerfile": {
-            "from": re.search(r"^FROM (\S+)", dockerfile, re.M).group(1),
+            "from": field(r"^FROM (\S+)", dockerfile),
             "copies": re.findall(r"^COPY (.+?) /app", dockerfile, re.M),
-            "entrypoint": re.search(r"^ENTRYPOINT (.+)$", dockerfile, re.M).group(1),
+            "entrypoint": field(r"^ENTRYPOINT (.+)$", dockerfile),
         },
-        "grader": re.search(r'^GRADER = "(\w+)"', verify, re.M).group(1),
+        "grader": field(r'^GRADER = "(\w+)"', verify),
         "task_dir": str(task),
         "instruction": instruction,
         "overlaps": overlaps,
@@ -418,7 +419,15 @@ def observe(case_dir: Path, mutation: str | None) -> dict[str, Any]:
     }
 
 
-def robust(ident: str, observed: dict[str, bool | None], evidence: str, actor: str) -> list[dict[str, Any]]:
+def field(pattern: str, text: str) -> str:
+    """First group of a required line in a task file."""
+    found = re.search(pattern, text, re.M)
+    if found is None:
+        raise ValueError(f"task file lacks a line matching {pattern}")
+    return found.group(1)
+
+
+def robust(ident: str, observed: Mapping[str, bool | None], evidence: str, actor: str) -> list[dict[str, Any]]:
     """Corroborating controls. ``observed`` maps role -> success (True), failure (False) or unrun (None)."""
     _, roles = ROBUSTNESS_POLICIES[ident]
     rows = []
@@ -850,7 +859,7 @@ def derive(
     sim["CREATE-02-SUITE"] = "Cue controls on two companion families are simulated."
 
     actors: dict[str, str] = {}
-    native_outcomes: dict[str, bool] = {}
+    native_outcomes: dict[str, bool | None] = {}
     if native is not None and o["task_sha256"] == base["task_sha256"]:
         # Native Harbor panels ran on these exact task bytes; their admitted controls replace local ones.
         primary, native_outcomes = native_facts(native)
@@ -1118,6 +1127,8 @@ METHOD-J1, the qualification of the corroboration behind those scores, is
 
 
 def main() -> int:
+    # Native panels fingerprint their source trees; bytecode written mid-run would change them.
+    sys.dont_write_bytecode = True
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--case", action="append", choices=CASES)
