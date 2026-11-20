@@ -125,5 +125,6 @@ class AccessVerifier(Verifier):
         }
         reward = await super().verify()
         observation["after_verification"] = await execute(self.environment, PROBE, "65534")
-        collector.recorder.write_new(self.trial_paths.verifier_dir / "access.json", observation)
+        # The trial root is host-owned; the verifier directory may belong to the container user on Linux.
+        collector.recorder.write_new(self.trial_paths.trial_dir / "access-observation.json", observation)
         return reward

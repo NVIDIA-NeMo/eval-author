@@ -160,7 +160,7 @@ def collect(output: Path, plugins: Path | None) -> dict[str, Any]:
                 native_command(output, case),
                 timeout=420,
             )
-            boundary_path = output / "trials" / case / "verifier/boundary.json"
+            boundary_path = output / "trials" / case / "boundary-observation.json"
             removed = None
             if boundary_path.is_file():
                 boundary = collector.recorder.loads(boundary_path.read_bytes())
@@ -255,7 +255,9 @@ def validate(
         == [
             {
                 "case": c,
-                "container_removed": True if bundle / "trials" / c / "verifier/boundary.json" in panel.index else None,
+                "container_removed": True
+                if bundle / "trials" / c / "boundary-observation.json" in panel.index
+                else None,
                 "receipt_sha256": hashlib.sha256(panel.read(bundle / "receipts" / (c + ".json"))).hexdigest(),
             }
             for c in cases
@@ -298,7 +300,7 @@ def validate(
         owning = audit.inspect_receipt(panel, receipt_path, receipt, {bundle / "task"}, include_integrity=True)
         require(owning["integrity"]["freshness"] == "current" and owning["integrity"]["status"] == "consistent")
         trial = bundle / "trials" / case
-        if trial / "verifier/boundary.json" not in panel.index:
+        if trial / "boundary-observation.json" not in panel.index:
             require(receipt["status"] == "infrastructure_error")
             controls.append({"case": case, "status": "infrastructure_error", "reward": None, "owning": owning})
             continue
@@ -320,7 +322,7 @@ def validate(
         )
         require(config["verifier"]["import_path"] == "rubric_refund_boundary_runtime:BoundaryVerifier")
         require(config["environment"]["type"] == "docker" and config["environment"]["delete"] is True)
-        observation = panel.object(trial / "verifier/boundary.json")
+        observation = panel.object(trial / "boundary-observation.json")
         agent = panel.object(trial / "agent/boundary-agent.json")
         require(
             _same(agent, native["agent_result"]["metadata"]) and agent["case"] == case and observation["case"] == case

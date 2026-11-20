@@ -849,6 +849,7 @@ def _derive(ident: str, facts: dict[str, Any]) -> int | None:
         # 2: every declared class is dispositioned and every applicable control gets its intended score.
         if (
             set(ATTACK_CLASSES) | {"valid_inaction", "realistic_wrong"} <= {r["attack_class"] for r in inventory}
+            and reached
             and len(reached) == len(applicable)
             and all(r["actual_credit"] == r["expected_credit"] for r in reached)
         ):
@@ -1129,7 +1130,14 @@ def assess_evidence(root: Path, selection: dict[str, Any]) -> dict[str, dict[str
             selected=True,
             subject_id=subject["artifact_id"],
             subject_revision="sha256:" + subject["digest"],
-            evidence_strength=None if score is None else "E1" if synthetic else "E3" if score == 3 else "E2",
+            # E3 means independent corroboration: every corroborating control has a different actor.
+            evidence_strength=None
+            if score is None
+            else "E1"
+            if synthetic
+            else "E3"
+            if score == 3 and all(r["original_actor"] != r["corroborating_actor"] for r in controls or [])
+            else "E2",
             fact_results=fact_results,
             reviewer_authenticated=False,
             native_execution_verified=False,

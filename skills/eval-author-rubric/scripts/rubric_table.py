@@ -149,8 +149,10 @@ def main(argv: list[str] | None = None) -> int:
             saved = loads((args.verify_existing / "assessment.json").read_bytes())
             current = assess(root, saved["selection"])
             markdown = render(current["report"], saved["title"])
-            if encoded({**current, "title": saved["title"]}) != encoded(saved) or (
-                (args.verify_existing / "results.md").read_text() != markdown
+            if (
+                encoded({**current, "title": saved["title"]}) != encoded(saved)
+                or (args.verify_existing / "results.md").read_text() != markdown
+                or (args.verify_existing / "results.html").read_text() != render_html(current["report"], saved["title"])
             ):
                 raise ValueError("retained table disagrees with current evidence")
             report = current["report"]

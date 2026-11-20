@@ -786,3 +786,23 @@ def test_internally_contradictory_observations_are_rejected(tmp_path, ident, pat
     selection = packet(tmp_path, scorer, ident, facts)
     with pytest.raises(ValueError, match="contradictory"):
         scorer.assess_evidence(tmp_path, selection)
+
+
+def test_audit03_with_every_control_excluded_is_not_level_two(tmp_path):
+    scorer = module()
+    facts = facts_for("AUDIT-03", 2)
+    for row in facts["attack_controls"]:
+        row.update(applicability="excluded", health="unrun", reach="unresolved")
+    selection = packet(tmp_path, scorer, "AUDIT-03", facts)
+    assert scorer.assess_evidence(tmp_path, selection)["AUDIT-03"]["score"] != 2
+
+
+def test_same_actor_recorded_three_is_not_e3(tmp_path):
+    scorer = module()
+    ident = "provenance.comparison-fairness"
+    robust = robustness_for(ident)
+    for control in next(iter(robust.values())):
+        control["corroborating_actor"] = control["original_actor"]
+    selection = packet(tmp_path, scorer, ident, {**facts_for(ident, 2), **robust}, synthetic=False)
+    row = scorer.assess_evidence(tmp_path, selection)[ident]
+    assert (row["score"], row["evidence_strength"]) == (3, "E2")

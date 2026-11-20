@@ -877,7 +877,9 @@ def derive(
         sim["AUDIT-03"] = "Native Harbor attack, access and boundary panels; held-out attacks from the frozen set."
         sim["ENV-03-S01"] = "Native Harbor sentinel/target/reset episodes; parallel and delayed effects are simulated."
         sim["provenance.solver-tool-access"] = "Native Harbor read-boundary probes plus simulated socket calls."
-        sim["provenance.observed-configuration"] = "Run identity from the native Harbor panels."
+        sim["provenance.observed-configuration"] = (
+            "Run identity from the native Harbor panels; observed setting values are simulated as the task.toml values."
+        )
     corroboration = {
         "AUDIT-03": {
             "heldout_attack": native_outcomes.get("heldout_attack", all(matches(n) for n in AUDIT03_HELDOUT)),

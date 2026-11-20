@@ -46,10 +46,7 @@ def measure(root, selection, ethos_validator=None):
         "decisions",
         "criterion_evidence",
         "declared_config",
-        "entrypoint",
         "ethos",
-        "expected_scorer",
-        "evidence_scope",
         "freshness",
         "external",
         "layout",
@@ -62,7 +59,6 @@ def measure(root, selection, ethos_validator=None):
         "reconstruction",
         "reuse",
         "route",
-        "rubric_scope",
         "sourced_config",
     }
     if selection.keys() - supported:

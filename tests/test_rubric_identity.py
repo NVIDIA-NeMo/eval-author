@@ -548,7 +548,6 @@ def route_fixture(root: Path, mutation: str | None) -> dict[str, Any]:
         links = []
     return {
         "artifacts": records,
-        "rubric_scope": scope,
         "route": {"entrypoint": "entry", "expected_scorer": "scorer", "dependencies": dependencies},
         "declared_config": config,
         "observed_config": observed,
@@ -1303,7 +1302,7 @@ def test_cli_readers_never_open_selected_unavailable_alias(tmp_path, consumer, a
         assert report["counts"]["compared"] == 1
 
 
-@pytest.mark.parametrize("consumer", ["approvals", "native", "scoring"])
+@pytest.mark.parametrize("consumer", ["approvals", "native"])
 @pytest.mark.parametrize("access", ["missing", "denied", "unresolved"])
 @pytest.mark.parametrize("reverse", [False, True])
 @pytest.mark.parametrize("direct", [False, True])
@@ -1316,12 +1315,6 @@ def test_cli_downstream_readers_respect_full_identity_selection(tmp_path, consum
     choice = {"approvals": approvals, "decisions": decisions, "approval_sources": sources}
     if consumer == "native":
         choice = {"native": {"receipt_ids": [], "manifest_ids": [], "result_ids": [], "trace_ids": [selected["id"]]}}
-    elif consumer == "scoring":
-        choice = {
-            "rubric_scope": {
-                "task_artifacts": {"source": selected["id"], "required": ["task"], "unresolved_material": []}
-            }
-        }
     private = tmp_path / "private.json"
     private.write_bytes((tmp_path / selected["path"]).read_bytes())
     records.append(dict(selected, id="unavailable", path=private.name, access=access))
@@ -1341,11 +1334,9 @@ def test_cli_downstream_readers_respect_full_identity_selection(tmp_path, consum
     if consumer == "approvals":
         assert report["measurements"]["approvals"]["evidence"] == []
         assert report["measurements"]["approvals"]["status"] != "pass"
-    elif consumer == "native":
+    else:
         assert report["measurements"]["native"]["bindings"] == []
         assert report["measurements"]["native"]["status"] != "pass"
-    else:
-        assert report["items"]["provenance.task-artifact-access"]["score"] is None
 
 
 def audited_rubric_cli(root, selection, forbidden):

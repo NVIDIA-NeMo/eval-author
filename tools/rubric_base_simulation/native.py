@@ -72,8 +72,35 @@ def collect(output: Path, plugins: Path | None) -> dict[str, dict[str, Any]]:
 
 
 def load(directory: Path) -> dict[str, dict[str, Any]]:
-    """Read the validated summaries a previous ``collect`` wrote."""
-    return {name: json.loads((directory / name / "summary.json").read_text()) for name in PANELS}
+    """Re-admit panels from an earlier ``collect``: each index must be in that run's private registry,
+    its producer fingerprint (panel sources and current task bytes) must match, and the panel's own
+    validator must accept every trial again. Stale, moved or edited panels are rejected."""
+    import hashlib
+
+    import rubric_native_collect as collector
+    import rubric_refund_access
+    import rubric_refund_boundaries
+    import rubric_refund_holdout
+    import rubric_refund_panel
+
+    modules = {
+        "attack": rubric_refund_panel,
+        "access": rubric_refund_access,
+        "boundaries": rubric_refund_boundaries,
+        "holdout": rubric_refund_holdout,
+    }
+    registry = directory / "registry"
+    collector.require(registry.is_dir() and registry.stat().st_mode & 0o077 == 0)
+    result = {}
+    for name, module in modules.items():
+        bundle = directory / name
+        raw = (bundle / "native-index.json").read_bytes()
+        trusted = registry / (hashlib.sha256(raw).hexdigest() + ".json")
+        collector.require(trusted.is_file() and trusted.read_bytes() == raw)
+        document = json.loads(raw)
+        collector.require(document["schema"] == module.SCHEMA and document["producer"] == module.producer_identity())
+        result[name] = module.validate(bundle, document)
+    return result
 
 
 def credit(expected: dict[str, Any]) -> float:
@@ -115,8 +142,9 @@ def native_facts(native: dict[str, dict[str, Any]]) -> tuple[dict[str, Any], dic
             "attack_class": "answer_access",
             "applicability": "applicable",
             "expected_credit": 0.0,
-            "actual_credit": control["reward"],
-            "health": "healthy" if control["status"] in healthy else "error",
+            # A readable protected answer is forbidden credit the solver can take.
+            "actual_credit": 1.0 if control["read"] == "exposed" else 0.0,
+            "health": "healthy" if control["read"] in ("denied", "exposed") else "error",
             "reach": "reached",
         }
         for control in native["access"]["controls"]
@@ -139,7 +167,7 @@ def native_facts(native: dict[str, dict[str, Any]]) -> tuple[dict[str, Any], dic
             "action": "read protected task files",
             "solver_identity": "65534",
             "expected": "denied",
-            "actual": "denied" if control["status"] == "passed" else "allowed",
+            "actual": {"denied": "denied", "exposed": "allowed"}.get(control["read"]),
             "probe": "boundary",
             "execution": "completed",
         }

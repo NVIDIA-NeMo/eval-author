@@ -150,7 +150,7 @@ def collect(output: Path, plugins: Path | None) -> dict[str, Any]:
                 native_command(output, case),
                 timeout=420,
             )
-            observation = output / "trials" / case / "verifier/access.json"
+            observation = output / "trials" / case / "access-observation.json"
             removed = None
             if observation.is_file():
                 ident = json.loads(observation.read_text())["runtime"]["container"]
@@ -278,17 +278,18 @@ def validate(
         require(config["environment"]["type"] == "docker" and config["environment"]["delete"] is True)
         require(native["exception_info"] is None and native["id"] not in ids)
         ids.add(native["id"])
-        observation = panel.object(trial / "verifier/access.json")
+        observation = panel.object(trial / "access-observation.json")
         agent = panel.object(trial / "agent/access.json")
         require(_same(agent, native["agent_result"]["metadata"]))
-        outcomes.extend(
+        reads = [
             assess_reads(validate_reads(r, uploaded))
             for r, uploaded in (
                 (agent, False),
                 (observation["after_upload"], True),
                 (observation["after_verification"], True),
             )
-        )
+        ]
+        outcomes.extend(reads)
         runtime = observation["runtime"]
         require(
             runtime["network_policy"]
@@ -332,7 +333,10 @@ def validate(
             native["verifier_result"] == {"rewards": {"reward": 0.0}}
             and float(panel.read(trial / "verifier/reward.txt")) == 0
         )
-        controls.append({"case": case, "status": "passed", "reward": 0, "checks": checks, "owning": owning})
+        read = "exposed" if "exposed" in reads else "denied" if all(o == "denied" for o in reads) else "unresolved"
+        controls.append(
+            {"case": case, "status": "passed", "reward": 0, "read": read, "checks": checks, "owning": owning}
+        )
     require(panel.object(bundle / "teardown.json")["runs"] == [{"case": c, "removed": True} for c in cases])
     return {
         "scope": SCHEMA,
