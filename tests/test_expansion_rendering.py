@@ -6,23 +6,16 @@ from pathlib import Path
 
 import pytest
 from journey_state_support import expansion_payload, setup_ready
+from journey_state_support import expansion_scope_decide as decide
+from journey_state_support import expansion_scope_save as save_scope
 from test_expansion_scope import modules as modules
-from test_expansion_scope import save_scope, start
+from test_expansion_scope import start
 
 FIXTURES = Path(__file__).parent / "fixtures/expansion-conversations"
 
 
 def payload(modules, saved):
     return {**expansion_payload(modules, saved), "stage": "expansion_scope"}
-
-
-def decide(modules, repo, saved, kind):
-    value = copy.deepcopy(modules[1].record(saved))
-    value["decision"] = {"kind": kind, "source": f"User reply: {kind}"}
-    value["pending"] = (
-        {"question": "Which refund scenario instead?", "source": "User requests revision"} if kind == "revise" else None
-    )
-    return save_scope(modules, repo, saved, value)
 
 
 @pytest.mark.parametrize("variant", ["pending", "approved", "declined", "revision"])
