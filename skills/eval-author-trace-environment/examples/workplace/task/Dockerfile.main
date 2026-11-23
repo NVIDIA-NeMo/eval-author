@@ -1,0 +1,10 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+FROM @BASE_IMAGE@
+RUN useradd --create-home --uid 1000 solver
+COPY main/ /opt/workplace/
+RUN chmod -R a-w /opt/workplace && mkdir /workspace && chown solver:solver /workspace
+WORKDIR /workspace
+USER solver
+CMD ["sleep", "infinity"]

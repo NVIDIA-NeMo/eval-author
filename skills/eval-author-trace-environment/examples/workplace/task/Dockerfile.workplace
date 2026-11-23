@@ -1,0 +1,8 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+FROM @BASE_IMAGE@
+WORKDIR /opt/workplace
+COPY . /opt/workplace/
+RUN mkdir /state /export && chmod 700 /state /export
+CMD ["python", "service.py", "--seed", "/opt/workplace/seed.json", "--state-dir", "/state", "--port", "8080"]

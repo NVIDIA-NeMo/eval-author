@@ -1,0 +1,82 @@
+{
+  "corpus": "gym-synthetic-source-v1",
+  "disclosure": "Newly executed pinned Gym synthetic-source corpus. Not the requested Oct30 corpus. Not live user service observations. Independent synthetic seeds and session identities.",
+  "frozen_at": "2026-11-23T21:18:47.992895+00:00",
+  "clock": "2023-11-30 23:59:00",
+  "source_revision": "0c5cfb71dd8615008fc69b63cdc98c2775278aa5",
+  "files": {
+    "development/development-search-v1.inputs.json": "5b291ea00949277215f470e94ef67c4e22ef958587a4cc26b0016e0e7494b684",
+    "development/development-read-v1.inputs.json": "15c4fe4a406ce1c1394cfaf00e743d086361fade2e96d3049cdeadcb3c04b338",
+    "development/development-reply-v1.inputs.json": "c90be892130d65ee4af5428d174bca714fcd7ff15145ea3c444fafb34cb48bea",
+    "development/development-alternate-v1.inputs.json": "b8dba2dc2756ee38282f185323396cc2aa4a7d4d8071ce24f10100febb4403a8",
+    "development/development-malformed-v1.inputs.json": "14bcd5a5a836935b880a0ca86777b31cb0314e6b0eda44a1ff1d1cf0c5414f52",
+    "heldout/heldout-search-v1.inputs.json": "f727d2488e9e7a2fe71911f750e87fa84d5024247009a0755973a7983bfbb53c",
+    "heldout/heldout-read-v1.inputs.json": "03ce0e7a963350211d92a803b0c7d38149433ccd2898c6f9f78fa5466d6b2af6",
+    "heldout/heldout-reply-v1.inputs.json": "2108951df0c286efdc92992f549f9b92386d7f0021c7b29f1f56b9d5e53506f8",
+    "heldout/heldout-alternate-v1.inputs.json": "53a6ca087e473a91b62ca603f9f2d562f128e5e22e01bdf64dff0255c94ed4f8",
+    "heldout/heldout-malformed-v1.inputs.json": "0cc4d813d1ff0fa8eda217864301ae312ec6743002cb0df621a2513a3bd8e8e9"
+  },
+  "sessions": [
+    {
+      "session_id": "development-search-v1",
+      "split": "development",
+      "inputs": "development/development-search-v1.inputs.json",
+      "seed_sha256": "48e55d836f830aa98701bf6243fc808b73e467216ad72d685ac918e22d5dd6b1"
+    },
+    {
+      "session_id": "development-read-v1",
+      "split": "development",
+      "inputs": "development/development-read-v1.inputs.json",
+      "seed_sha256": "059a51aa0876bd71984b2583f1d103e3da52eb0aefdee2701e8050f45118a3c7"
+    },
+    {
+      "session_id": "development-reply-v1",
+      "split": "development",
+      "inputs": "development/development-reply-v1.inputs.json",
+      "seed_sha256": "f8f0ecd35cd9627457397ae3c906edb2cf924a57ece43dd52eb3e555adc157f8"
+    },
+    {
+      "session_id": "development-alternate-v1",
+      "split": "development",
+      "inputs": "development/development-alternate-v1.inputs.json",
+      "seed_sha256": "8dfd44c92397663960914cc864ffe379bf8308ce6e8c70321485f2010dd8127f"
+    },
+    {
+      "session_id": "development-malformed-v1",
+      "split": "development",
+      "inputs": "development/development-malformed-v1.inputs.json",
+      "seed_sha256": "e006fa9d011b72bea4c83ec6cdef83a81ed7b1cfec2b6326d360c3c1af3d8e22"
+    },
+    {
+      "session_id": "heldout-search-v1",
+      "split": "heldout",
+      "inputs": "heldout/heldout-search-v1.inputs.json",
+      "seed_sha256": "7a673574b48473ac2117febad55a2bc7e2b25a684bdf62d1b7d182f8cc01b6ea"
+    },
+    {
+      "session_id": "heldout-read-v1",
+      "split": "heldout",
+      "inputs": "heldout/heldout-read-v1.inputs.json",
+      "seed_sha256": "b6723e625e7d28bc0bf2ebd0c4746fc660acf51255db42f82cafa0ba20fc3972"
+    },
+    {
+      "session_id": "heldout-reply-v1",
+      "split": "heldout",
+      "inputs": "heldout/heldout-reply-v1.inputs.json",
+      "seed_sha256": "245fa9d074b0f873570215a3dff2d0cb64ad848390af8589b9e1ed9c097db428"
+    },
+    {
+      "session_id": "heldout-alternate-v1",
+      "split": "heldout",
+      "inputs": "heldout/heldout-alternate-v1.inputs.json",
+      "seed_sha256": "7b07d97afbffe7ec70889383a865214f9de56ceb22a963416efc08643d44dc2d"
+    },
+    {
+      "session_id": "heldout-malformed-v1",
+      "split": "heldout",
+      "inputs": "heldout/heldout-malformed-v1.inputs.json",
+      "seed_sha256": "6a947964dd22266df595aaaea8a777a7b58b4e24e6853d9c107913be0050c75c"
+    }
+  ],
+  "agent_image_policy": "Exclude the complete conformance directory from agent images. Supply development observations only to builders."
+}

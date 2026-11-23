@@ -1,0 +1,8 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+FROM @BASE_IMAGE@
+COPY . /tests/
+RUN chmod -R a-w /tests && chmod a+rx /tests/test.sh
+WORKDIR /tests
+CMD ["sleep", "infinity"]

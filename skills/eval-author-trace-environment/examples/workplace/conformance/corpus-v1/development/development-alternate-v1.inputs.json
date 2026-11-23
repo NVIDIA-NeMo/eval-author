@@ -1,0 +1,117 @@
+{
+  "session_id": "development-alternate-v1",
+  "split": "development",
+  "seed": [
+    {
+      "email_id": "400",
+      "inbox/outbox": "inbox",
+      "sender/recipient": "Person0.400@EXAMPLE.test",
+      "subject": "Cedar release",
+      "sent_datetime": "2023-11-20T12:30:00",
+      "body": "Prepare the amber checklist."
+    },
+    {
+      "email_id": "401",
+      "inbox/outbox": "inbox",
+      "sender/recipient": "Person1.400@EXAMPLE.test",
+      "subject": "Cedar budget",
+      "sent_datetime": "2023-11-21T12:30:00",
+      "body": "Amber costs await review."
+    },
+    {
+      "email_id": "402",
+      "inbox/outbox": "inbox",
+      "sender/recipient": "Person2.400@EXAMPLE.test",
+      "subject": "Other notice",
+      "sent_datetime": "2023-11-22T12:30:00",
+      "body": "No action requested."
+    },
+    {
+      "email_id": "403",
+      "inbox/outbox": "outbox",
+      "sender/recipient": "Person3.400@EXAMPLE.test",
+      "subject": "RE: Cedar release",
+      "sent_datetime": "2023-11-23T12:30:00",
+      "body": "Amber followup."
+    },
+    {
+      "email_id": "404",
+      "inbox/outbox": "inbox",
+      "sender/recipient": "Person4.400@EXAMPLE.test",
+      "subject": "Quarterly release",
+      "sent_datetime": "2023-11-24T12:30:00",
+      "body": "Release archive."
+    },
+    {
+      "email_id": "405",
+      "inbox/outbox": "inbox",
+      "sender/recipient": "Person5.400@EXAMPLE.test",
+      "subject": "Cedar notes",
+      "sent_datetime": "2023-11-25T12:30:00",
+      "body": "Additional amber evidence."
+    }
+  ],
+  "calls": [
+    {
+      "name": "email_search_emails",
+      "arguments": {
+        "query": "cedar"
+      },
+      "label": "search-first",
+      "category": "supported"
+    },
+    {
+      "name": "email_reply_email",
+      "arguments": {
+        "email_id": "403",
+        "body": "Alternate sequence."
+      },
+      "label": "reply-outbox-first",
+      "category": "supported"
+    },
+    {
+      "name": "email_search_emails",
+      "arguments": {
+        "query": "alternate"
+      },
+      "label": "search-new-body",
+      "category": "supported"
+    },
+    {
+      "name": "email_get_email_information_by_id",
+      "arguments": {
+        "email_id": "406",
+        "field": "body"
+      },
+      "label": "read-new-first",
+      "category": "supported"
+    },
+    {
+      "name": "email_reply_email",
+      "arguments": {
+        "email_id": "400",
+        "body": "Alternate second."
+      },
+      "label": "reply-inbox-second",
+      "category": "supported"
+    },
+    {
+      "name": "email_get_email_information_by_id",
+      "arguments": {
+        "email_id": "407",
+        "field": "subject"
+      },
+      "label": "read-new-second",
+      "category": "supported"
+    },
+    {
+      "name": "email_search_emails",
+      "arguments": {
+        "query": "RE:",
+        "page_size": 20
+      },
+      "label": "search-after-two",
+      "category": "supported"
+    }
+  ]
+}

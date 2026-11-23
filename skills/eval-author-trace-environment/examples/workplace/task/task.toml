@@ -1,0 +1,46 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+schema_version = "1.4"
+artifacts = [{ source = "/export/state.json", service = "workplace" }]
+
+[task]
+name = "eval-author/workplace-email-confirmation"
+description = "Reply to one synthetic inbox email and preserve unrelated records."
+
+[agent]
+timeout_sec = 120.0
+user = "solver"
+network_mode = "@NETWORK_MODE@"
+
+[environment]
+build_timeout_sec = 600.0
+cpus = 1
+memory_mb = 512
+network_mode = "@NETWORK_MODE@"
+workdir = "/workspace"
+
+[environment.env]
+WORKPLACE_URL = "@WORKPLACE_URL@"
+
+[[environment.mcp_servers]]
+name = "workplace-stateful-simulation"
+transport = "stdio"
+command = "python"
+args = ["/opt/workplace/mcp_server.py", "--url", "@WORKPLACE_URL@"]
+
+[verifier]
+timeout_sec = 60.0
+environment_mode = "separate"
+network_mode = "no-network"
+
+[[verifier.collect]]
+service = "workplace"
+command = "python /opt/workplace/service.py export --state-dir /state --output /export/state.json"
+timeout_sec = 30.0
+user = "root"
+
+[verifier.environment]
+network_mode = "no-network"
+cpus = 1
+memory_mb = 256

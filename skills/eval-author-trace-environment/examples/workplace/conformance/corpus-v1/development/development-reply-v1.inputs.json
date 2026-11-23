@@ -1,0 +1,182 @@
+{
+  "session_id": "development-reply-v1",
+  "split": "development",
+  "seed": [
+    {
+      "email_id": "300",
+      "inbox/outbox": "inbox",
+      "sender/recipient": "Person0.300@EXAMPLE.test",
+      "subject": "Cedar release",
+      "sent_datetime": "2023-11-20T12:30:00",
+      "body": "Prepare the amber checklist."
+    },
+    {
+      "email_id": "301",
+      "inbox/outbox": "inbox",
+      "sender/recipient": "Person1.300@EXAMPLE.test",
+      "subject": "Cedar budget",
+      "sent_datetime": "2023-11-21T12:30:00",
+      "body": "Amber costs await review."
+    },
+    {
+      "email_id": "302",
+      "inbox/outbox": "inbox",
+      "sender/recipient": "Person2.300@EXAMPLE.test",
+      "subject": "Other notice",
+      "sent_datetime": "2023-11-22T12:30:00",
+      "body": "No action requested."
+    },
+    {
+      "email_id": "303",
+      "inbox/outbox": "outbox",
+      "sender/recipient": "Person3.300@EXAMPLE.test",
+      "subject": "RE: Cedar release",
+      "sent_datetime": "2023-11-23T12:30:00",
+      "body": "Amber followup."
+    },
+    {
+      "email_id": "304",
+      "inbox/outbox": "inbox",
+      "sender/recipient": "Person4.300@EXAMPLE.test",
+      "subject": "Quarterly release",
+      "sent_datetime": "2023-11-24T12:30:00",
+      "body": "Release archive."
+    },
+    {
+      "email_id": "305",
+      "inbox/outbox": "inbox",
+      "sender/recipient": "Person5.300@EXAMPLE.test",
+      "subject": "Cedar notes",
+      "sent_datetime": "2023-11-25T12:30:00",
+      "body": "Additional amber evidence."
+    }
+  ],
+  "calls": [
+    {
+      "name": "email_get_email_information_by_id",
+      "arguments": {
+        "email_id": "300",
+        "field": "body"
+      },
+      "label": "before-reply",
+      "category": "supported"
+    },
+    {
+      "name": "email_reply_email",
+      "arguments": {
+        "email_id": "300",
+        "body": "Acknowledged amber checklist."
+      },
+      "label": "first-reply",
+      "category": "supported"
+    },
+    {
+      "name": "email_get_email_information_by_id",
+      "arguments": {
+        "email_id": "306",
+        "field": "body"
+      },
+      "label": "new-reply-body",
+      "category": "supported"
+    },
+    {
+      "name": "email_get_email_information_by_id",
+      "arguments": {
+        "email_id": "306",
+        "field": "subject"
+      },
+      "label": "new-reply-subject",
+      "category": "supported"
+    },
+    {
+      "name": "email_get_email_information_by_id",
+      "arguments": {
+        "email_id": "306",
+        "field": "sent_datetime"
+      },
+      "label": "new-reply-time",
+      "category": "supported"
+    },
+    {
+      "name": "email_get_email_information_by_id",
+      "arguments": {
+        "email_id": "306",
+        "field": "sender/recipient"
+      },
+      "label": "new-reply-recipient",
+      "category": "supported"
+    },
+    {
+      "name": "email_reply_email",
+      "arguments": {
+        "email_id": "300",
+        "body": "Acknowledged amber checklist."
+      },
+      "label": "repeat-reply",
+      "category": "supported"
+    },
+    {
+      "name": "email_get_email_information_by_id",
+      "arguments": {
+        "email_id": "307",
+        "field": "email_id"
+      },
+      "label": "repeat-new-id",
+      "category": "supported"
+    },
+    {
+      "name": "email_reply_email",
+      "arguments": {
+        "email_id": "306",
+        "body": "Second round."
+      },
+      "label": "reply-to-reply",
+      "category": "supported"
+    },
+    {
+      "name": "email_get_email_information_by_id",
+      "arguments": {
+        "email_id": "308",
+        "field": "subject"
+      },
+      "label": "nested-subject",
+      "category": "supported"
+    },
+    {
+      "name": "email_reply_email",
+      "arguments": {
+        "email_id": "303",
+        "body": "Outbox response."
+      },
+      "label": "reply-outbox",
+      "category": "supported"
+    },
+    {
+      "name": "email_search_emails",
+      "arguments": {
+        "query": "",
+        "page_size": 20
+      },
+      "label": "after-replies",
+      "category": "supported"
+    },
+    {
+      "name": "email_reply_email",
+      "arguments": {
+        "email_id": "999999",
+        "body": "Nothing."
+      },
+      "label": "unknown-reply-id",
+      "category": "supported"
+    },
+    {
+      "name": "email_reply_email",
+      "arguments": {
+        "email_id": "300",
+        "body": ""
+      },
+      "label": "empty-body",
+      "category": "supported"
+    }
+  ]
+}

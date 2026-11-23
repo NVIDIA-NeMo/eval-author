@@ -1,0 +1,158 @@
+{
+  "scope": "Bounded synthetic Workplace email prototype. Native host MCP checks and scripted Harbor controls are separate evidence classes.",
+  "harbor": {
+    "network_policy": "no-network",
+    "verifier": "separate",
+    "source_hashes_before": {
+      "run_harbor.py": "18c40116c8f0f4ff16d38329307ec6d50086aa4c5d6aa3172f7a2e873ef977c1",
+      "runtime/backend.py": "6c9a53c2bdbad9e0ab501ae4472d8cf6eae06badad4942b47c4d871b9dc3786e",
+      "runtime/client.py": "564a39700f527a3196f2e613ea18a87931384c2386831b5bd7f9193de62a75ec",
+      "runtime/mcp_server.py": "76123aa02e8d605fa3b7eef25beff1c00b07285b0407dcbac999f36a39bc4c58",
+      "runtime/service.py": "4e7018165376049caa08eb7a87bd677e34333da9da15ff2004c4b28d6829c54c",
+      "task/Dockerfile.main": "d61729d8718d0f19bce90532427184c71f551bf5e09f4752a66245cd73797dc7",
+      "task/Dockerfile.verifier": "925baa2ff91cb564d83f15d65df6c053f2afa4696bf59c5cee5d83d49585c6c7",
+      "task/Dockerfile.workplace": "47f07d2cbcdd1e72090386dfec2b03dcbdf1eac94a7404b8f8d80c1f8599fab5",
+      "task/build.py": "d9c52ff6f25a73abec5953c1efa6e714042a04bf49f9df726897102a4d0799fb",
+      "task/compose.yaml": "796c1f6998805e365a2da7f667221dc8854a3026624194a5bb45092f291f5d24",
+      "task/controls/alternative.sh": "3921c53204735da7de159ac763db1b00e54a55179a3f7bcb86836d43e89b80e0",
+      "task/controls/duplicate-reply.sh": "4909cefbb704c3ea0213f3f5db86ea87a415942815ed8167aafd4608b9167a8f",
+      "task/controls/expected.json": "6311677ad57dbdf4084901a2b9870c65bb04303e5f3da4d81abd94b7d9160393",
+      "task/controls/extra-reply.sh": "1fb6379f63cdae800bb47ad688c384bbf8504bbe353aa8ce52a77d5730ac642b",
+      "task/controls/noop.sh": "10d78aae1b75f66e6f692f071c0c0cc8fb08fea28628b4881a4be3245f572907",
+      "task/controls/reference.sh": "63f2d6259c2751a88b1db1c298b16c7e392be2bd8798427ae02cbc9d63dd1fe8",
+      "task/controls/wrong-body.sh": "ccdd516b467e2fa429f1b135566d782a334b34914597a703d06e90b9242c4bcb",
+      "task/controls/wrong-id.sh": "3d4202759293a8e35523156a5bab9fbfcf4cf7a96844b1ee76f6c11fd84788d4",
+      "task/grade.py": "e8b53c65fbda571254957c7e4f2711b52d3c51b8f2c877be36096b9847d73915",
+      "task/instruction.md": "9054c1ec6c3e62cb64552553ffe207a355dcb8445e9a1443b394d5c6385f59af",
+      "task/seed.json": "c7251aec11fb9b634021cab1822b48bc37ec835bf5aaee851af18ebd1734b69e",
+      "task/task.toml": "8d4c34f5ec6eae808cc17b3072de33a3dacfc5b050bd91c9bb05c60faba961fe",
+      "task/test.sh": "320d33b1481ef2a8da8dfa0af761185db36e25c014738c4efaf74b0e6bae5c75"
+    },
+    "controls": [
+      {
+        "control": "reference",
+        "reward": 1.0,
+        "passed": true,
+        "trial_id": "7cbf6766-a50b-4e15-ba7d-03a0699ae435",
+        "source_stable": true,
+        "state_sha256": "f829ab6a4df70478a07199eee88e13168e17bc3c67075b31730b44edf87a2554"
+      },
+      {
+        "control": "alternative",
+        "reward": 1.0,
+        "passed": true,
+        "trial_id": "82c1c6f3-098e-4454-a782-ea1e9a81d394",
+        "source_stable": true,
+        "state_sha256": "f829ab6a4df70478a07199eee88e13168e17bc3c67075b31730b44edf87a2554"
+      },
+      {
+        "control": "noop",
+        "reward": 0.0,
+        "passed": true,
+        "trial_id": "1a695502-053f-490a-bcd4-db3b15770f48",
+        "source_stable": true,
+        "state_sha256": "405029a8d9dd4e63564f35de622d2d4f65d1885c5d0cda63175675c096724578"
+      },
+      {
+        "control": "wrong-body",
+        "reward": 0.0,
+        "passed": true,
+        "trial_id": "e2e687da-2763-4f82-843a-cd2391c31ea7",
+        "source_stable": true,
+        "state_sha256": "11e6579defd59b522f807d9ccee8281b669152f1e8890b53c7738c72ec6da299"
+      },
+      {
+        "control": "extra-reply",
+        "reward": 0.0,
+        "passed": true,
+        "trial_id": "e562cd00-21d1-4202-991d-ff02c5ad105f",
+        "source_stable": true,
+        "state_sha256": "68e555b1e99148b91519d3917bc54eba5e045079d7e9d6ecc6894d67f544c958"
+      },
+      {
+        "control": "wrong-id",
+        "reward": 0.0,
+        "passed": true,
+        "trial_id": "3c656429-2029-41b4-b323-77125f5bc93f",
+        "source_stable": true,
+        "state_sha256": "052cbdb0fcefa237be0347da823335954c8bb9610f7816630f79a797bd017b92"
+      },
+      {
+        "control": "duplicate-reply",
+        "reward": 0.0,
+        "passed": true,
+        "trial_id": "225d89de-6746-4c54-9059-9fb65ba16d15",
+        "source_stable": true,
+        "state_sha256": "a1e4c87669a4261b4cfb35d02fe1f13c544720379fe9b11c490e4f2af6d261e6"
+      },
+      {
+        "control": "reference-repeat",
+        "reward": 1.0,
+        "passed": true,
+        "trial_id": "68096411-2c5c-4b59-9d25-7a5429ef7dbc",
+        "source_stable": true,
+        "state_sha256": "f829ab6a4df70478a07199eee88e13168e17bc3c67075b31730b44edf87a2554"
+      }
+    ]
+  },
+  "host_mcp": {
+    "harness_sha256": "3ddba19caefff7b4838bb190367fc90a51772b5d2721bdc9894fbfbc1ff6d42b",
+    "source_binding": "Harness digest recorded after execution; not a pre-execution snapshot.",
+    "checks": [
+      {
+        "access_mode": "exact_replay",
+        "protocol": {
+          "discovered": [
+            "email_get_email_information_by_id",
+            "email_reply_email",
+            "email_search_emails"
+          ],
+          "unseen_write_read": false,
+          "unseen_write_rejected": true,
+          "unsupported_rejected": true
+        },
+        "live_agent": {
+          "native_calls": 3,
+          "shell_substitution": false,
+          "read_after_write": false,
+          "outcome_reason": "unseen_reply_rejected_exact_match_only",
+          "model_requested": null,
+          "model_selection": "CLI default, unverified",
+          "cli_version": "codex-cli 0.171.0",
+          "shell_tools_disabled": true
+        },
+        "prompt_sha256": "146ccd283ef94ad6d09cb1a8c5854037799e4c8dcc6937b2e81445a9fa943b6e"
+      },
+      {
+        "access_mode": "stateful_simulation",
+        "protocol": {
+          "discovered": [
+            "email_get_email_information_by_id",
+            "email_reply_email",
+            "email_search_emails"
+          ],
+          "unseen_write_read": true,
+          "unseen_write_rejected": false,
+          "unsupported_rejected": true
+        },
+        "live_agent": {
+          "native_calls": 3,
+          "shell_substitution": false,
+          "read_after_write": true,
+          "outcome_reason": "reply_persisted_and_searchable",
+          "model_requested": null,
+          "model_selection": "CLI default, unverified",
+          "cli_version": "codex-cli 0.171.0",
+          "shell_tools_disabled": true
+        },
+        "prompt_sha256": "146ccd283ef94ad6d09cb1a8c5854037799e4c8dcc6937b2e81445a9fa943b6e"
+      }
+    ],
+    "calibration_basis": "runtime-generated calibration, not source-corpus conformance"
+  },
+  "limitations": [
+    "Synthetic pinned-source and identity-heldout-template conformance is not historical corpus or live-service fidelity.",
+    "Scripted Harbor controls are not model-backed Harbor task success.",
+    "Same-prompt host comparison is a single outcome inspection with unverified CLI-default model identity, not a model-performance comparison."
+  ]
+}

@@ -1,0 +1,36 @@
+{
+  "disclosure": "Newly executed pinned Gym synthetic-source corpus. Not the requested Oct30 corpus. Not live user service observations. Independent synthetic seeds and session identities.",
+  "revision": "0c5cfb71dd8615008fc69b63cdc98c2775278aa5",
+  "source": {
+    "email.py": {
+      "url": "https://raw.githubusercontent.com/NVIDIA-NeMo/Gym/0c5cfb71dd8615008fc69b63cdc98c2775278aa5/resources_servers/workplace_assistant/workplace_assistant_tools/email.py",
+      "sha256": "2c710f6cc5d6d7d3b2830b4567dec8ab34bb04b2249765152bc41f2864a64ac5"
+    },
+    "LICENSE": {
+      "url": "https://raw.githubusercontent.com/NVIDIA-NeMo/Gym/0c5cfb71dd8615008fc69b63cdc98c2775278aa5/LICENSE",
+      "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4"
+    }
+  },
+  "license": "Apache-2.0",
+  "license_url": "https://raw.githubusercontent.com/NVIDIA-NeMo/Gym/0c5cfb71dd8615008fc69b63cdc98c2775278aa5/LICENSE",
+  "upstream_source_retained_in_repository": false,
+  "reset_override": "Only reset_state supplies synthetic six-field pandas rows. All operations and clock are unmodified upstream code.",
+  "executed_at": "2026-11-23T21:19:08.947482+00:00",
+  "python": "3.13.14",
+  "executable": "/Users/asutermorris/.hermes/cache/scratch/workplace-corpus-venv/bin/python",
+  "pandas": "3.1.1",
+  "freeze_sha256": "8748d7d046815048534a5e4e5e1a43cb4b83fbd71df9ec135c1b72bcd9762c52",
+  "schemas_sha256": "052ffc62872b6c8e903667f205967ad7c0f9264def0752e88b2555ec8b4b1d35",
+  "observations": {
+    "development/development-search-v1.observations.json": "6e97732a14d2d91ede1c603ae8ac5816de77d7ff4278c5fd0b410e15b7c3a7ce",
+    "development/development-read-v1.observations.json": "3063cbb21759cceade271c64a12ad331a150735ee509e7c31a099bcfbc11601c",
+    "development/development-reply-v1.observations.json": "572ec31e0af4e27f688f03c99ff9c1e9fba3157cd5a8906a801cfeecc31e0d6c",
+    "development/development-alternate-v1.observations.json": "d33c176c43499cfa3af2263a0afaeb709e67314a72e37b2316be3e63c9b0028c",
+    "development/development-malformed-v1.observations.json": "2fc2c2d34f575edee072cb91e8ab6c7f239769d8b2fce5828784f723afac8eb3",
+    "heldout/heldout-search-v1.observations.json": "9747a801097ca1d5a123b9d8b0ec969d5787c0d6bf22e3a292c208871baa0ce2",
+    "heldout/heldout-read-v1.observations.json": "3636cc70885cdc88d64fa38bfb1424aaa8e943ed534fda7ca9c4428c7be0ed89",
+    "heldout/heldout-reply-v1.observations.json": "bc3974270cbbe6078f96e8ec4b2f4a7b19fef47ad5c4b3036b0d6b55420f9395",
+    "heldout/heldout-alternate-v1.observations.json": "7d89e7d8d1ed866e0955a4a78fa0e2f3ffe2b907f0c5c0a1df3019ee4cad545c",
+    "heldout/heldout-malformed-v1.observations.json": "957e1de1b125f0a73b224479757cd51db3c03ea94a7f50f4ae470ac8d666dcf7"
+  }
+}

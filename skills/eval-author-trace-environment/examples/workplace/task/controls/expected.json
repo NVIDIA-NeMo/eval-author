@@ -1,0 +1,9 @@
+{
+  "reference": 1,
+  "alternative": 1,
+  "noop": 0,
+  "wrong-body": 0,
+  "extra-reply": 0,
+  "wrong-id": 0,
+  "duplicate-reply": 0
+}

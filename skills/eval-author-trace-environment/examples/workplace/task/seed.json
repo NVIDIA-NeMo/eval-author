@@ -1,0 +1,26 @@
+[
+  {
+    "email_id": "1",
+    "inbox/outbox": "inbox",
+    "sender/recipient": "alex@example.test",
+    "subject": "Schedule confirmation",
+    "sent_datetime": "2023-11-29 09:00:00",
+    "body": "Please confirm Tuesday at 10:00."
+  },
+  {
+    "email_id": "2",
+    "inbox/outbox": "inbox",
+    "sender/recipient": "billing@example.test",
+    "subject": "November invoice",
+    "sent_datetime": "2023-11-28 14:00:00",
+    "body": "The November invoice is available for review."
+  },
+  {
+    "email_id": "3",
+    "inbox/outbox": "inbox",
+    "sender/recipient": "updates@example.test",
+    "subject": "Office notice",
+    "sent_datetime": "2023-11-27 08:30:00",
+    "body": "The office library has new books."
+  }
+]

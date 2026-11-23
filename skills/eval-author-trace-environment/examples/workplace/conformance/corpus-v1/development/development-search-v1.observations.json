@@ -1,0 +1,2128 @@
+{
+  "session_id": "development-search-v1",
+  "split": "development",
+  "events": [
+    {
+      "index": 0,
+      "name": "email_search_emails",
+      "arguments": {
+        "query": "cedar"
+      },
+      "label": "lowercase",
+      "category": "supported",
+      "output": {
+        "emails": [
+          {
+            "email_id": "105",
+            "inbox/outbox": "inbox",
+            "sender/recipient": "Person5.100@EXAMPLE.test",
+            "subject": "Cedar notes",
+            "sent_datetime": "2023-11-25T12:30:00",
+            "body": "Additional amber evidence."
+          },
+          {
+            "email_id": "103",
+            "inbox/outbox": "outbox",
+            "sender/recipient": "Person3.100@EXAMPLE.test",
+            "subject": "RE: Cedar release",
+            "sent_datetime": "2023-11-23T12:30:00",
+            "body": "Amber followup."
+          },
+          {
+            "email_id": "101",
+            "inbox/outbox": "inbox",
+            "sender/recipient": "Person1.100@EXAMPLE.test",
+            "subject": "Cedar budget",
+            "sent_datetime": "2023-11-21T12:30:00",
+            "body": "Amber costs await review."
+          },
+          {
+            "email_id": "100",
+            "inbox/outbox": "inbox",
+            "sender/recipient": "Person0.100@EXAMPLE.test",
+            "subject": "Cedar release",
+            "sent_datetime": "2023-11-20T12:30:00",
+            "body": "Prepare the amber checklist."
+          }
+        ],
+        "pagination": {
+          "total_emails": 4,
+          "page": 1,
+          "page_size": 5,
+          "total_pages": 1
+        }
+      },
+      "exception": null,
+      "before_state": [
+        {
+          "email_id": "100",
+          "inbox/outbox": "inbox",
+          "sender/recipient": "Person0.100@EXAMPLE.test",
+          "subject": "Cedar release",
+          "sent_datetime": "2023-11-20T12:30:00",
+          "body": "Prepare the amber checklist."
+        },
+        {
+          "email_id": "101",
+          "inbox/outbox": "inbox",
+          "sender/recipient": "Person1.100@EXAMPLE.test",
+          "subject": "Cedar budget",
+          "sent_datetime": "2023-11-21T12:30:00",
+          "body": "Amber costs await review."
+        },
+        {
+          "email_id": "102",
+          "inbox/outbox": "inbox",
+          "sender/recipient": "Person2.100@EXAMPLE.test",
+          "subject": "Other notice",
+          "sent_datetime": "2023-11-22T12:30:00",
+          "body": "No action requested."
+        },
+        {
+          "email_id": "103",
+          "inbox/outbox": "outbox",
+          "sender/recipient": "Person3.100@EXAMPLE.test",
+          "subject": "RE: Cedar release",
+          "sent_datetime": "2023-11-23T12:30:00",
+          "body": "Amber followup."
+        },
+        {
+          "email_id": "104",
+          "inbox/outbox": "inbox",
+          "sender/recipient": "Person4.100@EXAMPLE.test",
+          "subject": "Quarterly release",
+          "sent_datetime": "2023-11-24T12:30:00",
+          "body": "Release archive."
+        },
+        {
+          "email_id": "105",
+          "inbox/outbox": "inbox",
+          "sender/recipient": "Person5.100@EXAMPLE.test",
+          "subject": "Cedar notes",
+          "sent_datetime": "2023-11-25T12:30:00",
+          "body": "Additional amber evidence."
+        }
+      ],
+      "after_state": [
+        {
+          "email_id": "100",
+          "inbox/outbox": "inbox",
+          "sender/recipient": "Person0.100@EXAMPLE.test",
+          "subject": "Cedar release",
+          "sent_datetime": "2023-11-20T12:30:00",
+          "body": "Prepare the amber checklist."
+        },
+        {
+          "email_id": "101",
+          "inbox/outbox": "inbox",
+          "sender/recipient": "Person1.100@EXAMPLE.test",
+          "subject": "Cedar budget",
+          "sent_datetime": "2023-11-21T12:30:00",
+          "body": "Amber costs await review."
+        },
+        {
+          "email_id": "102",
+          "inbox/outbox": "inbox",
+          "sender/recipient": "Person2.100@EXAMPLE.test",
+          "subject": "Other notice",
+          "sent_datetime": "2023-11-22T12:30:00",
+          "body": "No action requested."
+        },
+        {
+          "email_id": "103",
+          "inbox/outbox": "outbox",
+          "sender/recipient": "Person3.100@EXAMPLE.test",
+          "subject": "RE: Cedar release",
+          "sent_datetime": "2023-11-23T12:30:00",
+          "body": "Amber followup."
+        },
+        {
+          "email_id": "104",
+          "inbox/outbox": "inbox",
+          "sender/recipient": "Person4.100@EXAMPLE.test",
+          "subject": "Quarterly release",
+          "sent_datetime": "2023-11-24T12:30:00",
+          "body": "Release archive."
+        },
+        {
+          "email_id": "105",
+          "inbox/outbox": "inbox",
+          "sender/recipient": "Person5.100@EXAMPLE.test",
+          "subject": "Cedar notes",
+          "sent_datetime": "2023-11-25T12:30:00",
+          "body": "Additional amber evidence."
+        }
+      ]
+    },
+    {
+      "index": 1,
+      "name": "email_search_emails",
+      "arguments": {
+        "query": "CEDAR"
+      },
+      "label": "uppercase",
+      "category": "supported",
+      "output": {
+        "emails": [
+          {
+            "email_id": "105",
+            "inbox/outbox": "inbox",
+            "sender/recipient": "Person5.100@EXAMPLE.test",
+            "subject": "Cedar notes",
+            "sent_datetime": "2023-11-25T12:30:00",
+            "body": "Additional amber evidence."
+          },
+          {
+            "email_id": "103",
+            "inbox/outbox": "outbox",
+            "sender/recipient": "Person3.100@EXAMPLE.test",
+            "subject": "RE: Cedar release",
+            "sent_datetime": "2023-11-23T12:30:00",
+            "body": "Amber followup."
+          },
+          {
+            "email_id": "101",
+            "inbox/outbox": "inbox",
+            "sender/recipient": "Person1.100@EXAMPLE.test",
+            "subject": "Cedar budget",
+            "sent_datetime": "2023-11-21T12:30:00",
+            "body": "Amber costs await review."
+          },
+          {
+            "email_id": "100",
+            "inbox/outbox": "inbox",
+            "sender/recipient": "Person0.100@EXAMPLE.test",
+            "subject": "Cedar release",
+            "sent_datetime": "2023-11-20T12:30:00",
+            "body": "Prepare the amber checklist."
+          }
+        ],
+        "pagination": {
+          "total_emails": 4,
+          "page": 1,
+          "page_size": 5,
+          "total_pages": 1
+        }
+      },
+      "exception": null,
+      "before_state": [
+        {
+          "email_id": "100",
+          "inbox/outbox": "inbox",
+          "sender/recipient": "Person0.100@EXAMPLE.test",
+          "subject": "Cedar release",
+          "sent_datetime": "2023-11-20T12:30:00",
+          "body": "Prepare the amber checklist."
+        },
+        {
+          "email_id": "101",
+          "inbox/outbox": "inbox",
+          "sender/recipient": "Person1.100@EXAMPLE.test",
+          "subject": "Cedar budget",
+          "sent_datetime": "2023-11-21T12:30:00",
+          "body": "Amber costs await review."
+        },
+        {
+          "email_id": "102",
+          "inbox/outbox": "inbox",
+          "sender/recipient": "Person2.100@EXAMPLE.test",
+          "subject": "Other notice",
+          "sent_datetime": "2023-11-22T12:30:00",
+          "body": "No action requested."
+        },
+        {
+          "email_id": "103",
+          "inbox/outbox": "outbox",
+          "sender/recipient": "Person3.100@EXAMPLE.test",
+          "subject": "RE: Cedar release",
+          "sent_datetime": "2023-11-23T12:30:00",
+          "body": "Amber followup."
+        },
+        {
+          "email_id": "104",
+          "inbox/outbox": "inbox",
+          "sender/recipient": "Person4.100@EXAMPLE.test",
+          "subject": "Quarterly release",
+          "sent_datetime": "2023-11-24T12:30:00",
+          "body": "Release archive."
+        },
+        {
+          "email_id": "105",
+          "inbox/outbox": "inbox",
+          "sender/recipient": "Person5.100@EXAMPLE.test",
+          "subject": "Cedar notes",
+          "sent_datetime": "2023-11-25T12:30:00",
+          "body": "Additional amber evidence."
+        }
+      ],
+      "after_state": [
+        {
+          "email_id": "100",
+          "inbox/outbox": "inbox",
+          "sender/recipient": "Person0.100@EXAMPLE.test",
+          "subject": "Cedar release",
+          "sent_datetime": "2023-11-20T12:30:00",
+          "body": "Prepare the amber checklist."
+        },
+        {
+          "email_id": "101",
+          "inbox/outbox": "inbox",
+          "sender/recipient": "Person1.100@EXAMPLE.test",
+          "subject": "Cedar budget",
+          "sent_datetime": "2023-11-21T12:30:00",
+          "body": "Amber costs await review."
+        },
+        {
+          "email_id": "102",
+          "inbox/outbox": "inbox",
+          "sender/recipient": "Person2.100@EXAMPLE.test",
+          "subject": "Other notice",
+          "sent_datetime": "2023-11-22T12:30:00",
+          "body": "No action requested."
+        },
+        {
+          "email_id": "103",
+          "inbox/outbox": "outbox",
+          "sender/recipient": "Person3.100@EXAMPLE.test",
+          "subject": "RE: Cedar release",
+          "sent_datetime": "2023-11-23T12:30:00",
+          "body": "Amber followup."
+        },
+        {
+          "email_id": "104",
+          "inbox/outbox": "inbox",
+          "sender/recipient": "Person4.100@EXAMPLE.test",
+          "subject": "Quarterly release",
+          "sent_datetime": "2023-11-24T12:30:00",
+          "body": "Release archive."
+        },
+        {
+          "email_id": "105",
+          "inbox/outbox": "inbox",
+          "sender/recipient": "Person5.100@EXAMPLE.test",
+          "subject": "Cedar notes",
+          "sent_datetime": "2023-11-25T12:30:00",
+          "body": "Additional amber evidence."
+        }
+      ]
+    },
+    {
+      "index": 2,
+      "name": "email_search_emails",
+      "arguments": {
+        "query": "CeDaR"
+      },
+      "label": "mixed-case",
+      "category": "supported",
+      "output": {
+        "emails": [
+          {
+            "email_id": "105",
+            "inbox/outbox": "inbox",
+            "sender/recipient": "Person5.100@EXAMPLE.test",
+            "subject": "Cedar notes",
+            "sent_datetime": "2023-11-25T12:30:00",
+            "body": "Additional amber evidence."
+          },
+          {
+            "email_id": "103",
+            "inbox/outbox": "outbox",
+            "sender/recipient": "Person3.100@EXAMPLE.test",
+            "subject": "RE: Cedar release",
+            "sent_datetime": "2023-11-23T12:30:00",
+            "body": "Amber followup."
+          },
+          {
+            "email_id": "101",
+            "inbox/outbox": "inbox",
+            "sender/recipient": "Person1.100@EXAMPLE.test",
+            "subject": "Cedar budget",
+            "sent_datetime": "2023-11-21T12:30:00",
+            "body": "Amber costs await review."
+          },
+          {
+            "email_id": "100",
+            "inbox/outbox": "inbox",
+            "sender/recipient": "Person0.100@EXAMPLE.test",
+            "subject": "Cedar release",
+            "sent_datetime": "2023-11-20T12:30:00",
+            "body": "Prepare the amber checklist."
+          }
+        ],
+        "pagination": {
+          "total_emails": 4,
+          "page": 1,
+          "page_size": 5,
+          "total_pages": 1
+        }
+      },
+      "exception": null,
+      "before_state": [
+        {
+          "email_id": "100",
+          "inbox/outbox": "inbox",
+          "sender/recipient": "Person0.100@EXAMPLE.test",
+          "subject": "Cedar release",
+          "sent_datetime": "2023-11-20T12:30:00",
+          "body": "Prepare the amber checklist."
+        },
+        {
+          "email_id": "101",
+          "inbox/outbox": "inbox",
+          "sender/recipient": "Person1.100@EXAMPLE.test",
+          "subject": "Cedar budget",
+          "sent_datetime": "2023-11-21T12:30:00",
+          "body": "Amber costs await review."
+        },
+        {
+          "email_id": "102",
+          "inbox/outbox": "inbox",
+          "sender/recipient": "Person2.100@EXAMPLE.test",
+          "subject": "Other notice",
+          "sent_datetime": "2023-11-22T12:30:00",
+          "body": "No action requested."
+        },
+        {
+          "email_id": "103",
+          "inbox/outbox": "outbox",
+          "sender/recipient": "Person3.100@EXAMPLE.test",
+          "subject": "RE: Cedar release",
+          "sent_datetime": "2023-11-23T12:30:00",
+          "body": "Amber followup."
+        },
+        {
+          "email_id": "104",
+          "inbox/outbox": "inbox",
+          "sender/recipient": "Person4.100@EXAMPLE.test",
+          "subject": "Quarterly release",
+          "sent_datetime": "2023-11-24T12:30:00",
+          "body": "Release archive."
+        },
+        {
+          "email_id": "105",
+          "inbox/outbox": "inbox",
+          "sender/recipient": "Person5.100@EXAMPLE.test",
+          "subject": "Cedar notes",
+          "sent_datetime": "2023-11-25T12:30:00",
+          "body": "Additional amber evidence."
+        }
+      ],
+      "after_state": [
+        {
+          "email_id": "100",
+          "inbox/outbox": "inbox",
+          "sender/recipient": "Person0.100@EXAMPLE.test",
+          "subject": "Cedar release",
+          "sent_datetime": "2023-11-20T12:30:00",
+          "body": "Prepare the amber checklist."
+        },
+        {
+          "email_id": "101",
+          "inbox/outbox": "inbox",
+          "sender/recipient": "Person1.100@EXAMPLE.test",
+          "subject": "Cedar budget",
+          "sent_datetime": "2023-11-21T12:30:00",
+          "body": "Amber costs await review."
+        },
+        {
+          "email_id": "102",
+          "inbox/outbox": "inbox",
+          "sender/recipient": "Person2.100@EXAMPLE.test",
+          "subject": "Other notice",
+          "sent_datetime": "2023-11-22T12:30:00",
+          "body": "No action requested."
+        },
+        {
+          "email_id": "103",
+          "inbox/outbox": "outbox",
+          "sender/recipient": "Person3.100@EXAMPLE.test",
+          "subject": "RE: Cedar release",
+          "sent_datetime": "2023-11-23T12:30:00",
+          "body": "Amber followup."
+        },
+        {
+          "email_id": "104",
+          "inbox/outbox": "inbox",
+          "sender/recipient": "Person4.100@EXAMPLE.test",
+          "subject": "Quarterly release",
+          "sent_datetime": "2023-11-24T12:30:00",
+          "body": "Release archive."
+        },
+        {
+          "email_id": "105",
+          "inbox/outbox": "inbox",
+          "sender/recipient": "Person5.100@EXAMPLE.test",
+          "subject": "Cedar notes",
+          "sent_datetime": "2023-11-25T12:30:00",
+          "body": "Additional amber evidence."
+        }
+      ]
+    },
+    {
+      "index": 3,
+      "name": "email_search_emails",
+      "arguments": {
+        "query": "cedar amber"
+      },
+      "label": "all-words-across-fields",
+      "category": "supported",
+      "output": {
+        "emails": [
+          {
+            "email_id": "105",
+            "inbox/outbox": "inbox",
+            "sender/recipient": "Person5.100@EXAMPLE.test",
+            "subject": "Cedar notes",
+            "sent_datetime": "2023-11-25T12:30:00",
+            "body": "Additional amber evidence."
+          },
+          {
+            "email_id": "103",
+            "inbox/outbox": "outbox",
+            "sender/recipient": "Person3.100@EXAMPLE.test",
+            "subject": "RE: Cedar release",
+            "sent_datetime": "2023-11-23T12:30:00",
+            "body": "Amber followup."
+          },
+          {
+            "email_id": "101",
+            "inbox/outbox": "inbox",
+            "sender/recipient": "Person1.100@EXAMPLE.test",
+            "subject": "Cedar budget",
+            "sent_datetime": "2023-11-21T12:30:00",
+            "body": "Amber costs await review."
+          },
+          {
+            "email_id": "100",
+            "inbox/outbox": "inbox",
+            "sender/recipient": "Person0.100@EXAMPLE.test",
+            "subject": "Cedar release",
+            "sent_datetime": "2023-11-20T12:30:00",
+            "body": "Prepare the amber checklist."
+          }
+        ],
+        "pagination": {
+          "total_emails": 4,
+          "page": 1,
+          "page_size": 5,
+          "total_pages": 1
+        }
+      },
+      "exception": null,
+      "before_state": [
+        {
+          "email_id": "100",
+          "inbox/outbox": "inbox",
+          "sender/recipient": "Person0.100@EXAMPLE.test",
+          "subject": "Cedar release",
+          "sent_datetime": "2023-11-20T12:30:00",
+          "body": "Prepare the amber checklist."
+        },
+        {
+          "email_id": "101",
+          "inbox/outbox": "inbox",
+          "sender/recipient": "Person1.100@EXAMPLE.test",
+          "subject": "Cedar budget",
+          "sent_datetime": "2023-11-21T12:30:00",
+          "body": "Amber costs await review."
+        },
+        {
+          "email_id": "102",
+          "inbox/outbox": "inbox",
+          "sender/recipient": "Person2.100@EXAMPLE.test",
+          "subject": "Other notice",
+          "sent_datetime": "2023-11-22T12:30:00",
+          "body": "No action requested."
+        },
+        {
+          "email_id": "103",
+          "inbox/outbox": "outbox",
+          "sender/recipient": "Person3.100@EXAMPLE.test",
+          "subject": "RE: Cedar release",
+          "sent_datetime": "2023-11-23T12:30:00",
+          "body": "Amber followup."
+        },
+        {
+          "email_id": "104",
+          "inbox/outbox": "inbox",
+          "sender/recipient": "Person4.100@EXAMPLE.test",
+          "subject": "Quarterly release",
+          "sent_datetime": "2023-11-24T12:30:00",
+          "body": "Release archive."
+        },
+        {
+          "email_id": "105",
+          "inbox/outbox": "inbox",
+          "sender/recipient": "Person5.100@EXAMPLE.test",
+          "subject": "Cedar notes",
+          "sent_datetime": "2023-11-25T12:30:00",
+          "body": "Additional amber evidence."
+        }
+      ],
+      "after_state": [
+        {
+          "email_id": "100",
+          "inbox/outbox": "inbox",
+          "sender/recipient": "Person0.100@EXAMPLE.test",
+          "subject": "Cedar release",
+          "sent_datetime": "2023-11-20T12:30:00",
+          "body": "Prepare the amber checklist."
+        },
+        {
+          "email_id": "101",
+          "inbox/outbox": "inbox",
+          "sender/recipient": "Person1.100@EXAMPLE.test",
+          "subject": "Cedar budget",
+          "sent_datetime": "2023-11-21T12:30:00",
+          "body": "Amber costs await review."
+        },
+        {
+          "email_id": "102",
+          "inbox/outbox": "inbox",
+          "sender/recipient": "Person2.100@EXAMPLE.test",
+          "subject": "Other notice",
+          "sent_datetime": "2023-11-22T12:30:00",
+          "body": "No action requested."
+        },
+        {
+          "email_id": "103",
+          "inbox/outbox": "outbox",
+          "sender/recipient": "Person3.100@EXAMPLE.test",
+          "subject": "RE: Cedar release",
+          "sent_datetime": "2023-11-23T12:30:00",
+          "body": "Amber followup."
+        },
+        {
+          "email_id": "104",
+          "inbox/outbox": "inbox",
+          "sender/recipient": "Person4.100@EXAMPLE.test",
+          "subject": "Quarterly release",
+          "sent_datetime": "2023-11-24T12:30:00",
+          "body": "Release archive."
+        },
+        {
+          "email_id": "105",
+          "inbox/outbox": "inbox",
+          "sender/recipient": "Person5.100@EXAMPLE.test",
+          "subject": "Cedar notes",
+          "sent_datetime": "2023-11-25T12:30:00",
+          "body": "Additional amber evidence."
+        }
+      ]
+    },
+    {
+      "index": 4,
+      "name": "email_search_emails",
+      "arguments": {
+        "query": "eda"
+      },
+      "label": "substring",
+      "category": "supported",
+      "output": {
+        "emails": [
+          {
+            "email_id": "105",
+            "inbox/outbox": "inbox",
+            "sender/recipient": "Person5.100@EXAMPLE.test",
+            "subject": "Cedar notes",
+            "sent_datetime": "2023-11-25T12:30:00",
+            "body": "Additional amber evidence."
+          },
+          {
+            "email_id": "103",
+            "inbox/outbox": "outbox",
+            "sender/recipient": "Person3.100@EXAMPLE.test",
+            "subject": "RE: Cedar release",
+            "sent_datetime": "2023-11-23T12:30:00",
+            "body": "Amber followup."
+          },
+          {
+            "email_id": "101",
+            "inbox/outbox": "inbox",
+            "sender/recipient": "Person1.100@EXAMPLE.test",
+            "subject": "Cedar budget",
+            "sent_datetime": "2023-11-21T12:30:00",
+            "body": "Amber costs await review."
+          },
+          {
+            "email_id": "100",
+            "inbox/outbox": "inbox",
+            "sender/recipient": "Person0.100@EXAMPLE.test",
+            "subject": "Cedar release",
+            "sent_datetime": "2023-11-20T12:30:00",
+            "body": "Prepare the amber checklist."
+          }
+        ],
+        "pagination": {
+          "total_emails": 4,
+          "page": 1,
+          "page_size": 5,
+          "total_pages": 1
+        }
+      },
+      "exception": null,
+      "before_state": [
+        {
+          "email_id": "100",
+          "inbox/outbox": "inbox",
+          "sender/recipient": "Person0.100@EXAMPLE.test",
+          "subject": "Cedar release",
+          "sent_datetime": "2023-11-20T12:30:00",
+          "body": "Prepare the amber checklist."
+        },
+        {
+          "email_id": "101",
+          "inbox/outbox": "inbox",
+          "sender/recipient": "Person1.100@EXAMPLE.test",
+          "subject": "Cedar budget",
+          "sent_datetime": "2023-11-21T12:30:00",
+          "body": "Amber costs await review."
+        },
+        {
+          "email_id": "102",
+          "inbox/outbox": "inbox",
+          "sender/recipient": "Person2.100@EXAMPLE.test",
+          "subject": "Other notice",
+          "sent_datetime": "2023-11-22T12:30:00",
+          "body": "No action requested."
+        },
+        {
+          "email_id": "103",
+          "inbox/outbox": "outbox",
+          "sender/recipient": "Person3.100@EXAMPLE.test",
+          "subject": "RE: Cedar release",
+          "sent_datetime": "2023-11-23T12:30:00",
+          "body": "Amber followup."
+        },
+        {
+          "email_id": "104",
+          "inbox/outbox": "inbox",
+          "sender/recipient": "Person4.100@EXAMPLE.test",
+          "subject": "Quarterly release",
+          "sent_datetime": "2023-11-24T12:30:00",
+          "body": "Release archive."
+        },
+        {
+          "email_id": "105",
+          "inbox/outbox": "inbox",
+          "sender/recipient": "Person5.100@EXAMPLE.test",
+          "subject": "Cedar notes",
+          "sent_datetime": "2023-11-25T12:30:00",
+          "body": "Additional amber evidence."
+        }
+      ],
+      "after_state": [
+        {
+          "email_id": "100",
+          "inbox/outbox": "inbox",
+          "sender/recipient": "Person0.100@EXAMPLE.test",
+          "subject": "Cedar release",
+          "sent_datetime": "2023-11-20T12:30:00",
+          "body": "Prepare the amber checklist."
+        },
+        {
+          "email_id": "101",
+          "inbox/outbox": "inbox",
+          "sender/recipient": "Person1.100@EXAMPLE.test",
+          "subject": "Cedar budget",
+          "sent_datetime": "2023-11-21T12:30:00",
+          "body": "Amber costs await review."
+        },
+        {
+          "email_id": "102",
+          "inbox/outbox": "inbox",
+          "sender/recipient": "Person2.100@EXAMPLE.test",
+          "subject": "Other notice",
+          "sent_datetime": "2023-11-22T12:30:00",
+          "body": "No action requested."
+        },
+        {
+          "email_id": "103",
+          "inbox/outbox": "outbox",
+          "sender/recipient": "Person3.100@EXAMPLE.test",
+          "subject": "RE: Cedar release",
+          "sent_datetime": "2023-11-23T12:30:00",
+          "body": "Amber followup."
+        },
+        {
+          "email_id": "104",
+          "inbox/outbox": "inbox",
+          "sender/recipient": "Person4.100@EXAMPLE.test",
+          "subject": "Quarterly release",
+          "sent_datetime": "2023-11-24T12:30:00",
+          "body": "Release archive."
+        },
+        {
+          "email_id": "105",
+          "inbox/outbox": "inbox",
+          "sender/recipient": "Person5.100@EXAMPLE.test",
+          "subject": "Cedar notes",
+          "sent_datetime": "2023-11-25T12:30:00",
+          "body": "Additional amber evidence."
+        }
+      ]
+    },
+    {
+      "index": 5,
+      "name": "email_search_emails",
+      "arguments": {
+        "query": "absent-unique-term"
+      },
+      "label": "no-match",
+      "category": "supported",
+      "output": "No emails found.",
+      "exception": null,
+      "before_state": [
+        {
+          "email_id": "100",
+          "inbox/outbox": "inbox",
+          "sender/recipient": "Person0.100@EXAMPLE.test",
+          "subject": "Cedar release",
+          "sent_datetime": "2023-11-20T12:30:00",
+          "body": "Prepare the amber checklist."
+        },
+        {
+          "email_id": "101",
+          "inbox/outbox": "inbox",
+          "sender/recipient": "Person1.100@EXAMPLE.test",
+          "subject": "Cedar budget",
+          "sent_datetime": "2023-11-21T12:30:00",
+          "body": "Amber costs await review."
+        },
+        {
+          "email_id": "102",
+          "inbox/outbox": "inbox",
+          "sender/recipient": "Person2.100@EXAMPLE.test",
+          "subject": "Other notice",
+          "sent_datetime": "2023-11-22T12:30:00",
+          "body": "No action requested."
+        },
+        {
+          "email_id": "103",
+          "inbox/outbox": "outbox",
+          "sender/recipient": "Person3.100@EXAMPLE.test",
+          "subject": "RE: Cedar release",
+          "sent_datetime": "2023-11-23T12:30:00",
+          "body": "Amber followup."
+        },
+        {
+          "email_id": "104",
+          "inbox/outbox": "inbox",
+          "sender/recipient": "Person4.100@EXAMPLE.test",
+          "subject": "Quarterly release",
+          "sent_datetime": "2023-11-24T12:30:00",
+          "body": "Release archive."
+        },
+        {
+          "email_id": "105",
+          "inbox/outbox": "inbox",
+          "sender/recipient": "Person5.100@EXAMPLE.test",
+          "subject": "Cedar notes",
+          "sent_datetime": "2023-11-25T12:30:00",
+          "body": "Additional amber evidence."
+        }
+      ],
+      "after_state": [
+        {
+          "email_id": "100",
+          "inbox/outbox": "inbox",
+          "sender/recipient": "Person0.100@EXAMPLE.test",
+          "subject": "Cedar release",
+          "sent_datetime": "2023-11-20T12:30:00",
+          "body": "Prepare the amber checklist."
+        },
+        {
+          "email_id": "101",
+          "inbox/outbox": "inbox",
+          "sender/recipient": "Person1.100@EXAMPLE.test",
+          "subject": "Cedar budget",
+          "sent_datetime": "2023-11-21T12:30:00",
+          "body": "Amber costs await review."
+        },
+        {
+          "email_id": "102",
+          "inbox/outbox": "inbox",
+          "sender/recipient": "Person2.100@EXAMPLE.test",
+          "subject": "Other notice",
+          "sent_datetime": "2023-11-22T12:30:00",
+          "body": "No action requested."
+        },
+        {
+          "email_id": "103",
+          "inbox/outbox": "outbox",
+          "sender/recipient": "Person3.100@EXAMPLE.test",
+          "subject": "RE: Cedar release",
+          "sent_datetime": "2023-11-23T12:30:00",
+          "body": "Amber followup."
+        },
+        {
+          "email_id": "104",
+          "inbox/outbox": "inbox",
+          "sender/recipient": "Person4.100@EXAMPLE.test",
+          "subject": "Quarterly release",
+          "sent_datetime": "2023-11-24T12:30:00",
+          "body": "Release archive."
+        },
+        {
+          "email_id": "105",
+          "inbox/outbox": "inbox",
+          "sender/recipient": "Person5.100@EXAMPLE.test",
+          "subject": "Cedar notes",
+          "sent_datetime": "2023-11-25T12:30:00",
+          "body": "Additional amber evidence."
+        }
+      ]
+    },
+    {
+      "index": 6,
+      "name": "email_search_emails",
+      "arguments": {
+        "query": ""
+      },
+      "label": "empty-query",
+      "category": "supported",
+      "output": {
+        "emails": [
+          {
+            "email_id": "105",
+            "inbox/outbox": "inbox",
+            "sender/recipient": "Person5.100@EXAMPLE.test",
+            "subject": "Cedar notes",
+            "sent_datetime": "2023-11-25T12:30:00",
+            "body": "Additional amber evidence."
+          },
+          {
+            "email_id": "104",
+            "inbox/outbox": "inbox",
+            "sender/recipient": "Person4.100@EXAMPLE.test",
+            "subject": "Quarterly release",
+            "sent_datetime": "2023-11-24T12:30:00",
+            "body": "Release archive."
+          },
+          {
+            "email_id": "103",
+            "inbox/outbox": "outbox",
+            "sender/recipient": "Person3.100@EXAMPLE.test",
+            "subject": "RE: Cedar release",
+            "sent_datetime": "2023-11-23T12:30:00",
+            "body": "Amber followup."
+          },
+          {
+            "email_id": "102",
+            "inbox/outbox": "inbox",
+            "sender/recipient": "Person2.100@EXAMPLE.test",
+            "subject": "Other notice",
+            "sent_datetime": "2023-11-22T12:30:00",
+            "body": "No action requested."
+          },
+          {
+            "email_id": "101",
+            "inbox/outbox": "inbox",
+            "sender/recipient": "Person1.100@EXAMPLE.test",
+            "subject": "Cedar budget",
+            "sent_datetime": "2023-11-21T12:30:00",
+            "body": "Amber costs await review."
+          }
+        ],
+        "pagination": {
+          "total_emails": 6,
+          "page": 1,
+          "page_size": 5,
+          "total_pages": 2
+        }
+      },
+      "exception": null,
+      "before_state": [
+        {
+          "email_id": "100",
+          "inbox/outbox": "inbox",
+          "sender/recipient": "Person0.100@EXAMPLE.test",
+          "subject": "Cedar release",
+          "sent_datetime": "2023-11-20T12:30:00",
+          "body": "Prepare the amber checklist."
+        },
+        {
+          "email_id": "101",
+          "inbox/outbox": "inbox",
+          "sender/recipient": "Person1.100@EXAMPLE.test",
+          "subject": "Cedar budget",
+          "sent_datetime": "2023-11-21T12:30:00",
+          "body": "Amber costs await review."
+        },
+        {
+          "email_id": "102",
+          "inbox/outbox": "inbox",
+          "sender/recipient": "Person2.100@EXAMPLE.test",
+          "subject": "Other notice",
+          "sent_datetime": "2023-11-22T12:30:00",
+          "body": "No action requested."
+        },
+        {
+          "email_id": "103",
+          "inbox/outbox": "outbox",
+          "sender/recipient": "Person3.100@EXAMPLE.test",
+          "subject": "RE: Cedar release",
+          "sent_datetime": "2023-11-23T12:30:00",
+          "body": "Amber followup."
+        },
+        {
+          "email_id": "104",
+          "inbox/outbox": "inbox",
+          "sender/recipient": "Person4.100@EXAMPLE.test",
+          "subject": "Quarterly release",
+          "sent_datetime": "2023-11-24T12:30:00",
+          "body": "Release archive."
+        },
+        {
+          "email_id": "105",
+          "inbox/outbox": "inbox",
+          "sender/recipient": "Person5.100@EXAMPLE.test",
+          "subject": "Cedar notes",
+          "sent_datetime": "2023-11-25T12:30:00",
+          "body": "Additional amber evidence."
+        }
+      ],
+      "after_state": [
+        {
+          "email_id": "100",
+          "inbox/outbox": "inbox",
+          "sender/recipient": "Person0.100@EXAMPLE.test",
+          "subject": "Cedar release",
+          "sent_datetime": "2023-11-20T12:30:00",
+          "body": "Prepare the amber checklist."
+        },
+        {
+          "email_id": "101",
+          "inbox/outbox": "inbox",
+          "sender/recipient": "Person1.100@EXAMPLE.test",
+          "subject": "Cedar budget",
+          "sent_datetime": "2023-11-21T12:30:00",
+          "body": "Amber costs await review."
+        },
+        {
+          "email_id": "102",
+          "inbox/outbox": "inbox",
+          "sender/recipient": "Person2.100@EXAMPLE.test",
+          "subject": "Other notice",
+          "sent_datetime": "2023-11-22T12:30:00",
+          "body": "No action requested."
+        },
+        {
+          "email_id": "103",
+          "inbox/outbox": "outbox",
+          "sender/recipient": "Person3.100@EXAMPLE.test",
+          "subject": "RE: Cedar release",
+          "sent_datetime": "2023-11-23T12:30:00",
+          "body": "Amber followup."
+        },
+        {
+          "email_id": "104",
+          "inbox/outbox": "inbox",
+          "sender/recipient": "Person4.100@EXAMPLE.test",
+          "subject": "Quarterly release",
+          "sent_datetime": "2023-11-24T12:30:00",
+          "body": "Release archive."
+        },
+        {
+          "email_id": "105",
+          "inbox/outbox": "inbox",
+          "sender/recipient": "Person5.100@EXAMPLE.test",
+          "subject": "Cedar notes",
+          "sent_datetime": "2023-11-25T12:30:00",
+          "body": "Additional amber evidence."
+        }
+      ]
+    },
+    {
+      "index": 7,
+      "name": "email_search_emails",
+      "arguments": {},
+      "label": "defaults",
+      "category": "supported",
+      "output": {
+        "emails": [
+          {
+            "email_id": "105",
+            "inbox/outbox": "inbox",
+            "sender/recipient": "Person5.100@EXAMPLE.test",
+            "subject": "Cedar notes",
+            "sent_datetime": "2023-11-25T12:30:00",
+            "body": "Additional amber evidence."
+          },
+          {
+            "email_id": "104",
+            "inbox/outbox": "inbox",
+            "sender/recipient": "Person4.100@EXAMPLE.test",
+            "subject": "Quarterly release",
+            "sent_datetime": "2023-11-24T12:30:00",
+            "body": "Release archive."
+          },
+          {
+            "email_id": "103",
+            "inbox/outbox": "outbox",
+            "sender/recipient": "Person3.100@EXAMPLE.test",
+            "subject": "RE: Cedar release",
+            "sent_datetime": "2023-11-23T12:30:00",
+            "body": "Amber followup."
+          },
+          {
+            "email_id": "102",
+            "inbox/outbox": "inbox",
+            "sender/recipient": "Person2.100@EXAMPLE.test",
+            "subject": "Other notice",
+            "sent_datetime": "2023-11-22T12:30:00",
+            "body": "No action requested."
+          },
+          {
+            "email_id": "101",
+            "inbox/outbox": "inbox",
+            "sender/recipient": "Person1.100@EXAMPLE.test",
+            "subject": "Cedar budget",
+            "sent_datetime": "2023-11-21T12:30:00",
+            "body": "Amber costs await review."
+          }
+        ],
+        "pagination": {
+          "total_emails": 6,
+          "page": 1,
+          "page_size": 5,
+          "total_pages": 2
+        }
+      },
+      "exception": null,
+      "before_state": [
+        {
+          "email_id": "100",
+          "inbox/outbox": "inbox",
+          "sender/recipient": "Person0.100@EXAMPLE.test",
+          "subject": "Cedar release",
+          "sent_datetime": "2023-11-20T12:30:00",
+          "body": "Prepare the amber checklist."
+        },
+        {
+          "email_id": "101",
+          "inbox/outbox": "inbox",
+          "sender/recipient": "Person1.100@EXAMPLE.test",
+          "subject": "Cedar budget",
+          "sent_datetime": "2023-11-21T12:30:00",
+          "body": "Amber costs await review."
+        },
+        {
+          "email_id": "102",
+          "inbox/outbox": "inbox",
+          "sender/recipient": "Person2.100@EXAMPLE.test",
+          "subject": "Other notice",
+          "sent_datetime": "2023-11-22T12:30:00",
+          "body": "No action requested."
+        },
+        {
+          "email_id": "103",
+          "inbox/outbox": "outbox",
+          "sender/recipient": "Person3.100@EXAMPLE.test",
+          "subject": "RE: Cedar release",
+          "sent_datetime": "2023-11-23T12:30:00",
+          "body": "Amber followup."
+        },
+        {
+          "email_id": "104",
+          "inbox/outbox": "inbox",
+          "sender/recipient": "Person4.100@EXAMPLE.test",
+          "subject": "Quarterly release",
+          "sent_datetime": "2023-11-24T12:30:00",
+          "body": "Release archive."
+        },
+        {
+          "email_id": "105",
+          "inbox/outbox": "inbox",
+          "sender/recipient": "Person5.100@EXAMPLE.test",
+          "subject": "Cedar notes",
+          "sent_datetime": "2023-11-25T12:30:00",
+          "body": "Additional amber evidence."
+        }
+      ],
+      "after_state": [
+        {
+          "email_id": "100",
+          "inbox/outbox": "inbox",
+          "sender/recipient": "Person0.100@EXAMPLE.test",
+          "subject": "Cedar release",
+          "sent_datetime": "2023-11-20T12:30:00",
+          "body": "Prepare the amber checklist."
+        },
+        {
+          "email_id": "101",
+          "inbox/outbox": "inbox",
+          "sender/recipient": "Person1.100@EXAMPLE.test",
+          "subject": "Cedar budget",
+          "sent_datetime": "2023-11-21T12:30:00",
+          "body": "Amber costs await review."
+        },
+        {
+          "email_id": "102",
+          "inbox/outbox": "inbox",
+          "sender/recipient": "Person2.100@EXAMPLE.test",
+          "subject": "Other notice",
+          "sent_datetime": "2023-11-22T12:30:00",
+          "body": "No action requested."
+        },
+        {
+          "email_id": "103",
+          "inbox/outbox": "outbox",
+          "sender/recipient": "Person3.100@EXAMPLE.test",
+          "subject": "RE: Cedar release",
+          "sent_datetime": "2023-11-23T12:30:00",
+          "body": "Amber followup."
+        },
+        {
+          "email_id": "104",
+          "inbox/outbox": "inbox",
+          "sender/recipient": "Person4.100@EXAMPLE.test",
+          "subject": "Quarterly release",
+          "sent_datetime": "2023-11-24T12:30:00",
+          "body": "Release archive."
+        },
+        {
+          "email_id": "105",
+          "inbox/outbox": "inbox",
+          "sender/recipient": "Person5.100@EXAMPLE.test",
+          "subject": "Cedar notes",
+          "sent_datetime": "2023-11-25T12:30:00",
+          "body": "Additional amber evidence."
+        }
+      ]
+    },
+    {
+      "index": 8,
+      "name": "email_search_emails",
+      "arguments": {
+        "page": 1,
+        "page_size": 2
+      },
+      "label": "first-page",
+      "category": "supported",
+      "output": {
+        "emails": [
+          {
+            "email_id": "105",
+            "inbox/outbox": "inbox",
+            "sender/recipient": "Person5.100@EXAMPLE.test",
+            "subject": "Cedar notes",
+            "sent_datetime": "2023-11-25T12:30:00",
+            "body": "Additional amber evidence."
+          },
+          {
+            "email_id": "104",
+            "inbox/outbox": "inbox",
+            "sender/recipient": "Person4.100@EXAMPLE.test",
+            "subject": "Quarterly release",
+            "sent_datetime": "2023-11-24T12:30:00",
+            "body": "Release archive."
+          }
+        ],
+        "pagination": {
+          "total_emails": 6,
+          "page": 1,
+          "page_size": 2,
+          "total_pages": 3
+        }
+      },
+      "exception": null,
+      "before_state": [
+        {
+          "email_id": "100",
+          "inbox/outbox": "inbox",
+          "sender/recipient": "Person0.100@EXAMPLE.test",
+          "subject": "Cedar release",
+          "sent_datetime": "2023-11-20T12:30:00",
+          "body": "Prepare the amber checklist."
+        },
+        {
+          "email_id": "101",
+          "inbox/outbox": "inbox",
+          "sender/recipient": "Person1.100@EXAMPLE.test",
+          "subject": "Cedar budget",
+          "sent_datetime": "2023-11-21T12:30:00",
+          "body": "Amber costs await review."
+        },
+        {
+          "email_id": "102",
+          "inbox/outbox": "inbox",
+          "sender/recipient": "Person2.100@EXAMPLE.test",
+          "subject": "Other notice",
+          "sent_datetime": "2023-11-22T12:30:00",
+          "body": "No action requested."
+        },
+        {
+          "email_id": "103",
+          "inbox/outbox": "outbox",
+          "sender/recipient": "Person3.100@EXAMPLE.test",
+          "subject": "RE: Cedar release",
+          "sent_datetime": "2023-11-23T12:30:00",
+          "body": "Amber followup."
+        },
+        {
+          "email_id": "104",
+          "inbox/outbox": "inbox",
+          "sender/recipient": "Person4.100@EXAMPLE.test",
+          "subject": "Quarterly release",
+          "sent_datetime": "2023-11-24T12:30:00",
+          "body": "Release archive."
+        },
+        {
+          "email_id": "105",
+          "inbox/outbox": "inbox",
+          "sender/recipient": "Person5.100@EXAMPLE.test",
+          "subject": "Cedar notes",
+          "sent_datetime": "2023-11-25T12:30:00",
+          "body": "Additional amber evidence."
+        }
+      ],
+      "after_state": [
+        {
+          "email_id": "100",
+          "inbox/outbox": "inbox",
+          "sender/recipient": "Person0.100@EXAMPLE.test",
+          "subject": "Cedar release",
+          "sent_datetime": "2023-11-20T12:30:00",
+          "body": "Prepare the amber checklist."
+        },
+        {
+          "email_id": "101",
+          "inbox/outbox": "inbox",
+          "sender/recipient": "Person1.100@EXAMPLE.test",
+          "subject": "Cedar budget",
+          "sent_datetime": "2023-11-21T12:30:00",
+          "body": "Amber costs await review."
+        },
+        {
+          "email_id": "102",
+          "inbox/outbox": "inbox",
+          "sender/recipient": "Person2.100@EXAMPLE.test",
+          "subject": "Other notice",
+          "sent_datetime": "2023-11-22T12:30:00",
+          "body": "No action requested."
+        },
+        {
+          "email_id": "103",
+          "inbox/outbox": "outbox",
+          "sender/recipient": "Person3.100@EXAMPLE.test",
+          "subject": "RE: Cedar release",
+          "sent_datetime": "2023-11-23T12:30:00",
+          "body": "Amber followup."
+        },
+        {
+          "email_id": "104",
+          "inbox/outbox": "inbox",
+          "sender/recipient": "Person4.100@EXAMPLE.test",
+          "subject": "Quarterly release",
+          "sent_datetime": "2023-11-24T12:30:00",
+          "body": "Release archive."
+        },
+        {
+          "email_id": "105",
+          "inbox/outbox": "inbox",
+          "sender/recipient": "Person5.100@EXAMPLE.test",
+          "subject": "Cedar notes",
+          "sent_datetime": "2023-11-25T12:30:00",
+          "body": "Additional amber evidence."
+        }
+      ]
+    },
+    {
+      "index": 9,
+      "name": "email_search_emails",
+      "arguments": {
+        "page": 2,
+        "page_size": 2
+      },
+      "label": "later-page",
+      "category": "supported",
+      "output": {
+        "emails": [
+          {
+            "email_id": "103",
+            "inbox/outbox": "outbox",
+            "sender/recipient": "Person3.100@EXAMPLE.test",
+            "subject": "RE: Cedar release",
+            "sent_datetime": "2023-11-23T12:30:00",
+            "body": "Amber followup."
+          },
+          {
+            "email_id": "102",
+            "inbox/outbox": "inbox",
+            "sender/recipient": "Person2.100@EXAMPLE.test",
+            "subject": "Other notice",
+            "sent_datetime": "2023-11-22T12:30:00",
+            "body": "No action requested."
+          }
+        ],
+        "pagination": {
+          "total_emails": 6,
+          "page": 2,
+          "page_size": 2,
+          "total_pages": 3
+        }
+      },
+      "exception": null,
+      "before_state": [
+        {
+          "email_id": "100",
+          "inbox/outbox": "inbox",
+          "sender/recipient": "Person0.100@EXAMPLE.test",
+          "subject": "Cedar release",
+          "sent_datetime": "2023-11-20T12:30:00",
+          "body": "Prepare the amber checklist."
+        },
+        {
+          "email_id": "101",
+          "inbox/outbox": "inbox",
+          "sender/recipient": "Person1.100@EXAMPLE.test",
+          "subject": "Cedar budget",
+          "sent_datetime": "2023-11-21T12:30:00",
+          "body": "Amber costs await review."
+        },
+        {
+          "email_id": "102",
+          "inbox/outbox": "inbox",
+          "sender/recipient": "Person2.100@EXAMPLE.test",
+          "subject": "Other notice",
+          "sent_datetime": "2023-11-22T12:30:00",
+          "body": "No action requested."
+        },
+        {
+          "email_id": "103",
+          "inbox/outbox": "outbox",
+          "sender/recipient": "Person3.100@EXAMPLE.test",
+          "subject": "RE: Cedar release",
+          "sent_datetime": "2023-11-23T12:30:00",
+          "body": "Amber followup."
+        },
+        {
+          "email_id": "104",
+          "inbox/outbox": "inbox",
+          "sender/recipient": "Person4.100@EXAMPLE.test",
+          "subject": "Quarterly release",
+          "sent_datetime": "2023-11-24T12:30:00",
+          "body": "Release archive."
+        },
+        {
+          "email_id": "105",
+          "inbox/outbox": "inbox",
+          "sender/recipient": "Person5.100@EXAMPLE.test",
+          "subject": "Cedar notes",
+          "sent_datetime": "2023-11-25T12:30:00",
+          "body": "Additional amber evidence."
+        }
+      ],
+      "after_state": [
+        {
+          "email_id": "100",
+          "inbox/outbox": "inbox",
+          "sender/recipient": "Person0.100@EXAMPLE.test",
+          "subject": "Cedar release",
+          "sent_datetime": "2023-11-20T12:30:00",
+          "body": "Prepare the amber checklist."
+        },
+        {
+          "email_id": "101",
+          "inbox/outbox": "inbox",
+          "sender/recipient": "Person1.100@EXAMPLE.test",
+          "subject": "Cedar budget",
+          "sent_datetime": "2023-11-21T12:30:00",
+          "body": "Amber costs await review."
+        },
+        {
+          "email_id": "102",
+          "inbox/outbox": "inbox",
+          "sender/recipient": "Person2.100@EXAMPLE.test",
+          "subject": "Other notice",
+          "sent_datetime": "2023-11-22T12:30:00",
+          "body": "No action requested."
+        },
+        {
+          "email_id": "103",
+          "inbox/outbox": "outbox",
+          "sender/recipient": "Person3.100@EXAMPLE.test",
+          "subject": "RE: Cedar release",
+          "sent_datetime": "2023-11-23T12:30:00",
+          "body": "Amber followup."
+        },
+        {
+          "email_id": "104",
+          "inbox/outbox": "inbox",
+          "sender/recipient": "Person4.100@EXAMPLE.test",
+          "subject": "Quarterly release",
+          "sent_datetime": "2023-11-24T12:30:00",
+          "body": "Release archive."
+        },
+        {
+          "email_id": "105",
+          "inbox/outbox": "inbox",
+          "sender/recipient": "Person5.100@EXAMPLE.test",
+          "subject": "Cedar notes",
+          "sent_datetime": "2023-11-25T12:30:00",
+          "body": "Additional amber evidence."
+        }
+      ]
+    },
+    {
+      "index": 10,
+      "name": "email_search_emails",
+      "arguments": {
+        "page": 999,
+        "page_size": 2
+      },
+      "label": "high-clamp",
+      "category": "supported",
+      "output": {
+        "emails": [
+          {
+            "email_id": "101",
+            "inbox/outbox": "inbox",
+            "sender/recipient": "Person1.100@EXAMPLE.test",
+            "subject": "Cedar budget",
+            "sent_datetime": "2023-11-21T12:30:00",
+            "body": "Amber costs await review."
+          },
+          {
+            "email_id": "100",
+            "inbox/outbox": "inbox",
+            "sender/recipient": "Person0.100@EXAMPLE.test",
+            "subject": "Cedar release",
+            "sent_datetime": "2023-11-20T12:30:00",
+            "body": "Prepare the amber checklist."
+          }
+        ],
+        "pagination": {
+          "total_emails": 6,
+          "page": 3,
+          "page_size": 2,
+          "total_pages": 3
+        }
+      },
+      "exception": null,
+      "before_state": [
+        {
+          "email_id": "100",
+          "inbox/outbox": "inbox",
+          "sender/recipient": "Person0.100@EXAMPLE.test",
+          "subject": "Cedar release",
+          "sent_datetime": "2023-11-20T12:30:00",
+          "body": "Prepare the amber checklist."
+        },
+        {
+          "email_id": "101",
+          "inbox/outbox": "inbox",
+          "sender/recipient": "Person1.100@EXAMPLE.test",
+          "subject": "Cedar budget",
+          "sent_datetime": "2023-11-21T12:30:00",
+          "body": "Amber costs await review."
+        },
+        {
+          "email_id": "102",
+          "inbox/outbox": "inbox",
+          "sender/recipient": "Person2.100@EXAMPLE.test",
+          "subject": "Other notice",
+          "sent_datetime": "2023-11-22T12:30:00",
+          "body": "No action requested."
+        },
+        {
+          "email_id": "103",
+          "inbox/outbox": "outbox",
+          "sender/recipient": "Person3.100@EXAMPLE.test",
+          "subject": "RE: Cedar release",
+          "sent_datetime": "2023-11-23T12:30:00",
+          "body": "Amber followup."
+        },
+        {
+          "email_id": "104",
+          "inbox/outbox": "inbox",
+          "sender/recipient": "Person4.100@EXAMPLE.test",
+          "subject": "Quarterly release",
+          "sent_datetime": "2023-11-24T12:30:00",
+          "body": "Release archive."
+        },
+        {
+          "email_id": "105",
+          "inbox/outbox": "inbox",
+          "sender/recipient": "Person5.100@EXAMPLE.test",
+          "subject": "Cedar notes",
+          "sent_datetime": "2023-11-25T12:30:00",
+          "body": "Additional amber evidence."
+        }
+      ],
+      "after_state": [
+        {
+          "email_id": "100",
+          "inbox/outbox": "inbox",
+          "sender/recipient": "Person0.100@EXAMPLE.test",
+          "subject": "Cedar release",
+          "sent_datetime": "2023-11-20T12:30:00",
+          "body": "Prepare the amber checklist."
+        },
+        {
+          "email_id": "101",
+          "inbox/outbox": "inbox",
+          "sender/recipient": "Person1.100@EXAMPLE.test",
+          "subject": "Cedar budget",
+          "sent_datetime": "2023-11-21T12:30:00",
+          "body": "Amber costs await review."
+        },
+        {
+          "email_id": "102",
+          "inbox/outbox": "inbox",
+          "sender/recipient": "Person2.100@EXAMPLE.test",
+          "subject": "Other notice",
+          "sent_datetime": "2023-11-22T12:30:00",
+          "body": "No action requested."
+        },
+        {
+          "email_id": "103",
+          "inbox/outbox": "outbox",
+          "sender/recipient": "Person3.100@EXAMPLE.test",
+          "subject": "RE: Cedar release",
+          "sent_datetime": "2023-11-23T12:30:00",
+          "body": "Amber followup."
+        },
+        {
+          "email_id": "104",
+          "inbox/outbox": "inbox",
+          "sender/recipient": "Person4.100@EXAMPLE.test",
+          "subject": "Quarterly release",
+          "sent_datetime": "2023-11-24T12:30:00",
+          "body": "Release archive."
+        },
+        {
+          "email_id": "105",
+          "inbox/outbox": "inbox",
+          "sender/recipient": "Person5.100@EXAMPLE.test",
+          "subject": "Cedar notes",
+          "sent_datetime": "2023-11-25T12:30:00",
+          "body": "Additional amber evidence."
+        }
+      ]
+    },
+    {
+      "index": 11,
+      "name": "email_search_emails",
+      "arguments": {
+        "page": -3,
+        "page_size": 2
+      },
+      "label": "low-clamp",
+      "category": "supported",
+      "output": {
+        "emails": [
+          {
+            "email_id": "105",
+            "inbox/outbox": "inbox",
+            "sender/recipient": "Person5.100@EXAMPLE.test",
+            "subject": "Cedar notes",
+            "sent_datetime": "2023-11-25T12:30:00",
+            "body": "Additional amber evidence."
+          },
+          {
+            "email_id": "104",
+            "inbox/outbox": "inbox",
+            "sender/recipient": "Person4.100@EXAMPLE.test",
+            "subject": "Quarterly release",
+            "sent_datetime": "2023-11-24T12:30:00",
+            "body": "Release archive."
+          }
+        ],
+        "pagination": {
+          "total_emails": 6,
+          "page": 1,
+          "page_size": 2,
+          "total_pages": 3
+        }
+      },
+      "exception": null,
+      "before_state": [
+        {
+          "email_id": "100",
+          "inbox/outbox": "inbox",
+          "sender/recipient": "Person0.100@EXAMPLE.test",
+          "subject": "Cedar release",
+          "sent_datetime": "2023-11-20T12:30:00",
+          "body": "Prepare the amber checklist."
+        },
+        {
+          "email_id": "101",
+          "inbox/outbox": "inbox",
+          "sender/recipient": "Person1.100@EXAMPLE.test",
+          "subject": "Cedar budget",
+          "sent_datetime": "2023-11-21T12:30:00",
+          "body": "Amber costs await review."
+        },
+        {
+          "email_id": "102",
+          "inbox/outbox": "inbox",
+          "sender/recipient": "Person2.100@EXAMPLE.test",
+          "subject": "Other notice",
+          "sent_datetime": "2023-11-22T12:30:00",
+          "body": "No action requested."
+        },
+        {
+          "email_id": "103",
+          "inbox/outbox": "outbox",
+          "sender/recipient": "Person3.100@EXAMPLE.test",
+          "subject": "RE: Cedar release",
+          "sent_datetime": "2023-11-23T12:30:00",
+          "body": "Amber followup."
+        },
+        {
+          "email_id": "104",
+          "inbox/outbox": "inbox",
+          "sender/recipient": "Person4.100@EXAMPLE.test",
+          "subject": "Quarterly release",
+          "sent_datetime": "2023-11-24T12:30:00",
+          "body": "Release archive."
+        },
+        {
+          "email_id": "105",
+          "inbox/outbox": "inbox",
+          "sender/recipient": "Person5.100@EXAMPLE.test",
+          "subject": "Cedar notes",
+          "sent_datetime": "2023-11-25T12:30:00",
+          "body": "Additional amber evidence."
+        }
+      ],
+      "after_state": [
+        {
+          "email_id": "100",
+          "inbox/outbox": "inbox",
+          "sender/recipient": "Person0.100@EXAMPLE.test",
+          "subject": "Cedar release",
+          "sent_datetime": "2023-11-20T12:30:00",
+          "body": "Prepare the amber checklist."
+        },
+        {
+          "email_id": "101",
+          "inbox/outbox": "inbox",
+          "sender/recipient": "Person1.100@EXAMPLE.test",
+          "subject": "Cedar budget",
+          "sent_datetime": "2023-11-21T12:30:00",
+          "body": "Amber costs await review."
+        },
+        {
+          "email_id": "102",
+          "inbox/outbox": "inbox",
+          "sender/recipient": "Person2.100@EXAMPLE.test",
+          "subject": "Other notice",
+          "sent_datetime": "2023-11-22T12:30:00",
+          "body": "No action requested."
+        },
+        {
+          "email_id": "103",
+          "inbox/outbox": "outbox",
+          "sender/recipient": "Person3.100@EXAMPLE.test",
+          "subject": "RE: Cedar release",
+          "sent_datetime": "2023-11-23T12:30:00",
+          "body": "Amber followup."
+        },
+        {
+          "email_id": "104",
+          "inbox/outbox": "inbox",
+          "sender/recipient": "Person4.100@EXAMPLE.test",
+          "subject": "Quarterly release",
+          "sent_datetime": "2023-11-24T12:30:00",
+          "body": "Release archive."
+        },
+        {
+          "email_id": "105",
+          "inbox/outbox": "inbox",
+          "sender/recipient": "Person5.100@EXAMPLE.test",
+          "subject": "Cedar notes",
+          "sent_datetime": "2023-11-25T12:30:00",
+          "body": "Additional amber evidence."
+        }
+      ]
+    },
+    {
+      "index": 12,
+      "name": "email_search_emails",
+      "arguments": {
+        "date_min": "2023-11-20",
+        "date_max": "2023-11-20"
+      },
+      "label": "inclusive-date",
+      "category": "supported",
+      "output": {
+        "emails": [
+          {
+            "email_id": "100",
+            "inbox/outbox": "inbox",
+            "sender/recipient": "Person0.100@EXAMPLE.test",
+            "subject": "Cedar release",
+            "sent_datetime": "2023-11-20T12:30:00",
+            "body": "Prepare the amber checklist."
+          }
+        ],
+        "pagination": {
+          "total_emails": 1,
+          "page": 1,
+          "page_size": 5,
+          "total_pages": 1
+        }
+      },
+      "exception": null,
+      "before_state": [
+        {
+          "email_id": "100",
+          "inbox/outbox": "inbox",
+          "sender/recipient": "Person0.100@EXAMPLE.test",
+          "subject": "Cedar release",
+          "sent_datetime": "2023-11-20T12:30:00",
+          "body": "Prepare the amber checklist."
+        },
+        {
+          "email_id": "101",
+          "inbox/outbox": "inbox",
+          "sender/recipient": "Person1.100@EXAMPLE.test",
+          "subject": "Cedar budget",
+          "sent_datetime": "2023-11-21T12:30:00",
+          "body": "Amber costs await review."
+        },
+        {
+          "email_id": "102",
+          "inbox/outbox": "inbox",
+          "sender/recipient": "Person2.100@EXAMPLE.test",
+          "subject": "Other notice",
+          "sent_datetime": "2023-11-22T12:30:00",
+          "body": "No action requested."
+        },
+        {
+          "email_id": "103",
+          "inbox/outbox": "outbox",
+          "sender/recipient": "Person3.100@EXAMPLE.test",
+          "subject": "RE: Cedar release",
+          "sent_datetime": "2023-11-23T12:30:00",
+          "body": "Amber followup."
+        },
+        {
+          "email_id": "104",
+          "inbox/outbox": "inbox",
+          "sender/recipient": "Person4.100@EXAMPLE.test",
+          "subject": "Quarterly release",
+          "sent_datetime": "2023-11-24T12:30:00",
+          "body": "Release archive."
+        },
+        {
+          "email_id": "105",
+          "inbox/outbox": "inbox",
+          "sender/recipient": "Person5.100@EXAMPLE.test",
+          "subject": "Cedar notes",
+          "sent_datetime": "2023-11-25T12:30:00",
+          "body": "Additional amber evidence."
+        }
+      ],
+      "after_state": [
+        {
+          "email_id": "100",
+          "inbox/outbox": "inbox",
+          "sender/recipient": "Person0.100@EXAMPLE.test",
+          "subject": "Cedar release",
+          "sent_datetime": "2023-11-20T12:30:00",
+          "body": "Prepare the amber checklist."
+        },
+        {
+          "email_id": "101",
+          "inbox/outbox": "inbox",
+          "sender/recipient": "Person1.100@EXAMPLE.test",
+          "subject": "Cedar budget",
+          "sent_datetime": "2023-11-21T12:30:00",
+          "body": "Amber costs await review."
+        },
+        {
+          "email_id": "102",
+          "inbox/outbox": "inbox",
+          "sender/recipient": "Person2.100@EXAMPLE.test",
+          "subject": "Other notice",
+          "sent_datetime": "2023-11-22T12:30:00",
+          "body": "No action requested."
+        },
+        {
+          "email_id": "103",
+          "inbox/outbox": "outbox",
+          "sender/recipient": "Person3.100@EXAMPLE.test",
+          "subject": "RE: Cedar release",
+          "sent_datetime": "2023-11-23T12:30:00",
+          "body": "Amber followup."
+        },
+        {
+          "email_id": "104",
+          "inbox/outbox": "inbox",
+          "sender/recipient": "Person4.100@EXAMPLE.test",
+          "subject": "Quarterly release",
+          "sent_datetime": "2023-11-24T12:30:00",
+          "body": "Release archive."
+        },
+        {
+          "email_id": "105",
+          "inbox/outbox": "inbox",
+          "sender/recipient": "Person5.100@EXAMPLE.test",
+          "subject": "Cedar notes",
+          "sent_datetime": "2023-11-25T12:30:00",
+          "body": "Additional amber evidence."
+        }
+      ]
+    },
+    {
+      "index": 13,
+      "name": "email_search_emails",
+      "arguments": {
+        "date_min": "2023-11-21",
+        "date_max": "2023-11-23"
+      },
+      "label": "inclusive-range",
+      "category": "supported",
+      "output": {
+        "emails": [
+          {
+            "email_id": "103",
+            "inbox/outbox": "outbox",
+            "sender/recipient": "Person3.100@EXAMPLE.test",
+            "subject": "RE: Cedar release",
+            "sent_datetime": "2023-11-23T12:30:00",
+            "body": "Amber followup."
+          },
+          {
+            "email_id": "102",
+            "inbox/outbox": "inbox",
+            "sender/recipient": "Person2.100@EXAMPLE.test",
+            "subject": "Other notice",
+            "sent_datetime": "2023-11-22T12:30:00",
+            "body": "No action requested."
+          },
+          {
+            "email_id": "101",
+            "inbox/outbox": "inbox",
+            "sender/recipient": "Person1.100@EXAMPLE.test",
+            "subject": "Cedar budget",
+            "sent_datetime": "2023-11-21T12:30:00",
+            "body": "Amber costs await review."
+          }
+        ],
+        "pagination": {
+          "total_emails": 3,
+          "page": 1,
+          "page_size": 5,
+          "total_pages": 1
+        }
+      },
+      "exception": null,
+      "before_state": [
+        {
+          "email_id": "100",
+          "inbox/outbox": "inbox",
+          "sender/recipient": "Person0.100@EXAMPLE.test",
+          "subject": "Cedar release",
+          "sent_datetime": "2023-11-20T12:30:00",
+          "body": "Prepare the amber checklist."
+        },
+        {
+          "email_id": "101",
+          "inbox/outbox": "inbox",
+          "sender/recipient": "Person1.100@EXAMPLE.test",
+          "subject": "Cedar budget",
+          "sent_datetime": "2023-11-21T12:30:00",
+          "body": "Amber costs await review."
+        },
+        {
+          "email_id": "102",
+          "inbox/outbox": "inbox",
+          "sender/recipient": "Person2.100@EXAMPLE.test",
+          "subject": "Other notice",
+          "sent_datetime": "2023-11-22T12:30:00",
+          "body": "No action requested."
+        },
+        {
+          "email_id": "103",
+          "inbox/outbox": "outbox",
+          "sender/recipient": "Person3.100@EXAMPLE.test",
+          "subject": "RE: Cedar release",
+          "sent_datetime": "2023-11-23T12:30:00",
+          "body": "Amber followup."
+        },
+        {
+          "email_id": "104",
+          "inbox/outbox": "inbox",
+          "sender/recipient": "Person4.100@EXAMPLE.test",
+          "subject": "Quarterly release",
+          "sent_datetime": "2023-11-24T12:30:00",
+          "body": "Release archive."
+        },
+        {
+          "email_id": "105",
+          "inbox/outbox": "inbox",
+          "sender/recipient": "Person5.100@EXAMPLE.test",
+          "subject": "Cedar notes",
+          "sent_datetime": "2023-11-25T12:30:00",
+          "body": "Additional amber evidence."
+        }
+      ],
+      "after_state": [
+        {
+          "email_id": "100",
+          "inbox/outbox": "inbox",
+          "sender/recipient": "Person0.100@EXAMPLE.test",
+          "subject": "Cedar release",
+          "sent_datetime": "2023-11-20T12:30:00",
+          "body": "Prepare the amber checklist."
+        },
+        {
+          "email_id": "101",
+          "inbox/outbox": "inbox",
+          "sender/recipient": "Person1.100@EXAMPLE.test",
+          "subject": "Cedar budget",
+          "sent_datetime": "2023-11-21T12:30:00",
+          "body": "Amber costs await review."
+        },
+        {
+          "email_id": "102",
+          "inbox/outbox": "inbox",
+          "sender/recipient": "Person2.100@EXAMPLE.test",
+          "subject": "Other notice",
+          "sent_datetime": "2023-11-22T12:30:00",
+          "body": "No action requested."
+        },
+        {
+          "email_id": "103",
+          "inbox/outbox": "outbox",
+          "sender/recipient": "Person3.100@EXAMPLE.test",
+          "subject": "RE: Cedar release",
+          "sent_datetime": "2023-11-23T12:30:00",
+          "body": "Amber followup."
+        },
+        {
+          "email_id": "104",
+          "inbox/outbox": "inbox",
+          "sender/recipient": "Person4.100@EXAMPLE.test",
+          "subject": "Quarterly release",
+          "sent_datetime": "2023-11-24T12:30:00",
+          "body": "Release archive."
+        },
+        {
+          "email_id": "105",
+          "inbox/outbox": "inbox",
+          "sender/recipient": "Person5.100@EXAMPLE.test",
+          "subject": "Cedar notes",
+          "sent_datetime": "2023-11-25T12:30:00",
+          "body": "Additional amber evidence."
+        }
+      ]
+    },
+    {
+      "index": 14,
+      "name": "email_search_emails",
+      "arguments": {
+        "date_min": "2023-12-01"
+      },
+      "label": "date-empty",
+      "category": "supported",
+      "output": "No emails found.",
+      "exception": null,
+      "before_state": [
+        {
+          "email_id": "100",
+          "inbox/outbox": "inbox",
+          "sender/recipient": "Person0.100@EXAMPLE.test",
+          "subject": "Cedar release",
+          "sent_datetime": "2023-11-20T12:30:00",
+          "body": "Prepare the amber checklist."
+        },
+        {
+          "email_id": "101",
+          "inbox/outbox": "inbox",
+          "sender/recipient": "Person1.100@EXAMPLE.test",
+          "subject": "Cedar budget",
+          "sent_datetime": "2023-11-21T12:30:00",
+          "body": "Amber costs await review."
+        },
+        {
+          "email_id": "102",
+          "inbox/outbox": "inbox",
+          "sender/recipient": "Person2.100@EXAMPLE.test",
+          "subject": "Other notice",
+          "sent_datetime": "2023-11-22T12:30:00",
+          "body": "No action requested."
+        },
+        {
+          "email_id": "103",
+          "inbox/outbox": "outbox",
+          "sender/recipient": "Person3.100@EXAMPLE.test",
+          "subject": "RE: Cedar release",
+          "sent_datetime": "2023-11-23T12:30:00",
+          "body": "Amber followup."
+        },
+        {
+          "email_id": "104",
+          "inbox/outbox": "inbox",
+          "sender/recipient": "Person4.100@EXAMPLE.test",
+          "subject": "Quarterly release",
+          "sent_datetime": "2023-11-24T12:30:00",
+          "body": "Release archive."
+        },
+        {
+          "email_id": "105",
+          "inbox/outbox": "inbox",
+          "sender/recipient": "Person5.100@EXAMPLE.test",
+          "subject": "Cedar notes",
+          "sent_datetime": "2023-11-25T12:30:00",
+          "body": "Additional amber evidence."
+        }
+      ],
+      "after_state": [
+        {
+          "email_id": "100",
+          "inbox/outbox": "inbox",
+          "sender/recipient": "Person0.100@EXAMPLE.test",
+          "subject": "Cedar release",
+          "sent_datetime": "2023-11-20T12:30:00",
+          "body": "Prepare the amber checklist."
+        },
+        {
+          "email_id": "101",
+          "inbox/outbox": "inbox",
+          "sender/recipient": "Person1.100@EXAMPLE.test",
+          "subject": "Cedar budget",
+          "sent_datetime": "2023-11-21T12:30:00",
+          "body": "Amber costs await review."
+        },
+        {
+          "email_id": "102",
+          "inbox/outbox": "inbox",
+          "sender/recipient": "Person2.100@EXAMPLE.test",
+          "subject": "Other notice",
+          "sent_datetime": "2023-11-22T12:30:00",
+          "body": "No action requested."
+        },
+        {
+          "email_id": "103",
+          "inbox/outbox": "outbox",
+          "sender/recipient": "Person3.100@EXAMPLE.test",
+          "subject": "RE: Cedar release",
+          "sent_datetime": "2023-11-23T12:30:00",
+          "body": "Amber followup."
+        },
+        {
+          "email_id": "104",
+          "inbox/outbox": "inbox",
+          "sender/recipient": "Person4.100@EXAMPLE.test",
+          "subject": "Quarterly release",
+          "sent_datetime": "2023-11-24T12:30:00",
+          "body": "Release archive."
+        },
+        {
+          "email_id": "105",
+          "inbox/outbox": "inbox",
+          "sender/recipient": "Person5.100@EXAMPLE.test",
+          "subject": "Cedar notes",
+          "sent_datetime": "2023-11-25T12:30:00",
+          "body": "Additional amber evidence."
+        }
+      ]
+    }
+  ]
+}
