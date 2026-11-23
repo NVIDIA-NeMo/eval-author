@@ -25,8 +25,9 @@ These authorship requirements apply to contributors outside ASE:
   accurately. AI output alone does not prove that a change works.
 
 The ASE team reviews contributions and may use AI tools to help.
-AI feedback is advisory. An ASE team member other than the author must approve
-each change before it can merge.
+AI feedback is advisory. Before merging, maintainers must confirm that an ASE
+team member other than the author approved the change. GitHub requires one
+approval on `main` and does not check whether the reviewer belongs to ASE.
 
 ## Additional requirements for contributors outside ASE
 
@@ -56,10 +57,14 @@ Otherwise, fork the repository and create a branch in your fork.
 Open a pull request against this repository's `main` branch.
 Use a Git worktree when practical. Do not commit or push directly to `main`.
 
-The current CI test jobs exclude fork PRs. If you submit a fork PR, give your
-local check results. Before merging, ASE maintainers must review the changes
-and arrange validation in an isolated environment without privileged credentials.
-Automated AI review currently excludes fork PRs too.
+For a fork PR, include the commands you ran and their results. The repository
+skips its CI tests, automated AI review, and PR-title check on forks.
+Maintainers must check the title against the rules below and validate the
+proposed commit in a disposable environment without privileged credentials.
+Record the commit SHA and results in the PR. Merge through the original PR
+only when GitHub permits it and the change has ASE approval. If a required
+check never reports, leave the PR open and flag the missing check to ASE.
+Do not bypass the rule or push the fork branch into this repository to run CI.
 
 Use Python 3.12 or 3.13 and uv (CI uses uv 0.12.3). Before handing off or
 committing changes, run the same checks as CI, plus Git's whitespace check:

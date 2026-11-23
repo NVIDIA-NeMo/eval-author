@@ -259,7 +259,7 @@ Otherwise, use the [NVIDIA Developer contact form](https://developer.nvidia.com/
 with **Eval Author research preview feedback** in the subject. Include your
 workflow, what you expected, what happened, and a small anonymized example.
 Please avoid sending raw traces, prompts, credentials, or user data in an initial
-message. For code contributions, see the [current contribution policy](CONTRIBUTING.md).
+message. We welcome code contributions. See [CONTRIBUTING.md](CONTRIBUTING.md) for the sign-off and review requirements.
 
 ## License
 
@@ -273,7 +273,3 @@ the machine-readable inventory.
 
 The bundled JSON examples and synthetic test fixtures are NVIDIA-authored and
 covered by the project license.
-
-This project is currently not accepting contributions. Internal maintenance is
-limited to the NVIDIA ASE team. See [CONTRIBUTING.md](CONTRIBUTING.md) for the
-current policy, sign-off, and review requirements.
