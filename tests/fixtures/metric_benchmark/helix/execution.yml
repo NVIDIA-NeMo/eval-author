@@ -1,0 +1,14 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+backend: helix
+# Illustrative coordinates: replace with your deployment.
+base_url: https://helix.example.com
+workspace: default
+dispatcher_profile: workers
+max_concurrent_task_jobs: 2
+sandbox:
+  profile: evaluation
+  cpus: 2
+  memory_mb: 4096
+  storage_mb: 8192
