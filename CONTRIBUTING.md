@@ -11,6 +11,9 @@ This policy does not change repository access permissions.
 ## Human authorship and AI use
 
 All contributors must understand their changes and be able to explain them.
+Anyone may use AI tools to write code and tests. Review every change for
+correctness and licensing. Run the relevant checks and report their results
+accurately. AI output alone does not prove that a change works.
 
 These authorship requirements apply to contributors outside ASE:
 
@@ -20,9 +23,6 @@ These authorship requirements apply to contributors outside ASE:
 - Understand the problem you report and every change you submit.
   Be ready to explain your approach, tradeoffs, tests, and limitations in your
   own words. Answer follow-up questions yourself.
-- You may use AI tools to write code and tests. Review every change for
-  correctness and licensing. Run the relevant checks and report their results
-  accurately. AI output alone does not prove that a change works.
 
 The ASE team reviews contributions and may use AI tools to help.
 AI feedback is advisory. Before merging, maintainers must confirm that an ASE
