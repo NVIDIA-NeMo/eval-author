@@ -169,8 +169,13 @@ model execution is opt-in outside configured CI workflows; see
 
 ### Configure OMP review
 
-The [OMP review workflow](.github/workflows/omp-review.yml) runs on eligible
-same-repository PRs. Restrict the `omp-review` environment to the `main` branch.
+The [OMP review workflow](.github/workflows/omp-review.yml) runs on PRs from a
+branch in this repository. The author must have write access, and the person
+triggering the review must have the maintain or admin role. Both must use human
+accounts. Opening, reopening, or marking a non-draft PR ready triggers review.
+To request another review, add the `omp-review` label. The label also works on drafts.
+
+Restrict the `omp-review` environment to the `main` branch.
 Set its `OMP_REVIEW_INFERENCE_HUB_API_KEY` secret and these environment variables:
 
 | Variable | Value |

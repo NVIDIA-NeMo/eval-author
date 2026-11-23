@@ -61,10 +61,13 @@ For a fork PR, include the commands you ran and their results. The repository
 skips its CI tests, automated AI review, and PR-title check on forks.
 Maintainers must check the title against the rules below and validate the
 proposed commit in a disposable environment without privileged credentials.
-Record the commit SHA and results in the PR. Merge through the original PR
-only when GitHub permits it and the change has ASE approval. If a required
-check never reports, leave the PR open and flag the missing check to ASE.
-Do not bypass the rule or push the fork branch into this repository to run CI.
+Record the commit SHA and results in the PR. The `main` ruleset requires named
+Python and platform test results that the fork workflow skips. Contributors
+can submit a fork PR for review, but should expect GitHub to block the merge
+while those results are missing. Local test results cannot satisfy that gate.
+Maintainers should identify the missing checks in the PR and leave it open
+until a supported CI path reports them. Do not bypass the rule or push the
+fork branch into this repository to run CI.
 
 Use Python 3.12 or 3.13 and uv (CI uses uv 0.12.3). Before handing off or
 committing changes, run the same checks as CI, plus Git's whitespace check:
