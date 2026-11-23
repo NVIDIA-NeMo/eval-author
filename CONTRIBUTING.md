@@ -10,7 +10,10 @@ This policy does not change repository access permissions.
 
 ## Human authorship and AI use
 
-These requirements apply to all contributors, including ASE team members:
+ASE team members may use AI-generated text. All contributors must understand
+their changes and be able to explain them.
+
+These authorship requirements apply to contributors outside ASE:
 
 - Write issue reports, PR titles and descriptions, and discussion replies in
   your own words. Do not use AI-generated text to explain your contribution.
