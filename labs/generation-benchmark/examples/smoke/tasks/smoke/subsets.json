@@ -1,0 +1,16 @@
+{
+  "artifact_type": "eval_subset_definitions",
+  "sampling_parameters": {
+    "method": "fixed",
+    "seed": 1
+  },
+  "eval_subsets": [
+    {
+      "eval_subset_id": "s1",
+      "task_ids": [
+        "alpha",
+        "beta"
+      ]
+    }
+  ]
+}

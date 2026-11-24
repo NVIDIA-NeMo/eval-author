@@ -1,0 +1,10 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+version = "1.0"
+[task]
+name = "smoke/alpha"
+[agent]
+timeout_sec = 30
+[verifier]
+timeout_sec = 30

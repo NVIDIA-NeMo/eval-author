@@ -1,0 +1,30 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+benchmark_id: smoke
+revision: 1
+cases:
+  path: cases.yml
+execution:
+  backend: local_harbor
+  harbor_version: "0.24.0"
+  n_concurrent_trials: 2
+  environment:
+    type: docker
+metric:
+  setup:
+    command: [python3, -m, generation_benchmark.reference_metric, --setup]
+    timeout_seconds: 120
+    output:
+      python: python3
+      type: generation_benchmark.reference_metric:ToolCallsSetupOutput
+  score:
+    command: [python3, -m, generation_benchmark.reference_metric]
+    timeout_seconds: 120
+    output:
+      python: python3
+      type: generation_benchmark.reference_metric:ToolCallsScoreOutput
+generation:
+  command: [python3, -c, "raise SystemExit('stage 3 generation not run in stages 0-2 smoke')"]
+  timeout_seconds: 60
+  settings: {}

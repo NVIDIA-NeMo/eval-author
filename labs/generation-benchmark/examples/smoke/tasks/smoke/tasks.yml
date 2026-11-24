@@ -1,0 +1,16 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+tasks:
+  - task_id: alpha
+    revision: 1
+    path: tasks/smoke/alpha
+  - task_id: beta
+    revision: 1
+    path: tasks/smoke/beta
+  - task_id: gamma
+    revision: 1
+    path: tasks/smoke/gamma
+  - task_id: delta
+    revision: 1
+    path: tasks/smoke/delta
