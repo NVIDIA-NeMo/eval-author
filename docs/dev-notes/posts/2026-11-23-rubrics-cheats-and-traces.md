@@ -192,7 +192,7 @@ Each task exists as a pair that differs only in its instructions. Environment, v
 - [USACO](https://arxiv.org/abs/2404.10952) programming problems, where the leak is a key algorithmic hint from the official analysis.
 - Customer-service tasks built from [τ²-bench](https://github.com/sierra-research/tau2-bench) data (we call this set τ³), where the leak is drawn from the expected actions.
 
-Getting a clean comparison took some work. During setup, agents found answers on the internet, and hosted search opened an official USACO analysis. We turned hosted search off and restricted task networking where supported. Customer-service tasks kept a different network setup because they need a runtime sidecar.
+Getting a clean comparison took some work. During setup, agents found answers on the internet, and hosted search opened an official USACO analysis. We turned hosted search off and restricted task networking where supported. Customer-service tasks kept a different network setup because they need a runtime sidecar. It is generally recommended to use 'closed-book' policies for proper evaluations, or to only expose certain network paths to ensure the agent doesn't cheat.
 
 We ran 300 task pairs with three trials per variant: 1,800 trials in total. Variant A included the leak; variant B did not. The gain averaged 6.1 percentage points across the three datasets, as an unweighted mean of the per-dataset gains. Weighted by task count, it is about 6.3.
 
@@ -242,7 +242,11 @@ These workflows are available as skills in this repository:
 - `eval-author-rubric` scores tasks against the rubric. It is experimental and runs only when you ask for it by name, for example "apply eval-author-rubric to these tasks".
 - To reproduce the refund demo and the verifier-cheat panel, follow [Running the determinism checks](../../determinism-checks.md).
 
-## What we want to learn next
+## What's next
+
+We will certainly incorporate more pieces of trace-environment and rubric into the other skills as we see fit. Further research may yield changes/adjustments to those processes to make them even better.
+
+### What we want to learn next
 
 1. **Validate the rubric on fresh defects.** Following Mubric, we will compare the rubric with plain pass/fail scoring on a small set of reviewed tasks. Acceptance uses new defects and real outputs that played no part in building the rubric. We will measure missed defects, rejected valid solutions, and cost, and decide which parts of the rubric belong in the main Eval Author skills. Some criteria overlap today, and we want each one to answer one distinct question.
 2. **Measure difficulty.** We want to know whether these checks produce tasks that separate stronger agents from weaker ones. [Fluid Benchmarking](https://arxiv.org/abs/2509.11106) and [amortized model-based evaluation](https://arxiv.org/abs/2503.13335) calibrate difficulty per task. [BenchBench](https://arxiv.org/abs/2603.20807) grades a generated benchmark as a whole.
