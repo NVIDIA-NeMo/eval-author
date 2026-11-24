@@ -165,34 +165,62 @@ def _has_symlink_component(candidate: Path, stop_dir: Path) -> bool:
         current = current.parent
 
 
+def _leading_parent_depth(pattern: str) -> int:
+    norm = PurePosixPath(pattern)
+    depth = 0
+    for part in norm.parts:
+        if part == "..":
+            depth += 1
+        elif part != ".":
+            break
+    return depth
+
+
+def _expand_glob_pattern(pattern: str) -> str:
+    # In Python 3.12, trailing `/**` matches directories only; `**/*` matches files identically on 3.12 and 3.13.
+    if pattern == "**" or pattern.endswith("/**"):
+        return f"{pattern}/*"
+    return pattern
+
+
 def glob_digest(patterns: list[str], excludes: list[str], base_dir: Path) -> str:
     """Compute a content digest over files matched by *patterns* minus *excludes* and skipped names."""
     base = base_dir.resolve()
-    matched: dict[str, Path] = {}
+    up_depth = max((_leading_parent_depth(p) for p in patterns), default=0)
+    if up_depth > len(base.parts) - 1:
+        raise ValueError(f"glob pattern escapes filesystem root from {base}")
+    key_root = base.parents[up_depth - 1] if up_depth > 0 else base
+
+    matched: dict[str, tuple[str, Path]] = {}
     for pattern in patterns:
         if Path(pattern).is_absolute():
             raise ValueError(f"glob pattern must be relative: {pattern}")
+        expanded = _expand_glob_pattern(pattern)
         pattern_hits = 0
-        for candidate in sorted(base_dir.glob(pattern)):
-            rel_posix = _relative_from_base(candidate, base_dir)
-            parts = PurePosixPath(rel_posix).parts
+        for candidate in sorted(base_dir.glob(expanded)):
+            norm_candidate = Path(os.path.normpath(candidate))
+            rel_base = _relative_from_base(norm_candidate, base_dir)
+            rel_key = _relative_from_base(norm_candidate, key_root)
+            parts = PurePosixPath(rel_base).parts
             if is_skipped_path(parts):
                 continue
-            if _has_symlink_component(candidate, base_dir):
-                raise ValueError(f"glob matched symlink: {candidate}")
-            if not candidate.is_file():
+            if _has_symlink_component(norm_candidate, key_root):
+                raise ValueError(f"glob matched symlink: {norm_candidate}")
+            if not norm_candidate.is_file():
                 continue
             pattern_hits += 1
-            matched[rel_posix] = candidate
+            matched[rel_key] = (rel_base, norm_candidate)
         if pattern_hits == 0:
             raise ValueError(f"glob pattern matched no files under {base}: {pattern}")
 
     filtered = {
-        rel_posix: file_path for rel_posix, file_path in matched.items() if not _is_excluded(rel_posix, excludes)
+        rel_key: file_path
+        for rel_key, (rel_base, file_path) in matched.items()
+        if not _is_excluded(rel_base, excludes) and (key_root == base or not _is_excluded(rel_key, excludes))
     }
     if not filtered:
         raise ValueError("glob digest matched no files after excludes")
-    manifest = {rel_posix: digest_file(file_path) for rel_posix, file_path in sorted(filtered.items())}
+    manifest = {rel_key: digest_file(file_path) for rel_key, file_path in sorted(filtered.items())}
     return digest_bytes(json_bytes(manifest))
 
 

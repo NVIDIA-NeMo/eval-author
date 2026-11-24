@@ -322,11 +322,16 @@ def test_directory_hash_skips_git_pycache_pyc_and_ds_store(tmp_path: Path) -> No
 
 def test_glob_command_and_implementation_digests(tmp_path: Path) -> None:
     src = tmp_path / "src"
-    src.mkdir()
+    (src / "nested").mkdir(parents=True)
     (src / "keep.py").write_text("v = 1\n", encoding="utf-8")
+    (src / "nested/deep.py").write_text("v = 10\n", encoding="utf-8")
     (src / "skip.tmp").write_text("ignored\n", encoding="utf-8")
 
     d1 = glob_digest(["src/**"], ["*.tmp"], tmp_path)
+    assert d1 == glob_digest(["src/**/*"], ["*.tmp"], tmp_path)
+    nested_dir = tmp_path / "a/b"
+    nested_dir.mkdir(parents=True)
+    assert glob_digest(["../../src/**"], ["*.tmp"], nested_dir) == d1
     (src / "skip.tmp").write_text("changed ignored\n", encoding="utf-8")
     assert glob_digest(["src/**"], ["*.tmp"], tmp_path) == d1
     (src / "keep.py").write_text("v = 2\n", encoding="utf-8")
