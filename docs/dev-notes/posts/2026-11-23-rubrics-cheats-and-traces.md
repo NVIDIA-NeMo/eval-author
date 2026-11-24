@@ -35,18 +35,18 @@ A note on sources: some of the work below comes from internal NVIDIA projects an
 
 Production traces record how customers actually use an agent. If two customers take different paths toward the same goal and get different results, that is worth a look. The cause might be the agent, the starting state, permissions, or the interaction itself.
 
-Our trace-environment work grew from an internal NVIDIA project, trace2env, developed by Dave and Jeff Farris. That project predates the publishing of [ruyue0001/trace2env repository](https://github.com/ruyue0001/trace2env) and its paper, [From Traces to Agentic Worlds](https://arxiv.org/abs/2610.06100), and is not affiliated with either.
+Our trace-environment work grew from an internal NVIDIA project, trace2env, developed by Dave and Jeff Farris. That project predates the public [ruyue0001/trace2env repository](https://github.com/ruyue0001/trace2env) and its paper, [From Traces to Agentic Worlds](https://arxiv.org/abs/2610.06100), and is not affiliated with either.
 
 A trace keeps inputs, outputs, and actions. It often does not keep everything needed to rebuild the environment. So the first job is to separate what was observed from what we had to supply.
 
-We liked several ideas from several projects:
+We took ideas from several projects:
 
-- Internal trace2env was the starting point: environment probes, trivial-answer controls, bounded repair, and anti-cheat checks.
-- The internal Hermes trace2env plugin gave us explicit substitute environments and the split between observed state and authored fixtures.
-- [Terminal-Universe](https://arxiv.org/abs/2609.04148) shaped how we record where starting files came from.
-- [Repo2RLEnv](https://github.com/huggingface/Repo2RLEnv) shaped our behavioral checks and handling of valid alternatives.
-- [bandits](https://github.com/bandr-ai/bandits), in the version we reviewed, shaped our guidance on state changes, failures, and resets.
-- Public [trace2env](https://github.com/ruyue0001/trace2env) shaped our plans for stateful tools and for checking a substitute against traces it wasn't built from.
+- **Internal trace2env**, our starting point: environment probes, trivial-answer controls, bounded repair and anti-cheat checks.
+- **Internal Hermes trace2env plugin**: explicit substitute environments, and the split between observed state and authored fixtures.
+- **[Terminal-Universe](https://arxiv.org/abs/2609.04148)**: recording where starting files came from.
+- **[Repo2RLEnv](https://github.com/huggingface/Repo2RLEnv)**: behavioral checks and handling of valid alternatives.
+- **[bandits](https://github.com/bandr-ai/bandits)**, in the version we reviewed: state changes, failures and resets.
+- **Public [trace2env](https://github.com/ruyue0001/trace2env)**: our plans for stateful tools, and for checking a substitute against traces it wasn't built from.
 
 ### What a trace adds
 
@@ -55,12 +55,14 @@ We tested this directly in October. Eval Author was asked to build the same task
 | Measure | Request only | With the trace |
 | --- | ---: | ---: |
 | Runnable tasks built | 0 / 3 | 3 / 3 |
-| Held-out checks passed by those tasks | — | 45 / 45 |
+| Hidden checks passed (15 per task) | — | 45 / 45 |
 | Independent solver runs accepted | — | 3 / 3 |
 
-From the request alone, Eval Author could not know the starting state, so it correctly declined to build the task every time. With the trace, it built a working tool environment every time. Each one kept every observed object attribute, kept state between calls, and reset cleanly in a fresh process. The verifiers accepted the reference, an independent solver, and a held-out equivalent solution, and rejected no-op and partial answers. When we gave both setups a case the tools could not support, both declined to build it.
+From the request alone, Eval Author could not know the starting state, so it correctly declined to build the task every time. With the trace, it built a working tool environment every time.
 
-The trace is what makes the task possible. It supplies the objects and state that the request never mentioned. It can help fill in gaps, and lead to better mocks and fuzzing.
+We wrote 15 checks before the run and kept them hidden from Eval Author, so it could not tune a task to pass them. All three tasks passed all 15. Each task kept every observed object attribute, kept state between calls, and reset cleanly in a fresh process. Each verifier accepted valid solutions that took different paths, and rejected no-op, partial and fabricated answers. A separate solver, given only the public instructions and tools, solved all three tasks. When we gave both setups a case the tools could not support, both declined to build it.
+
+The trace is what makes the task possible. It supplies the objects and state that the request never mentioned. That gives the tool environment real behavior to copy, and gives the verifier real cases to check against.
 
 ### Stateful tools from a messy trace
 
@@ -72,7 +74,7 @@ We used three synthetic traces. Two had enough information to rebuild the stock 
 
 Eval Author rebuilt the stock correctly from both complete traces and built a local inventory service for each. That service handled all 14 stateful sequences we threw at it: pagination, reserve-then-read, repeated reservations, stale updates, insufficient stock followed by a retry, and reset. All 408 offline executions matched. The verifiers accepted both valid answer formats, rejected all 12 incorrect submissions, and rejected each trace's answer when run against the other trace's state. For the incomplete trace, Eval Author named the missing product and declined to build the task instead of inventing a number.
 
-The lesson: keep more than the recorded answer. We need to know who owns the state, which actions change it, what happens when an action fails, and what resets between trials. A substitute environment should say which starting values came from the trace and which we wrote. The more production and evidence data there is, the easier it is to model, and reproduce the real world.
+The lesson: keep more than the recorded answer. We need to know who owns the state, which actions change it, what happens when an action fails, and what resets between trials. A substitute environment should say which starting values came from the trace and which we wrote. The more production data and evidence we have, the more accurately we can model and reproduce the real system.
 
 ## The rubric: making quality claims inspectable
 
@@ -100,7 +102,7 @@ That gives us a known, perfect starting point. When we break one thing, we can s
 
 ![Six cases scored on four rubric rows. Base scores 3, 3, 3 and METHOD-J1 1. A completion-only verifier drops forbidden-credit resistance and scoring authority to 0. Tax drift drops them to 1 and 0. Unrun held-out attacks drop forbidden-credit resistance to 2. Missing native evidence leaves observed configuration Unassessed. Undisclosed self-corroboration drops METHOD-J1 to 0.](../assets/rubrics-cheats-and-traces/rubric-mutations.svg)
 
-Different breaks hit different claims. A verifier that accepts a completion claim breaks both scoring and cheat resistance. A tax error breaks scoring. Skipping the held-out attacks only lowers confidence in cheat resistance. Missing evidence produces Unassessed, not a low score. That is the behavior we want: each result points to a different next step.
+Different breaks hit different claims. A verifier that accepts a completion claim breaks both scoring and cheat resistance. A tax error breaks scoring. Skipping the held-out attacks, which someone else wrote and we kept out of development, only lowers confidence in cheat resistance. Missing evidence produces Unassessed, not a low score. That is the behavior we want: each result points to a different next step.
 
 For the base case, these are the recorded reasons from the report:
 
@@ -111,7 +113,7 @@ For the base case, these are the recorded reasons from the report:
 | Forbidden-credit resistance | 3 / 3 | Held-out independently authored attacks also receive intended scores |
 | Corroboration method qualification (`METHOD-J1`, separate) | 1 / 3 | Some corroborating methods are unidentified, unqualified or undisclosed. |
 
-`METHOD-J1` stays at 1 even here. The rubric notices that some of the confirmation behind those 3s cannot be traced to a qualified, independent method, and says so.
+The corroboration score stays at 1 even in this perfect case, and that is correct. For the demo, we produced most of the confirming evidence ourselves. Those reviewers share authorship with the task, saw the expected answers, and in one case are simulated. The rubric records this and reports that the 3s rest on confirmation it cannot qualify. Independent, qualified reviewers would raise this score without changing the task.
 
 ### Two criteria up close
 
@@ -174,7 +176,7 @@ Our [scripted verifier-cheat panel](https://github.com/NVIDIA-NeMo/eval-author/b
 | Hanging program | Timeouts receive no credit |
 | Booleans in place of integers | The verifier enforces output types |
 
-In our November 19 run, all 18 outcomes matched expectations. The sound verifier accepted the correct answer and rejected the five others. A deliberately vulnerable verifier rewarded all four exploits it was built to allow. An always-fail verifier rejected the correct answer. Those last two are the point: the panel has to catch broken verifiers, not just bless good ones.
+In our November 19 run, all 18 outcomes matched expectations. The sound verifier accepted the correct answer and rejected the five others. A deliberately vulnerable verifier rewarded all four attacks it was built to allow. An always-fail verifier rejected the correct answer. Those last two are the point: the panel has to catch broken verifiers, not just bless good ones.
 
 ![The sound verifier accepts valid work and rejects non-reference controls. Deliberately defective verifiers expose both false acceptance and false rejection.](../assets/rubrics-cheats-and-traces/deterministic-controls.svg)
 
@@ -182,9 +184,9 @@ In our November 19 run, all 18 outcomes matched expectations. The sound verifier
 
 We also tried a model-backed version, where a model attempts the task instead of a script. In its latest batch, the model never produced a cheat, so every submission passed both verifiers. Scripted controls are the more reliable way to exercise known failure paths, because they do not depend on a model choosing to attack. Benchmarks such as [ImpossibleBench](https://arxiv.org/abs/2510.20270) and [EvilGenie](https://arxiv.org/abs/2511.21654) take the other approach: they build tasks that tempt a model to cheat and measure how often it does.
 
-### How solution hints affect performance
+### How leaked solutions affect pass rates
 
-Cheating is one way an evaluation can go wrong. Leaking the answer into the instructions is another. This happens in real benchmarks: [SWE-Bench+](https://arxiv.org/abs/2410.06992) found solutions written into SWE-bench issue text. Our internal instruction-leakage study asks how much it helps a solver when part of the solution is in the prompt.
+Cheating is one way an evaluation can go wrong. Leaking the answer into the instructions is another. This happens in real benchmarks. [SWE-Bench+](https://arxiv.org/abs/2410.06992) found that in 32.67% of the successful SWE-bench patches it studied, the solution was already written in the issue report or its comments. Our internal instruction-leakage study asks how much it helps a solver when part of the solution is in the prompt.
 
 Each task exists as a pair that differs only in its instructions. Environment, verifier, agent, and budget are the same, and the pairs are checked by file hash. The three datasets:
 
@@ -192,7 +194,7 @@ Each task exists as a pair that differs only in its instructions. Environment, v
 - [USACO](https://arxiv.org/abs/2404.10952) programming problems, where the leak is a key algorithmic hint from the official analysis.
 - Customer-service tasks built from [τ²-bench](https://github.com/sierra-research/tau2-bench) data (we call this set τ³), where the leak is drawn from the expected actions.
 
-Getting a clean comparison took some work. During setup, agents found answers on the internet, and hosted search opened an official USACO analysis. We turned hosted search off and restricted task networking where supported. Customer-service tasks kept a different network setup because they need a runtime sidecar. It is generally recommended to use 'closed-book' policies for proper evaluations, or to only expose certain network paths to ensure the agent doesn't cheat.
+Getting a clean comparison took some work. During setup, agents found answers on the internet, and hosted search opened an official USACO analysis. We turned hosted search off and restricted task networking where supported. Customer-service tasks kept a different network setup because they need a runtime sidecar. We recommend closed-book evaluation: turn off web search, or allow only the network paths the task needs.
 
 We ran 300 task pairs with three trials per variant: 1,800 trials in total. Variant A included the leak; variant B did not. The gain averaged 6.1 percentage points across the three datasets, as an unweighted mean of the per-dataset gains. Weighted by task count, it is about 6.3.
 
@@ -216,21 +218,21 @@ Three patterns stand out.
 
 **The leak can be wrong.** BIRD's evidence sentences are part of the benchmark, and some of them are wrong or misleading. The agent followed them. On ten BIRD tasks, the leaked version failed all three trials while the clean version passed 26 trials in total. Without those ten tasks, BIRD's gain would be about 13 points instead of 7.
 
-**The agent may not follow the leak.** In customer service, the leak read like a note from a colleague. When the simulated customer asked for something different, the agent did what the customer asked, and its database writes no longer matched the reference. In other cases, the customer ended the conversation before the agent could act. No hint can fix that, and it hit both variants.
+**The agent may not follow the leak.** In customer service, the leak read like a note from a colleague. When the simulated customer asked for something different, the agent did what the customer asked, and its database writes no longer matched the reference. In other cases, the customer ended the conversation before the agent could act. No leak can fix that, and it hit both variants.
 
 **Some failures are grading problems.** Seventeen BIRD tasks failed in both variants. In some, the agent's answer was right but returned in a different shape than the reference, such as an extra column or a formatted number. In others, the reference answer itself was questionable. [Jin et al.](https://arxiv.org/abs/2601.08778) found widespread annotation errors in BIRD, and we used their corrections to vet the tasks we sampled. Those are not leakage findings. They belong to the rubric's task-contract and scoring-authority criteria.
 
-So a small average gain does not mean leaks are harmless. One number hid a wrong hint, an agent that ignored the hint, and a grader that rejected right answers. Telling those apart is the job of the other checks in this note.
+So a small average gain does not mean leaks are harmless. One number hid a misleading leak, an agent that ignored the leak, and a verifier that rejected right answers. Telling those apart is the job of the other checks in this note.
 
 ## What we learned
 
 | Idea | What it showed |
 | --- | --- |
-| Trace environments | With a trace, Eval Author built working stateful tools and qualified tasks where the request alone could not. It declined when the trace was incomplete. |
-| Rubric | Every planted defect lowered the scores it should, and only those. Missing evidence was reported as Unassessed, not as failure. |
-| Scripted controls | All 18 outcomes matched, including catching a verifier that gave false credit and one that rejected correct work. |
-| Model-backed controls | The model never attempted a cheat, so scripted controls remain the reliable way to test known failure paths. |
-| Leakage study | Leaks closed about a quarter to a third of the remaining gap. The small average hid wrong hints, agents that ignored hints, and grading problems. |
+| Trace environments | Built working stateful tools in 3 of 3 attempts with the trace, and correctly declined all 3 without it. Declined when the trace was incomplete. |
+| Rubric | Lowered at least one score for each of the 26 mutations, and raised none. Reported missing evidence as Unassessed, not as failure. |
+| Scripted controls | Matched all 18 expected outcomes, including a verifier that gave false credit and one that rejected correct work. |
+| Model-backed controls | Produced no cheating attempts, so scripted controls remain the reliable way to test known failure paths. |
+| Leakage study | Closed about a quarter to a third of the remaining gap. The small average hid misleading leaks, agents that ignored the leak, and grading problems. |
 
 Each check answers a different question. Traces decide what to test. The rubric asks what evidence supports a quality claim. The controls test whether grading failures get caught. The leakage study measures how much exposed answers make a task easier. A pass rate alone cannot answer any of them.
 
@@ -244,16 +246,16 @@ These workflows are available as skills in this repository:
 
 ## What's next
 
-We will certainly incorporate more pieces of trace-environment and rubric into the other skills as we see fit. Further research may yield changes/adjustments to those processes to make them even better.
+We plan to fold parts of the trace-environment and rubric workflows into the main Eval Author skills. The studies below decide which parts.
 
 ### What we want to learn next
 
 1. **Validate the rubric on fresh defects.** Following Mubric, we will compare the rubric with plain pass/fail scoring on a small set of reviewed tasks. Acceptance uses new defects and real outputs that played no part in building the rubric. We will measure missed defects, rejected valid solutions, and cost, and decide which parts of the rubric belong in the main Eval Author skills. Some criteria overlap today, and we want each one to answer one distinct question.
 2. **Measure difficulty.** We want to know whether these checks produce tasks that separate stronger agents from weaker ones. [Fluid Benchmarking](https://arxiv.org/abs/2509.11106) and [amortized model-based evaluation](https://arxiv.org/abs/2503.13335) calibrate difficulty per task. [BenchBench](https://arxiv.org/abs/2603.20807) grades a generated benchmark as a whole.
 3. **Make tasks harder on purpose.** [TASTE](https://arxiv.org/abs/2605.28556) evolves tool sequences to produce harder tasks. We want to try similar perturbations, along with varied inputs and boundary cases for the verifier, and check that the harder task is still valid.
-4. **Realistic users.** Real users are vague, change their minds, and write in their own style. We will use [NeMo Data Designer](https://github.com/NVIDIA-NeMo/DataDesigner), [NeMo User Sim](https://github.com/NVIDIA-NeMo/UserSim), and ideas from [expert-guided, context-specific benchmarks](https://arxiv.org/abs/2609.16592) to generate those interactions. Synthetic interactions stay clearly separate from observed traces.
-5. **Stateful tools from many traces.** One trace shows one path through a tool. Many traces show how it behaves across paths. We want to build substitute tools from many traces and check that they behave like the real service beyond the calls we recorded. [From Traces to Agentic Worlds](https://arxiv.org/abs/2610.06100) simulates stateful environments from traces in a similar way.
-6. **Observers.** Add a separate observer that watches the agent's actions and environment during a trial and collects evidence of cheating or evaluation-aware behavior for the rubric. [Goodfire](https://arxiv.org/abs/2609.19101) has shown that probes on a model's internal states can catch reward hacking during evaluations, and [chain-of-thought monitoring](https://arxiv.org/abs/2503.11926) is another route. An observer that also guides the agent would make the run an assisted evaluation, and we would report it that way. We would measure missed detections, false alarms, and the effect of any intervention.
+4. **Simulate realistic users.** Real users are vague, change their minds, and write in their own style. We will use [NeMo Data Designer](https://github.com/NVIDIA-NeMo/DataDesigner), [NeMo User Sim](https://github.com/NVIDIA-NeMo/UserSim), and ideas from [expert-guided, context-specific benchmarks](https://arxiv.org/abs/2609.16592) to generate those interactions. Synthetic interactions stay clearly separate from observed traces.
+5. **Build stateful tools from many traces.** One trace shows one path through a tool. Many traces show how it behaves across paths. We want to build substitute tools from many traces and check that they behave like the real service beyond the calls we recorded. [From Traces to Agentic Worlds](https://arxiv.org/abs/2610.06100) simulates stateful environments from traces in a similar way.
+6. **Add observers.** Add a separate observer that watches the agent's actions and environment during a trial and collects evidence of cheating or evaluation-aware behavior for the rubric. [Goodfire](https://arxiv.org/abs/2609.19101) has shown that probes on a model's internal states can catch reward hacking during evaluations, and [chain-of-thought monitoring](https://arxiv.org/abs/2503.11926) is another route. An observer that also guides the agent would make the run an assisted evaluation, and we would report it that way. We would measure missed detections, false alarms, and the effect of any intervention.
 
 ## Sources and citations
 
@@ -287,7 +289,9 @@ Benchmark quality:
 
 Leakage and reward hacking:
 
-- [SWE-Bench+: Enhanced Coding Benchmark for LLMs](https://arxiv.org/abs/2410.06992).
+- [SWE-Bench+: Enhanced Coding Benchmark for LLMs](https://arxiv.org/abs/2410.06992). Solutions leaked into issue text.
+- [Introducing SWE-bench Verified](https://openai.com/index/introducing-swe-bench-verified/). Underspecified issues and tests that reject valid fixes.
+- [Are "Solved Issues" in SWE-bench Really Solved Correctly?](https://arxiv.org/abs/2503.15223). Weak tests that inflate resolution rates.
 - [ImpossibleBench: Measuring LLMs' Propensity of Exploiting Test Cases](https://arxiv.org/abs/2510.20270).
 - [EvilGenie: A Reward Hacking Benchmark](https://arxiv.org/abs/2511.21654).
 
