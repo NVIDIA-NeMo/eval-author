@@ -194,6 +194,7 @@ The coverage command above is illustrative and must name an installed tool.
 Coverage requires `system_id`, `system_revision`, and a nonempty `command` argument
 list whose first argument is an absolute executable path. Optional `settings` is a
 JSON object and `timeout_seconds` defaults to 3600.
+`missing_baseline` defaults to `error`; see [coverage computation](compute-coverage.md) for `unavailable`.
 Scoring defaults to `metric: reward`, `direction: higher_is_better`,
 `completed_statuses: [succeeded]`, and `attempt_policy: only`. Alternatives include
 `lower_is_better` and `latest` (select the highest attempt, not the best reward).

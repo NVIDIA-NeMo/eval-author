@@ -169,19 +169,16 @@ def test_source_digest_cli_requires_no_author_command():
 
 
 def test_only_explicit_trace_failures_can_be_unavailable(tmp_path):
-    import json
-
-    from metric_benchmark.eval_author import EvalAuthorSettings, trace_failure
+    from metric_benchmark.eval_author import _trace_failure
 
     log = tmp_path / "measure.log"
     log.write_text(json.dumps({"error_type": "trace", "written": False}))
-    assert trace_failure(log)
+    assert _trace_failure(log)
     for value in [{"error_type": "environment", "written": False}, {"error_type": "trace", "written": True}]:
         log.write_text(json.dumps(value))
-        assert not trace_failure(log)
+        assert not _trace_failure(log)
     log.write_text("crash, not a structured trace rejection")
-    assert not trace_failure(log)
-    assert EvalAuthorSettings.model_fields["invalid_traces"].default == "error"
+    assert not _trace_failure(log)
 
 
 def test_unloadable_trace_preserves_other_measurements_and_null_score(tmp_path):
@@ -199,7 +196,7 @@ def test_unloadable_trace_preserves_other_measurements_and_null_score(tmp_path):
     assert reason is not None
     assert "rejected native traces" in reason
     assert list(args[-1].glob("subset-*/measurements/task=*/run=*/*/coverage.json"))
-    args[3].settings["invalid_traces"] = "error"
+    del args[3].settings["invalid_traces"]
     args[-1] = tmp_path / "strict"
     with pytest.raises(ValueError, match="exited"):
         invoke_coverage(*args)

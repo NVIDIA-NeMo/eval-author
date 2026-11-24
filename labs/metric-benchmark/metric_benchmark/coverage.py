@@ -99,9 +99,7 @@ def invoke_coverage(
             if unavailable and configuration.missing_baseline == "error":
                 raise ValueError(f"baseline evidence unavailable for {unavailable[0]}")
             for index, task in enumerate(tasks if not unavailable else []):
-                row = selected.get((selection.baseline_bundle_id, *task.key()))
-                if row is None or row.status not in selection.completed_statuses:
-                    continue
+                row = selected[selection.baseline_bundle_id, task.task_id, task.revision]
                 source = resolve_evidence(record_root, row.native_results_path)
                 relative = f"baseline/task-{index + 1:06d}"
                 if row.native_results_format == "tar.gz":
@@ -113,7 +111,7 @@ def invoke_coverage(
             request = {
                 "case_description": case_description,
                 "eval_subset_id": subset.eval_subset_id,
-                "tasks": [t.model_dump() for t in sorted(memberships[subset.eval_subset_id], key=lambda t: t.key())],
+                "tasks": [t.model_dump() for t in tasks],
                 "baseline_evidence": evidence,
                 "settings": configuration.settings,
             }
