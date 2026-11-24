@@ -474,3 +474,39 @@ def test_signed_metadata_analyzes_unsigned_execution_without_sources(tmp_path):
     assert result["execution_sha256"] == manifest["execution_sha256"]
     assert standalone.read_bytes() == (output / "analysis/case-0000/mutant-scores.json").read_bytes()
     assert file_manifest(native) == before
+
+
+@pytest.mark.parametrize("repetitions", [1, 5])
+def test_repetitions_flow_from_case_through_execution_analysis_and_cached_replay(tmp_path, repetitions):
+    path, adapter = experiment(tmp_path)
+    cases = yaml.safe_load((path.parent / "cases.yml").read_text())
+    cases[0]["repetitions"] = repetitions
+    write_definition(path, "cases.yml", cases)
+    output = tmp_path / "out"
+    calls = []
+
+    def runner(config):
+        calls.append(config.n_attempts)
+        assert config.retry.max_retries == 0
+        fake_harbor(config)
+
+    first = run_experiment(path, "replicated", output, runner=runner)
+    assert calls == [repetitions] * 3
+    raw = read_json(case_root(output / "execution", 0) / "results.json")
+    assert isinstance(raw, dict)
+    assert len(raw["execution_results"]) == 9 * repetitions
+    assert {row["evaluation"]["repetition"] for row in raw["execution_results"]} == set(range(1, repetitions + 1))
+    scores = read_json(output / "analysis/case-0000/mutant-scores.json")
+    assert isinstance(scores, dict)
+    assert all(score["value"] == 1 for score in scores["scores"].values())
+    assert all(s["valid"] == repetitions for s in scores["task_scores"]["baseline"].values())
+    coverage = read_json(output / "analysis/case-0000/coverage-scores.json")
+    assert isinstance(coverage, dict)
+    assert all(len(scores) == repetitions for scores in coverage["repetition_scores"].values())
+    assert all(len(receipts) == repetitions for receipts in coverage["receipts"].values())
+    adapter.write_text("raise AssertionError('must reuse each repetition receipt')")
+    assert run_experiment(path, "replicated", output, results_root=output / "execution", cached_only=True) == first
+    cases[0]["repetitions"] = repetitions + 1
+    write_definition(path, "cases.yml", cases)
+    with pytest.raises(ValueError):
+        run_experiment(path, "replicated", output, runner=lambda _: pytest.fail("changed budget must not resume"))

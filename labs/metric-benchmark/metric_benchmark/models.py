@@ -51,6 +51,7 @@ class Tasks(Model):
 
 
 class Evaluation(Model):
+    repetition: int = Field(default=1, ge=1)
     evaluation_id: Text
     execution: int = Field(ge=1)
     task: Task
@@ -123,9 +124,9 @@ class RawResults(Model):
             identity = row.agent_bundle_id, row.framework_profile_id
             if runs.setdefault(row.agent_run_id, identity) != identity:
                 raise ValueError("one run must identify one agent and profile")
-            identity = row.agent_run_id, row.evaluation.task.key()
+            identity = row.agent_run_id, row.evaluation.task.key(), row.evaluation.repetition
             if evaluations.setdefault(row.evaluation.evaluation_id, identity) != identity:
-                raise ValueError("evaluation retries must identify the same run and task")
+                raise ValueError("evaluation retries must identify the same run, task and repetition")
         return self
 
 

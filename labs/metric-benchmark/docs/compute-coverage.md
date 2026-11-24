@@ -60,3 +60,25 @@ configuration, source pins, authoring outputs, and native measurement behavior.
 
 `invoke_coverage(raw, subsets, selection, configuration, case_description,
 record_root, work_root, *, cached_only=False)`.
+
+## Repeated measurements
+
+For `repetitions: n` in the case, each subset produces `n` independent coverage
+requests. Request `repetition: k` contains the baseline evidence for repetition
+`k` of each task, plus `repetitions: n`. Each request runs the existing author and
+measurement procedure, including evidence-bound semantic judgment sidecars.
+Mutant evidence and reward values are never supplied.
+
+The reported subset score is the arithmetic mean of those `n` measurements,
+not the union of all observed behaviors. `repetition_scores[subset_id]` retains
+the scores in repetition order; `receipts[subset_id]` retains the corresponding
+receipt hashes in that order. If any measurement is unavailable, the mean stays
+unavailable with its repetition-specific reason. Native baseline evidence checks
+remain strict: a missing or incomplete execution aborts coverage under the default
+policy. Unjudged semantic coverage remains unavailable.
+
+Work directories `subset-NNNNNN` enumerate requests in sorted subset order, then
+repetition order. Each request has its own evidence and resume receipt. Changing
+the repetition count requires fresh output; cached replay verifies every request.
+Correlation uses the averaged coverage and averaged reward-degradation scores
+for each subset, with their common repetition count bound into the score context.

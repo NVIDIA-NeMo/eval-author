@@ -61,6 +61,7 @@ class ScoringPolicy(Model):
 
 
 class ScoringConfig(ScoringPolicy):
+    repetitions: int = Field(default=1, ge=1)
     case_id: Text
     baseline_bundle_id: Text
     mutant_bundle_ids: list[Text] = Field(min_length=1)
@@ -117,6 +118,7 @@ class TaskManifest(Model):
 
 
 class CaseDefinition(Model):
+    repetitions: int = Field(default=1, ge=1)
     case_id: Text
     agent: PinnedInput
     tasks: PinnedInput
@@ -129,6 +131,7 @@ class CaseDefinition(Model):
 
 
 class Case(Model):
+    repetitions: int = Field(default=1, ge=1)
     case_id: Text
     task_inventory: Tasks
     task_sources: dict[Text, PinnedInput]
@@ -139,6 +142,7 @@ class Case(Model):
     def from_manifests(cls, definition: CaseDefinition, agent: AgentManifest, tasks: TaskManifest) -> Self:
         return cls(
             case_id=definition.case_id,
+            repetitions=definition.repetitions,
             baseline=agent.baseline,
             mutants=agent.mutants,
             task_inventory=tasks.task_inventory,
@@ -161,6 +165,7 @@ class Case(Model):
         return ScoringConfig(
             **scoring.model_dump(),
             case_id=self.case_id,
+            repetitions=self.repetitions,
             baseline_bundle_id=self.baseline.agent_bundle_id,
             mutant_bundle_ids=[a.agent_bundle_id for a in self.mutants],
             run_ids=run_ids,
