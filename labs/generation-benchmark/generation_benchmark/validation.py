@@ -1,15 +1,18 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Subprocess command execution, DirectoryModel output checks, and stage 0-1 validation."""
+"""Subprocess command execution, DirectoryModel output checks, stage 0-1 validation, and task bundle rules."""
 
 from __future__ import annotations
 
 import json
 import os
+import re
 import signal
+import stat
 import subprocess
 import sys
+import tomllib
 import warnings
 from dataclasses import dataclass
 from pathlib import Path
@@ -393,6 +396,81 @@ def resolve_harbor_agent_config(
 def task_checksum(task: HarborTask) -> str:
     with warnings.catch_warnings(action="ignore", category=DeprecationWarning):
         return task.checksum
+
+
+_COMPOSE_FILE_RE = re.compile(r"^(?:docker-compose.*|compose\.ya?ml)$", re.IGNORECASE)
+
+
+def _contains_template(value: object) -> bool:
+    if isinstance(value, str):
+        return "${" in value
+    if isinstance(value, dict):
+        return any(_contains_template(k) or _contains_template(v) for k, v in value.items())
+    if isinstance(value, list):
+        return any(_contains_template(item) for item in value)
+    return False
+
+
+def _check_task_toml(path: Path) -> None:
+    try:
+        data = tomllib.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, tomllib.TOMLDecodeError) as exc:
+        raise ValueError(f"bundle task.toml does not parse: {exc}") from exc
+    environment = data.get("environment") or {}
+    agent = data.get("agent") or {}
+    if not isinstance(environment, dict) or not isinstance(agent, dict):
+        raise ValueError("bundle task.toml [environment] and [agent] must be tables")
+    for label, value in (
+        ("[environment].env", environment.get("env")),
+        ("[verifier]", data.get("verifier")),
+        ("[solution]", data.get("solution")),
+    ):
+        if _contains_template(value):
+            raise ValueError(f"bundle task.toml must not contain a ${{...}} template in {label}")
+    # `harbor task init` writes `mcp_servers = []`; only entries are rejected.
+    for label, value in (
+        ("[environment].mcp_servers", environment.get("mcp_servers")),
+        ("[agent].mcp_servers", agent.get("mcp_servers")),
+        ("mcp_servers", data.get("mcp_servers")),
+    ):
+        if value:
+            raise ValueError(f"bundle task.toml must not declare {label} entries")
+    if environment.get("docker_image") not in (None, ""):
+        raise ValueError("bundle task.toml must not set a prebuilt [environment].docker_image")
+
+
+def check_bundle(path: Path, *, session_token: str | None = None) -> None:
+    """Reject a task bundle that breaks a sandbox rule; never modify it.
+
+    Rules: only ordinary files and directories, no docker-compose file, a parseable
+    `task.toml` without `${...}` templates in `[environment].env`, `[verifier]`, or
+    `[solution]`, no `mcp_servers` entries, no prebuilt `docker_image`, and no
+    occurrence of *session_token* in any file name or file content.
+    """
+    if path.is_symlink() or not path.is_dir():
+        raise ValueError(f"bundle must be an ordinary directory: {path}")
+    token = session_token.encode("utf-8") if session_token else None
+    for current, dirnames, filenames in os.walk(path, followlinks=False):
+        for name in [*dirnames, *filenames]:
+            entry = Path(current) / name
+            rel = entry.relative_to(path).as_posix()
+            mode = entry.lstat().st_mode
+            if stat.S_ISLNK(mode):
+                raise ValueError(f"bundle must not contain symlinks: {rel}")
+            if not (stat.S_ISDIR(mode) or stat.S_ISREG(mode)):
+                raise ValueError(f"bundle must contain only ordinary files and directories: {rel}")
+            if token is not None and token in name.encode("utf-8"):
+                raise ValueError(f"bundle must not contain the session token: {rel}")
+            if not stat.S_ISREG(mode):
+                continue
+            if _COMPOSE_FILE_RE.match(name):
+                raise ValueError(f"bundle must not contain a docker-compose file: {rel}")
+            if token is not None and token in entry.read_bytes():
+                raise ValueError(f"bundle must not contain the session token: {rel}")
+    task_toml = path / "task.toml"
+    if task_toml.is_symlink() or not task_toml.is_file():
+        raise ValueError("bundle must contain task.toml")
+    _check_task_toml(task_toml)
 
 
 def _recorded_input_root(task_path: Path | None, relative: str) -> Path:
