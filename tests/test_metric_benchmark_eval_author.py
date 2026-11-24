@@ -195,7 +195,9 @@ def test_unloadable_trace_preserves_other_measurements_and_null_score(tmp_path):
     args[3].settings["invalid_traces"] = "unavailable"
     scores = invoke_coverage(*args)
     assert scores.scores["all"].value is None
-    assert "rejected native traces" in scores.scores["all"].missing_score_reason
+    reason = scores.scores["all"].missing_score_reason
+    assert reason is not None
+    assert "rejected native traces" in reason
     assert list(args[-1].glob("subset-*/measurements/task=*/run=*/*/coverage.json"))
     args[3].settings["invalid_traces"] = "error"
     args[-1] = tmp_path / "strict"

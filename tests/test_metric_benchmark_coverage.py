@@ -215,7 +215,9 @@ def test_missing_baseline_can_remain_unavailable_without_changing_subset(tmp_pat
     result = invoke_coverage(*args)
     scores = list(result.scores.values())
     assert scores[0].value is None
-    assert "baseline evidence unavailable" in scores[0].missing_score_reason
+    reason = scores[0].missing_score_reason
+    assert reason is not None
+    assert "baseline evidence unavailable" in reason
     assert [score.value for score in scores[1:]] == [0.5, 0.0]
     request = json.loads((args[-1] / "subset-000001/request.json").read_text())
     assert request["unavailable_baseline_tasks"] == [args[0].execution_results[0].evaluation.task.task_id]
