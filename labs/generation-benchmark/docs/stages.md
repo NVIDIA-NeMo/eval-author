@@ -3,258 +3,155 @@
 
 # Experiment stages
 
-The experiment runs five stages. Each stage has a CLI and a completion receipt.
-The reference orchestrator runs subsets one after another.
-The [architecture](architecture.md#flow) page has the flow diagram and the
-artifact diagram. Configuration fields are in the
-[benchmark format](benchmark-format.md).
-
-A, B, Bᵢ, C, G, Gᵢ, Bᵢ⁺, H(X), D, M(X), ΔMᵢ, and Rᵢ are defined in
-[notation](architecture.md#notation).
-
-[Architecture](architecture.md) describes the adapter, images, `harbor` shim,
-relay, audit render modes, and work-root paths.
+`run_generation_experiment.py` runs each implemented stage in order. The diagram is on the [architecture](architecture.md#flow) page. Configuration fields are in the [benchmark format](benchmark-format.md). Symbols are in [notation](architecture.md#notation), and `Gᵢ` is defined in [generated tasks](architecture.md#generated-tasks).
 
 ## Stage contract
 
-These rules follow the metric benchmark's
-[stage contract](../../metric-benchmark/docs/stages.md#stage-contract) where the
-two benchmarks share a rule: declared inputs and outputs, completion checks, a
-stop on a stage error, and reuse only when the saved inputs match.
+Stages follow the metric benchmark's [stage contract](../../metric-benchmark/docs/stages.md#stage-contract): declared inputs and outputs, completion checks, and reuse only when the saved inputs match. A subset failure becomes an `unavailable` value with a reason. A failed generator run or Harbor trial is an outcome, not a stage error.
 
-Stage 3 completes on a timeout or a non-zero exit, and its output is the tasks
-that pass the gate. An H(Gᵢ) trial that fails after retries adds no trace. That
-result is a generator outcome, not a stage error.
+Each stage writes a stage receipt: the digests of the lock entries and upstream receipts it read. A stage records only the entries it reads, so a change to the `generation` block reruns stage 3 and later but not stages 0 to 2. A matching stage receipt skips the stage. The check reads receipt files and hashes the pinned inputs. It does not rehash Harbor trial trees.
 
-Every stage writes a receipt. The receipt contains that stage's input digests,
-image IDs, argv, and output file manifest. A stage reuses an existing output
-only when the receipt matches. A changed input needs a new work root.
+A Harbor job receipt is the job's request digest. The job is reused when it matches, and a finished job whose files have changed fails.
 
-A stage's output is immutable. A later stage reads that output, or a copy of
-it, and writes only under its own directory. Copying a file into a new
-container or into the later directory leaves the source in place. The later
-stage takes the earlier receipt's file list as its input. It does not scan or
-rewrite the earlier tree.
+A metric-command receipt records the command, the block's `digest` entry when declared, the `metric-setup/` digest when setup is declared, the trial set, and the score. The command reuses its result when those match.
 
-The runner stops on a stage error. Per-subset failures become unavailable
-values with reasons, not stage errors. A rerun reuses an unavailable
-result whose receipt matches. To retry that result, delete that subset's
-directory.
+The generation receipt is defined in the [generator contract](architecture.md#generator-contract).
 
-Stage 1 keeps a separate receipt for the M image, for H(B), for the audit, and
-for M(B), and reuses each product when its own receipt matches. A later stage
-is stale when a stage 1 product it reads has changed. From stage 2 on, a stale
-stage makes every following stage stale.
+A stage checks the digest of each published output it reads. A published output that no longer matches its receipt is a stage error that names the directory. The stage does not rerun it, and the user invalidates that stage. A mismatch in a lock entry or an upstream receipt reruns that stage in the same work root and replaces its output. Later stages see a new upstream digest and rerun. Earlier stages with matching receipts are skipped. A different `--run-id` needs a new work root. A stage's output is immutable while its receipt matches, and a later stage reads it and writes only its own directory. A rerun reuses an unavailable result whose receipt matches.
+
+Stages that write user-command output also check it against the declared type: `metric-setup/` after stage 0 when setup is declared, the metric output after stages 1, 2, and 4, and the stage 2 metric output before `G` runs. See [metric contracts](architecture.md#metric-contracts).
+
+A change to Python under `labs/generation-benchmark/` changes the generation receipt through the implementation digest, so stage 3 and later rerun. It does not change the receipts of stages 0 to 2. A change to a command's own code changes its stage's receipt only when that command declares a `digest`. Otherwise, invalidate the stage by hand.
+
+`--invalidate-stage STAGE` removes that stage's directory and prints a warning that names the directory and the later stages that rerun.
+
+| Stage | `--invalidate-stage` | Directories removed |
+| --- | --- | --- |
+| 0. Metric setup | `setup` | `cases/case-NNNN/metric-setup/` |
+| 1. Baseline | `baseline` | `cases/case-NNNN/execution/`, `metric-full/` |
+| 2. Subset baseline | `subsets` | `cases/case-NNNN/metric-subsets/` |
+| 3. Generate | `generate` | `cases/case-NNNN/generation/` |
+| 4. Run and measure | `measure` | `cases/case-NNNN/execution-gen/`, `metric-plus/` |
+| 5. Analysis | `analysis` | `generation-analysis.json` |
+
+`--case CASE_ID` runs stages 0 to 4 for that case and leaves other cases untouched. An unknown id is an error before any stage runs. Stage 5 does not run, because its headline is the median across all cases. `--invalidate-stage` with `--case` removes only that case's directories. `--invalidate-stage analysis` with `--case` is an error.
+
+## Stage 0: metric setup
+
+**Purpose.** Prepare `D` in `metric-setup/` when `metric.setup` is declared.
+
+**Inputs.** The experiment config, the lock, and `metric.setup.command` when declared.
+
+**Operation.** Check config schemas, and that the locked files exist and match the lock. A failed check is a stage error. Then run `metric.setup.command` if declared. See [metric setup](architecture.md#metric-setup).
+
+**Outputs.** `metric-setup/`, if declared. That directory is `D`.
+
+**Completion.** The input check passes. If setup is declared, `metric.setup.command` exits 0 and `metric-setup/` loads as `metric.setup.output`.
 
 ## Stage 1: baseline
 
-**Purpose:** Pin the measurement environment, freeze D once, and measure the full inventory.
+**Purpose.** Run `H(B)` and measure `M(B)`.
 
-**Inputs:** The M base, the M eval-author pin, ETHOS, the items file in
-`items_file` mode, `items_from`, the signed case, agent A, the
-adapter, and `harbor.retries`. ETHOS is an input in both modes, because
-`generate.py` requires `--ethos`. The items file is an input only in
-`items_file` mode.
+**Inputs.** The locked case, the `execution` block, and `metric-setup/` when declared.
 
-**Operation:**
+**Operation.**
 
-1. Build the M image.
-2. Run H(B) and, when `items_from` is `items_file`, render the audit. The stage
-   CLI builds one Harbor job for A over B, with `jobs_dir` at
-   `execution/agents/agent-0000` and `job_name` `run-0001`, and the adapter runs
-   it there at `n_concurrent_trials`. Harbor retries exceptions up to
-   `harbor.retries` times. The tree in `execution/` follows the metric
-   benchmark's [results format](../../metric-benchmark/docs/results-format.md).
-   Validate it with that benchmark's validator. The tree stays where Harbor
-   wrote it. Rendering runs in the M image with `--network none`. The render command is
-   `generate.py --ethos <ETHOS> --items <items> --mode replace --items-mode full`.
-   The two steps may run together, because the items file does not depend on H(B).
-3. When `items_from` is `baseline_traces`, write one `tool` item per distinct
-   tool name in the H(B) ATIF traces to
-   `/workspace/.eval-author/.working/derived-items.yaml`. Each item sets
-   `kind`, `name`, and one `tool_call` evidence entry for that name, and fills
-   `description`, `expected_use`, and `expected_failure_behavior` with
-   placeholders. Render that file with the same `generate.py` command, ETHOS,
-   and `--network none`. Exactly one of the pinned items file and this derived
-   file is the `--items` input. See
-   [audit rendering](architecture.md#audit-rendering).
-4. Freeze `.eval-author/` plus ETHOS as `audit.tar`. In `baseline_traces` mode,
-   also copy the derived items file to `stage-1/derived-items.yaml`.
-5. Run M(B) in a fresh M container with D and every baseline trace.
+1. Run `H(B)`. Write the trials under `execution/agents/agent/`. `results.json` is at `execution/results.json`.
+2. Measure `M(B)` from those trials and `metric-setup/`, when declared. Write the score and the metric output to `metric-full/output/`.
 
-**Outputs:** `stage-1/images.json`, `stage-1/audit.tar` and its digest,
-`execution/`, `coverage-full/` (the report tree and the score), and a receipt
-for each of the image, H(B), the audit, and M(B). In `baseline_traces` mode,
-also `stage-1/derived-items.yaml`. The audit receipt pins that file's digest
-and the H(B) digest.
+**Outputs.** `execution/` and `metric-full/`.
 
-**Completion:** The image builds. `load_audit_spec` accepts the audit, each
-`sources[].sha256` matches, and every item is a `tool` item. Every inventory
-task has a validated, succeeded row. A task that still fails after retries
-fails the stage, as in the metric benchmark's coverage stage.
+**Completion.** Every inventory task has a succeeded row and an `agent/trajectory.json`. A task that lacks either fails the stage and is listed by id. The metric command wrote `score.json`, and its output loads as `metric.score.output`.
 
 ## Stage 2: subset baseline
 
-**Purpose:** Produce each subset's starting coverage and the before-tree G will
-read.
+**Purpose.** Measure `M(Bᵢ)` for each subset from the stage 1 trials.
 
-**Inputs:** The subset manifest, `execution/`, D, and the M image.
+**Inputs.** The case's subset manifest, `execution/`, and `metric-setup/` when declared.
 
-**Operation:** Select H(Bᵢ) from `execution/` by the subset manifest's task
-IDs. Copy those trials into the stage work directory. Leave `execution/`
-unchanged. There is no Harbor rerun. Run M(Bᵢ) in a fresh M container with D
-and those copies.
+**Operation.** For each subset, select the rows whose task id is in `Bᵢ`. Measure `M(Bᵢ)` on those rows and the same `metric-setup/` when declared, with the same metric command as stage 1. The command writes its output under `metric-subsets/subset-NNNNNN/output/`.
 
-**Outputs:** `subsets/<i>/before/`, the sealed measurement workspace at the M
-container `/workspace` layout, and the score. `execution/` remains the H(B)
-evidence.
+**Outputs.** `metric-subsets/`: one result per subset, in `subset-NNNNNN/` order of sorted subset id. Stage 3 stages that output.
 
-**Completion:** Each subset has a score. A missing slice is a stage error,
-because stage 1 guaranteed that every task succeeded.
+**Completion.** Every subset has a score or an explicit unavailable value. A subset whose score is null, or whose output does not load as `metric.score.output`, is `unavailable` in stage 5.
 
 ## Stage 3: generate
 
-**Purpose:** Run G on one subset in isolation.
+**Purpose.** Run `G` on one subset in isolation.
 
-**Inputs:** The G base definition, the G eval-author pin, `harbor_version`,
-`audit.tar`, the Bᵢ task trees, H(Bᵢ), `subsets/<i>/before/`, A's source tree,
-the generation request, and the in-container argv and timeout.
+**Inputs.** `M(B)` from `metric-full/` and `M(Bᵢ)` from `metric-subsets/`. `Bᵢ`'s task directories and `A`'s source from the locked case. ETHOS from the case's `ethos` reference. The `generation` settings.
 
-**Operation:** Build the G base once. Then, for each subset:
+**Operation.** For each subset, in `subset-NNNNNN` order:
 
-1. Build the subset image.
-2. Open a G session with a scoped token. The session key is the subset
-   directory. The adapter runs G's Harbor jobs in its scratch directory.
-3. Resolve the provider IP addresses and start the relay.
-4. Run G. On timeout, stop the container.
-5. Extract `/output/` to `subsets/<i>/generated/` and `/logs/` to
-   `subsets/<i>/generation-logs/`, whatever G's exit status was.
-6. Close the session. The adapter revokes the token and returns after that
-   session's jobs have stopped. Copy the unscrubbed scratch tree to
-   `subsets/<i>/generation-harbor/`. The files in that copy still name the
-   scratch paths.
-7. Apply the per-task gate.
+1. When `M(B) = M(Bᵢ)`, record `zero_gap` and do not launch `G`.
+2. Stage the workspace with the agent, ETHOS, and `Bᵢ`. The request names the subset's metric output directory. Check that it loads as `metric.score.output`. Write `request.json` and run the [generator command](architecture.md#generator-contract).
 
-A rerun opens the same session key, deletes the session that comes back, stops
-that subset's G container and relay, and starts fresh.
+**Outputs.** `generation/<subset-dir>/`. The directories under `output/tasks/` are `Gᵢ`. The generation receipt is defined under the [generator contract](architecture.md#generator-contract).
 
-**Outputs:** Gᵢ, the logs, and a receipt. The receipt includes the image ID,
-argv, exit status, timeout flag, attempts summary (Accepted and Draft), the Gᵢ
-tree digest, and the gate results. Accepted and Draft are diagnostics in that
-summary. The gate does not remove a directory because of that status.
+**Budget.** `--max-gaps` is a run flag recorded on the request. It is not part of the benchmark definition. The command decides how many gaps to attempt.
 
-**Budget:** Every actionable gap from `select` gets one attempt. An optional
-cap is a run flag recorded in the receipt. The cap is not part of the benchmark
-definition.
+**Partial runs.** The stage completes on a timeout or a non-zero exit. The directories already under `output/tasks/` go to stage 4, and the receipt marks the run `partial`. Partial subsets stay in the headline. Stage 5 reports how many there were.
 
-**Per-task gate:** The gate is structural, not skill acceptance. A directory
-under `/output/` is kept only when all of the following hold.
+**Completion.** Each subset is `zero_gap`, has a task list (possibly empty), or is `unavailable` with a reason. Unavailable means staging or the launch failed. An empty list is valid. Stage 4 then sets `M(Bᵢ⁺)` from unchanged evidence.
 
-- It holds exactly one task, with `instruction.md`, `task.toml`,
-  `environment/Dockerfile`, `tests/test.sh`, `solution/solve.sh`, and
-  `README.md`.
-- The last component of `[task].name` equals the directory name.
-- The directory name is a single safe path component.
-- The directory name is not a Bᵢ ID.
-- It passes the adapter's bundle validation.
+## Stage 4: run and measure
 
-Rejected directories are listed in the receipt with reasons. The kept
-directories are Gᵢ.
+**Purpose.** Run `Gᵢ` for the first time, record the outcomes, then measure `M(Bᵢ⁺)`.
 
-**Partial runs:** After a timeout or a non-zero exit, the tasks already under
-`/output/` that pass the gate are Gᵢ, and stage 4 measures them. The receipt
-marks the run `partial`, with the exit status, the timeout flag, and the gaps
-that were never attempted. Partial subsets stay in the headline. Stage 5
-reports how many there were.
+**Inputs.** The directories under `output/tasks/`, `agent.yml`, the `execution` block, `execution/`, and `metric-setup/` when declared.
 
-**Completion:** Each subset either has an extracted Gᵢ, possibly empty, or is
-unavailable with a reason. Unavailable means the image build or the extraction
-failed. An empty Gᵢ is valid, including when the gate rejects every extracted
-directory. Stage 4 computes Rᵢ from unchanged evidence.
+**Operation.** For each subset whose `Gᵢ` is not empty:
 
-## Stage 4: measure generated tasks
+1. Run the structural check on each directory. Record `structural_failed` when any of the following fail. The directory stays in `Gᵢ`.
+   - It contains `instruction.md`, `task.toml`, `environment/Dockerfile`, `tests/test.sh`, `solution/solve.sh`, and `README.md`.
+   - The directory name matches `^[A-Za-z0-9][A-Za-z0-9._-]*$`.
+   - The directory name equals the last `/`-separated component of `[task].name`.
+   - The directory name is not a task id in `Bᵢ`. The recorded rule is `id_collision`.
+   - The bundle has no compose file, no `${…}` template, no `mcp_servers`, and no prebuilt `docker_image`.
+2. Run three host Harbor jobs on `Gᵢ`. `A` writes `agents/agent/`, `oracle` writes `agents/oracle/`, and `nop` writes `agents/nop/`, under `execution-gen/<subset-dir>/execution/`.
+3. Record each task's outcomes. A failed check stays in `Gᵢ`.
 
-**Purpose:** Measure what Gᵢ adds.
+   | Recorded outcome | When |
+   | --- | --- |
+   | `structural_failed` | the structural check failed |
+   | `oracle_failed` | `oracle` reward is not 1.0 |
+   | `nop_passed` | `nop` reward is not 0.0 |
+   | `nop_no_reward` | `nop` recorded no reward |
+   | `agent_error` | `A`'s trial did not succeed |
+   | `agent_no_trace` | `A`'s trial directory has no `agent/trajectory.json` |
 
-**Inputs:** Gᵢ, the subset manifest, `execution/`, D, the M image, and A.
+4. Measure `M(Bᵢ⁺)`. The task list is `Bᵢ` plus `Gᵢ`. The trials are the stage 1 rows for `Bᵢ` and the stage 4 rows for `Gᵢ`. The metric inputs are `metric-setup/`, when declared. The command reads that directory in place. Write the score under `metric-plus/<subset-dir>/output/`.
 
-**Operation:** For each subset whose Gᵢ was extracted:
+When `Gᵢ` is empty, do not measure `M(Bᵢ⁺)`. Record `M(Bᵢ⁺)` = `M(Bᵢ)` and `m_after_source: "unchanged"`.
 
-1. The stage CLI builds one Harbor job for A over Gᵢ, with tasks at
-   `tasks/<task_id>`, A's inputs, and `jobs_dir` at
-   `subsets/<i>/execution/agents/agent-0000`. The adapter runs it there at
-   `n_concurrent_trials`. Leave the stage 1 `execution/` unchanged. The new tree
-   stays where Harbor wrote it.
-2. Select H(Bᵢ) again from `execution/` by the subset manifest. Run M(Bᵢ⁺) in
-   a fresh M container with copies of D, those trials, and H(Gᵢ). Leave
-   `execution/`, `subsets/<i>/before/`, and `subsets/<i>/execution/` unchanged.
-   The copies come from those trees, never from the G container or from
-   `before/`.
-3. Compute ΔMᵢ and Rᵢ. The receipt lists the Bᵢ and Gᵢ paths and digests. The
-   case task list stays unchanged.
+**Outputs.** `execution-gen/<subset-dir>/`, including the per-task outcomes, and `metric-plus/<subset-dir>/`.
 
-**Outputs:** `subsets/<i>/after/` and the per-subset values with reasons.
-
-**Completion:** Each subset has values or an unavailable reason. An H(Gᵢ) task
-that fails after retries is recorded and contributes no trace. That failure is
-a generator outcome, not a stage error.
+**Completion.** Every included subset has `M(Bᵢ⁺)` or an unavailable reason. A `metric-plus/` output that does not load as `metric.score.output` is an unavailable reason.
 
 ## Stage 5: analysis
 
-**Purpose:** Produce the final artifact, modeled on the metric benchmark's
-[correlation stage](../../metric-benchmark/docs/stages.md#4-correlation).
+**Purpose.** Compute `ΔMᵢ` and `Rᵢ`, and write `generation-analysis.json`. `ΔMᵢ` is `M(Bᵢ⁺) − M(Bᵢ)`. `Rᵢ = ΔMᵢ / (M(B) − M(Bᵢ))`.
 
-**Inputs:**
+**Inputs.**
 
-- M(B) and `items_from`.
-- Each subset's M(Bᵢ).
-- The stage 4 values M(Bᵢ⁺), ΔMᵢ, and Rᵢ, or the reason any of those values is missing.
-- The tool names recorded in the M(B) and M(Bᵢ⁺) measurement details.
+- `M(B)`, from `metric-full/`.
+- Each subset's `M(Bᵢ)`, from `metric-subsets/`.
+- The stage 4 values `M(Bᵢ⁺)`, `ΔMᵢ`, and `Rᵢ`, or the reason a value is missing.
 - The stage 3 partial-run mark.
+- The metric command identity recorded on each measurement receipt.
 
-**Operation:** Read the saved stage receipts and scores. Collect the tool
-names in those details. Write only `generation-analysis.json`. Compute the
-headline, the counts below, and `tools_outside_denominator`. A failed
-assertion fails the stage.
+**Operation.** Read the saved receipts and scores. Write only `generation-analysis.json`. Compute the headline and the counts below.
 
-**Outputs:** `generation-analysis.json` contains the following.
+**Outputs.** `generation-analysis.json` contains the following.
 
-- Per subset: M(Bᵢ), M(Bᵢ⁺), ΔMᵢ, Rᵢ, and the reason for any missing value.
-- M(B).
-- `items_from`, because it changes what R can mean. In `items_file` mode, an
-  Rᵢ above 1 means Gᵢ covered an item that B does not cover. The gap
-  M(B) − M(Bᵢ) does not count that item. What `baseline_traces` changes about
-  R is in [audit rendering](architecture.md#audit-rendering).
-- The headline: the median of every defined Rᵢ, including Rᵢ > 1.
-- The raw ΔMᵢ values next to the headline, because R is quantized when D is
-  small.
-- Counts of `included`, `partial` (a subset of `included`), `zero_gap`, and
-  `unavailable`. `zero_gap` means Rᵢ is undefined because M(B) = M(Bᵢ).
-- `tools_outside_denominator`: the sorted tool names in the M(B) or M(Bᵢ⁺)
-  details that are absent from D. The list may be empty. M and R stay as
-  computed from D. In `baseline_traces`, H(B) cannot contribute a name, so
-  every name comes from H(Gᵢ).
+- Per subset: status `included`, `zero_gap`, or `unavailable`; whether the generation run was partial; `M(Bᵢ)`, `M(Bᵢ⁺)`, `ΔMᵢ`, `Rᵢ`; `m_after_source` `measured` or `unchanged`; and the reason for any missing value.
+- `M(B)`. An `Rᵢ` above 1 means `Gᵢ` covered an item that `B` does not cover.
+- The headline: the median of every defined `Rᵢ`, including `Rᵢ > 1`, and the count of defined values. The raw `ΔMᵢ` values sit beside the headline, because `R` is quantized when `D` is small.
+- Counts of `included`, `partial` (a subset of `included`), `zero_gap`, and `unavailable`.
+- Per subset, the quality counts for `Gᵢ`: `structural_failed`, `oracle_failed`, `nop_passed`, `nop_no_reward`, `agent_error`, and `agent_no_trace`.
 
-`zero_gap` and `unavailable` stay out of the headline.
+`zero_gap` means `M(B) = M(Bᵢ)`, so `Rᵢ` is null. `zero_gap` and `unavailable` stay out of the headline.
 
-When `tools_outside_denominator` is not empty, the stage CLI prints:
+**Check.** Stage 5 fails when the measurements in a case did not all use the same metric. Every measurement receipt must name the same metric scoring command, and the same `metric-setup/` when setup is declared.
 
-```text
-Coverage exceeded the denominator. Rerun with the new items included?
-```
-
-The reference orchestrator prints the same line after stage 5. The stage still
-completes. Counting those tools on the next run means adding them to the items
-file. `baseline_traces` builds D from H(B) alone, so that same derivation
-leaves the names out.
-
-**Assertions:** Coverage is the union of items covered by the traces in that
-one measurement, and subsets are never merged. The two results below are
-broken evidence. Each one fails the stage instead of being counted.
-
-- M(Bᵢ) > M(B). H(Bᵢ) is a slice of H(B) under the same frozen D, so the
-  subset cannot cover an item the full run missed.
-- M(Bᵢ⁺) < M(Bᵢ). M(Bᵢ⁺) is measured on that same slice plus H(Gᵢ), so the
-  covered set cannot shrink.
-
-**Completion:** Every subset appears exactly once.
+**Completion.** Every subset appears exactly once.
