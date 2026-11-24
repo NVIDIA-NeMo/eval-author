@@ -170,8 +170,10 @@ def test_source_digest_cli_requires_no_author_command():
 
 def test_recovered_children_are_measured_without_rewriting_input_traces(tmp_path):
     args = eval_author_example(tmp_path)
+    record_root = args[-2]
+    settings = args[3].settings
     originals = {}
-    for trace in args[-2].rglob("trajectory.json"):
+    for trace in record_root.rglob("trajectory.json"):
         payload = json.loads(trace.read_text())
         stub = {"schema_version": "ATIF-v1.7", "trajectory_id": "child", "agent": payload["agent"], "steps": []}
         payload["subagent_trajectories"] = [stub]
@@ -182,12 +184,32 @@ def test_recovered_children_are_measured_without_rewriting_input_traces(tmp_path
         (trace.parent / "trajectory-index.json").write_text(
             json.dumps({"sessions": [{"root": False, "path": "child.json"}]})
         )
+        (trace.parent.parent / "result.json").write_text('{"reward": 1}')
+        (trace.parent / "tool-log.txt").write_text("Recorded tool output")
+    author = Path(settings["author_command"][1])
+    author.write_text(
+        author.read_text() + "\nimport json\n"
+        "for item in json.loads(Path(a.request).read_text())['baseline_evidence']:\n"
+        "    native = Path(item['path'])\n"
+        "    assert json.loads((native/'result.json').read_text()) == {'reward': 1}\n"
+        "    assert (native/'agent/tool-log.txt').read_text() == 'Recorded tool output'\n"
+        "    assert (native/'trace.json').is_file()\n"
+    )
     with pytest.raises(ValueError, match="exited"):
         invoke_coverage(*args)
-    args[3].settings["recover_embedded_children"] = True
+    settings["recover_embedded_children"] = True
     args[-1] = tmp_path / "recovered-work"
     scores = invoke_coverage(*args)
     assert [s.value for s in scores.scores.values()] == [0.5, 0.5, 0.0]
     assert all(trace.read_bytes() == data for trace, data in originals.items())
-    assert len(list(args[-1].glob("subset-*/recovered/*/recovery.json"))) == 3
+    receipts = list(args[-1].glob("subset-*/recovered/task-000001/recovery.json"))
+    assert len(receipts) == 3
+    for receipt_path in receipts:
+        receipt = json.loads(receipt_path.read_text())
+        source = receipt_path.parent / receipt["source_root"]
+        assert source.resolve() == receipt_path.parents[2] / "baseline/task-000001"
+        assert source.is_dir()
     assert invoke_coverage(*args, cached_only=True) == scores
+    receipts[0].write_text("{}")
+    with pytest.raises(ValueError, match="completed coverage evidence changed"):
+        invoke_coverage(*args, cached_only=True)
