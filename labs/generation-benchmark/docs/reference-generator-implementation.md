@@ -14,10 +14,10 @@ v0 points `metric.setup.command` and `metric.score.command` at one executable. T
 ```text
 uv run --with pyyaml --with jsonschema skills/eval-author-audit/scripts/audit_spec/generate.py \
   --ethos ETHOS.md --items <items from request.json> \
-  --out audit.md --mode replace --items-mode full
+  --out .eval-author/audit.md --mode replace --items-mode full
 ```
 
-The command copies those inputs. It does not generate items from ETHOS. Its items file is the case setting `settings.items` in `cases.yml`. Every item has `kind: tool`. `sources[0].path` is `../ETHOS.md`. The command checks the audit it wrote. It records the digests of `audit.md`, ETHOS, the items file, and the argv. It reuses that audit only when the receipt matches and those bytes are unchanged. Otherwise it fails with `metric-setup changed; use a new work root`.
+The command copies those inputs. It does not generate items from ETHOS. Its items file is the case setting `settings.items` in `cases.yml`. Every item has `kind: tool`. `sources[0].path` is `../ETHOS.md`. The command checks the audit it wrote at `.eval-author/audit.md`. It records the digests of `.eval-author/audit.md`, ETHOS, the items file, and the argv. It reuses that audit only when the receipt matches and those bytes are unchanged. Otherwise it fails with `metric-setup changed; use a new work root`.
 
 ## Metric command
 
@@ -52,7 +52,7 @@ The image installs Harbor 0.24.0 at `/opt/harbor-real`, off `PATH`, and the
 shim first on `PATH`. The base already contains the coding agent. This
 implementation does not install it.
 
-`generation.settings.image_id` (`sha256:<64 hex>`) is required. `sign-generation`
+`generation.settings.image_id` (`sha256:<64 hex>`) is required. Whenever `generation.settings.image_id` is present, `sign-generation`
 checks that the Docker image exists and that its label equals
 the lock's `generation.digest`. Otherwise it fails with
 `G image <id> missing or built from different skills; rebuild and re-sign`.
@@ -168,7 +168,13 @@ The launcher runs on the host.
 /logs/                                    # attempt logs, under /output/logs
 ```
 
-The launcher also mounts `H(Bᵢ)` and the audit in `metric-setup/`. Those files are not part of the staged workspace. The entrypoint copies `/input` to `/workspace`, adds the mounted trials and audit, and reads the gap report. Host measurement trees are not mounted. `measure.py` and `report.py` remeasure `Bᵢ` for task-create. The host score stays the stage 2 score. Before authoring, this implementation checks `baseline-report.json` against the gap report's covered set.
+The launcher also mounts `H(Bᵢ)`, the audit in `metric-setup/`, and the subset's
+stage 2 gap report read-only, and nothing else from the host measurement tree.
+Those files are not part of the staged workspace. The entrypoint copies `/input`
+to `/workspace`, adds the mounted trials and audit, and reads the mounted gap
+report. `measure.py` and `report.py` remeasure `Bᵢ` for task-create. The host
+score stays the stage 2 score. Before authoring, this implementation checks
+`baseline-report.json` against the gap report's covered set.
 
 ## Sidecar
 
@@ -197,17 +203,23 @@ job request does not include a Harbor version.
 **Agents.** `agent` must be `A`'s `agent_bundle_id`, `oracle`, `nop`, or
 `generation_controls:ScriptControl`. That class is code in this
 implementation, imported on the host. The container writes the wrong answer as
-a nonempty file under the task's `private/` directory. The class runs that
-file inside the trial container, where Harbor runs `solve.sh`. The container's
-Python is never imported on the host. An arbitrary `-a` is rejected before
-Harbor starts, because Harbor would load that class in the sidecar process.
-`A`'s model and trial config come from `agent.yml`. A supplied model or config
-that differs is rejected.
+a nonempty regular script at `private/incorrect.sh` under the task directory.
+Inside the disposable trial container (the same environment where `solve.sh`
+runs), `ScriptControl` uploads `private/incorrect.sh` to `/tmp/incorrect.sh`,
+runs `bash /tmp/incorrect.sh`, and captures output to `/logs/agent/script-control.txt`.
+The script may exercise the task workspace to produce a plausible wrong answer
+and exit 0, without touching `/tests` or `/logs/verifier`, so grading completes
+without an exception and assigns reward 0. The container's Python is never
+imported on the host. An arbitrary `-a` is rejected before Harbor starts, because
+Harbor would load that class in the sidecar process. `A`'s model and trial
+config come from `agent.yml`. A supplied model or config that differs is
+rejected.
 
-The prompt names `generation_controls:ScriptControl`. The coding agent passes
-that string as `-a` and as `--control-agent`, and passes the script path as
-`--control-source`. `task_evidence.py` checks the path and the sha256. It
-does not import the class.
+The prompt names `generation_controls:ScriptControl` and `private/incorrect.sh`.
+The coding agent passes `generation_controls:ScriptControl` as `-a` (and as
+`--control-agent`, with `private/incorrect.sh` as `--control-source`, when using
+workspace-mode `task_evidence.py`). `task_evidence.py` checks the path and the
+sha256. It does not import the class.
 
 **Bundle validation.** The sidecar rejects a bundle that contains any of:
 
@@ -292,8 +304,9 @@ The entrypoint runs inside the container, in this order.
 5. For each tool, fill the prompt, run the coding agent with the prompt on
    stdin and cwd `/workspace`, and restore the snapshot before the next tool.
    The prompt names `generation_controls:ScriptControl` and tells the agent to
-   pass it as `-a` and `--control-agent`, with the wrong-answer script as
-   `--control-source`. The agent's argv is `generation.settings.agent_argv`.
+   write the wrong answer at `private/incorrect.sh`, pass
+   `generation_controls:ScriptControl` as `-a` (and `--control-agent`), and pass
+   `private/incorrect.sh` as `--control-source`. The agent's argv is `generation.settings.agent_argv`.
    For Codex that is
    `codex exec --json --skip-git-repo-check -s danger-full-access -C /workspace -`.
    `workspace-write` would block the shim's calls to the sidecar. The
