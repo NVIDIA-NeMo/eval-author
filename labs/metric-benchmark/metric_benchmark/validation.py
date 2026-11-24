@@ -19,7 +19,7 @@ from metric_benchmark.config import (
     file_manifest,
 )
 from metric_benchmark.io import read_json
-from metric_benchmark.models import ExecutionManifest, RawResults, Score, resolve_evidence
+from metric_benchmark.models import ExecutionManifest, RawResults, Score, resolve_evidence, unique
 
 
 def agent_config(
@@ -77,7 +77,7 @@ def native_measurements(trial: TrialResult) -> tuple[str, dict[str, Score]]:
     return status, measurements
 
 
-def selection_for_results(case: Case, raw: RawResults, scoring: ScoringPolicy) -> ScoringConfig:
+def validate_matrix_run_ids(case: Case, raw: RawResults) -> dict[str, str]:
     if raw.task_inventory != case.task_inventory.tasks:
         raise ValueError("results task inventory differs from benchmark case")
     runs: dict[str, str] = {}
@@ -90,7 +90,12 @@ def selection_for_results(case: Case, raw: RawResults, scoring: ScoringPolicy) -
             f"case {case.case_id}: incomplete agent x task matrix; "
             f"missing agents: {sorted(expected - runs.keys())}; unexpected agents: {sorted(runs.keys() - expected)}"
         )
-    return case.selection(runs, scoring)
+    unique(list(runs.values()), "selected run IDs")
+    return runs
+
+
+def selection_for_results(case: Case, raw: RawResults, scoring: ScoringPolicy) -> ScoringConfig:
+    return case.selection(validate_matrix_run_ids(case, raw), scoring)
 
 
 def recorded_input_root(task_path: Path | None, relative: str) -> Path:
@@ -116,7 +121,7 @@ def validate_results(
     """
     # Revalidate callers' mutable model instances as well as file inputs.
     raw = RawResults.model_validate(raw.model_dump())
-    selection_for_results(case, raw, ScoringPolicy())
+    validate_matrix_run_ids(case, raw)
     agents = {a.agent_bundle_id: a for a in case.agents()}
     expected = {(a, t.task_id, t.revision) for a in agents for t in case.task_inventory.tasks}
     tasks = {

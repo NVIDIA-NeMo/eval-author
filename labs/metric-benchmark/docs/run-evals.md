@@ -23,6 +23,16 @@ settings do not reference cases or analysis. All inputs require SHA pins by defa
 add `--allow-unsigned` while iterating to permit missing pins, while still
 verifying any supplied pins.
 
+## Baseline-only execution
+
+Use the same agent manifest with `baseline: ...` and an explicit `mutants: []`
+to run only the baseline, with normal validation, receipts and completed-job reuse.
+`run_experiment.py`, `compute_mutant_scores.py`, and `compute_coverage.py` still
+require at least one mutant.
+Execution needs no analysis configuration. Without a full experiment bundle for
+[SHA signing](sha-sign.md), supply pins on all input references yourself or use
+`--allow-unsigned` while iterating.
+
 ## Execution and outputs
 
 The loop follows case order, then baseline and mutant order. Each job runs the

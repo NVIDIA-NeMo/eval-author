@@ -87,7 +87,7 @@ class CoverageConfig(Model):
 
 class AgentManifest(Model):
     baseline: Agent
-    mutants: list[Agent] = Field(min_length=1)
+    mutants: list[Agent]
 
 
 class TaskSource(Task):
@@ -132,7 +132,7 @@ class Case(Model):
     task_inventory: Tasks
     task_sources: dict[Text, PinnedInput]
     baseline: Agent
-    mutants: list[Agent] = Field(min_length=1)
+    mutants: list[Agent]
 
     @classmethod
     def from_manifests(cls, definition: CaseDefinition, agent: AgentManifest, tasks: TaskManifest) -> Self:

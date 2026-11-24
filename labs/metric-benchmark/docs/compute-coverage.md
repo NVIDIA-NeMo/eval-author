@@ -4,6 +4,8 @@
 # compute_coverage.py
 
 Compute coverage for each predefined task subset using its baseline evidence.
+The case still needs a mutant; see the
+[baseline-only execution limits](run-evals.md#baseline-only-execution).
 
 ## Usage
 
