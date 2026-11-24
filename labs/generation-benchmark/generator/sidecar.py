@@ -212,9 +212,19 @@ def _strip_agent_settings(value: Any, *, under_agent: bool = False) -> Any:
     return value
 
 
-def scrub_artifacts(root: Path, secret_values: Iterable[str]) -> None:
+def scrub_artifacts(
+    root: Path,
+    secret_values: Iterable[str],
+    *,
+    path_replacements: Iterable[tuple[str, str]] = (),
+) -> None:
     """Remove agent environment values and kwargs from a Harbor trial or job directory in place."""
     secrets_by_length = sorted({v for v in secret_values if len(v) >= MIN_REDACTED_LENGTH}, key=len, reverse=True)
+    replacements = sorted(
+        ((src, dst) for src, dst in path_replacements if src),
+        key=lambda item: len(item[0]),
+        reverse=True,
+    )
     for path in sorted(root.rglob("*")):
         if path.is_symlink() or not path.is_file():
             continue
@@ -236,6 +246,8 @@ def scrub_artifacts(root: Path, secret_values: Iterable[str]) -> None:
                 else:
                     payload = _strip_agent_settings(payload)
                 text = json.dumps(payload, indent=4) + "\n"
+        for src, dst in replacements:
+            text = text.replace(src, dst)
         for secret in secrets_by_length:
             text = text.replace(secret, "[REDACTED]")
         if text.encode("utf-8") != data:
@@ -553,7 +565,18 @@ class HarborSidecar:
             artifacts = record.workdir / "artifacts.tar"
             try:
                 if run_dir.is_dir():
-                    scrub_artifacts(run_dir, self._secret_values(record.agent_config))
+                    scrub_artifacts(
+                        run_dir,
+                        self._secret_values(record.agent_config),
+                        path_replacements=(
+                            (str(record.task_dir), record.spec.client_task_path),
+                            (str(record.task_dir.resolve()), record.spec.client_task_path),
+                            (str(record.output_dir), record.spec.client_trials_dir),
+                            (str(record.output_dir.resolve()), record.spec.client_trials_dir),
+                            (str(record.workdir), "/tmp/sidecar-job"),
+                            (str(record.workdir.resolve()), "/tmp/sidecar-job"),
+                        ),
+                    )
                     artifacts.write_bytes(pack_tree(run_dir))
                 else:
                     artifacts.write_bytes(pack_tree(Path(tempfile.mkdtemp(dir=record.workdir))))

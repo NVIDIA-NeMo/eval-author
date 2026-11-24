@@ -20,8 +20,7 @@ SOURCE_LABEL = "org.nvidia.eval-author.generator-source-sha256"
 DEFAULT_BASE_IMAGE = "python:3.12-slim"
 
 
-# `**/*` rather than `**`: on Python 3.12 a trailing `**` matches only directories.
-GENERATOR_SOURCE_PATTERNS = [f"skills/{name}/**/*" for name in SKILL_TREES]
+GENERATOR_SOURCE_PATTERNS = [f"skills/{name}/**" for name in SKILL_TREES]
 
 
 def generator_source_digest(repo_root: Path = REPO_ROOT) -> str:
