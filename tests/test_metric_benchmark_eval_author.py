@@ -166,3 +166,38 @@ def test_source_digest_cli_requires_no_author_command():
         text=True,
     )
     assert result.stdout.strip() == source_digest(LAB.parents[1])
+
+
+def test_only_explicit_trace_failures_can_be_unavailable(tmp_path):
+    import json
+
+    from metric_benchmark.eval_author import EvalAuthorSettings, trace_failure
+
+    log = tmp_path / "measure.log"
+    log.write_text(json.dumps({"error_type": "trace", "written": False}))
+    assert trace_failure(log)
+    for value in [{"error_type": "environment", "written": False}, {"error_type": "trace", "written": True}]:
+        log.write_text(json.dumps(value))
+        assert not trace_failure(log)
+    log.write_text("crash, not a structured trace rejection")
+    assert not trace_failure(log)
+    assert EvalAuthorSettings.model_fields["invalid_traces"].default == "error"
+
+
+def test_unloadable_trace_preserves_other_measurements_and_null_score(tmp_path):
+    args = eval_author_example(tmp_path)
+    args[1].eval_subsets = [Subset(eval_subset_id="all", task_ids=[t.task_id for t in args[0].task_inventory])]
+    for trace in args[-2].rglob("trajectory.json"):
+        payload = json.loads(trace.read_text())
+        if payload["steps"][1]["tool_calls"][0]["function_name"] == "inspect_files":
+            payload["steps"] = []
+            trace.write_text(json.dumps(payload))
+    args[3].settings["invalid_traces"] = "unavailable"
+    scores = invoke_coverage(*args)
+    assert scores.scores["all"].value is None
+    assert "rejected native traces" in scores.scores["all"].missing_score_reason
+    assert list(args[-1].glob("subset-*/measurements/task=*/run=*/*/coverage.json"))
+    args[3].settings["invalid_traces"] = "error"
+    args[-1] = tmp_path / "strict"
+    with pytest.raises(ValueError, match="exited"):
+        invoke_coverage(*args)
