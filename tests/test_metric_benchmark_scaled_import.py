@@ -331,3 +331,15 @@ def test_results_and_harbor_viewer_exports_retain_exact_provenance(prefix):
     files["another/scaled-evals-provenance.json"] = content
     with pytest.raises(ValueError, match="ambiguous"):
         archive_provenance(files)
+
+
+def test_repair_groups_share_one_replacement_only_within_original_evaluation():
+    from metric_benchmark.scaled_repair import validate_repair_groups
+
+    original_ids = {"old/rep1": "old", "old/rep2": "old", "other/rep1": "other"}
+    state = {"old/rep1": {"id": "new"}, "old/rep2": {"id": "new"}}
+    validate_repair_groups(state, original_ids)
+    with pytest.raises(ValueError, match="only one replacement"):
+        validate_repair_groups({**state, "old/rep2": {"id": "another"}}, original_ids)
+    with pytest.raises(ValueError, match="different original"):
+        validate_repair_groups({**state, "other/rep1": {"id": "new"}}, original_ids)

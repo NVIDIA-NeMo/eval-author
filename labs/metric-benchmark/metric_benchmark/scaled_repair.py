@@ -109,6 +109,18 @@ def verify_repair_selection(
     return None
 
 
+def validate_repair_groups(state: dict[str, dict[str, Any]], original_ids: dict[str, str]) -> None:
+    replacements: dict[str, str] = {}
+    sources: dict[str, str] = {}
+    for logical_id, member in state.items():
+        source = original_ids[logical_id]
+        replacement = member["id"]
+        if replacements.setdefault(source, replacement) != replacement:
+            raise ValueError("one original evaluation may have only one replacement evaluation")
+        if sources.setdefault(replacement, source) != source:
+            raise ValueError("replacement evaluation cannot serve different original evaluations")
+
+
 def assemble(loaded: LoadedCases, original: Path, repairs: Path, output: Path) -> None:
     from metric_benchmark.validation import validate_experiment_results
 
@@ -123,7 +135,6 @@ def assemble(loaded: LoadedCases, original: Path, repairs: Path, output: Path) -
         plan_record.get("maximum_new_evaluations_per_member") != 1
         or len(planned_ids) != len(set(planned_ids))
         or set(state) != set(planned_ids)
-        or len({member["id"] for member in state.values()}) != len(state)
     ):
         raise ValueError("repair membership must match a unique bounded plan")
     if any(not state.get(m["original_evaluation_id"], {}).get("collected") for m in plan):
@@ -138,6 +149,13 @@ def assemble(loaded: LoadedCases, original: Path, repairs: Path, output: Path) -
         raw = RawResults.model_validate(read_object(source))
         if set(planned_ids) - {row.evaluation.evaluation_id for row in raw.execution_results}:
             raise ValueError("repair plan includes an unknown original evaluation")
+        original_ids = {}
+        for row in raw.execution_results:
+            if row.evaluation.evaluation_id in state:
+                assert row.identity_proof_path is not None
+                original_proof = Proof.model_validate(read_object(root / row.identity_proof_path))
+                original_ids[row.evaluation.evaluation_id] = read_object(root / original_proof.metadata_path)["id"]
+        validate_repair_groups(state, original_ids)
         bindings = Bindings.model_validate(read_object(root / "scaled/bindings.json"))
         bindings.repair_source = PinnedInput(path=str(source.relative_to(root)), sha256=digest_file(source))
         selection_digest = digest_bytes(json_bytes(state))
@@ -192,7 +210,7 @@ def assemble(loaded: LoadedCases, original: Path, repairs: Path, output: Path) -
                     missing = missing_success_evidence(trial.exception_info is None, proof.native_files)
                     if missing:
                         reason = "repair archive lacks required ATOM evidence: " + ", ".join(missing)
-                        partial = root / "scaled/partial" / eid
+                        partial = root / "scaled/partial" / eid / f"repetition-{row.evaluation.repetition:06d}"
                         partial.parent.mkdir(parents=True, exist_ok=True)
                         native.rename(partial)
                         row.native_results_path = f"native/{row.agent_bundle_id}/{eid}/absent"

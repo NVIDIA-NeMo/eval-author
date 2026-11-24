@@ -173,3 +173,12 @@ infrastructure failures remain unavailable. To analyze this metric, set
 `scoring.completed_statuses: [succeeded, error]`. The original execution status
 and strict `reward` remain available for comparison. Incomplete repetition sets
 retain unavailable means under the normal repetition policy.
+
+A derived repair cohort can be assembled with
+`python -m metric_benchmark.scaled_repair --cases CASES --original RESULTS --repairs RECEIPTS --output NEW_RESULTS`.
+It requires a bounded plan, creation receipts, terminal metadata, and native
+archives. One replacement evaluation may supply the missing repetition slots
+of one original evaluation, using the same repetition budget. Valid original
+outcomes are retained; replacement slots are selected by repetition ordinal,
+not by reward. The original results and repair receipts remain pinned in the
+derived cohort. This command assembles collected evidence; it submits no jobs.
