@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Generation benchmark models, signing, validation, and stage 0-2 runner."""
+"""Generation benchmark models, signing, validation, and stage 0-3 runner."""
 
 import sys
 from pathlib import Path

@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Stages 0-2 orchestrator for generation benchmarks."""
+"""Stages 0-3 orchestrator for generation benchmarks."""
 
 from __future__ import annotations
 
@@ -17,7 +17,7 @@ from harbor.models.job.config import JobConfig
 from harbor.models.trial.config import EnvironmentConfig
 from metric_benchmark.io import digest_bytes, digest_file, json_bytes, read_json
 
-from generation_benchmark.digests import directory_manifest, implementation_info
+from generation_benchmark.digests import directory_manifest, implementation_digest, implementation_info
 from generation_benchmark.models import (
     GenerationInputs,
     ImplementationRecord,
@@ -37,7 +37,13 @@ from generation_benchmark.models import (
     Task,
 )
 from generation_benchmark.signing import ComputedLock, check_experiment, verify_lock_entries
-from generation_benchmark.staging import atomic_write_bytes, copy_tree_filtered, subset_dir_names
+from generation_benchmark.staging import (
+    atomic_write_bytes,
+    copy_tree_filtered,
+    generate,
+    generation_lock_keys,
+    subset_dir_names,
+)
 from generation_benchmark.validation import (
     collect_stage1_job,
     invoke_workspace_command,
@@ -48,7 +54,7 @@ from generation_benchmark.validation import (
     validate_stage1_execution,
 )
 
-INVALIDATE_STAGE_CHOICES = ("setup", "baseline", "subsets")
+INVALIDATE_STAGE_CHOICES = ("setup", "baseline", "subsets", "generate")
 
 
 def run_harbor(config: JobConfig) -> None:
@@ -78,13 +84,16 @@ def _case_settings_digests(
 def _invalidate_case_stages(case_dir: Path, case_id: str, stage: str) -> None:
     if stage == "setup":
         targets = [case_dir / "metric-setup"]
-        warning_tail = "setup, baseline, and subsets will rerun"
+        warning_tail = "setup, baseline, subsets, and generate will rerun"
     elif stage == "baseline":
         targets = [case_dir / "execution", case_dir / "metric-full"]
-        warning_tail = "baseline and subsets will rerun"
+        warning_tail = "baseline, subsets, and generate will rerun"
     elif stage == "subsets":
         targets = [case_dir / "metric-subsets"]
-        warning_tail = "subsets will rerun"
+        warning_tail = "subsets and generate will rerun"
+    elif stage == "generate":
+        targets = [case_dir / "generation"]
+        warning_tail = "generate and every later stage will rerun"
     else:
         raise ValueError(f"unsupported stage for --invalidate-stage: {stage!r}")
 
@@ -680,10 +689,13 @@ def run_experiment(
     case_filter: str | None = None,
     runner: Callable[[JobConfig], None] = run_harbor,
     kill_grace_seconds: float = 60.0,
+    max_gaps: int | None = None,
 ) -> dict[str, Any]:
-    """Run stages 0-2 on a signed generation experiment."""
+    """Run stages 0-3 on a signed generation experiment."""
     if not run_id.strip():
         raise ValueError("run_id must be nonempty")
+    if max_gaps is not None and max_gaps < 1:
+        raise ValueError("--max-gaps must be at least 1")
 
     stages_to_invalidate = list(invalidate_stages or [])
     unknown_stages = [s for s in stages_to_invalidate if s not in INVALIDATE_STAGE_CHOICES]
@@ -703,7 +715,7 @@ def run_experiment(
 
     target_cases = [loaded.cases[case_filter]] if case_filter is not None else list(loaded.cases.values())
 
-    # Collect and verify ONLY stage 0-2 lock entries (do not record generation.* in stages 0-2 receipts).
+    # Stage 0-2 receipts record only these entries; stage 3 adds the generation entries below.
     read_keys: list[str] = ["cases", "execution", "metric"]
     if exp.metric.setup is not None:
         read_keys.append("metric.setup.output.type")
@@ -731,14 +743,19 @@ def run_experiment(
             read_keys.append(f"cases[{cid}].agent.digest")
 
     verified = verify_lock_entries(actual_lock, computed.lock, read_keys)
+    generation_verified = {
+        **verified,
+        **verify_lock_entries(actual_lock, computed.lock, generation_lock_keys(loaded)),
+    }
 
     work_root = work_root.resolve()
     work_root.mkdir(parents=True, exist_ok=True)
     _update_generation_inputs(
         work_root / "generation-inputs.json",
         run_id=run_id,
-        used_entries=verified,
+        used_entries=generation_verified,
     )
+    implementation_sha256 = implementation_digest()
 
     for stage in stages_to_invalidate:
         for lc in target_cases:
@@ -798,6 +815,16 @@ def run_experiment(
             kill_grace_seconds=kill_grace_seconds,
         )
 
+        generation_receipts = generate(
+            loaded,
+            generation_verified,
+            lc,
+            case_dir,
+            max_gaps=max_gaps,
+            kill_grace_seconds=kill_grace_seconds,
+            implementation_sha256=implementation_sha256,
+        )
+
         summary_cases[cid] = {
             "case_dir": str(case_dir),
             "metric_setup_sha256": metric_setup_sha256,
@@ -809,6 +836,14 @@ def run_experiment(
                     "unavailable_reason": rec.unavailable_reason,
                 }
                 for sid, rec in subset_receipts.items()
+            },
+            "generation": {
+                sid: {
+                    "status": rec.status,
+                    "generated_tasks": rec.generated_tasks,
+                    "unavailable_reason": rec.unavailable_reason,
+                }
+                for sid, rec in generation_receipts.items()
             },
         }
 
