@@ -33,6 +33,13 @@ response.json`. Responses contain `value` (finite number), or `value: null` and
 `missing_score_reason`. The request does not include mutant evidence or outcomes. The command
 is trusted and runs on the host; staging is not a sandbox.
 
+The `coverage.missing_baseline` setting defaults to `error`, preserving strict
+failure for missing or incomplete baseline executions.
+With `missing_baseline: unavailable`, missing baseline observations are checked
+before staging. An incomplete subset retains its full task membership and missing
+task list, but stages no native evidence and does not invoke the coverage command.
+Its score is unavailable. This avoids copying large traces for unmeasurable subsets.
+
 Completed subset requests have file-digest receipts. Resume verifies those files
 and inputs before reuse. `--cached-only` prohibits new invocations. A command
 failure, including a missing or invalid response or modified input evidence,

@@ -89,10 +89,19 @@ def invoke_coverage(
         with tempfile.TemporaryDirectory(prefix=".pending-", dir=work_root) as temporary:
             workspace = Path(temporary)
             evidence = []
-            for index, task in enumerate(sorted(memberships[subset.eval_subset_id], key=lambda t: t.key())):
+            tasks = sorted(memberships[subset.eval_subset_id], key=lambda t: t.key())
+            unavailable = [
+                task.task_id
+                for task in tasks
+                if (row := selected.get((selection.baseline_bundle_id, *task.key()))) is None
+                or row.status not in selection.completed_statuses
+            ]
+            if unavailable and configuration.missing_baseline == "error":
+                raise ValueError(f"baseline evidence unavailable for {unavailable[0]}")
+            for index, task in enumerate(tasks if not unavailable else []):
                 row = selected.get((selection.baseline_bundle_id, *task.key()))
                 if row is None or row.status not in selection.completed_statuses:
-                    raise ValueError(f"baseline evidence unavailable for {task.task_id}")
+                    continue
                 source = resolve_evidence(record_root, row.native_results_path)
                 relative = f"baseline/task-{index + 1:06d}"
                 if row.native_results_format == "tar.gz":
@@ -108,6 +117,8 @@ def invoke_coverage(
                 "baseline_evidence": evidence,
                 "settings": configuration.settings,
             }
+            if unavailable:
+                request["unavailable_baseline_tasks"] = unavailable
             write_json(workspace / "request.json", request)
             request_digest = digest_file(workspace / "request.json")
             config_digest = identity(configuration)
@@ -127,26 +138,36 @@ def invoke_coverage(
                 if cached_only:
                     raise ValueError(f"subset {subset.eval_subset_id}: completed coverage request is missing")
                 inputs = file_manifest(workspace)
-                with subprocess.Popen(
-                    [*configuration.command, "--request", "request.json", "--output", "response.json"],
-                    cwd=workspace,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE,
-                    start_new_session=os.name == "posix",
-                ) as process:
-                    try:
-                        stdout, stderr = process.communicate(timeout=configuration.timeout_seconds)
-                    except BaseException:
-                        if os.name == "posix":
-                            os.killpg(process.pid, signal.SIGKILL)
-                        else:
-                            process.kill()
-                        stdout, stderr = process.communicate()
+                if unavailable:
+                    write_json(
+                        workspace / "response.json",
+                        Score(
+                            value=None,
+                            missing_score_reason="baseline evidence unavailable for: " + ", ".join(unavailable),
+                        ),
+                    )
+                    stdout, stderr = b"", b""
+                else:
+                    with subprocess.Popen(
+                        [*configuration.command, "--request", "request.json", "--output", "response.json"],
+                        cwd=workspace,
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.PIPE,
+                        start_new_session=os.name == "posix",
+                    ) as process:
+                        try:
+                            stdout, stderr = process.communicate(timeout=configuration.timeout_seconds)
+                        except BaseException:
+                            if os.name == "posix":
+                                os.killpg(process.pid, signal.SIGKILL)
+                            else:
+                                process.kill()
+                            stdout, stderr = process.communicate()
+                            failed = _preserve_failure(workspace, stdout, stderr)
+                            raise ValueError(f"coverage system interrupted or timed out; evidence: {failed}") from None
+                    if process.returncode:
                         failed = _preserve_failure(workspace, stdout, stderr)
-                        raise ValueError(f"coverage system interrupted or timed out; evidence: {failed}") from None
-                if process.returncode:
-                    failed = _preserve_failure(workspace, stdout, stderr)
-                    raise ValueError(f"coverage system exited {process.returncode}; evidence: {failed}")
+                        raise ValueError(f"coverage system exited {process.returncode}; evidence: {failed}")
                 try:
                     files = file_manifest(workspace)
                     score = Score.model_validate(read_json(workspace / "response.json"))
