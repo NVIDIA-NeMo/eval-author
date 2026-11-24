@@ -546,7 +546,7 @@ def test_baseline_only_preparation_execution_and_analysis_boundaries(tmp_path: P
         run_experiment(path, "baseline", tmp_path / "experiment", runner=runner)
     assert calls == ["oracle"]
     assert not (tmp_path / "experiment").exists()
-    with pytest.raises(ValueError, match="scoring requires at least one mutant"):
+    with pytest.raises(ValueError, match="analysis requires at least one mutant"):
         load_score_inputs(
             path.parent / "cases.yml", path.parent / "analysis.yml", case["case_id"], tmp_path / "absent-results"
         )

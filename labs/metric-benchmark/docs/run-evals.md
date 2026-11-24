@@ -27,7 +27,8 @@ verifying any supplied pins.
 
 Use the same agent manifest with `baseline: ...` and an explicit `mutants: []`
 to run only the baseline, with normal validation, receipts and completed-job reuse.
-`run_experiment.py` and mutant scoring still require at least one mutant.
+`run_experiment.py`, `compute_mutant_scores.py`, and `compute_coverage.py` still
+require at least one mutant.
 Execution needs no analysis configuration. Without a full experiment bundle for
 [SHA signing](sha-sign.md), supply pins on all input references yourself or use
 `--allow-unsigned` while iterating.
