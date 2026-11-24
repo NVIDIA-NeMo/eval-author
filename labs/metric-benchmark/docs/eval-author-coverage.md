@@ -19,6 +19,7 @@ Set `coverage.command` to absolute paths for the Python interpreter and
 - optional `methods` (default `tool_calls`, `capabilities`, `failure_cases`) and
   `score_scope` (`overall`, `tool`, `capability`, or `failure_case`);
 - optional `invalid_traces`: `error` (default) or `unavailable`.
+- optional `recover_embedded_children: true` (default false), described below.
 
 Obtain the source pin without opening Python:
 
@@ -47,7 +48,7 @@ Judgment availability is checked only for the selected `score_scope`; `overall`
 checks every measured kind. Unjudged capability evidence does not invalidate a
 tool-only score.
 Invalid/stale judgment sidecars fail native validation. The adapter measures
-native ATIF only; it does not reinterpret or repair traces. Native directories are required by this adapter.
+native ATIF only. Native directories are required by this adapter.
 With `invalid_traces: unavailable`, an explicit native trace rejection retains
 its diagnostic, continues measuring the other tasks, and makes the subset score
 unavailable. No aggregate report is produced for an incomplete subset. Other
@@ -61,3 +62,24 @@ scores, but native report bytes and their receipt hashes can differ between
 workspaces. Cached replay preserves the exact saved artifacts. The adapter gives
 each task a stable measurement run ID so multi-task subsets satisfy Eval Author's
 distinct-evidence validation.
+
+## Recover separately exported child traces
+
+Set `recover_embedded_children: true` only when native directories contain
+`agent/trajectory.json` and an exporter-generated `agent/trajectory-index.json`.
+The inventory has a `sessions` list; entries identify `root` with a boolean and
+non-root entries provide a relative `path` under `agent/`. Child trace IDs come
+from the recorded ATIF files, not filenames or inferred parent relationships.
+
+Before authoring and measurement, the adapter fills empty embedded child traces
+from exact-ID records with matching stub metadata. Nested children are supported.
+Absent, duplicate, conflicting, empty or cyclic replacements fail; there is no
+fallback to invented evidence. The normal native ATIF validator still runs.
+Complete traces require no inventory and are used unchanged.
+
+Original evidence is never rewritten. Reconstructed traces and `recovery.json`
+receipts are retained under `recovered/`; receipts bind inspected input files and
+the derived output by hash. `recovered-request.json` points authoring and native
+measurement at those derived traces. Receipt verification includes these files
+on cached replay. This option repairs exported trace assembly, not missing events,
+judgments or task outcomes.

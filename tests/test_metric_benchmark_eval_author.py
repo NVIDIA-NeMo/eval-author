@@ -200,3 +200,28 @@ def test_unloadable_trace_preserves_other_measurements_and_null_score(tmp_path):
     args[-1] = tmp_path / "strict"
     with pytest.raises(ValueError, match="exited"):
         invoke_coverage(*args)
+
+
+def test_recovered_children_are_measured_without_rewriting_input_traces(tmp_path):
+    args = eval_author_example(tmp_path)
+    originals = {}
+    for trace in args[-2].rglob("trajectory.json"):
+        payload = json.loads(trace.read_text())
+        stub = {"schema_version": "ATIF-v1.7", "trajectory_id": "child", "agent": payload["agent"], "steps": []}
+        payload["subagent_trajectories"] = [stub]
+        trace.write_text(json.dumps(payload))
+        originals[trace] = trace.read_bytes()
+        child = {**stub, "steps": [{"step_id": 1, "source": "user", "message": "Recorded request"}]}
+        (trace.parent / "child.json").write_text(json.dumps(child))
+        (trace.parent / "trajectory-index.json").write_text(
+            json.dumps({"sessions": [{"root": False, "path": "child.json"}]})
+        )
+    with pytest.raises(ValueError, match="exited"):
+        invoke_coverage(*args)
+    args[3].settings["recover_embedded_children"] = True
+    args[-1] = tmp_path / "recovered-work"
+    scores = invoke_coverage(*args)
+    assert [s.value for s in scores.scores.values()] == [0.5, 0.5, 0.0]
+    assert all(trace.read_bytes() == data for trace, data in originals.items())
+    assert len(list(args[-1].glob("subset-*/recovered/*/recovery.json"))) == 3
+    assert invoke_coverage(*args, cached_only=True) == scores
