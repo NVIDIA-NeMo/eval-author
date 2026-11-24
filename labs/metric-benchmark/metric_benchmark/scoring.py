@@ -165,6 +165,8 @@ def load_score_inputs(
     loaded = load_analysis(cases, analysis, allow_unsigned=allow_unsigned)
     prepared = loaded.inputs.case(case_id)
     case = prepared.case
+    if not case.mutants:
+        raise ValueError(f"case {case_id}: scoring requires at least one mutant")
     manifest = ExecutionManifest.model_validate(read_json(resolve_evidence(results_root, "execution.json")))
     if manifest.cases_sha256 != loaded.inputs.identity:
         raise ValueError("execution case definitions differ from supplied cases")

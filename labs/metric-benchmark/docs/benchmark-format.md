@@ -71,8 +71,9 @@ Each version has a distinct nonempty `agent_bundle_id`, a string `revision`, nat
 `harbor` settings, and optional `inputs` references to files or directories. A real
 agent's Harbor integration can reference a named dependency using `{input:NAME}`
 in its settings. References describe prepared dependencies; they do not install them.
-The selected integration must support loading them. `run_evals.py` accepts an explicit `mutants: []` for baseline-only execution.
-Mutation scoring and `run_experiment.py` analysis require at least one mutant.
+The selected integration must support loading them. `run_evals.py` accepts an
+explicit `mutants: []`; mutation scoring and `run_experiment.py` analysis require
+at least one mutant.
 The intended-behavior description belongs in analysis settings, not this manifest.
 
 ## Tasks: `tasks.yml`

@@ -353,11 +353,6 @@ def load_execution(cases: Path, execution: Path, *, allow_unsigned: bool = False
 
 def load_analysis(cases: Path, analysis: Path, *, allow_unsigned: bool = False) -> LoadedAnalysis:
     inputs = load_cases(cases, allow_unsigned=allow_unsigned)
-    for prepared in inputs.cases.values():
-        if not prepared.case.mutants:
-            raise ValueError(
-                f"case {prepared.case.case_id}: analysis requires at least one mutant; use run_evals.py for baseline-only execution"
-            )
     settings = AnalysisSettings.model_validate(read_yaml(analysis))
     if settings.case_settings.keys() != inputs.cases.keys():
         raise ValueError("analysis case_settings must match the cases exactly")

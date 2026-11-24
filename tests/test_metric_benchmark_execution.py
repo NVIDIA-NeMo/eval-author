@@ -510,19 +510,25 @@ def test_signing_unsigned_execution_preserves_resume_and_validation(tmp_path, ch
     assert file_manifest(output) == before
 
 
-def test_baseline_only_execution_validates_seals_and_reuses(tmp_path):
-    from metric_benchmark.config import ScoringPolicy, load_benchmark
+def test_baseline_only_preparation_execution_and_analysis_boundaries(tmp_path: Path) -> None:
+    from harbor.models.job.config import JobConfig
+    from metric_benchmark.pipeline import run_experiment
+    from metric_benchmark.preparation import download_harbor_tasks
+    from metric_benchmark.scoring import load_score_inputs
     from metric_benchmark.validation import validate_experiment_results
 
     path, _ = prepared_benchmark(tmp_path / "inputs")
     case = case_definition(path)
     case["mutants"] = []
     write_case(path, case)
+    prepared = tmp_path / "prepared"
+    download_harbor_tasks(path, prepared, benchmark=True)
+    path = prepared / path.name
     loaded = load_execution(path.parent / "cases.yml", path.parent / "execution.yml")
     output = tmp_path / "out"
     calls = []
 
-    def runner(config):
+    def runner(config: JobConfig) -> None:
         calls.append(config.agents[0].name)
         fake_harbor(config)
 
@@ -536,13 +542,11 @@ def test_baseline_only_execution_validates_seals_and_reuses(tmp_path):
     assert {row["agent_bundle_id"] for row in raw["execution_results"]} == {case["baseline"]["agent_bundle_id"]}
     assert (case_root(output, 0) / "agents/agent-0000/receipt.json").is_file()
     validate_experiment_results(loaded.inputs, output)
-    with pytest.raises(ValueError, match="analysis requires at least one mutant"):
-        load_benchmark(path)
-    with pytest.raises(ValueError):
-        loaded.inputs.case(case["case_id"]).case.selection(
-            {case["baseline"]["agent_bundle_id"]: "baseline"}, ScoringPolicy()
+    with pytest.raises(ValueError, match="experiments require at least one mutant; use run_evals.py"):
+        run_experiment(path, "baseline", tmp_path / "experiment", runner=runner)
+    assert calls == ["oracle"]
+    assert not (tmp_path / "experiment").exists()
+    with pytest.raises(ValueError, match="scoring requires at least one mutant"):
+        load_score_inputs(
+            path.parent / "cases.yml", path.parent / "analysis.yml", case["case_id"], tmp_path / "absent-results"
         )
-    native = case_root(output, 0) / raw["execution_results"][0]["native_results_path"] / "result.json"
-    native.write_text("{}")
-    with pytest.raises(ValueError, match="job changed"):
-        execute_benchmark(loaded, "baseline", output, runner=runner)

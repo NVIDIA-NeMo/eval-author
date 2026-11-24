@@ -26,11 +26,11 @@ verifying any supplied pins.
 ## Baseline-only execution
 
 Use the same agent manifest with `baseline: ...` and an explicit `mutants: []`
-to run only the baseline. The normal validation, receipts and completed-job reuse
-apply. No description, coverage settings or analysis configuration is needed.
-`run_experiment.py` and mutant scoring still require at least one mutant;
-baseline-only results do not constitute a metric-validity experiment. Adding
-mutants changes execution identity and requires a new output directory.
+to run only the baseline, with normal validation, receipts and completed-job reuse.
+`run_experiment.py` and mutant scoring still require at least one mutant.
+Execution needs no analysis configuration. Without a full experiment bundle for
+[SHA signing](sha-sign.md), supply pins on all input references yourself or use
+`--allow-unsigned` while iterating.
 
 ## Execution and outputs
 
