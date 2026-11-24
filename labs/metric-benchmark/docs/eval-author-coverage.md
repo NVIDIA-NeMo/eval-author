@@ -65,21 +65,15 @@ distinct-evidence validation.
 
 ## Recover separately exported child traces
 
-Set `recover_embedded_children: true` only when native directories contain
-`agent/trajectory.json` and an exporter-generated `agent/trajectory-index.json`.
-The inventory has a `sessions` list; entries identify `root` with a boolean and
-non-root entries provide a relative `path` under `agent/`. Child trace IDs come
-from the recorded ATIF files, not filenames or inferred parent relationships.
+Set `recover_embedded_children: true` for exports such as Atom's that retain
+complete children separately from empty embedded placeholders. Recovery requires
+`agent/trajectory-index.json`: a `sessions` list with boolean `root` markers and
+non-root `path` values relative to `agent/`. Replacements must have the exact child
+`trajectory_id` and matching stub metadata; missing or ambiguous evidence fails.
+Native ATIF validation still runs. Complete traces need no inventory.
 
-Before authoring and measurement, the adapter fills empty embedded child traces
-from exact-ID records with matching stub metadata. Nested children are supported.
-Absent, duplicate, conflicting, empty or cyclic replacements fail; there is no
-fallback to invented evidence. The normal native ATIF validator still runs.
-Complete traces require no inventory and are used unchanged.
-
-Original evidence is never rewritten. Reconstructed traces and `recovery.json`
-receipts are retained under `recovered/`; receipts bind inspected input files and
-the derived output by hash. `recovered-request.json` points authoring and native
-measurement at those derived traces. Receipt verification includes these files
-on cached replay. This option repairs exported trace assembly, not missing events,
-judgments or task outcomes.
+Originals remain unchanged. The adapter copies each affected trial to `recovered/`,
+replaces its trace, and passes `recovered-request.json` to authoring and measurement.
+Other trial files remain available. Each `recovery.json` binds input and output
+hashes; `source_root` is relative to that receipt's directory. Cached replay verifies
+the saved files. Recovery repairs trace assembly, not missing events or outcomes.

@@ -10,6 +10,7 @@ from typing import Literal
 
 from pydantic import Field
 
+from metric_benchmark.atif_recovery import recover_embedded_children
 from metric_benchmark.config import file_manifest
 from metric_benchmark.io import digest_bytes, json_bytes, read_json, write_json
 from metric_benchmark.models import Digest, Model, Score, Text, resolve_evidence
@@ -80,10 +81,9 @@ def compute_audit_coverage(request_path: Path) -> Score:
     if len(set(settings.methods)) != len(settings.methods):
         raise ValueError("duplicate measurement methods")
     if settings.recover_embedded_children:
-        from metric_benchmark.atif_recovery import recover_embedded_children
-
+        # Atom can export empty embedded children alongside their complete recordings.
         prepared: list[dict] = []
-        for index, item in enumerate(request["baseline_evidence"]):
+        for index, item in enumerate(request["baseline_evidence"], start=1):
             if item["format"] != "directory":
                 raise ValueError("child trace recovery requires native directories")
             native = resolve_evidence(Path("."), item["path"])
