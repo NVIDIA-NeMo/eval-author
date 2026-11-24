@@ -1,0 +1,59 @@
+#!/usr/bin/env python3
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+from __future__ import annotations
+
+import argparse
+import os
+import sys
+from pathlib import Path
+
+_GEN_ROOT = Path(__file__).resolve().parents[1]
+_REPO_ROOT = _GEN_ROOT.parents[1]
+_VENV_PYTHON = _REPO_ROOT / ".venv" / "bin" / "python"
+
+try:
+    import pydantic  # noqa: F401
+    import yaml  # noqa: F401
+except ImportError:
+    if _VENV_PYTHON.is_file() and Path(sys.executable).resolve() != _VENV_PYTHON.resolve():
+        env = dict(os.environ)
+        venv_bin = str(_VENV_PYTHON.parent)
+        path_entries = [p for p in env.get("PATH", "").split(os.pathsep) if p]
+        if venv_bin not in path_entries:
+            env["PATH"] = os.pathsep.join([venv_bin, *path_entries])
+        os.execve(str(_VENV_PYTHON), [str(_VENV_PYTHON), *sys.argv], env)
+    raise
+
+for _path in (str(_GEN_ROOT), str(_GEN_ROOT.parent / "metric-benchmark")):
+    if _path not in sys.path:
+        sys.path.insert(0, _path)
+
+from generation_benchmark.signing import check_experiment, sign_experiment  # noqa: E402
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(
+        prog="sign-generation",
+        description="Write or verify generation-experiment.lock.json without editing YAML.",
+    )
+    parser.add_argument("experiment", type=Path, help="Path to generation-experiment.yml")
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument("--resign", action="store_true", help="Replace an existing lock file")
+    mode.add_argument("--check", action="store_true", help="Verify lock entries against disk without writing")
+
+    args = parser.parse_args()
+    try:
+        if args.check:
+            check_experiment(args.experiment)
+            print("All generation benchmark inputs are locked and verified.")
+        else:
+            lock_path = sign_experiment(args.experiment, resign=args.resign)
+            print(lock_path)
+    except (ValueError, OSError) as error:
+        parser.exit(2, f"{parser.prog}: {error}\n")
+
+
+if __name__ == "__main__":
+    main()
