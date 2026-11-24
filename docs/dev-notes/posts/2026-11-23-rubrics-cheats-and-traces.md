@@ -35,11 +35,11 @@ A note on sources: some of the work below comes from internal NVIDIA projects an
 
 Production traces record how customers actually use an agent. If two customers take different paths toward the same goal and get different results, that is worth a look. The cause might be the agent, the starting state, permissions, or the interaction itself.
 
-Our trace-environment work grew from an internal NVIDIA project, trace2env, developed by Dave and Jeff Farris. That project predates the public [ruyue0001/trace2env repository](https://github.com/ruyue0001/trace2env) and its paper, [From Traces to Agentic Worlds](https://arxiv.org/abs/2610.06100), and is not affiliated with either.
+Our trace-environment work grew from an internal NVIDIA project, trace2env, developed by Dave and Jeff Farris. That project predates the publishing of [ruyue0001/trace2env repository](https://github.com/ruyue0001/trace2env) and its paper, [From Traces to Agentic Worlds](https://arxiv.org/abs/2610.06100), and is not affiliated with either.
 
 A trace keeps inputs, outputs, and actions. It often does not keep everything needed to rebuild the environment. So the first job is to separate what was observed from what we had to supply.
 
-We borrowed ideas from several projects:
+We liked several ideas from several projects:
 
 - Internal trace2env was the starting point: environment probes, trivial-answer controls, bounded repair, and anti-cheat checks.
 - The internal Hermes trace2env plugin gave us explicit substitute environments and the split between observed state and authored fixtures.
@@ -60,7 +60,7 @@ We tested this directly in October. Eval Author was asked to build the same task
 
 From the request alone, Eval Author could not know the starting state, so it correctly declined to build the task every time. With the trace, it built a working tool environment every time. Each one kept every observed object attribute, kept state between calls, and reset cleanly in a fresh process. The verifiers accepted the reference, an independent solver, and a held-out equivalent solution, and rejected no-op and partial answers. When we gave both setups a case the tools could not support, both declined to build it.
 
-The trace is what made the task possible. It supplied the objects and state that the request never mentioned.
+The trace is what makes the task possible. It supplies the objects and state that the request never mentioned. It can help fill in gaps, and lead to better mocks and fuzzing.
 
 ### Stateful tools from a messy trace
 
@@ -72,7 +72,7 @@ We used three synthetic traces. Two had enough information to rebuild the stock 
 
 Eval Author rebuilt the stock correctly from both complete traces and built a local inventory service for each. That service handled all 14 stateful sequences we threw at it: pagination, reserve-then-read, repeated reservations, stale updates, insufficient stock followed by a retry, and reset. All 408 offline executions matched. The verifiers accepted both valid answer formats, rejected all 12 incorrect submissions, and rejected each trace's answer when run against the other trace's state. For the incomplete trace, Eval Author named the missing product and declined to build the task instead of inventing a number.
 
-The lesson: keep more than the recorded answer. We need to know who owns the state, which actions change it, what happens when an action fails, and what resets between trials. A substitute environment should say which starting values came from the trace and which we wrote.
+The lesson: keep more than the recorded answer. We need to know who owns the state, which actions change it, what happens when an action fails, and what resets between trials. A substitute environment should say which starting values came from the trace and which we wrote. The more production and evidence data there is, the easier it is to model, and reproduce the real world.
 
 ## The rubric: making quality claims inspectable
 
@@ -88,7 +88,7 @@ One extra question sits beside the 23: who or what confirmed the result, were th
 
 We do not add the scores up. A total would hide which claim failed, and that is the part you need to fix.
 
-### A worked example: the refund task
+### A working example: the refund task
 
 The demo task asks an agent to handle a customer refund for an order that may already be partly refunded. The agent reads the order and the refund policy. It calculates discounted merchandise plus eligible tax, excludes shipping, and subtracts earlier refunds. If the remaining amount reaches the approval threshold, it must record approval before refunding anything. The money must go back to the original payment method, and every new refund needs a matching ledger entry without touching unrelated history.
 
