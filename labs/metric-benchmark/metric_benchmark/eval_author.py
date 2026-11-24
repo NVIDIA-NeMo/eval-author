@@ -40,7 +40,7 @@ def _run(command: list[str], log_name: str) -> None:
         raise ValueError(f"Eval Author command failed ({result.returncode}); see {log_name}")
 
 
-def trace_failure(log: Path) -> bool:
+def _trace_failure(log: Path) -> bool:
     try:
         diagnostic = read_json(log)
     except (OSError, ValueError):
@@ -124,7 +124,7 @@ def compute_audit_coverage(request_path: Path) -> Score:
         try:
             _run(command, log_name)
         except ValueError:
-            if settings.invalid_traces != "unavailable" or not trace_failure(Path(log_name)):
+            if settings.invalid_traces != "unavailable" or not _trace_failure(Path(log_name)):
                 raise
             invalid_traces.append(item["task"]["task_id"])
     if invalid_traces:
