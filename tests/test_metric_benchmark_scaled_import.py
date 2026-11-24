@@ -150,7 +150,8 @@ def test_missing_success_evidence_is_unavailable_even_with_a_reward():
     )
 
 
-def test_standalone_repair_requires_distinct_group_and_submission_receipts(tmp_path):
+@pytest.mark.parametrize("repetitions", [1, 5])
+def test_standalone_repair_requires_distinct_group_and_submission_receipts(tmp_path, repetitions):
     from metric_benchmark.config import PinnedInput
     from metric_benchmark.io import digest_file, write_json
     from metric_benchmark.scaled_import import Bindings, Proof, RepairEvidence
@@ -179,6 +180,7 @@ def test_standalone_repair_requires_distinct_group_and_submission_receipts(tmp_p
     agent.run_id = "derived-run"
     bindings = Bindings(
         case_id="case",
+        repetitions=repetitions,
         benchmark_id="b",
         benchmark_revision=1,
         tasks={"local-task": task},
@@ -196,7 +198,7 @@ def test_standalone_repair_requires_distinct_group_and_submission_receipts(tmp_p
         "framework": "harbor",
         "framework_version": "0.25.0",
         "runtime": "sandbox_k8s",
-        "n_attempts": 1,
+        "n_attempts": repetitions,
         "agent_bundle_id": agent.bundle_id,
         "name": "repair",
         "credentials": {},
