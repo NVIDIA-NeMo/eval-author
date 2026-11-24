@@ -52,6 +52,8 @@ With `invalid_traces: unavailable`, an explicit native trace rejection retains
 its diagnostic, continues measuring the other tasks, and makes the subset score
 unavailable. No aggregate report is produced for an incomplete subset. Other
 command failures still abort, including environment and judgment validation errors.
+See [coverage computation](compute-coverage.md#inputs-and-behavior) for the
+correlation policy required to omit unavailable scores.
 
 Native Eval Author reports retain their evidence bindings, including absolute
 workspace paths. Recomputing coverage from the same authored inputs preserves
