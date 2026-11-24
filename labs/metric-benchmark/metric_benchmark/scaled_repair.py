@@ -13,7 +13,7 @@ from typing import Any
 from harbor.models.trial.result import TrialResult
 
 from metric_benchmark.config import LoadedCases, PinnedInput, load_cases
-from metric_benchmark.io import digest_bytes, digest_file, file_manifest, json_bytes, read_object, write_json
+from metric_benchmark.io import copy_file, digest_bytes, digest_file, file_manifest, json_bytes, read_object, write_json
 from metric_benchmark.models import Execution, ExecutionManifest, RawResults, Score
 from metric_benchmark.scaled_import import (
     Bindings,
@@ -104,7 +104,7 @@ def verify_repair_selection(
     for field in ("credentials", "network_policy", "network_policy_config", "parallelism"):
         if request[field] != source_metadata[field] or metadata[field] != request[field]:
             raise ValueError(f"replacement changes original {field}")
-    if metadata["id"] == original.evaluation.evaluation_id or metadata["benchmark_run_id"] is not None:
+    if metadata["id"] == source_metadata["id"] or metadata["benchmark_run_id"] is not None:
         raise ValueError("replacement must identify a separate standalone evaluation")
     return None
 
@@ -131,7 +131,7 @@ def assemble(loaded: LoadedCases, original: Path, repairs: Path, output: Path) -
     output.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix=".scaled-repair-", dir=output.parent) as temporary:
         staged = Path(temporary) / "results"
-        shutil.copytree(original, staged)
+        shutil.copytree(original, staged, copy_function=copy_file)
         root = staged / "cases/case-0000/execution-results"
         source = root / "scaled/repair-original-results.json"
         shutil.copy2(root / "results.json", source)
