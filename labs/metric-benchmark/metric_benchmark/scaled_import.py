@@ -103,6 +103,18 @@ def archive_files(path: Path) -> dict[str, bytes]:
     return files
 
 
+def archive_provenance(files: dict[str, bytes]) -> dict[str, Any] | None:
+    candidates = [content for name, content in files.items() if name.endswith("/scaled-evals-provenance.json")]
+    if len(candidates) > 1:
+        raise ValueError("ambiguous Scaled archive provenance")
+    if not candidates:
+        return None
+    value = json.loads(candidates[0])
+    if not isinstance(value, dict):
+        raise ValueError("Scaled archive provenance must be an object")
+    return value
+
+
 def extract_native_trial(
     files: dict[str, bytes], destination: Path, *, repetition: int = 1, repetitions: int = 1
 ) -> tuple[TrialResult, Path] | None:
@@ -118,7 +130,7 @@ def extract_native_trial(
         raise ValueError("ambiguous duplicate native trial identities")
     if len(candidates) > repetitions:
         raise ValueError("Scaled member contains more native trials than requested repetitions")
-    if len(candidates) < repetition or "artifacts/scaled-evals-provenance.json" not in files:
+    if len(candidates) < repetition or archive_provenance(files) is None:
         return None
     path, value = candidates[repetition - 1]
     trial = TrialResult.model_validate(value)
@@ -535,7 +547,9 @@ def _import_results(
                             status = "missing"
                             metrics = {"reward": Score(value=None, missing_score_reason=reason)}
                         provenance_path = f"scaled/provenance/{eid}.json"
-                        write_json(root / provenance_path, json.loads(files["artifacts/scaled-evals-provenance.json"]))
+                        provenance = archive_provenance(files)
+                        assert provenance is not None
+                        write_json(root / provenance_path, provenance)
                     else:
                         reason = "archive lacks a unique native trial and provenance"
                         metrics = {"reward": Score(value=None, missing_score_reason=reason)}

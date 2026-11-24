@@ -4,7 +4,6 @@
 """Assemble an explicitly derived Scaled cohort with retained replacement receipts."""
 
 import argparse
-import json
 import shutil
 import tempfile
 from pathlib import Path
@@ -20,6 +19,7 @@ from metric_benchmark.scaled_import import (
     Proof,
     RepairEvidence,
     archive_files,
+    archive_provenance,
     extract_native_trial,
     missing_success_evidence,
     observation_measurements,
@@ -203,9 +203,9 @@ def assemble(loaded: LoadedCases, original: Path, repairs: Path, output: Path) -
                             for k in ("reward", "verified_grader_reward")
                         }
                     proof.provenance_path = f"scaled/provenance/{eid}.json"
-                    write_json(
-                        root / proof.provenance_path, json.loads(files["artifacts/scaled-evals-provenance.json"])
-                    )
+                    provenance = archive_provenance(files)
+                    assert provenance is not None
+                    write_json(root / proof.provenance_path, provenance)
                 proof.metadata_path = f"scaled/metadata/{eid}.json"
                 write_json(root / proof.metadata_path, metadata)
                 proof.metadata_sha256 = digest_file(root / proof.metadata_path)

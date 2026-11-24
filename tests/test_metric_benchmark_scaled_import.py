@@ -319,3 +319,15 @@ def test_missing_publication_digest_requires_explicit_unavailable_binding():
     provenance["task"]["tarball_sha256"] = "b" * 64
     with pytest.raises(ValueError, match="publication differs"):
         verify_observation(row, task, agent, metadata, provenance)
+
+
+@pytest.mark.parametrize("prefix", ["artifacts", "ev_test"])
+def test_results_and_harbor_viewer_exports_retain_exact_provenance(prefix):
+    from metric_benchmark.scaled_import import archive_provenance
+
+    content = b'{"evaluation_id":"ev_test","status":"succeeded"}'
+    files = {prefix + "/scaled-evals-provenance.json": content}
+    assert archive_provenance(files) == {"evaluation_id": "ev_test", "status": "succeeded"}
+    files["another/scaled-evals-provenance.json"] = content
+    with pytest.raises(ValueError, match="ambiguous"):
+        archive_provenance(files)

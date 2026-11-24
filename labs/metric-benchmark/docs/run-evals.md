@@ -137,7 +137,11 @@ task packs, and the exact agent build contexts. The binding contract is
 benchmark, repetition count, task publication/image/profile/source hashes, and
 each selected agent bundle and run. Paths are relative to the campaign directory.
 Collect the exact completed runs with the fixtures repository's `eval-matrix`
-downloader; retain its metadata, matrix, manifest, and native archives.
+downloader; retain its metadata, matrix, manifest, and native archives. Both
+results archives and `--archive-source harbor-viewer` exports are supported.
+The latter can be available while the secondary results archive is still
+building. Both must contain unique terminal Scaled provenance and the native
+trial evidence required by the importer.
 
 ```bash
 PYTHONPATH=labs/metric-benchmark uv run --locked python -m metric_benchmark.scaled_import \
