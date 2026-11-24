@@ -3,11 +3,13 @@
 
 """Invoke a supplied coverage system using a fixed, baseline-only file contract."""
 
+import math
 import os
 import shutil
 import signal
 import subprocess
 import tempfile
+from itertools import product
 from pathlib import Path
 from typing import Literal
 
@@ -23,7 +25,8 @@ class CoverageScores(Model):
     configuration: CoverageConfig
     case_description_sha256: Digest
     scores: dict[Text, Score]
-    receipts: dict[Text, Digest]
+    receipts: dict[Text, list[Digest]]
+    repetition_scores: dict[Text, list[Score]]
 
 
 def copy_evidence(source: Path, destination: Path, native_format: str) -> dict[str, str]:
@@ -82,15 +85,18 @@ def invoke_coverage(
     work_root.mkdir(parents=True, exist_ok=True)
     if work_root.is_symlink():
         raise ValueError("coverage work root must not be a symlink")
-    scores, receipts = {}, {}
+    repetition_scores: dict[str, list[Score]] = {}
+    receipts: dict[str, list[str]] = {}
     # Request IDs reveal no mutant labels, rewards, scores, or run identities.
-    for ordinal, subset in enumerate(sorted(subsets.eval_subsets, key=lambda s: s.eval_subset_id)):
+    for ordinal, (subset, repetition) in enumerate(
+        product(sorted(subsets.eval_subsets, key=lambda s: s.eval_subset_id), range(1, selection.repetitions + 1))
+    ):
         destination = work_root / f"subset-{ordinal + 1:06d}"
         with tempfile.TemporaryDirectory(prefix=".pending-", dir=work_root) as temporary:
             workspace = Path(temporary)
             evidence = []
             for index, task in enumerate(sorted(memberships[subset.eval_subset_id], key=lambda t: t.key())):
-                row = selected.get((selection.baseline_bundle_id, *task.key()))
+                row = selected.get((selection.baseline_bundle_id, *task.key(), repetition))
                 if row is None or row.status not in selection.completed_statuses:
                     raise ValueError(f"baseline evidence unavailable for {task.task_id}")
                 source = resolve_evidence(record_root, row.native_results_path)
@@ -103,6 +109,8 @@ def invoke_coverage(
                 )
             request = {
                 "case_description": case_description,
+                "repetition": repetition,
+                "repetitions": selection.repetitions,
                 "eval_subset_id": subset.eval_subset_id,
                 "tasks": [t.model_dump() for t in sorted(memberships[subset.eval_subset_id], key=lambda t: t.key())],
                 "baseline_evidence": evidence,
@@ -164,12 +172,26 @@ def invoke_coverage(
                 write_json(workspace / "receipt.json", receipt)
                 # Same-filesystem rename publishes the complete request and response together.
                 workspace.rename(destination)
-            scores[subset.eval_subset_id] = receipt.score
-            receipts[subset.eval_subset_id] = identity(receipt)
+            repetition_scores.setdefault(subset.eval_subset_id, []).append(receipt.score)
+            receipts.setdefault(subset.eval_subset_id, []).append(identity(receipt))
+    scores = {}
+    for subset_id, observations in repetition_scores.items():
+        values = [score.value for score in observations if score.value is not None]
+        missing = [
+            f"repetition {index}: {score.missing_score_reason}"
+            for index, score in enumerate(observations, 1)
+            if score.value is None
+        ]
+        scores[subset_id] = (
+            Score(value=None, missing_score_reason="; ".join(missing))
+            if missing
+            else Score(value=math.fsum(values) / selection.repetitions)
+        )
     return CoverageScores(
         context=ctx,
         configuration=configuration,
         case_description_sha256=digest_bytes(json_bytes(case_description)),
         scores=scores,
         receipts=receipts,
+        repetition_scores=repetition_scores,
     )

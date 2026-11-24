@@ -147,7 +147,8 @@ case’s results index; consumers do not need to parse their components.
 
 | Field | Required / default | Meaning | Source |
 | --- | --- | --- | --- |
-| `evaluation_id` | Required | Unique ID for one evaluation within the case’s results index, shared by retries of the same task/run. | Runner-generated as `<runner agent ID>/<task_id>`; for example, `agent-0000/inspect-files`. The task ID comes from `tasks.yml`, not the optional task name. |
+| `evaluation_id` | Required | Unique ID for one evaluation within the case’s results index, shared by retries of the same task/run. | Runner-generated as `<runner agent ID>/<task_id>/repetition-NNNNNN`; for example, `agent-0000/inspect-files/repetition-000001`. The task ID comes from `tasks.yml`, not the optional task name. |
+| `repetition` | Optional; default `1` | Positive integer sample index, from 1 through the case's `repetitions`. Retries retain this index. | Assigned by the producer, independently of outcomes. |
 | `execution` | Required | Positive integer attempt number. | Runner-generated; the local runner sets `1`. |
 | `task` | Required | Task reference with the same fields as an inventory task. Its ID and revision must occur in the inventory. | YAML: `tasks.yml` → the matching `tasks[]` entry’s `task_id`, `revision`, and optional `name`. |
 
@@ -202,17 +203,19 @@ use explicit `missing` entries. Unexpected agents or task revisions are rejected
 ### Attempts
 
 Every `(evaluation_id, execution)` pair is unique across the index. Reusing an
-`evaluation_id` must preserve the run and task identity. An `agent_run_id` identifies
+`evaluation_id` must preserve the run, task and repetition identity. An `agent_run_id` identifies
 one agent/profile combination; different agents cannot share it.
 
-One run per agent and one logical `evaluation_id` per agent/task pair are
-allowed. Analysis's `scoring.attempt_policy` controls which recorded attempts it accepts:
+One run per agent and one logical `evaluation_id` per agent/task/repetition are
+required. Every configured repetition must have an observed or explicit missing row. Analysis's `scoring.attempt_policy` controls which recorded attempts it accepts:
 
-- `only` (default): exactly one execution entry per pair.
+- `only` (default): exactly one execution entry per agent/task/repetition.
 - `latest`: multiple attempts of the same evaluation are permitted. Native validation checks all supplied attempts; downstream scoring selects the highest attempt number, not the best reward.
 
-Independent repetitions with different evaluation IDs for the same pair are
-ambiguous and rejected. Native trial evidence cannot be reused by multiple
+Independent repetitions have distinct evaluation IDs and `repetition` numbers.
+Two evaluation IDs claiming the same agent/task/repetition are ambiguous and
+rejected, as are out-of-range repetition numbers. An evaluation ID cannot change
+its repetition across retries. Native trial evidence cannot be reused by multiple
 observed entries. Validation reports all observations, including unavailable
 attempts, rather than applying scoring's attempt selection.
 

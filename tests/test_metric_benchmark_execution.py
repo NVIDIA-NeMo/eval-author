@@ -17,10 +17,11 @@ def fake_harbor(config):
     directory.mkdir(parents=True)
     write_json(directory / "result.json", {"finished_at": "2026-01-01T00:00:00"})
     for task in config.tasks:
-        native = directory / (task.path.name + "__arbitrary")
-        native.mkdir()
-        result = native_trial(task.path, native, config.agents[0], float(config.agents[0].name == "oracle"))
-        write_json(native / "result.json", result)
+        for repetition in range(1, config.n_attempts + 1):
+            native = directory / (task.path.name + f"__arbitrary-{repetition:06d}")
+            native.mkdir()
+            result = native_trial(task.path, native, config.agents[0], float(config.agents[0].name == "oracle"))
+            write_json(native / "result.json", result)
 
 
 @pytest.mark.parametrize("installed_version", ["0.19.0", "0.23.0", "0.24.1"])
@@ -550,3 +551,30 @@ def test_baseline_only_preparation_execution_and_analysis_boundaries(tmp_path: P
         load_score_inputs(
             path.parent / "cases.yml", path.parent / "analysis.yml", case["case_id"], tmp_path / "absent-results"
         )
+
+
+@pytest.mark.parametrize("change", ["missing", "out-of-range", "duplicate", "reused-evidence"])
+def test_repetition_matrix_requires_distinct_complete_evidence(tmp_path, change):
+    import yaml
+    from metric_benchmark.models import RawResults
+    from metric_benchmark.validation import validate_results
+
+    path, _ = prepared_benchmark(tmp_path / "inputs")
+    cases = yaml.safe_load((path.parent / "cases.yml").read_text())
+    cases[0]["repetitions"] = 2
+    write_definition(path, "cases.yml", cases)
+    loaded = load_execution(path.parent / "cases.yml", path.parent / "execution.yml")
+    output = tmp_path / "out"
+    execute_benchmark(loaded, "run", output, runner=fake_harbor)
+    root = case_root(output, 0)
+    raw = RawResults.model_validate(read_json(root / "results.json"))
+    if change == "missing":
+        raw.execution_results.pop()
+    elif change == "out-of-range":
+        raw.execution_results[0].evaluation.repetition = 3
+    elif change == "duplicate":
+        raw.execution_results[1].evaluation.repetition = 1
+    else:
+        raw.execution_results[1].native_results_path = raw.execution_results[0].native_results_path
+    with pytest.raises(ValueError):
+        validate_results(raw, loaded.inputs.case("rho-agent").case, root, loaded.inputs.root)

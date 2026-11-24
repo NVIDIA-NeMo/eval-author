@@ -51,7 +51,22 @@ with `code: negative_mutant_score`, subset ID, and negative value.
 aggregate. These flags are for inspection only: they neither fail scoring nor
 clip values or exclude correlation pairs. Incomplete required pairs make
 the subset unavailable. `attempt_policy: latest` selects by attempt number,
-never by reward. Repetitions require a future explicit aggregation policy.
+never by reward, separately within each repetition.
+
+For each agent/task, average the configured number of valid rewards, then subtract
+the mutant mean from the baseline mean (reverse the sign for lower-is-better).
+For example, baseline `[1, 1, 0, 1, 1]` has mean `0.8`; mutant
+`[0, 1, 0, 0, 1]` has mean `0.4`, giving degradation `0.4`. Individual repetitions
+are not treated as matched random seeds. Fractional rewards use the same arithmetic.
+Tasks and mutants retain equal weighting. At `repetitions: 1`, numerical scoring
+is unchanged.
+
+`task_scores[agent_id][task_id]` retains `requested`, `valid`, ordered `rewards`,
+`mean` (a Score), and `provisional_mean`. The main mean is unavailable unless all
+requested repetitions have valid measurements. A provisional mean uses only valid
+observations and is descriptive; it never enters mutation scoring or correlation.
+Infrastructure errors are unavailable, not zero; valid zero rewards count normally.
+The output reports observed effects, not statistically confirmed mutant kills.
 The score context carries the execution’s `run_id` and hashes of the results,
 subsets and scoring selection. Coverage uses the same context so correlation can
 check that the pairs refer to the same observations. The prepared subset manifest
@@ -75,13 +90,14 @@ For a two-task subset with higher-is-better rewards:
 The subset score is `(0.5 + -0.25) / 2 = 0.125`. This illustrative output excerpt
 shows the score and its contributing effects. The full artifact also includes
 `context` (run/case/baseline IDs and hashes of results, subsets, and selection)
-and `configuration` (agent run selection, mutant IDs, and scoring policy), omitted
+`task_scores` (repetition summaries), and `configuration` (agent run selection,
+mutant IDs, repetition count, and scoring policy), omitted
 here for readability.
 
 ```json
 {
   "artifact_type": "mutant_scores",
-  "score_definition": "mean_signed_paired_degradation_v1",
+  "score_definition": "mean_signed_paired_degradation_v2",
   "scores": {
     "subset-example": {"value": 0.125, "missing_score_reason": null}
   },

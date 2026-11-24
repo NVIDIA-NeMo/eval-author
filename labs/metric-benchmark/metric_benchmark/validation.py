@@ -123,7 +123,12 @@ def validate_results(
     raw = RawResults.model_validate(raw.model_dump())
     validate_matrix_run_ids(case, raw)
     agents = {a.agent_bundle_id: a for a in case.agents()}
-    expected = {(a, t.task_id, t.revision) for a in agents for t in case.task_inventory.tasks}
+    expected = {
+        (a, t.task_id, t.revision, repetition)
+        for a in agents
+        for t in case.task_inventory.tasks
+        for repetition in range(1, case.repetitions + 1)
+    }
     tasks = {
         tid: HarborTask(source.resolve(input_root, allow_unsigned=allow_unsigned))
         for tid, source in case.task_sources.items()
@@ -135,7 +140,7 @@ def validate_results(
     unavailable = []
     for row in raw.execution_results:
         try:
-            key = (row.agent_bundle_id, *row.evaluation.task.key())
+            key = (row.agent_bundle_id, *row.evaluation.task.key(), row.evaluation.repetition)
             if key not in expected:
                 raise ValueError("unexpected agent or task in results")
             groups.setdefault(key, []).append(row)
@@ -183,6 +188,7 @@ def validate_results(
                             "agent": row.agent_bundle_id,
                             "task": key[1],
                             "attempt": row.evaluation.execution,
+                            "repetition": row.evaluation.repetition,
                             "metric": metric,
                             "missing_score_reason": score.missing_score_reason,
                         }
@@ -196,7 +202,7 @@ def validate_results(
         raise ValueError("results do not account for the complete agent x task matrix")
     for rows in groups.values():
         if len({r.evaluation.evaluation_id for r in rows}) != 1:
-            raise ValueError("ambiguous repetitions for agent/task")
+            raise ValueError("ambiguous evaluations for agent/task repetition")
     manifest = file_manifest(root)
     # Derived reports are outside this root. The index is hashed separately by
     # consumers, so it may be published after validation by an execution backend.

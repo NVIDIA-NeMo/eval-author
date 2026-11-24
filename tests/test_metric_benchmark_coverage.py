@@ -204,3 +204,38 @@ def test_mutable_coverage_inputs_fail_before_adapter_work(tmp_path, change):
     with pytest.raises(ValueError):
         invoke_coverage(*args)
     assert not args[-1].exists()
+
+
+@pytest.mark.parametrize("unavailable", [False, True])
+def test_repeated_coverage_averages_separate_measurements_and_preserves_unavailable(tmp_path, unavailable):
+    from pathlib import Path
+
+    from test_metric_benchmark_scoring import repeated_example
+
+    _, subsets, _, configuration, description, record, work = coverage_example(tmp_path)
+    raw, _, selection = repeated_example()
+    for row in raw.execution_results:
+        directory = record / row.native_results_path
+        directory.mkdir(parents=True)
+        (directory / "trace.json").write_text("{}")
+    Path(configuration.command[1]).write_text(
+        "import json\nfrom pathlib import Path\n"
+        "r=json.loads(Path('request.json').read_text())\n"
+        "assert len(r['baseline_evidence']) == len(r['tasks'])\n"
+        "assert 'mutant' not in json.dumps(r)\n"
+        "score={'value': r['repetition']/5}\n"
+        + ("if r['repetition']==5: score={'value':None, 'missing_score_reason':'unjudged'}\n" if unavailable else "")
+        + "Path('response.json').write_text(json.dumps(score))\n"
+    )
+    result = invoke_coverage(raw, subsets, selection, configuration, description, record, work)
+    assert len(list(work.glob("subset-*/receipt.json"))) == 15
+    for subset, score in result.scores.items():
+        if unavailable:
+            assert score.value is None and score.missing_score_reason == "repetition 5: unjudged"
+        else:
+            assert score.value == pytest.approx(0.6)
+        assert [s.value for s in result.repetition_scores[subset]][:4] == [0.2, 0.4, 0.6, 0.8]
+    Path(configuration.command[1]).write_text("raise AssertionError('must reuse')")
+    assert (
+        invoke_coverage(raw, subsets, selection, configuration, description, record, work, cached_only=True) == result
+    )

@@ -358,3 +358,15 @@ def test_manifest_references_stay_inside_package(tmp_path, level, failure):
         loaded = load_benchmark(path)
         loaded.analysis.load_subsets("rho-agent")
         loaded.analysis.load_description("rho-agent")
+
+
+@pytest.mark.parametrize("repetitions", [0, -1, True, 1.5, "5"])
+def test_case_repetitions_require_a_positive_integer(tmp_path, repetitions):
+    from metric_benchmark.config import load_cases
+
+    path, _ = prepared_benchmark(tmp_path)
+    cases = yaml.safe_load((path.parent / "cases.yml").read_text())
+    cases[0]["repetitions"] = repetitions
+    write_definition(path, "cases.yml", cases)
+    with pytest.raises(ValueError):
+        load_cases(path.parent / "cases.yml")
