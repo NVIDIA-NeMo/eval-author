@@ -4,10 +4,13 @@
 """Strict JSON, content identities, and write-once artifact output."""
 
 import argparse
+import ctypes
 import hashlib
 import json
 import os
+import shutil
 import subprocess
+import sys
 import tempfile
 from collections.abc import Callable
 from pathlib import Path
@@ -35,6 +38,24 @@ def read_json(path: Path) -> object:
     return json.loads(
         path.read_text(encoding="utf-8"), object_pairs_hook=_unique_object, parse_constant=_invalid_number
     )
+
+
+def read_object(path: Path) -> dict:
+    value = read_json(path)
+    if not isinstance(value, dict):
+        raise ValueError(f"expected a JSON object: {path.name}")
+    return value
+
+
+def copy_file(source: str | Path, destination: str | Path) -> str | Path:
+    # APFS clones keep repeated coverage inputs independent without duplicating data blocks.
+    if sys.platform == "darwin" and not Path(destination).exists():
+        clone = ctypes.CDLL(None, use_errno=True).clonefile
+        clone.argtypes = [ctypes.c_char_p, ctypes.c_char_p, ctypes.c_int]
+        clone.restype = ctypes.c_int
+        if clone(os.fsencode(source), os.fsencode(destination), 0) == 0:
+            return destination
+    return shutil.copyfile(source, destination)
 
 
 def json_bytes(value: BaseModel | dict | list) -> bytes:

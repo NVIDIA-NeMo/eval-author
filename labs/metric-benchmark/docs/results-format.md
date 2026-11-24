@@ -285,3 +285,13 @@ native fields with default values are omitted. Recorded `/mock/metric-benchmark/
 paths illustrate the producer's original location; validation does not open them.
 See the separate [example validation output](validation-report.md#example-validation-output)
 for the report produced by checking these results.
+
+
+### Scaled Evals evidence
+
+Pinned ATOM imports use `backend: scaled_evals`, retaining a per-observation
+`identity_proof_path` and `identity_scheme`. Proofs bind the selected remote
+execution, original inputs, native files, and source provenance. These results
+must not be relabeled as local execution. See
+[the Scaled Evals import workflow](run-evals.md#import-pinned-atom-runs-from-scaled-evals)
+for repetition handling and the optional verified grader metric.
