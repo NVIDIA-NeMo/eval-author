@@ -1,0 +1,16 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+- case_id: smoke
+  agent:
+    path: agents/smoke/agent.yml
+  tasks:
+    path: tasks/smoke/tasks.yml
+  subsets:
+    path: tasks/smoke/subsets.json
+  ethos:
+    path: agents/smoke/ethos.md
+  agent_source_excludes: []
+  settings:
+    items:
+      path: agents/smoke/items.yaml

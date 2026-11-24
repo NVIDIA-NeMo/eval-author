@@ -1,0 +1,10 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+agent_bundle_id: smoke-agent
+revision: "1"
+harbor:
+  import_path: examples.smoke.agents.smoke.smoke_agent:SmokeAgent
+inputs:
+  source:
+    path: agents/smoke/smoke_agent.py

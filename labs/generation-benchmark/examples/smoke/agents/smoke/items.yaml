@@ -1,0 +1,40 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+items:
+  - kind: tool
+    name: alpha
+    description: Smoke tool alpha.
+    expected_use: Call alpha when task instruction names TOOL alpha.
+    expected_failure_behavior: Report failure if alpha cannot execute.
+    evidence_required:
+      - kind: tool_call
+        description: ATIF trajectory calls alpha.
+        tool: alpha
+  - kind: tool
+    name: beta
+    description: Smoke tool beta.
+    expected_use: Call beta when task instruction names TOOL beta.
+    expected_failure_behavior: Report failure if beta cannot execute.
+    evidence_required:
+      - kind: tool_call
+        description: ATIF trajectory calls beta.
+        tool: beta
+  - kind: tool
+    name: gamma
+    description: Smoke tool gamma.
+    expected_use: Call gamma when task instruction names TOOL gamma.
+    expected_failure_behavior: Report failure if gamma cannot execute.
+    evidence_required:
+      - kind: tool_call
+        description: ATIF trajectory calls gamma.
+        tool: gamma
+  - kind: tool
+    name: delta
+    description: Smoke tool delta.
+    expected_use: Call delta when task instruction names TOOL delta.
+    expected_failure_behavior: Report failure if delta cannot execute.
+    evidence_required:
+      - kind: tool_call
+        description: ATIF trajectory calls delta.
+        tool: delta
