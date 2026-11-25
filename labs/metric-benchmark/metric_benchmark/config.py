@@ -79,6 +79,7 @@ class ScoringConfig(ScoringPolicy):
 
 
 class CoverageConfig(Model):
+    missing_baseline: Literal["error", "unavailable"] = "error"
     system_id: Text
     system_revision: Text
     command: list[Text] = Field(min_length=1)

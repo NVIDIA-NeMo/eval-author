@@ -17,7 +17,8 @@ Set `coverage.command` to absolute paths for the Python interpreter and
 - `author_command`: the absolute executable and arguments that invoke the
   system under evaluation's authoring procedure;
 - optional `methods` (default `tool_calls`, `capabilities`, `failure_cases`) and
-  `score_scope` (`overall`, `tool`, `capability`, or `failure_case`).
+  `score_scope` (`overall`, `tool`, `capability`, or `failure_case`);
+- optional `invalid_traces`: `error` (default) or `unavailable`.
 
 Obtain the source pin without opening Python:
 
@@ -47,6 +48,12 @@ checks every measured kind. Unjudged capability evidence does not invalidate a
 tool-only score.
 Invalid/stale judgment sidecars fail native validation. The adapter measures
 native ATIF only; it does not reinterpret or repair traces. Native directories are required by this adapter.
+With `invalid_traces: unavailable`, an explicit native trace rejection retains
+its diagnostic, continues measuring the other tasks, and makes the subset score
+unavailable. No aggregate report is produced for an incomplete subset. Other
+command failures still abort, including environment and judgment validation errors.
+See [coverage computation](compute-coverage.md#inputs-and-behavior) for the
+correlation policy required to omit unavailable scores.
 
 Native Eval Author reports retain their evidence bindings, including absolute
 workspace paths. Recomputing coverage from the same authored inputs preserves

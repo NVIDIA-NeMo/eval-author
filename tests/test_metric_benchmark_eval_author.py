@@ -15,8 +15,8 @@ from test_metric_benchmark_config import LAB
 from test_metric_benchmark_coverage import coverage_example
 
 
-def eval_author_example(tmp_path, *, non_tool=False):
-    args = list(coverage_example(tmp_path))
+def eval_author_example(tmp_path, *, non_tool=False, repetitions: int = 1):
+    args = list(coverage_example(tmp_path, repetitions=repetitions))
     root = LAB.parents[1]
     for row in args[0].execution_results:
         native = args[-2] / row.native_results_path / "agent"
@@ -166,3 +166,38 @@ def test_source_digest_cli_requires_no_author_command():
         text=True,
     )
     assert result.stdout.strip() == source_digest(LAB.parents[1])
+
+
+def test_only_explicit_trace_failures_can_be_unavailable(tmp_path):
+    from metric_benchmark.eval_author import _trace_failure
+
+    log = tmp_path / "measure.log"
+    log.write_text(json.dumps({"error_type": "trace", "written": False}))
+    assert _trace_failure(log)
+    for value in [{"error_type": "environment", "written": False}, {"error_type": "trace", "written": True}]:
+        log.write_text(json.dumps(value))
+        assert not _trace_failure(log)
+    log.write_text("crash, not a structured trace rejection")
+    assert not _trace_failure(log)
+
+
+@pytest.mark.parametrize("repetitions", [1, 2])
+def test_unloadable_trace_preserves_other_measurements_and_null_score(tmp_path, repetitions: int) -> None:
+    args = eval_author_example(tmp_path, repetitions=repetitions)
+    args[1].eval_subsets = [Subset(eval_subset_id="all", task_ids=[t.task_id for t in args[0].task_inventory])]
+    trace = args[-2] / args[0].execution_results[0].native_results_path / "agent/trajectory.json"
+    payload = json.loads(trace.read_text())
+    payload["steps"] = []
+    trace.write_text(json.dumps(payload))
+    args[3].settings["invalid_traces"] = "unavailable"
+    scores = invoke_coverage(*args)
+    assert scores.scores["all"].value is None
+    reason = scores.scores["all"].missing_score_reason
+    assert reason is not None
+    assert "rejected native traces" in reason
+    assert [score.value for score in scores.repetition_scores["all"]] == [None] + [1.0] * (repetitions - 1)
+    assert list(args[-1].glob("subset-*/measurements/task=*/run=*/*/coverage.json"))
+    del args[3].settings["invalid_traces"]
+    args[-1] = tmp_path / "strict"
+    with pytest.raises(ValueError, match="exited"):
+        invoke_coverage(*args)

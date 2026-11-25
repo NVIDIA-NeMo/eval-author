@@ -236,6 +236,50 @@ def test_mutable_coverage_inputs_fail_before_adapter_work(tmp_path, change):
     assert not args[-1].exists()
 
 
+@pytest.mark.parametrize("repetitions", [1, 2])
+def test_missing_baseline_can_remain_unavailable_without_changing_subset(tmp_path, repetitions: int) -> None:
+    args = coverage_example(tmp_path, repetitions=repetitions)
+    args[0].execution_results[0].status = "error"
+    with pytest.raises(ValueError, match="subset subset-000001, repetition 1: baseline evidence unavailable"):
+        invoke_coverage(*args)
+    args[3].missing_baseline = "unavailable"
+    result = invoke_coverage(*args)
+    scores = list(result.scores.values())
+    assert scores[0].value is None
+    reason = scores[0].missing_score_reason
+    assert reason is not None
+    assert "baseline evidence unavailable" in reason
+    assert [score.value for score in result.repetition_scores["subset-000001"]] == [None] + [0.5] * (repetitions - 1)
+    assert [score.value for score in scores[1:]] == [0.5, 0.0]
+    request = json.loads((args[-1] / "subset-000001/request.json").read_text())
+    assert request["unavailable_baseline_tasks"] == [args[0].execution_results[0].evaluation.task.task_id]
+    assert len(request["tasks"]) == 1
+    assert request["baseline_evidence"] == []
+    assert not (args[-1] / "subset-000001/authored").exists()
+    assert invoke_coverage(*args, cached_only=True) == result
+
+
+def test_incomplete_subset_does_not_copy_any_native_evidence(tmp_path, monkeypatch):
+    import metric_benchmark.coverage as module
+    from metric_benchmark.models import Subset
+
+    args = coverage_example(tmp_path)
+    args[0].execution_results[0].status = "error"
+    args[1].eval_subsets = [Subset(eval_subset_id="all", task_ids=[t.task_id for t in args[0].task_inventory])]
+    args[3].missing_baseline = "unavailable"
+
+    def refuse_copy(*_args, **_kwargs):
+        raise AssertionError("incomplete subset must not stage native data")
+
+    monkeypatch.setattr(module, "copy_evidence", refuse_copy)
+    scores = invoke_coverage(*args)
+    assert scores.scores["all"].value is None
+    request = json.loads((args[-1] / "subset-000001/request.json").read_text())
+    assert len(request["tasks"]) == len(args[0].task_inventory)
+    assert request["baseline_evidence"] == []
+    assert invoke_coverage(*args, cached_only=True) == scores
+
+
 @pytest.mark.parametrize("unavailable", [False, True])
 def test_repeated_coverage_averages_separate_measurements_and_preserves_unavailable(tmp_path, unavailable):
     from pathlib import Path
