@@ -19,7 +19,7 @@ from metric_benchmark.config import (
     file_manifest,
 )
 from metric_benchmark.io import read_json
-from metric_benchmark.models import ExecutionManifest, RawResults, Score, resolve_evidence
+from metric_benchmark.models import ExecutionManifest, RawResults, Score, resolve_evidence, unique
 
 
 def agent_config(
@@ -77,7 +77,7 @@ def native_measurements(trial: TrialResult) -> tuple[str, dict[str, Score]]:
     return status, measurements
 
 
-def selection_for_results(case: Case, raw: RawResults, scoring: ScoringPolicy) -> ScoringConfig:
+def validate_matrix_run_ids(case: Case, raw: RawResults) -> dict[str, str]:
     if raw.task_inventory != case.task_inventory.tasks:
         raise ValueError("results task inventory differs from benchmark case")
     runs: dict[str, str] = {}
@@ -87,10 +87,15 @@ def selection_for_results(case: Case, raw: RawResults, scoring: ScoringPolicy) -
     expected = {agent.agent_bundle_id for agent in case.agents()}
     if set(runs) != expected:
         raise ValueError(
-            f"case {case.case_id}: incomplete agent x task matrix; "
+            f"case {case.case_id}: incomplete agent x task x repetition matrix; "
             f"missing agents: {sorted(expected - runs.keys())}; unexpected agents: {sorted(runs.keys() - expected)}"
         )
-    return case.selection(runs, scoring)
+    unique(list(runs.values()), "selected run IDs")
+    return runs
+
+
+def selection_for_results(case: Case, raw: RawResults, scoring: ScoringPolicy) -> ScoringConfig:
+    return case.selection(validate_matrix_run_ids(case, raw), scoring)
 
 
 def recorded_input_root(task_path: Path | None, relative: str) -> Path:
@@ -116,9 +121,14 @@ def validate_results(
     """
     # Revalidate callers' mutable model instances as well as file inputs.
     raw = RawResults.model_validate(raw.model_dump())
-    selection_for_results(case, raw, ScoringPolicy())
+    validate_matrix_run_ids(case, raw)
     agents = {a.agent_bundle_id: a for a in case.agents()}
-    expected = {(a, t.task_id, t.revision) for a in agents for t in case.task_inventory.tasks}
+    expected = {
+        (a, t.task_id, t.revision, repetition)
+        for a in agents
+        for t in case.task_inventory.tasks
+        for repetition in range(1, case.repetitions + 1)
+    }
     tasks = {
         tid: HarborTask(source.resolve(input_root, allow_unsigned=allow_unsigned))
         for tid, source in case.task_sources.items()
@@ -130,7 +140,7 @@ def validate_results(
     unavailable = []
     for row in raw.execution_results:
         try:
-            key = (row.agent_bundle_id, *row.evaluation.task.key())
+            key = (row.agent_bundle_id, *row.evaluation.task.key(), row.evaluation.repetition)
             if key not in expected:
                 raise ValueError("unexpected agent or task in results")
             groups.setdefault(key, []).append(row)
@@ -178,6 +188,7 @@ def validate_results(
                             "agent": row.agent_bundle_id,
                             "task": key[1],
                             "attempt": row.evaluation.execution,
+                            "repetition": row.evaluation.repetition,
                             "metric": metric,
                             "missing_score_reason": score.missing_score_reason,
                         }
@@ -188,10 +199,10 @@ def validate_results(
                 f"evidence {row.native_results_path}: {error}"
             ) from error
     if set(groups) != expected:
-        raise ValueError("results do not account for the complete agent x task matrix")
+        raise ValueError("results do not account for the complete agent x task x repetition matrix")
     for rows in groups.values():
         if len({r.evaluation.evaluation_id for r in rows}) != 1:
-            raise ValueError("ambiguous repetitions for agent/task")
+            raise ValueError("ambiguous evaluations for agent/task repetition")
     manifest = file_manifest(root)
     # Derived reports are outside this root. The index is hashed separately by
     # consumers, so it may be published after validation by an execution backend.
