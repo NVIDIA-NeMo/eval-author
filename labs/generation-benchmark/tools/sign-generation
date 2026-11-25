@@ -36,9 +36,9 @@ from generation_benchmark.signing import check_experiment, sign_experiment  # no
 def main() -> None:
     parser = argparse.ArgumentParser(
         prog="sign-generation",
-        description="Write or verify generation-experiment.lock.json without editing YAML.",
+        description="Write or verify <experiment stem>.lock.json without editing YAML.",
     )
-    parser.add_argument("experiment", type=Path, help="Path to generation-experiment.yml")
+    parser.add_argument("experiment", type=Path, help="Path to the experiment YAML, such as generation-experiment.yml")
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument("--resign", action="store_true", help="Replace an existing lock file")
     mode.add_argument("--check", action="store_true", help="Verify lock entries against disk without writing")
