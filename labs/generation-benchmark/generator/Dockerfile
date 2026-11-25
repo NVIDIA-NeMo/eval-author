@@ -2,8 +2,9 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-# Build through generator/build.py: it stages the context (the four skill trees and
-# harbor_shim.py) and passes their glob digest as GENERATOR_SOURCE_SHA256.
+# Build through generator/build.py: it stages the context (the four skill trees,
+# harbor_shim.py, and generation/) and passes the skill trees' glob digest as
+# GENERATOR_SOURCE_SHA256.
 ARG BASE_IMAGE=python:3.12-slim
 ARG UV_IMAGE=ghcr.io/astral-sh/uv:0.12.9
 
@@ -53,4 +54,7 @@ ENV UV_OFFLINE=1 \
 
 COPY --chmod=0755 harbor_shim.py /usr/local/bin/harbor
 ENV PATH=/usr/local/bin:${PATH}
+
+# The entrypoint re-executes under /opt/harbor-real/bin/python, which has pydantic, PyYAML, and Harbor.
+COPY generation/ /opt/generation/
 WORKDIR /

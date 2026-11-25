@@ -28,7 +28,7 @@ flowchart LR
   E --> Y
 ```
 
-`generation-experiment.lock.json` sits beside the experiment file, which no file references. [Lock file](#lock-file) describes it. The work root has its own `generation-inputs.json`, described under [work root](architecture.md#work-root).
+`generation-experiment.lock.json` sits beside the experiment file, which no file references. The lock takes the experiment file's stem, so `<name>.yml` has `<name>.lock.json`. [Lock file](#lock-file) describes it. The work root has its own `generation-inputs.json`, described under [work root](architecture.md#work-root).
 
 Task and subset files use the same shapes as the metric benchmark. Host Harbor jobs are in [architecture](architecture.md#host-harbor-jobs).
 
@@ -139,7 +139,7 @@ The score is part of the contract. `metric.score.command` writes `score.json` in
 
 ## Lock file
 
-`labs/generation-benchmark/tools/sign-generation <generation-experiment.yml> [--resign | --check]` writes `generation-experiment.lock.json` beside the experiment file. The tool edits no other file.
+`labs/generation-benchmark/tools/sign-generation <name>.yml [--resign | --check]` writes `<name>.lock.json` beside the experiment file. The tool edits no other file. When `generation.settings` names `operator_answers`, the tool validates that file. When it names `image_id`, the tool checks that Docker has that image and that its source label equals the lock's `generation.digest`.
 
 A pin fixes the expected contents of a prepared input, or of the code that produces tasks or scores. A stage reuses its output only while its pins match, and two runs with the same pins read the same inputs. A pin does not authenticate a publisher.
 

@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Write and verify generation-experiment.lock.json without editing YAML manifests."""
+"""Write and verify `<experiment>.lock.json` without editing YAML manifests."""
 
 from __future__ import annotations
 
@@ -27,9 +27,14 @@ from generation_benchmark.models import (
     metric_identity_form,
     metric_setup_identity_form,
 )
+from generation_benchmark.reference_generator import (
+    ImageInspector,
+    docker_image_inspect,
+    image_matches,
+    image_mismatch_message,
+    load_operator_answers,
+)
 from generation_benchmark.validation import resolve_output_type_module
-
-LOCK_FILENAME = "generation-experiment.lock.json"
 
 
 @dataclass(frozen=True)
@@ -44,7 +49,30 @@ class ComputedLock:
 
 
 def lock_path_for(experiment_path: Path) -> Path:
-    return experiment_path.resolve().parent / LOCK_FILENAME
+    resolved = experiment_path.resolve()
+    return resolved.with_name(f"{resolved.stem}.lock.json")
+
+
+def _check_reference_settings(
+    loaded: LoadedExperiment,
+    gen_digest_sha: str | None,
+    image_inspector: ImageInspector,
+) -> None:
+    """Check the reference generator's operator answers and G image when its settings name them."""
+    settings = loaded.experiment.generation.settings
+    answers_ref = loaded.generation_settings_refs.get("operator_answers")
+    if answers_ref is not None:
+        try:
+            load_operator_answers(answers_ref[1])
+        except ValueError as exc:
+            raise ValueError(f"generation.settings.operator_answers: {exc}") from exc
+    image_id = settings.get("image_id")
+    if image_id is None:
+        return
+    if gen_digest_sha is None:
+        raise ValueError("generation.settings.image_id requires generation.digest over the G image's skill trees")
+    if not isinstance(image_id, str) or not image_matches(image_id, gen_digest_sha, image_inspector):
+        raise ValueError(image_mismatch_message(image_id))
 
 
 def _check_executable_present(executable: str, label: str) -> None:
@@ -77,8 +105,9 @@ def compute_lock(
     experiment_path: Path,
     *,
     extra_pythonpath: list[Path] | None = None,
+    image_inspector: ImageInspector = docker_image_inspect,
 ) -> ComputedLock:
-    """Validate experiment files, commands, output types, and digests, then build lock entries."""
+    """Validate experiment files, commands, output types, digests, and G image, then build lock entries."""
     loaded = load_experiment(experiment_path)
     exp = loaded.experiment
     exp_dir = loaded.experiment_dir
@@ -234,6 +263,7 @@ def compute_lock(
             selector="generation.digest",
             sha256=gen_digest_sha,
         )
+    _check_reference_settings(loaded, gen_digest_sha, image_inspector)
     entries["generation"] = LockEntry(
         type="block",
         path=exp_name,
@@ -281,8 +311,9 @@ def sign_experiment(
     *,
     resign: bool = False,
     extra_pythonpath: list[Path] | None = None,
+    image_inspector: ImageInspector = docker_image_inspect,
 ) -> Path:
-    """Write generation-experiment.lock.json beside *experiment_path* without editing YAML."""
+    """Write `<experiment stem>.lock.json` beside *experiment_path* without editing YAML."""
     experiment_path = experiment_path.resolve(strict=True)
     lock_path = lock_path_for(experiment_path)
     if (lock_path.exists() or lock_path.is_symlink()) and not resign:
@@ -295,7 +326,7 @@ def sign_experiment(
         detail = "\n  ".join(existing_keys) if existing_keys else "(unparseable existing lock)"
         raise ValueError(f"Lock file already exists ({lock_path}); pass --resign to replace existing keys:\n  {detail}")
 
-    computed = compute_lock(experiment_path, extra_pythonpath=extra_pythonpath)
+    computed = compute_lock(experiment_path, extra_pythonpath=extra_pythonpath, image_inspector=image_inspector)
     payload = json_bytes(computed.lock.to_payload())
     _atomic_write_bytes(lock_path, payload)
     return lock_path
@@ -305,14 +336,15 @@ def check_experiment(
     experiment_path: Path,
     *,
     extra_pythonpath: list[Path] | None = None,
+    image_inspector: ImageInspector = docker_image_inspect,
 ) -> tuple[ComputedLock, GenerationLock]:
-    """Verify generation-experiment.lock.json matches disk without writing any files."""
+    """Verify `<experiment stem>.lock.json` matches disk without writing any files."""
     experiment_path = experiment_path.resolve(strict=True)
     lock_path = lock_path_for(experiment_path)
     if lock_path.is_symlink() or not lock_path.is_file():
         raise ValueError(f"missing lock file: {lock_path}")
     actual = GenerationLock.model_validate(read_json(lock_path))
-    computed = compute_lock(experiment_path, extra_pythonpath=extra_pythonpath)
+    computed = compute_lock(experiment_path, extra_pythonpath=extra_pythonpath, image_inspector=image_inspector)
     expected = computed.lock
 
     differences: list[str] = []

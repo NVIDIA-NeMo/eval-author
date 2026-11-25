@@ -1,0 +1,46 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+benchmark_id: smoke
+revision: 1
+cases:
+  path: cases.yml
+execution:
+  backend: local_harbor
+  harbor_version: "0.24.0"
+  n_concurrent_trials: 2
+  environment:
+    type: docker
+metric:
+  setup:
+    command: [python3, -m, generation_benchmark.reference_metric, --setup]
+    timeout_seconds: 120
+    output:
+      python: python3
+      type: generation_benchmark.reference_metric:ToolCallsSetupOutput
+  score:
+    command: [python3, -m, generation_benchmark.reference_metric]
+    timeout_seconds: 120
+    output:
+      python: python3
+      type: generation_benchmark.reference_metric:ToolCallsScoreOutput
+generation:
+  command: [python3, -m, eval_author_generation]
+  digest:
+    method: glob
+    patterns:
+      - ../../../../skills/eval-author/**
+      - ../../../../skills/eval-author-audit/**
+      - ../../../../skills/eval-author-task-create/**
+      - ../../../../skills/eval-author-environment/**
+  timeout_seconds: 1800
+  settings:
+    image_id: sha256:d4397e94669c96d2efeccc04548369bae9d35393b3164987edad127be0afb50c
+    prompt:
+      path: prompt.md
+    operator_answers:
+      path: operator-answers.yaml
+    entrypoint: [python3, /opt/generation/entrypoint.py]
+    agent_argv: [python3, /opt/generation/fake_agent.py, --accept, gamma]
+    provider_env: []
+    network: default

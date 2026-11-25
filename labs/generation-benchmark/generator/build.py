@@ -11,13 +11,25 @@ import subprocess
 import tempfile
 from pathlib import Path
 
-from generation_benchmark.digests import GENERATION_BENCHMARK_ROOT, glob_digest, iter_tree_files
+from generation_benchmark.digests import GENERATION_BENCHMARK_ROOT, METRIC_BENCHMARK_ROOT, glob_digest, iter_tree_files
+from generation_benchmark.reference_generator import SOURCE_LABEL
 
 REPO_ROOT = GENERATION_BENCHMARK_ROOT.parents[1]
 GENERATOR_DIR = Path(__file__).resolve().parent
 SKILL_TREES = ("eval-author", "eval-author-audit", "eval-author-task-create", "eval-author-environment")
-SOURCE_LABEL = "org.nvidia.eval-author.generator-source-sha256"
 DEFAULT_BASE_IMAGE = "python:3.12-slim"
+# Copied to /opt/generation; outside the label digest, which covers only the skill trees.
+GENERATION_FILES = {
+    "entrypoint.py": GENERATOR_DIR / "entrypoint.py",
+    "generation_controls.py": GENERATION_BENCHMARK_ROOT / "generation_controls.py",
+    "fake_agent.py": GENERATION_BENCHMARK_ROOT / "examples" / "smoke" / "fake_agent.py",
+}
+GENERATION_PACKAGES = {
+    "generation_benchmark": GENERATION_BENCHMARK_ROOT / "generation_benchmark",
+    "metric_benchmark": METRIC_BENCHMARK_ROOT / "metric_benchmark",
+}
+
+__all__ = ["SOURCE_LABEL", "build_image", "generator_source_digest", "stage_build_context"]
 
 
 GENERATOR_SOURCE_PATTERNS = [f"skills/{name}/**" for name in SKILL_TREES]
@@ -28,14 +40,22 @@ def generator_source_digest(repo_root: Path = REPO_ROOT) -> str:
     return glob_digest(GENERATOR_SOURCE_PATTERNS, [], repo_root)
 
 
+def _copy_tree(source: Path, target: Path) -> None:
+    for rel, path in iter_tree_files(source):
+        destination = target / rel
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(path, destination)
+
+
 def stage_build_context(repo_root: Path, context: Path) -> None:
-    """Copy exactly the digested skill files, the Dockerfile, and the shim into *context*."""
+    """Copy exactly the digested skill files, the generation code, the Dockerfile, and the shim into *context*."""
     for name in SKILL_TREES:
-        source = repo_root / "skills" / name
-        for rel, path in iter_tree_files(source):
-            target = context / "skills" / name / rel
-            target.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(path, target)
+        _copy_tree(repo_root / "skills" / name, context / "skills" / name)
+    generation = context / "generation"
+    for name, source in GENERATION_PACKAGES.items():
+        _copy_tree(source, generation / name)
+    for name, source in GENERATION_FILES.items():
+        shutil.copy2(source, generation / name)
     shutil.copy2(GENERATOR_DIR / "Dockerfile", context / "Dockerfile")
     shutil.copy2(GENERATOR_DIR / "harbor_shim.py", context / "harbor_shim.py")
 
