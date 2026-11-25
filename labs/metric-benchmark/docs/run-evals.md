@@ -36,7 +36,9 @@ Execution needs no analysis configuration. Without a full experiment bundle for
 ## Execution and outputs
 
 The loop follows case order, then baseline and mutant order. Each job runs the
-whole task inventory once, with retries disabled and configured task concurrency.
+whole task inventory with `n_attempts` set to the case's `repetitions` (default 1),
+with retries disabled and configured task concurrency. See the
+[case configuration example](benchmark-format.md#cases-casesyml).
 Outputs are indexed by case ID in `execution.json`:
 
 ```text
@@ -63,6 +65,10 @@ Numeric folder aliases are stable within a definition. The index carries actual
 case, agent, task and run identities. Each case index has `run_id` from
 `--run-id`, a `task_inventory` array, and an `execution_results` array. Each observation retains all native reward metrics and has an
 `agent_run_id` for its agent’s job; `native_results_path` locates the trial evidence.
+Within each task, the collector assigns repetition numbers starting at 1, in sorted
+native trial-directory order, never by reward or completion time. These numbers
+identify retained samples.
+Collection requires exactly the configured number of trials for every task.
 See the [results format](results-format.md) for the complete contract.
 No model or private service is involved in
 the orchestration itself. Prepared agents may call models when executed.

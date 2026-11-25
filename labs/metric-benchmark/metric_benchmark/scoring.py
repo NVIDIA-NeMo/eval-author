@@ -5,6 +5,7 @@
 
 import math
 from pathlib import Path
+from statistics import fmean
 from typing import Literal
 
 from pydantic import Field
@@ -54,25 +55,75 @@ def context(raw: RawResults, subsets: Subsets, config: ScoringConfig) -> Context
     )
 
 
-def select_executions(raw: RawResults, config: ScoringConfig) -> dict[tuple[str, str, int], Execution]:
+def select_executions(raw: RawResults, config: ScoringConfig) -> dict[tuple[str, str, int, int], Execution]:
     """Select latest attempts by number, never by outcome; reject ambiguous replicas."""
-    groups: dict[tuple[str, str, int], list[Execution]] = {}
+    groups: dict[tuple[str, str, int, int], list[Execution]] = {}
     selected_runs = set(config.run_ids.values())
     for row in raw.execution_results:
         if row.agent_run_id not in selected_runs:
             continue
         if config.run_ids.get(row.agent_bundle_id) != row.agent_run_id:
             raise ValueError("selected run belongs to a different agent")
-        key = row.agent_bundle_id, *row.evaluation.task.key()
+        if row.evaluation.repetition > config.repetitions:
+            raise ValueError("repetition exceeds configured count")
+        key = row.agent_bundle_id, *row.evaluation.task.key(), row.evaluation.repetition
         groups.setdefault(key, []).append(row)
     selected = {}
     for key, rows in sorted(groups.items()):
         if len({r.evaluation.evaluation_id for r in rows}) != 1:
-            raise ValueError("multiple evaluations per run/task require an explicit repetition policy")
+            raise ValueError("multiple evaluations for one agent/task repetition")
         if len(rows) != 1 and config.attempt_policy == "only":
             raise ValueError("multiple attempts with attempt_policy=only")
         selected[key] = max(rows, key=lambda r: r.evaluation.execution)
     return selected
+
+
+class RepetitionSummary(Model):
+    requested: int = Field(ge=1)
+    valid: int = Field(ge=0)
+    rewards: list[Score]
+    mean: Score
+    provisional_mean: float | None
+
+
+def mean_over_repetitions(scores: list[Score]) -> Score:
+    missing = [
+        f"repetition {index}: {score.missing_score_reason}"
+        for index, score in enumerate(scores, 1)
+        if score.value is None
+    ]
+    if missing:
+        return Score(value=None, missing_score_reason="; ".join(missing))
+    return Score(value=fmean(score.value for score in scores if score.value is not None))
+
+
+def summarize_tasks(
+    raw: RawResults, config: ScoringConfig, selected: dict[tuple[str, str, int, int], Execution]
+) -> dict[str, dict[str, RepetitionSummary]]:
+    summaries: dict[str, dict[str, RepetitionSummary]] = {}
+    for agent in [config.baseline_bundle_id, *config.mutant_bundle_ids]:
+        summaries[agent] = {}
+        for task in raw.task_inventory:
+            rewards = []
+            for repetition in range(1, config.repetitions + 1):
+                row = selected.get((agent, *task.key(), repetition))
+                if row is None:
+                    score = Score(value=None, missing_score_reason="missing execution")
+                elif row.status not in config.completed_statuses:
+                    score = Score(value=None, missing_score_reason=f"execution status {row.status}")
+                else:
+                    score = row.metrics.get(config.metric, Score(value=None, missing_score_reason="metric absent"))
+                rewards.append(score)
+            valid = [score.value for score in rewards if score.value is not None]
+            provisional = math.fsum(valid) / len(valid) if valid else None
+            summaries[agent][task.task_id] = RepetitionSummary(
+                requested=config.repetitions,
+                valid=len(valid),
+                rewards=rewards,
+                mean=mean_over_repetitions(rewards),
+                provisional_mean=provisional,
+            )
+    return summaries
 
 
 class NegativeScoreDiagnostic(Model):
@@ -90,9 +141,10 @@ class MutantScores(Model):
     artifact_type: Literal["mutant_scores"] = "mutant_scores"
     context: Context
     configuration: ScoringConfig
-    score_definition: Literal["mean_signed_paired_degradation_v1"] = "mean_signed_paired_degradation_v1"
+    score_definition: Literal["mean_signed_paired_degradation_v2"] = "mean_signed_paired_degradation_v2"
     scores: dict[Text, Score]
     mutant_effects: dict[Text, dict[Text, Score]]
+    task_scores: dict[Text, dict[Text, RepetitionSummary]]
     diagnostics: list[NegativeScoreDiagnostic] = Field(default_factory=list)
 
 
@@ -106,6 +158,7 @@ def compute_mutant_scores(raw: RawResults, subsets: Subsets, config: ScoringConf
     ctx = context(raw, subsets, config)
     selected = select_executions(raw, config)
     memberships = subsets.resolve_tasks(Tasks(tasks=raw.task_inventory))
+    task_scores = summarize_tasks(raw, config, selected)
     effects: dict[str, dict[str, Score]] = {}
     scores = {}
     for subset in sorted(subsets.eval_subsets, key=lambda s: s.eval_subset_id):
@@ -116,17 +169,11 @@ def compute_mutant_scores(raw: RawResults, subsets: Subsets, config: ScoringConf
             for task in sorted(memberships[subset.eval_subset_id], key=lambda t: t.key()):
                 values = []
                 for agent in (config.baseline_bundle_id, mutant):
-                    row = selected.get((agent, *task.key()))
-                    metric = row.metrics.get(config.metric) if row is not None else None
-                    if row is None:
-                        missing.append(f"{agent}/{task.task_id}: missing execution")
-                    elif row.status not in config.completed_statuses:
-                        missing.append(f"{agent}/{task.task_id}: execution status {row.status}")
-                    elif metric is None or metric.value is None:
-                        reason = metric.missing_score_reason if metric else "metric absent"
-                        missing.append(f"{agent}/{task.task_id}: {reason}")
+                    summary = task_scores[agent][task.task_id]
+                    if summary.mean.value is None:
+                        missing.append(f"{agent}/{task.task_id}: {summary.mean.missing_score_reason}")
                     else:
-                        values.append(metric.value)
+                        values.append(summary.mean.value)
                 if len(values) == 2:
                     sign = 1 if config.direction == "higher_is_better" else -1
                     differences.append(sign * (values[0] - values[1]))
@@ -152,7 +199,12 @@ def compute_mutant_scores(raw: RawResults, subsets: Subsets, config: ScoringConf
                     NegativeScoreDiagnostic(eval_subset_id=subset_id, mutant_bundle_id=mutant_id, value=effect.value)
                 )
     return MutantScores(
-        context=ctx, configuration=config, scores=scores, mutant_effects=effects, diagnostics=diagnostics
+        context=ctx,
+        configuration=config,
+        scores=scores,
+        mutant_effects=effects,
+        diagnostics=diagnostics,
+        task_scores=task_scores,
     )
 
 

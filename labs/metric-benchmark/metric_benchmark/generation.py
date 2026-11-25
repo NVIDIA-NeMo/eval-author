@@ -172,6 +172,7 @@ def _stage_case(
         write_json(directory / "subsets.json", subsets)
     definition = CaseDefinition(
         case_id=request.case_id,
+        repetitions=case.repetitions,
         agent=_pin(directory / "agents.yml", stage),
         tasks=_pin(directory / "tasks.yml", stage),
     )
@@ -258,5 +259,5 @@ def generate_experiment(
         agents=sum(case.agent_count for case in staged_cases),
         tasks=sum(case.task_count for case in staged_cases),
         subsets=sum(case.subset_count for case in staged_cases),
-        trials=sum(case.agent_count * case.task_count for case in staged_cases),
+        trials=sum(case.agent_count * case.task_count * case.definition.repetitions for case in staged_cases),
     )
