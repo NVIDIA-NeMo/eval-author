@@ -3,7 +3,7 @@
 
 # Rubrics, reward hacking and traces: study details
 
-The full studies behind the dev note [Keeping Eval Generation Honest](posts/2026-11-23-rubrics-cheats-and-traces.md). Some of this work comes from internal NVIDIA projects and studies that are not public. Sources are listed in that note's references.
+The full studies behind the dev note [Rubrics, Reward Hacking and Traces](posts/2026-11-23-rubrics-cheats-and-traces.md). Some of this work comes from internal NVIDIA projects and studies that are not public. Sources are listed in that note's references.
 
 ## Trace environments: turning recorded interactions into tasks
 

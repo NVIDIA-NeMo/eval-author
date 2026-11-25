@@ -1,118 +1,112 @@
 <!-- SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved. -->
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 
-# Keeping Eval Generation Honest
+# Rubrics, Reward Hacking and Traces
 
-Rubrics, reward-hacking checks and traces: how we stop eval generation tools from cheating.
+How we keep eval generation tools from cheating.
 
 **November 23, 2026 · Research**
 
-## The problem: eval generation tools can cheat
+## The problem
 
-In our [first dev note](https://github.com/NVIDIA-NeMo/eval-author/blob/main/docs/dev-notes/posts/2026-10-08-introducing-eval-author.md), we introduced Eval Author and why we are building it. This note is about the main reason.
+When a coding agent generates an evaluation, it is easy for it to cheat. It is asked for a task that runs and a verifier that passes good answers, and a task that tests nothing meets both requests. That is the main reason we are building Eval Author.
 
-When a coding agent builds an evaluation, it is easy for it to cheat. We do not mean malice. A coding agent is asked to produce a task that runs and a verifier that passes good answers. The shortest route to "it runs and it passes" is often a task that does not test anything. The pass rate looks fine, and nobody notices until the eval fails to catch a real regression.
+In our [first dev note](https://github.com/NVIDIA-NeMo/eval-author/blob/main/docs/dev-notes/posts/2026-10-08-introducing-eval-author.md), we introduced NeMo Eval Author. The hard part of evaluation authoring is rarely getting a task to run. It is knowing what the task should test, and then knowing whether it actually tests that. A pass rate tells you how solutions scored. It does not tell you whether to trust the task that produced it.
 
-This already happens in published benchmarks. One common form is instruction leakage, where the task's instructions give away part of the answer. One study found that in about a third of solved SWE-bench issues, the fix was already written in the issue report or its comments.[^swe-bench-plus] A coding agent that writes its own instructions and its own reference answer can leak far more easily.
+## An example: the refund task
 
-We measured how much a leak helps. We built 300 task pairs from three datasets: SQL questions, programming problems and customer-service conversations.[^datasets] The two tasks in each pair differ only in whether the instructions include part of the answer.
+Our demo task asks an agent to handle a customer refund for an order that may already be partly refunded. The agent reads the order and the refund policy. It calculates discounted merchandise plus eligible tax, excludes shipping, and subtracts earlier refunds. If the remaining amount reaches the approval threshold, it must record approval before refunding anything. The money must go back to the original payment method, and every new refund needs a matching ledger entry.
+
+Suppose a coding agent builds this task for you. Here are four ways it can go wrong while the task still runs and still reports a pass rate:
+
+1. The instructions state the refund amount, so the agent under test copies it instead of calculating it.
+2. The verifier checks for a message that says the refund is done, not for the refund itself.
+3. The task is unclear or wrong. The policy never says if shipping is refundable, or the reference answer gets the tax wrong.
+4. The order history is made up. The coding agent never saw a real one, so it writes one that is simpler than what real customers produce.
+
+The first one happens in real benchmarks. SWE-Bench+ found that in 32.67% of the successful SWE-bench patches it studied, the solution was already written in the issue report or its comments.[^swe-bench-plus] Our internal instruction-leakage study asks how much it helps a solver when part of the solution is in the prompt. We compared 300 task pairs that differ only in whether the instructions include part of the answer.[^datasets]
 
 ![Solution exposure: BIRD baseline 68.8%, gain 7.1 percentage points; customer service baseline 67.1%, gain 10.0 points; USACO baseline 96.3%, gain 1.2 points.](../assets/rubrics-cheats-and-traces/solution-exposure-results.svg)
 
-The average gain was about 6 points, which sounds small. It is small partly because most tasks already passed without the leak, so there was little room to gain. Measured against that room, the leak closed about a quarter to a third of the gap on every dataset. On 18 tasks, the leak decided the outcome: the leaked version passed every trial and the clean version passed none. A small average can hide large effects.
-
-Eval Author exists to keep these shortcuts closed.
-
-## An example: the refund eval
-
-Suppose you have a customer-service agent that handles refunds. You ask a coding agent to build an eval for it. The task is simple to describe. An order may already be partly refunded. The agent must work out what is still owed: discounted items plus tax, no shipping, minus earlier refunds. Above a threshold, it must get approval first. Then it sends the money back to the original card and writes a matching ledger entry.
-
-Here are four ways the coding agent can build an eval that looks done and is not:
-
-1. **The instructions give away the answer.** The coding agent computes the refund amount while writing the task, then includes it in the instructions "for clarity." The agent under test copies the number instead of working it out.
-2. **The verifier trusts the agent's word.** It checks that the final message says "Refund complete" instead of checking that a refund happened. Any agent that says the right words passes.
-3. **The task is unsound.** The instructions never say whether shipping is refundable, or the reference answer gets the tax wrong. The eval now punishes correct agents or rewards wrong ones.
-4. **The starting state is invented.** The coding agent never saw a real order history, so it makes one up. The task runs, but it skips the messy state that makes real refunds hard.
-
-Each one gives you a green pass rate. None of them tells you whether your refund agent works.
+The gain averaged about 6 percentage points, partly because most tasks already passed without the leak. The average hides tasks where the leak decided the outcome. On 18 tasks, the leaked version passed every trial and the clean version passed none.
 
 ## What we are doing about it
 
-We are working on three checks. Reward-hacking checks go after the verifier. The rubric goes after leaked answers and unsound tasks. Traces go after invented state.
+Here are some of the approaches we are taking. Reward-hacking checks cover the verifier. The rubric covers leaks and unclear tasks. Traces cover made-up state.
 
-### Reward-hacking checks: does the verifier reward the shortcut?
+### Reward hacking
 
-**How it goes wrong.** In the refund eval, the shortcut is an agent that says "done" without doing the refund. If the verifier gives credit for that, the eval rewards the cheat.
+In the refund task, the shortcut is an agent that says the refund is done without issuing it. If the verifier gives credit for that, the task rewards the cheat.
 
-**How the check helps.** We attack the verifier on purpose. A control is a submission we write to test the verifier: some are known cheats, some are known good answers. A good verifier must reject every cheat and still accept every valid answer. A verifier that rejects everything never gives false credit, and it is also useless, so we test both sides.[^reward-hacking]
+A verifier has two jobs. It must reject invalid routes to reward, and it must accept valid solutions. A verifier that rejects everything never gives false credit, and it is also useless. So we test both sides.[^reward-hacking]
 
-We run a fixed panel of these controls in [Harbor](https://github.com/harbor-framework/harbor), the framework our tasks run in. The panel covers six submissions: a correct answer, an immediate successful exit, a fake success message, a read of the hidden test cases, a program that hangs, and an output with the wrong types. We run it against three verifiers: a sound one, one we broke so it accepts cheats, and one we broke so it rejects everything.
+Our scripted verifier-cheat panel runs in [Harbor](https://github.com/harbor-framework/harbor), the evaluation framework our tasks run in. It tests a small coding task with three verifiers and six fixed submissions. No model is involved. Each submission is a known attack or a known good answer.
+
+In our November 19 run, all 18 outcomes matched expectations. The sound verifier accepted the correct answer and rejected the five others. A deliberately vulnerable verifier rewarded all four attacks it was built to allow. An always-fail verifier rejected the correct answer. Those last two are the point. The panel has to catch broken verifiers as well as pass good ones.
 
 ![The sound verifier accepts valid work and rejects non-reference controls. Deliberately defective verifiers expose both false acceptance and false rejection.](../assets/rubrics-cheats-and-traces/deterministic-controls.svg)
 
-In our November 19 run, all 18 outcomes matched what we expected. The sound verifier accepted the correct answer and rejected the other five. The two broken verifiers were both caught. That last part matters most: the panel has to catch bad verifiers, not just approve good ones.
+We also tried a model-backed version, where a model attempts the task instead of a script. In its latest batch, the model never produced a cheat, so every submission passed both verifiers. Scripted controls are the more reliable way to exercise known failure paths, because they do not depend on a model choosing to attack.
 
-We also tried letting a model attack the task instead of a script. In its latest batch, the model never tried to cheat, so every submission passed both verifiers and the cheat side went untested. Scripted controls are the more reliable way to cover known cheats.
+### The rubric
 
-### The rubric: is the task itself sound?
+In the refund task, a stated refund amount, a vague shipping rule or a wrong tax calculation does not stop the task from running. It changes what the score means, and the pass rate cannot show that.
 
-**How it goes wrong.** In the refund eval, a refund amount written into the instructions does not stop the task from running. Neither does a careless tax rule or a vague shipping policy. Each one just makes the score wrong. A pass rate cannot show this, because the pass rate is computed by the same broken task.
+Our hypothesis is that a rubric with explicit questions can tell us how good an evaluation is, and show the evidence behind that judgment.[^rubric-sources] Each question scores 0 to 3. If the evidence is missing, the question is marked Unassessed rather than scored 0.
 
-**How the rubric helps.** The rubric asks explicit questions about the task and records the evidence for each answer.[^rubric-sources] It has 23 criteria in three areas: where the task's files and settings came from, whether the instructions and scoring are sound, and whether answers can leak or credit can be faked. Each criterion scores 0 to 3. If the evidence is missing, the criterion is marked Unassessed instead of 0.
-
-Here is one real criterion, "clear task contract":
+One question asks:
 
 > Can independent readers resolve the goal and grading boundaries from the public or discoverable contract?
 
-For the refund eval, that means: can the agent tell from what it can see whether shipping is refundable, when approval is needed and whether a split refund is allowed? A reference solution that happens to pass does not answer that.
+For the refund task: can the agent tell whether shipping is refundable, when approval is required, and whether splitting the refund is allowed? A reference solution that happens to pass does not answer that. The agent has to be able to work it out from what it can see.
 
-Other criteria check for leaks and shortcuts. A scan compares what the agent can see with the private solution and test files. A separate control checks whether a refund amount stated in the instructions earns credit on its own.
+Other questions check for leaks and shortcuts. A scan compares what the agent can see with the private solution and test files. A separate control checks whether a refund amount stated in the instructions earns credit on its own.
 
-To test the rubric, we built a refund task that scores 3 on every criterion. Then we broke it one way at a time and watched which scores dropped. The rubric's rules never changed. Only the task or its evidence did.
+For this demo, we built a version of the refund task that scores 3 on every question, and supplied the supporting evidence ourselves. That gives us a known, perfect starting point. When we break one thing, we can see which scores drop and which stay put. Each change, which we call a mutation, alters the task or its evidence. The rubric's scoring rules stay fixed.
 
 ![Six cases scored on four rubric rows. Base scores 3, 3, 3 and METHOD-J1 1. A completion-only verifier drops forbidden-credit resistance and scoring authority to 0. Tax drift drops them to 1 and 0. Unrun held-out attacks drop forbidden-credit resistance to 2. Missing native evidence leaves observed configuration Unassessed. Undisclosed self-corroboration drops METHOD-J1 to 0.](../assets/rubrics-cheats-and-traces/rubric-mutations.svg)
 
-Different breaks hit different scores. A verifier that trusts "done" breaks both scoring and cheat resistance. A tax error breaks scoring and weakens cheat resistance. Skipping the attacks that someone else wrote only lowers confidence in cheat resistance. Missing evidence shows up as Unassessed, not as a low score. Each result points to a different fix.
+Different breaks hit different claims. A verifier that accepts a completion claim breaks both scoring and cheat resistance. A tax error breaks scoring and weakens cheat resistance. Skipping the attacks that someone else wrote only lowers confidence in cheat resistance. Missing evidence produces Unassessed, not a low score. Each result points to a different next step.
 
-Here is the "done without the refund" case, the second failure from our example:
+The completion-only mutation is the second failure from our example. We broke the refund verifier so that it accepted a completion claim without the required refund events. The task requirements and the rubric did not change.
 
 ![A completion-only submission earns no credit under the original verifier but receives undeserved credit under the deliberately broken variant. Forbidden-credit resistance falls from the base score of 3 to 0.](../assets/rubrics-cheats-and-traces/refund-completion-mutation.svg)
 
-We ran the broken verifier and confirmed that the shortcut earned credit. The rubric scored cheat resistance at 0 and scoring authority at 0, because the verifier no longer checked the refund. Across all 26 breaks we tried, each one lowered at least one score and none raised a score.
+We ran the broken verifier and confirmed that the shortcut earned credit. The rubric then scored cheat resistance at 0. Scoring also fell to 0, because the verifier no longer checked the refund itself. The same held across all 26 mutations in the demo. Each one lowered at least one score, and none raised a score.
 
-The report prints a total, but the per-criterion scores are the result to read. A total hides which claim failed, and that is the part you need to fix.
+The report prints a total, but the score for each question is the result to read. A total would hide which claim failed, and that is the part you need to fix.
 
-The rubric also says how far to trust its own 3s. A separate score records who confirmed each result and whether they were independent of the task's author. For our demo, we wrote most of that evidence ourselves, so that score stays at 1 even on the perfect task. That is the correct answer. Independent reviewers would raise it without any change to the task.
+### Traces
 
-### Traces: is the starting state real?
+In the refund task, the order history is what makes the problem hard: earlier partial refunds, approvals and ledger entries. A coding agent that only has the request has to make that history up.
 
-**How it goes wrong.** In the refund eval, the hard part is the order history: earlier partial refunds, approvals and ledger entries. A coding agent that only has the request "build a refund eval" has to invent that history. The invented version is usually simpler than the real one.
+Production traces record how customers actually use an agent. A trace keeps inputs, outputs, and actions. Building from one means the task starts from state someone observed.[^trace2env]
 
-**How traces help.** A trace is a recording of a real session: what the user asked, what the agent did and what the tools returned. Building from a trace means the task starts from state someone actually saw, not state the coding agent made up.[^trace2env]
+We tested this in October on a different task. Eval Author was asked to build the same task twice: once from the user's request alone, and once with the recorded trace of the earlier session. The task was a selection operation in a design tool, where the starting state depends on what happened earlier in the session.
 
-We tested this directly. We asked Eval Author to build the same task twice: once from the user's request alone, and once with a recording of the earlier session. The task was a selection step in a design tool, where the starting state depends on what happened earlier.
-
-| | Request only | With the trace |
+| Measure | Request only | With the trace |
 | --- | ---: | ---: |
 | Runnable tasks built | 0 / 3 | 3 / 3 |
-| Hidden checks passed | none to run | 45 / 45 |
+| Hidden checks passed (15 per task) | n/a | 45 / 45 |
 
-Without the trace, Eval Author could not know the starting state, so it declined to build the task every time. That is the behavior we want: no task is better than an invented one. With the trace, it built a working task every time, and each one passed all 15 checks we had written in advance and kept hidden from it.
+From the request alone, Eval Author could not know the starting state, so it correctly declined to build the task every time. With the trace, it built a working tool environment every time. We wrote 15 checks before the run and kept them hidden from Eval Author, so it could not tune a task to pass them. All three tasks passed all 15.
 
-In a second study, one trace was missing the only page that showed a product's stock. Eval Author named the missing product and declined to build the task instead of guessing a number.
+The trace is what makes the task possible. It supplies the objects and state that the request never mentioned.
 
-## Where this leaves us
+A second study used recorded sessions with an inventory service. One of the three traces was missing the only page that showed one product's stock. Eval Author named the missing product and declined to build the task instead of inventing a number.
 
-These checks move us in the right direction. Each one closes a different shortcut: the verifier can't trust the agent's word, the task has to justify its scores, and the starting state has to come from somewhere real. There is still a lot of work to do. Here is what we have planned:
+## What's next
 
-1. **Test the rubric on new defects.** We built the rubric against defects we planted. Next we will test it on new defects and real outputs it has never seen, and measure what it misses, what it wrongly rejects and what it costs.
+This moves us in the right direction, but there is more work to be done. We plan to fold parts of the trace-environment and rubric workflows into the main Eval Author skills. The studies below decide which parts.
+
+1. **Validate the rubric on fresh defects.** We will compare the rubric with plain pass/fail scoring on a small set of reviewed tasks. Acceptance uses new defects and real outputs that played no part in building the rubric. We will measure missed defects, rejected valid solutions, and cost.
 2. **Measure difficulty.** We want to know whether these checks produce tasks that separate stronger agents from weaker ones.[^difficulty]
-3. **Make tasks harder on purpose.** We want to vary tool sequences, inputs and edge cases to make harder tasks, and check that the harder task is still valid.[^taste]
-4. **Simulate realistic users.** Real users are vague, change their minds and write in their own style. We will generate those conversations with [NeMo Data Designer](https://github.com/NVIDIA-NeMo/DataDesigner) and [NeMo User Sim](https://github.com/NVIDIA-NeMo/UserSim), and keep them clearly separate from recorded traces.
-5. **Build tools from many traces.** One trace shows one path through a tool. Many traces show how it behaves across paths. We want substitute tools that behave like the real service beyond the calls we recorded.
-6. **Add observers.** A separate observer could watch the agent during a run and collect evidence of cheating for the rubric.[^monitoring] We would measure missed detections and false alarms.
+3. **Make tasks harder on purpose.** We want to try perturbations of tool sequences, along with varied inputs and boundary cases for the verifier, and check that the harder task is still valid.[^taste]
+4. **Simulate realistic users.** Real users are vague, change their minds, and write in their own style. We will use [NeMo Data Designer](https://github.com/NVIDIA-NeMo/DataDesigner) and [NeMo User Sim](https://github.com/NVIDIA-NeMo/UserSim) to generate those interactions. Synthetic interactions stay clearly separate from observed traces.
+5. **Build stateful tools from many traces.** One trace shows one path through a tool. Many traces show how it behaves across paths. We want to build substitute tools from many traces and check that they behave like the real service beyond the calls we recorded.
+6. **Add observers.** Add a separate observer that watches the agent's actions and environment during a trial and collects evidence of cheating or evaluation-aware behavior for the rubric.[^monitoring] We would measure missed detections, false alarms, and the effect of any intervention.
 
-In a future note, we will cover the other half of the story: where Eval Author gets the source material it generates evals from. That is how we pull in the information to build evals. The checks in this note are how we keep the coding agent on track while it builds them.
+In a future dev note, we will cover where Eval Author gets the source material it generates evaluations from. The checks in this note keep the coding agent on track while it builds from that material.
 
 ## Try it
 
