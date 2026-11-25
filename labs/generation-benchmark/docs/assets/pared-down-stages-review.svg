@@ -1,0 +1,261 @@
+<!-- SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved. -->
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+
+<svg xmlns="http://www.w3.org/2000/svg" width="1800" height="2500" viewBox="0 0 1800 2500" role="img" aria-labelledby="title description">
+<title id="title">Generation benchmark: stage contracts and design review</title>
+<desc id="description">Review of the attached pared-down design against the existing metric benchmark. Five numbered rows show each proposed stage's inputs, operation and outputs. Orange text marks dependencies or outputs missing from an explicit contract. Review notes identify missing independent stage invocation, measurement internals crossing boundaries, Docker lifecycle in the generic runner, hard-coded execution identities, and incomplete status handoffs. The footer recommends small artifact contracts and independent operations without adding a workflow framework.</desc>
+<defs>
+  <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M1 1 L9 5 L1 9 Z" fill="#64748b"/></marker>
+  <style>
+    text { font-family: Arial, Helvetica, sans-serif; fill: #1e293b; }
+    .title { font-size: 34px; font-weight: 700; }
+    .subtitle { font-size: 20px; fill: #475569; }
+    .heading { font-size: 23px; font-weight: 700; }
+    .label { font-size: 17px; font-weight: 700; }
+    .body { font-size: 18px; }
+    .small { font-size: 16px; fill: #475569; }
+    .warn { font-size: 17px; fill: #934b0a; }
+    .risk { font-size: 18px; font-weight: 700; fill: #ad3434; }
+    .good { font-size: 18px; font-weight: 700; fill: #166b56; }
+    .number { font-size: 20px; font-weight: 700; fill: white; text-anchor: middle; }
+    .flow { fill: none; stroke: #64748b; stroke-width: 2; marker-end: url(#arrow); }
+  </style>
+</defs>
+<rect width="1800" height="2500" fill="white"/>
+
+<text x="40" y="57" class="title">Generation benchmark: are the stages replaceable?</text>
+<text x="40" y="93" class="subtitle">Review of the pared-down proposal • inputs, outputs, and the dependencies that cross each boundary</text>
+<text x="40" y="123" class="good">Verdict: reasonable scope; the handoffs need tightening before the five stages are independently replaceable.</text>
+<rect x="40" y="146" width="1720" height="149" rx="16" fill="#f0f6fe" stroke="#d0e0f7"/>
+<text x="62" y="178" class="heading">Existing metric benchmark: copy this separation</text>
+<text x="62" y="211" class="body">Prepared cases + subsets</text>
+<path d="M277 205 L319 205" class="flow"/>
+<text x="333" y="211" class="label">Execution</text>
+<path d="M420 205 L462 205" class="flow"/>
+<text x="477" y="211" class="label">Indexed results + native evidence</text>
+<path d="M742 205 L784 205" class="flow"/>
+<text x="798" y="211" class="label">Mutant scores / coverage scores</text>
+<path d="M1054 205 L1096 205" class="flow"/>
+<text x="1111" y="211" class="label">Correlation</text>
+<text x="62" y="245" class="body">Each stage has an API + standalone tool. Analysis can consume saved execution results. Native formats remain an explicit adapter concern.</text>
+<text x="62" y="274" class="small">Metric experiment: tests audit authoring. Generation experiment: tests task generation, using one fixed audit to measure coverage.</text>
+<rect x="40" y="312" width="1720" height="79" rx="12" fill="#fff4ed" stroke="#efc9ab"/>
+<text x="62" y="342" class="risk">Each stage needs to run independently</text>
+<text x="62" y="371" class="body">Stopping after a stage is not enough. Specify how to run any stage on its own using saved inputs, through an API or a command.</text>
+<text x="64" y="421" class="label">WHAT IT NEEDS  •  source stages in brackets</text>
+<text x="466" y="421" class="label">WHAT IT DOES</text>
+<text x="826" y="421" class="label">WHAT IT PRODUCES  •  next stages in brackets</text>
+<text x="1280" y="421" class="label">WHERE THE BOUNDARY NEEDS WORK</text>
+<rect x="40" y="440" width="1200" height="300" rx="16" fill="#eff9f6" stroke="#d7e0e8"/>
+<circle cx="73" cy="470" r="18" fill="#16856b"/>
+<text x="73" y="477" class="number">1</text>
+<text x="104" y="478" class="heading">Establish coverage of the full task suite</text>
+<rect x="56" y="498" width="369" height="200" rx="10" fill="#fff" stroke="#dce3ea"/>
+<rect x="455" y="498" width="329" height="200" rx="10" fill="#fff" stroke="#dce3ea"/>
+<rect x="814" y="498" width="410" height="200" rx="10" fill="#fff" stroke="#dce3ea"/>
+<text x="70" y="524" class="body">Full task suite and evaluation agent</text>
+<text x="70" y="548" class="body">Execution settings</text>
+<text x="70" y="572" class="body">Behavior description (ETHOS)</text>
+<text x="70" y="596" class="body">Tool list and source versions</text>
+<text x="70" y="620" class="body">Case description</text>
+<text x="469" y="524" class="body">Create the fixed coverage audit.</text>
+<text x="469" y="549" class="body">Prepare the baseline case.</text>
+<text x="469" y="574" class="body">Run the agent on the full suite.</text>
+<text x="469" y="599" class="body">Also run the required nop control.</text>
+<text x="469" y="624" class="body">Measure coverage from saved trials.</text>
+<text x="828" y="524" class="body">Fixed audit and provenance: audit/ [2–4]</text>
+<text x="828" y="548" class="body">Task and agent bundle: baseline-case/ [3]</text>
+<text x="828" y="572" class="body">Indexed trial results: execution/ [2–4]</text>
+<text x="828" y="596" class="body">Full-suite coverage: coverage-full/ [3,5]</text>
+<path d="M428 598 L451 598" class="flow"/>
+<path d="M787 598 L810 598" class="flow"/>
+<text x="60" y="722" class="small">Complete when the audit validates and every evaluation-agent trial succeeds with a saved trace; retain the coverage receipt.</text>
+<rect x="1258" y="440" width="502" height="300" rx="16" fill="#fffaf6" stroke="#e9ccb9"/>
+<text x="1278" y="473" class="risk">Keep the three operations replaceable</text>
+<text x="1278" y="505" class="body">Creating the audit, running tasks and measuring</text>
+<text x="1278" y="529" class="body">coverage can share one stage. Each still needs its own</text>
+<text x="1278" y="553" class="body">callable interface.</text>
+<text x="1278" y="577" class="body">Changing measurement should not require running the</text>
+<text x="1278" y="601" class="body">agent again. The extra do-nothing run satisfies a</text>
+<text x="1278" y="625" class="body">metric-specific manifest rule.</text>
+<text x="1278" y="658" class="warn">Allow each operation to consume saved inputs and produce</text>
+<text x="1278" y="681" class="warn">its own validated output.</text>
+<path d="M640 741 L640 753" class="flow"/>
+<rect x="40" y="756" width="1200" height="300" rx="16" fill="#f0f6fe" stroke="#d7e0e8"/>
+<circle cx="73" cy="786" r="18" fill="#3578c4"/>
+<text x="73" y="793" class="number">2</text>
+<text x="104" y="794" class="heading">Measure starting coverage for each task subset</text>
+<rect x="56" y="814" width="369" height="200" rx="10" fill="#fff" stroke="#dce3ea"/>
+<rect x="455" y="814" width="329" height="200" rx="10" fill="#fff" stroke="#dce3ea"/>
+<rect x="814" y="814" width="410" height="200" rx="10" fill="#fff" stroke="#dce3ea"/>
+<text x="70" y="840" class="body">Predefined task subsets</text>
+<text x="70" y="864" class="body">Indexed trial results [1]</text>
+<text x="70" y="888" class="body">Fixed audit and behavior description [1]</text>
+<text x="70" y="912" class="body">Case description</text>
+<text x="70" y="936" class="body">Fixed measurement settings</text>
+<text x="469" y="840" class="body">Select saved trials for each subset.</text>
+<text x="469" y="865" class="body">Measure the tools they cover.</text>
+<text x="469" y="890" class="body">Use the same fixed audit throughout.</text>
+<text x="469" y="915" class="body">Reuse recorded agent runs.</text>
+<text x="828" y="840" class="body">Subset coverage: coverage-subsets/ [3–5]</text>
+<text x="828" y="864" class="body">Coverage score and covered tool names</text>
+<text x="828" y="888" class="body">Reports and supporting measurements</text>
+<text x="828" y="912" class="body">Saved requests, responses and receipts</text>
+<text x="828" y="936" class="body">Combined score file: scores.json</text>
+<path d="M428 914 L451 914" class="flow"/>
+<path d="M787 914 L810 914" class="flow"/>
+<text x="60" y="1038" class="small">Every subset has a validated response and receipt. When coverage cannot be determined, save the reason.</text>
+<rect x="1258" y="756" width="502" height="300" rx="16" fill="#fffaf6" stroke="#e9ccb9"/>
+<text x="1278" y="789" class="risk">Publish results that other stages can use</text>
+<text x="1278" y="821" class="body">Later stages read Eval Author’s report fields and</text>
+<text x="1278" y="845" class="body">measurement folders directly. A replacement measurer</text>
+<text x="1278" y="869" class="body">would have to imitate that layout.</text>
+<text x="1278" y="893" class="body">A numeric score alone is insufficient: later stages also</text>
+<text x="1278" y="917" class="body">need the tool names.</text>
+<text x="1278" y="950" class="warn">Export the score, covered and observed tools, audit identity</text>
+<text x="1278" y="973" class="warn">and evidence references in one validated format.</text>
+<path d="M640 1057 L640 1069" class="flow"/>
+<rect x="40" y="1072" width="1200" height="300" rx="16" fill="#f7f4fc" stroke="#d7e0e8"/>
+<circle cx="73" cy="1102" r="18" fill="#8060b0"/>
+<text x="73" y="1109" class="number">3</text>
+<text x="104" y="1110" class="heading">Generate new tasks for each subset with missing coverage</text>
+<rect x="56" y="1130" width="369" height="200" rx="10" fill="#fff" stroke="#dce3ea"/>
+<rect x="455" y="1130" width="329" height="200" rx="10" fill="#fff" stroke="#dce3ea"/>
+<rect x="814" y="1130" width="410" height="200" rx="10" fill="#fff" stroke="#dce3ea"/>
+<text x="70" y="1156" class="body">Subset tasks, agent source and trials [1]</text>
+<text x="70" y="1180" class="body">Fixed audit and full-suite coverage [1]</text>
+<text x="70" y="1204" class="body">Starting subset coverage [2]</text>
+<text x="70" y="1228" class="body">Generator settings and supplied answers</text>
+<text x="70" y="1259" class="warn">ALSO NEEDED: subset membership and</text>
+<text x="70" y="1281" class="warn">held-out task content, for host-only leak</text>
+<text x="70" y="1303" class="warn">checks.</text>
+<text x="469" y="1156" class="body">Give the generator permitted inputs.</text>
+<text x="469" y="1181" class="body">Collect new tasks and logs.</text>
+<text x="469" y="1206" class="body">Check baseline measurement</text>
+<text x="469" y="1231" class="body">agrees.</text>
+<text x="469" y="1256" class="body">Validate tasks and scan for leaks.</text>
+<text x="469" y="1281" class="body">Keep held-out tasks on the host.</text>
+<text x="828" y="1156" class="body">Tasks, logs and receipt: generation/ [4,5]</text>
+<text x="828" y="1180" class="body">Validation decisions: gate/ [4,5]</text>
+<text x="828" y="1204" class="body">Kept and dropped tasks, with reasons</text>
+<text x="828" y="1235" class="warn">ALSO NEEDED: a saved outcome for every</text>
+<text x="828" y="1257" class="warn">subset, including skipped and unavailable runs.</text>
+<path d="M428 1230 L451 1230" class="flow"/>
+<path d="M787 1230 L810 1230" class="flow"/>
+<text x="60" y="1354" class="small">Distinguish no coverage gap, unavailable, completed with no tasks, and partially completed; keep held-out content out of the generator.</text>
+<rect x="1258" y="1072" width="502" height="300" rx="16" fill="#fffaf6" stroke="#e9ccb9"/>
+<text x="1278" y="1105" class="risk">Let the generator own its runtime</text>
+<text x="1278" y="1137" class="body">The shared runner names and removes Docker</text>
+<text x="1278" y="1161" class="body">containers. Signing also requires an image. Requiring</text>
+<text x="1278" y="1185" class="body">baseline-report.json ties every generator to Eval Author</text>
+<text x="1278" y="1209" class="body">measurement.</text>
+<text x="1278" y="1233" class="body">Replacing Docker with a virtual machine would change</text>
+<text x="1278" y="1257" class="body">the shared interface.</text>
+<text x="1278" y="1290" class="warn">The launcher should own isolation and cleanup. Keep Eval</text>
+<text x="1278" y="1313" class="warn">Author’s local measurement inside its adapter.</text>
+<path d="M640 1373 L640 1385" class="flow"/>
+<rect x="40" y="1388" width="1200" height="300" rx="16" fill="#fff8ec" stroke="#d7e0e8"/>
+<circle cx="73" cy="1418" r="18" fill="#c28226"/>
+<text x="73" y="1425" class="number">4</text>
+<text x="104" y="1426" class="heading">Recheck generated tasks and measure expanded coverage</text>
+<rect x="56" y="1446" width="369" height="200" rx="10" fill="#fff" stroke="#dce3ea"/>
+<rect x="455" y="1446" width="329" height="200" rx="10" fill="#fff" stroke="#dce3ea"/>
+<rect x="814" y="1446" width="410" height="200" rx="10" fill="#fff" stroke="#dce3ea"/>
+<text x="70" y="1472" class="body">Validated generated tasks and digests [3]</text>
+<text x="70" y="1496" class="body">Evaluation agent and execution settings</text>
+<text x="70" y="1520" class="body">Saved trials and fixed audit [1]</text>
+<text x="70" y="1551" class="warn">ALSO NEEDED: subset membership,</text>
+<text x="70" y="1573" class="warn">starting coverage [2], case description and</text>
+<text x="70" y="1595" class="warn">generation outcome [3].</text>
+<text x="469" y="1472" class="body">Recheck each generated task.</text>
+<text x="469" y="1497" class="body">Require: reference solution scores 1;</text>
+<text x="469" y="1522" class="body">do-nothing control scores 0;</text>
+<text x="469" y="1547" class="body">evaluation agent finishes with a trace.</text>
+<text x="469" y="1572" class="body">Combine old and kept new trials.</text>
+<text x="469" y="1597" class="body">Measure their coverage together.</text>
+<text x="828" y="1472" class="body">Recheck evidence: recheck/ [5]</text>
+<text x="828" y="1496" class="body">Expanded coverage: coverage-plus/ [5]</text>
+<text x="828" y="1520" class="body">Coverage report and receipt</text>
+<text x="828" y="1551" class="warn">ALSO NEEDED: kept and rejected task records;</text>
+<text x="828" y="1573" class="warn">an unchanged result if no tasks survive.</text>
+<path d="M428 1546 L451 1546" class="flow"/>
+<path d="M787 1546 L810 1546" class="flow"/>
+<text x="60" y="1670" class="small">Every eligible subset has an expanded-coverage result or an unavailable reason. With no kept tasks, coverage stays unchanged.</text>
+<rect x="1258" y="1388" width="502" height="300" rx="16" fill="#fffaf6" stroke="#e9ccb9"/>
+<text x="1278" y="1421" class="risk">Read identities from the results index</text>
+<text x="1278" y="1453" class="body">Combining old and new trials assumes names such as</text>
+<text x="1278" y="1477" class="body">case-0000 and agent-0000/run-0001. The metric results</text>
+<text x="1278" y="1501" class="body">format treats these as storage labels.</text>
+<text x="1278" y="1525" class="body">Another valid execution backend could choose different</text>
+<text x="1278" y="1549" class="body">names.</text>
+<text x="1278" y="1582" class="warn">Follow indexed paths and task/agent identities. Preserve</text>
+<text x="1278" y="1605" class="warn">each trial’s source and actual run identity.</text>
+<path d="M640 1689 L640 1701" class="flow"/>
+<rect x="40" y="1704" width="1200" height="300" rx="16" fill="#f2f5f8" stroke="#d7e0e8"/>
+<circle cx="73" cy="1734" r="18" fill="#52677e"/>
+<text x="73" y="1741" class="number">5</text>
+<text x="104" y="1742" class="heading">Report how much missing coverage the generator recovered</text>
+<rect x="56" y="1762" width="369" height="200" rx="10" fill="#fff" stroke="#dce3ea"/>
+<rect x="455" y="1762" width="329" height="200" rx="10" fill="#fff" stroke="#dce3ea"/>
+<rect x="814" y="1762" width="410" height="200" rx="10" fill="#fff" stroke="#dce3ea"/>
+<text x="70" y="1788" class="body">Full-suite coverage [1]</text>
+<text x="70" y="1812" class="body">Starting subset coverage [2]</text>
+<text x="70" y="1836" class="body">Expanded subset coverage [4]</text>
+<text x="70" y="1860" class="body">Covered and observed tool names [1,2,4]</text>
+<text x="70" y="1884" class="body">Generation and recheck outcomes [3,4]</text>
+<text x="70" y="1908" class="body">Audit identity and evidence receipts</text>
+<text x="469" y="1788" class="body">Check all results use the same audit.</text>
+<text x="469" y="1813" class="body">Check earlier coverage is retained.</text>
+<text x="469" y="1838" class="body">Calculate the coverage gained.</text>
+<text x="469" y="1863" class="body">Divide by the starting coverage gap.</text>
+<text x="469" y="1888" class="body">Report the median recovery fraction.</text>
+<text x="469" y="1913" class="body">Count every outcome.</text>
+<text x="469" y="1938" class="body">Read saved artifacts only.</text>
+<text x="828" y="1788" class="body">Final report: generation-analysis.json</text>
+<text x="828" y="1812" class="body">Starting and expanded coverage</text>
+<text x="828" y="1836" class="body">Coverage gained and recovery fraction</text>
+<text x="828" y="1860" class="body">Median recovery fraction</text>
+<text x="828" y="1884" class="body">Run status and rejected-task counts</text>
+<text x="828" y="1908" class="body">Tools outside the audit; evidence links</text>
+<path d="M428 1862 L451 1862" class="flow"/>
+<path d="M787 1862 L810 1862" class="flow"/>
+<text x="60" y="1986" class="small">Leave undefined recovery fractions unset. Account for every predefined subset using declared, validated inputs.</text>
+<rect x="1258" y="1704" width="502" height="300" rx="16" fill="#fffaf6" stroke="#e9ccb9"/>
+<text x="1278" y="1737" class="risk">Save outcomes before summarizing them</text>
+<text x="1278" y="1769" class="body">Analysis needs rejection counts, reasons and evidence</text>
+<text x="1278" y="1793" class="body">references. Stage 4 currently specifies folders rather than</text>
+<text x="1278" y="1817" class="body">a complete outcome record.</text>
+<text x="1278" y="1841" class="body">Skipped runs and unchanged coverage also need saved</text>
+<text x="1278" y="1865" class="body">results.</text>
+<text x="1278" y="1898" class="warn">Stages 3 and 4 should publish explicit outcomes so analysis</text>
+<text x="1278" y="1921" class="warn">does not have to reconstruct what happened.</text>
+<rect x="40" y="2030" width="1720" height="344" rx="16" fill="#f3f8f6" stroke="#c8ded4"/>
+<text x="62" y="2066" class="heading">Keep the five stages; make their handoffs clearer</text>
+<text x="62" y="2097" class="small">Recommended changes to the interfaces between stages:</text>
+<rect x="62" y="2116" width="526" height="156" rx="12" fill="#fff" stroke="#d5e2dc"/>
+<text x="80" y="2144" class="good">A consistent coverage result</text>
+<text x="80" y="2173" class="body">Save scores, tool names, the fixed audit identity and</text>
+<text x="80" y="2197" class="body">evidence references together. Other stages should read this</text>
+<text x="80" y="2221" class="body">result without knowing how the measurer stores its working</text>
+<text x="80" y="2245" class="body">files.</text>
+<rect x="609" y="2116" width="526" height="156" rx="12" fill="#fff" stroke="#d5e2dc"/>
+<text x="627" y="2144" class="good">An outcome for every subset</text>
+<text x="627" y="2173" class="body">Save task identities, validation decisions, completion status,</text>
+<text x="627" y="2197" class="body">reasons and supporting evidence. Publish an outcome even</text>
+<text x="627" y="2221" class="body">when no tasks were produced or kept.</text>
+<rect x="1156" y="2116" width="582" height="156" rx="12" fill="#fff" stroke="#d5e2dc"/>
+<text x="1174" y="2144" class="good">A way to run each stage on its own</text>
+<text x="1174" y="2173" class="body">Accept named input artifacts and write results to a new folder. Keep</text>
+<text x="1174" y="2197" class="body">the overall runner for convenience. Replacing a later stage should</text>
+<text x="1174" y="2221" class="body">reuse saved results from earlier stages.</text>
+<text x="62" y="2304" class="body">Keep: the fixed audit, verified evidence, isolated generator workspace, independent host checks and one subset at a time.</text>
+<text x="62" y="2336" class="body">Clarify: how the request reaches the generator, and how it saves accepted tasks before a timeout.</text>
+<text x="62" y="2362" class="small">The current entrypoint writes response.json only at the end, while a missing response makes the entire run unavailable.</text>
+<text x="40" y="2408" class="small">Reading guide: rows describe the proposal. Amber text marks missing inputs or outputs and suggested improvements.</text>
+<text x="40" y="2434" class="small">Recovery fraction = coverage gained ÷ the gap between full-suite coverage and starting subset coverage.</text>
+<a href="../../../metric-benchmark/docs/stages.md"><text x="40" y="2460" class="small">Sources: metric stages</text></a>
+<a href="../../../metric-benchmark/docs/results-format.md"><text x="220" y="2460" class="small">• results format</text></a>
+<a href="../../../metric-benchmark/docs/assets/experiment-flow.svg"><text x="348" y="2460" class="small">• original metric diagram</text></a>
+<text x="555" y="2460" class="small">• attached pared-down-design.md (Stages, Measurement, Generator command, Package layout)</text>
+<text x="40" y="2484" class="small">Design review only: proposed generation implementation is not present in this checkout. Native Harbor evidence remains part of the existing metric contract.</text>
+</svg>
