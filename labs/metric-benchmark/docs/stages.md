@@ -51,7 +51,7 @@ a Harbor job is an explicit execution setting; a fully sequential run uses one
 concurrent trial. Each case specifies `repetitions` (default 1) for every agent/task within
 the selected run; analysis compares per-task mean rewards.
 
-This phase is expected to be expensive: with `M` mutants and `T` tasks, even a
+This phase is expected to be expensive: with `M` mutants and `T` tasks,
 `n` repetitions per pair require `(M + 1) × T × n` task executions before retries.
 The baseline is included because mutant scoring compares its outcomes with each
 mutant's outcomes. The local Harbor loop produces the shared index and native evidence used by

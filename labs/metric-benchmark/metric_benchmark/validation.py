@@ -87,7 +87,7 @@ def validate_matrix_run_ids(case: Case, raw: RawResults) -> dict[str, str]:
     expected = {agent.agent_bundle_id for agent in case.agents()}
     if set(runs) != expected:
         raise ValueError(
-            f"case {case.case_id}: incomplete agent x task matrix; "
+            f"case {case.case_id}: incomplete agent x task x repetition matrix; "
             f"missing agents: {sorted(expected - runs.keys())}; unexpected agents: {sorted(runs.keys() - expected)}"
         )
     unique(list(runs.values()), "selected run IDs")
@@ -199,7 +199,7 @@ def validate_results(
                 f"evidence {row.native_results_path}: {error}"
             ) from error
     if set(groups) != expected:
-        raise ValueError("results do not account for the complete agent x task matrix")
+        raise ValueError("results do not account for the complete agent x task x repetition matrix")
     for rows in groups.values():
         if len({r.evaluation.evaluation_id for r in rows}) != 1:
             raise ValueError("ambiguous evaluations for agent/task repetition")

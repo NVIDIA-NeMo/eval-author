@@ -556,7 +556,7 @@ def test_baseline_only_preparation_execution_and_analysis_boundaries(tmp_path: P
 @pytest.mark.parametrize(
     "change, message",
     [
-        ("missing", "results do not account for the complete agent x task matrix"),
+        ("missing", "results do not account for the complete agent x task x repetition matrix"),
         ("out-of-range", "unexpected agent or task in results"),
         ("duplicate", "ambiguous evaluations for agent/task repetition"),
         ("reused-evidence", "native trial evidence reused by multiple observations"),

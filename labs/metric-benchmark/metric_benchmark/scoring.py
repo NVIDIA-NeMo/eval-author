@@ -5,6 +5,7 @@
 
 import math
 from pathlib import Path
+from statistics import fmean
 from typing import Literal
 
 from pydantic import Field
@@ -85,6 +86,17 @@ class RepetitionSummary(Model):
     provisional_mean: float | None
 
 
+def mean_over_repetitions(scores: list[Score]) -> Score:
+    missing = [
+        f"repetition {index}: {score.missing_score_reason}"
+        for index, score in enumerate(scores, 1)
+        if score.value is None
+    ]
+    if missing:
+        return Score(value=None, missing_score_reason="; ".join(missing))
+    return Score(value=fmean(score.value for score in scores if score.value is not None))
+
+
 def summarize_tasks(
     raw: RawResults, config: ScoringConfig, selected: dict[tuple[str, str, int, int], Execution]
 ) -> dict[str, dict[str, RepetitionSummary]]:
@@ -104,18 +116,11 @@ def summarize_tasks(
                 rewards.append(score)
             valid = [score.value for score in rewards if score.value is not None]
             provisional = math.fsum(valid) / len(valid) if valid else None
-            missing = [
-                f"repetition {index}: {score.missing_score_reason}"
-                for index, score in enumerate(rewards, 1)
-                if score.value is None
-            ]
             summaries[agent][task.task_id] = RepetitionSummary(
                 requested=config.repetitions,
                 valid=len(valid),
                 rewards=rewards,
-                mean=Score(value=None, missing_score_reason="; ".join(missing))
-                if missing
-                else Score(value=provisional),
+                mean=mean_over_repetitions(rewards),
                 provisional_mean=provisional,
             )
     return summaries

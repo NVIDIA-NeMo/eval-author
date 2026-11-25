@@ -61,8 +61,8 @@ class ScoringPolicy(Model):
 
 
 class ScoringConfig(ScoringPolicy):
-    repetitions: int = Field(default=1, ge=1)
     case_id: Text
+    repetitions: int = Field(default=1, ge=1)
     baseline_bundle_id: Text
     mutant_bundle_ids: list[Text] = Field(min_length=1)
     run_ids: dict[Text, Text]
@@ -117,8 +117,8 @@ class TaskManifest(Model):
 
 
 class CaseDefinition(Model):
-    repetitions: int = Field(default=1, ge=1)
     case_id: Text
+    repetitions: int = Field(default=1, ge=1)
     agent: PinnedInput
     tasks: PinnedInput
 
@@ -130,8 +130,8 @@ class CaseDefinition(Model):
 
 
 class Case(Model):
-    repetitions: int = Field(default=1, ge=1)
     case_id: Text
+    repetitions: int = Field(default=1, ge=1)
     task_inventory: Tasks
     task_sources: dict[Text, PinnedInput]
     baseline: Agent

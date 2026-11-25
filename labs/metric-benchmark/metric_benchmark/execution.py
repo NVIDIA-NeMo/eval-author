@@ -80,7 +80,7 @@ def job_configuration(
 
 def collect_job(case: Case, agent_index: int, root: Path, request: JobConfig) -> list[Execution]:
     """Collect each task repetition, retaining status, reward and native evidence.
-    Saved task paths identify tasks; native directory order identifies samples, not matched random seeds.
+    Reject unfinished jobs and missing, excess, or unexpected task repetitions.
     """
     agent = case.agents()[agent_index]
     directory = root / "agents" / f"agent-{agent_index:04d}" / "run-0001"

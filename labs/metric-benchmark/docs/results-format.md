@@ -196,21 +196,26 @@ without symlink traversal, and its `run_id` must match the experiment index.
 Task IDs are unique. The inventory must match the prepared case exactly,
 including task order and optional names.
 
-Every configured baseline/mutant must appear, and every configured agent/task
-pair must be accounted for. Missing rows are not silently treated as unavailable;
-use explicit `missing` entries. Unexpected agents or task revisions are rejected.
+Every configured baseline/mutant must appear, and every configured
+agent/task/repetition must be accounted for. Missing rows are not silently treated
+as unavailable; use explicit `missing` entries. Unexpected agents or task revisions
+are rejected.
 
 ### Attempts
 
 Every `(evaluation_id, execution)` pair is unique across the index. Reusing an
-`evaluation_id` must preserve the run, task and repetition identity. An `agent_run_id` identifies
-one agent/profile combination; different agents cannot share it.
+`evaluation_id` must preserve the run, task and repetition identity. An
+`agent_run_id` identifies one agent/profile combination; different agents cannot
+share it.
 
 One run per agent and one logical `evaluation_id` per agent/task/repetition are
-required. Every configured repetition must have an observed or explicit missing row. Analysis's `scoring.attempt_policy` controls which recorded attempts it accepts:
+required. Every configured repetition must have an observed or explicit missing
+row. Analysis's `scoring.attempt_policy` controls which recorded attempts it accepts:
 
 - `only` (default): exactly one execution entry per agent/task/repetition.
-- `latest`: multiple attempts of the same evaluation are permitted. Native validation checks all supplied attempts; downstream scoring selects the highest attempt number, not the best reward.
+- `latest`: multiple attempts of the same evaluation are permitted. Native
+  validation checks all supplied attempts; downstream scoring selects the highest
+  attempt number, not the best reward.
 
 Independent repetitions have distinct evaluation IDs and `repetition` numbers.
 Two evaluation IDs claiming the same agent/task/repetition are ambiguous and

@@ -67,7 +67,7 @@ case, agent, task and run identities. Each case index has `run_id` from
 `agent_run_id` for its agent’s job; `native_results_path` locates the trial evidence.
 Within each task, the collector assigns repetition numbers starting at 1, in sorted
 native trial-directory order, never by reward or completion time. These numbers
-identify retained samples; they do not imply matched random seeds across agents.
+identify retained samples.
 Collection requires exactly the configured number of trials for every task.
 See the [results format](results-format.md) for the complete contract.
 No model or private service is involved in

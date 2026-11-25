@@ -52,8 +52,8 @@ case ID. Shared manifests need not be copied.
 baseline/task and mutant/task combination in this case. Override the default by
 setting this field on the case; different cases can use different counts. Five
 repetitions with 20 mutants and 89 tasks requests `(20 + 1) × 89 × 5 = 9,345`
-trials, before infrastructure retries. This is a sampling budget, not best-of-five
-selection or five retries. Original task timeouts and agent settings are unchanged.
+trials, before infrastructure retries. Every trial contributes to the
+[per-task mean reward](compute-mutant-scores.md#inputs-and-behavior).
 Use a fresh output directory when changing this field; it participates in the
 prepared case and execution identities. Re-sign enclosing experiment references
 with [sha-sign](sha-sign.md) after editing a signed bundle.
@@ -173,8 +173,8 @@ supported. Install that version in the execution environment; the YAML does not
 install it, and execution rejects a different installed version. The environment
 mapping accepts native Harbor environment settings.
 Execution always runs each case's baseline then mutants against its complete task
-inventory, with the case's `repetitions` trials per pair and no automatic retries. That matrix is
-already defined by the cases and is not configured a second time.
+inventory, with the case's `repetitions` trials per pair and no automatic retries.
+That matrix is already defined by the cases and is not configured a second time.
 
 When upgrading from Harbor 0.20.0, update any explicit `harbor_version` to `0.24.0`
 and choose a new execution output directory. The runtime version is part of the

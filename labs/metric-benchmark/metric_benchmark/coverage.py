@@ -3,7 +3,6 @@
 
 """Invoke a supplied coverage system using a fixed, baseline-only file contract."""
 
-import math
 import os
 import shutil
 import signal
@@ -16,7 +15,7 @@ from typing import Literal
 from metric_benchmark.config import CoverageConfig, file_manifest
 from metric_benchmark.io import digest_bytes, digest_file, json_bytes, read_json, write_json
 from metric_benchmark.models import Digest, Model, RawResults, Score, Subsets, Tasks, Text, resolve_evidence
-from metric_benchmark.scoring import Context, ScoringConfig, context, identity, select_executions
+from metric_benchmark.scoring import Context, ScoringConfig, context, identity, mean_over_repetitions, select_executions
 
 
 class CoverageScores(Model):
@@ -92,6 +91,7 @@ def invoke_coverage(
         product(sorted(subsets.eval_subsets, key=lambda s: s.eval_subset_id), range(1, selection.repetitions + 1))
     ):
         destination = work_root / f"subset-{ordinal + 1:06d}"
+        label = f"subset {subset.eval_subset_id}, repetition {repetition}"
         with tempfile.TemporaryDirectory(prefix=".pending-", dir=work_root) as temporary:
             workspace = Path(temporary)
             evidence = []
@@ -122,18 +122,16 @@ def invoke_coverage(
             if destination.exists() or destination.is_symlink():
                 receipt = Receipt.model_validate(read_json(resolve_evidence(destination, "receipt.json")))
                 if receipt.request_sha256 != request_digest or receipt.configuration_sha256 != config_digest:
-                    raise ValueError(
-                        f"subset {subset.eval_subset_id}: completed coverage request differs; use a new work directory"
-                    )
+                    raise ValueError(f"{label}: completed coverage request differs; use a new work directory")
                 actual = file_manifest(destination)
                 actual.pop("receipt.json")
                 if actual != receipt.files:
-                    raise ValueError(f"subset {subset.eval_subset_id}: completed coverage evidence changed")
+                    raise ValueError(f"{label}: completed coverage evidence changed")
                 if Score.model_validate(read_json(destination / "response.json")) != receipt.score:
-                    raise ValueError(f"subset {subset.eval_subset_id}: coverage receipt disagrees with saved response")
+                    raise ValueError(f"{label}: coverage receipt disagrees with saved response")
             else:
                 if cached_only:
-                    raise ValueError(f"subset {subset.eval_subset_id}: completed coverage request is missing")
+                    raise ValueError(f"{label}: completed coverage request is missing")
                 inputs = file_manifest(workspace)
                 with subprocess.Popen(
                     [*configuration.command, "--request", "request.json", "--output", "response.json"],
@@ -174,24 +172,11 @@ def invoke_coverage(
                 workspace.rename(destination)
             repetition_scores.setdefault(subset.eval_subset_id, []).append(receipt.score)
             receipts.setdefault(subset.eval_subset_id, []).append(identity(receipt))
-    scores = {}
-    for subset_id, observations in repetition_scores.items():
-        values = [score.value for score in observations if score.value is not None]
-        missing = [
-            f"repetition {index}: {score.missing_score_reason}"
-            for index, score in enumerate(observations, 1)
-            if score.value is None
-        ]
-        scores[subset_id] = (
-            Score(value=None, missing_score_reason="; ".join(missing))
-            if missing
-            else Score(value=math.fsum(values) / selection.repetitions)
-        )
     return CoverageScores(
         context=ctx,
         configuration=configuration,
         case_description_sha256=digest_bytes(json_bytes(case_description)),
-        scores=scores,
+        scores={subset_id: mean_over_repetitions(scores) for subset_id, scores in repetition_scores.items()},
         receipts=receipts,
         repetition_scores=repetition_scores,
     )

@@ -35,8 +35,9 @@ response.json`. Responses contain `value` (finite number), or `value: null` and
 `missing_score_reason`. The request does not include mutant evidence or outcomes. The command
 is trusted and runs on the host; staging is not a sandbox.
 
-Completed subset requests have file-digest receipts. Resume verifies those files
-and inputs before reuse. `--cached-only` prohibits new invocations. A command
+Completed subset requests have file-digest receipts. Resume errors identify both
+the subset and repetition. Resume verifies those files and inputs before reuse.
+`--cached-only` prohibits new invocations. A command
 failure, including a missing or invalid response or modified input evidence,
 preserves its private diagnostic workspace and logs without a completion receipt.
 On POSIX, timeout cancellation kills the command's process group, including its

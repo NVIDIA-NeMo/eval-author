@@ -51,8 +51,8 @@ class Tasks(Model):
 
 
 class Evaluation(Model):
-    repetition: int = Field(default=1, ge=1)
     evaluation_id: Text
+    repetition: int = Field(default=1, ge=1)
     execution: int = Field(ge=1)
     task: Task
 

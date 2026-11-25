@@ -62,10 +62,13 @@ At `repetitions: 1`, numerical scoring is unchanged.
 
 `task_scores[agent_id][task_id]` retains `requested`, `valid`, ordered `rewards`,
 `mean` (a Score), and `provisional_mean`. The main mean is unavailable unless all
-requested repetitions have valid measurements. A provisional mean uses only valid
+requested repetitions have valid measurements. One failed repetition makes every
+subset requiring that agent/task unavailable, so larger repetition budgets create
+more opportunities for an unavailable score. A provisional mean uses only valid
 observations and is descriptive; it never enters mutation scoring or correlation.
 Infrastructure errors are unavailable, not zero; valid zero rewards count normally.
 The output reports observed effects, not statistically confirmed mutant kills.
+
 The score context carries the execution’s `run_id` and hashes of the results,
 subsets and scoring selection. Coverage uses the same context so correlation can
 check that the pairs refer to the same observations. The prepared subset manifest
