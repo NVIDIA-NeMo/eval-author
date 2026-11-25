@@ -44,8 +44,8 @@ for analysis elsewhere. See [stage boundaries and reuse](benchmark-format.md#sta
 Case descriptions and native trial evidence are not needed for this arithmetic stage. The command
 checks the index and subset consistency; use `validate_results.py` separately for
 native-evidence validation. Programmatic callers pass models to the library.
-The score is the equally weighted mean over mutants of the signed mean paired
-task degradation. Improvements remain negative. The output includes `diagnostics`
+The score is the mean signed task degradation. Tasks and mutants have equal
+weighting. Improvements remain negative. The output includes `diagnostics`
 with `code: negative_mutant_score`, subset ID, and negative value.
 `mutant_bundle_id` identifies an individual effect; null identifies the subset
 aggregate. These flags are for inspection only: they neither fail scoring nor
@@ -58,8 +58,7 @@ the mutant mean from the baseline mean (reverse the sign for lower-is-better).
 For example, baseline `[1, 1, 0, 1, 1]` has mean `0.8`; mutant
 `[0, 1, 0, 0, 1]` has mean `0.4`, giving degradation `0.4`. Individual repetitions
 are not treated as matched random seeds. Fractional rewards use the same arithmetic.
-Tasks and mutants retain equal weighting. At `repetitions: 1`, numerical scoring
-is unchanged.
+At `repetitions: 1`, numerical scoring is unchanged.
 
 `task_scores[agent_id][task_id]` retains `requested`, `valid`, ordered `rewards`,
 `mean` (a Score), and `provisional_mean`. The main mean is unavailable unless all

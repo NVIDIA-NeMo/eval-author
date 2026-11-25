@@ -553,9 +553,18 @@ def test_baseline_only_preparation_execution_and_analysis_boundaries(tmp_path: P
         )
 
 
-@pytest.mark.parametrize("change", ["missing", "out-of-range", "duplicate", "reused-evidence"])
-def test_repetition_matrix_requires_distinct_complete_evidence(tmp_path, change):
+@pytest.mark.parametrize(
+    "change, message",
+    [
+        ("missing", "results do not account for the complete agent x task matrix"),
+        ("out-of-range", "unexpected agent or task in results"),
+        ("duplicate", "ambiguous evaluations for agent/task repetition"),
+        ("reused-evidence", "native trial evidence reused by multiple observations"),
+    ],
+)
+def test_repetition_matrix_requires_distinct_complete_evidence(tmp_path: Path, change: str, message: str) -> None:
     import yaml
+    from harbor.models.trial.result import TrialResult
     from metric_benchmark.models import RawResults
     from metric_benchmark.validation import validate_results
 
@@ -573,8 +582,18 @@ def test_repetition_matrix_requires_distinct_complete_evidence(tmp_path, change)
     elif change == "out-of-range":
         raw.execution_results[0].evaluation.repetition = 3
     elif change == "duplicate":
-        raw.execution_results[1].evaluation.repetition = 1
+        extra = raw.execution_results[0].model_copy(deep=True)
+        original = TrialResult.model_validate(read_json(root / extra.native_results_path / "result.json"))
+        extra.evaluation.evaluation_id += "/duplicate"
+        extra.native_results_path += "-duplicate"
+        directory = root / extra.native_results_path
+        directory.mkdir()
+        write_json(
+            directory / "result.json",
+            native_trial(original.config.task.path, directory, original.config.agent, 1.0),
+        )
+        raw.execution_results.append(extra)
     else:
         raw.execution_results[1].native_results_path = raw.execution_results[0].native_results_path
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match=message):
         validate_results(raw, loaded.inputs.case("rho-agent").case, root, loaded.inputs.root)
