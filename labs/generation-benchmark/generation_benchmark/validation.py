@@ -27,6 +27,7 @@ from generation_benchmark.digests import directory_manifest, pythonpath_env
 from generation_benchmark.models import (
     GenerationAgent,
     GenerationExperiment,
+    GenerationResponse,
     LoadedCase,
     OutputSpec,
     Score,
@@ -341,6 +342,69 @@ def validate_directory_output(
     if payload.get("score") is not None:
         payload["score"] = Score.model_validate(payload["score"])
     return payload
+
+
+def check_generation_output_tree(output_dir: Path, *, case_id: str = "", subset_id: str | None = None) -> None:
+    """Reject a generator `output/` that is not an ordinary tree of files and directories."""
+    if output_dir.is_symlink() or not output_dir.is_dir():
+        raise ValueError(_format_context(case_id, subset_id, output_dir, "output directory is missing or not a dir"))
+    for current, dirnames, filenames in os.walk(output_dir, followlinks=False):
+        for name in sorted([*dirnames, *filenames]):
+            entry = Path(current) / name
+            mode = entry.lstat().st_mode
+            if stat.S_ISLNK(mode):
+                raise ValueError(
+                    _format_context(case_id, subset_id, entry, "generator output must not contain symlinks")
+                )
+            if not (stat.S_ISDIR(mode) or stat.S_ISREG(mode)):
+                raise ValueError(
+                    _format_context(case_id, subset_id, entry, "generator output must contain only files and dirs")
+                )
+
+
+def validate_generation_output(
+    output_dir: Path,
+    *,
+    case_id: str = "",
+    subset_id: str | None = None,
+) -> GenerationResponse:
+    """Parse `response.json` in a generator `output/` and check every path it names."""
+    response_file = output_dir / "response.json"
+    try:
+        response_path = resolve_evidence(output_dir, "response.json")
+    except FileNotFoundError:
+        raise ValueError(_format_context(case_id, subset_id, response_file, "missing response.json")) from None
+    except ValueError as exc:
+        raise ValueError(_format_context(case_id, subset_id, response_file, str(exc))) from exc
+    if not response_path.is_file():
+        raise ValueError(_format_context(case_id, subset_id, response_file, "response.json is not a regular file"))
+    try:
+        response = GenerationResponse.model_validate(read_json(response_path))
+    except (OSError, ValueError) as exc:
+        raise ValueError(_format_context(case_id, subset_id, response_file, f"invalid response.json: {exc}")) from exc
+
+    named: list[tuple[str, str]] = []
+    for index, attempt in enumerate(response.attempts):
+        if attempt.task_path is not None:
+            named.append((f"attempts[{index}].task_path", attempt.task_path))
+        if attempt.log_path is not None:
+            named.append((f"attempts[{index}].log_path", attempt.log_path))
+    if response.baseline_report_path is not None:
+        named.append(("baseline_report_path", response.baseline_report_path))
+    for label, value in named:
+        try:
+            resolve_evidence(output_dir, value)
+        except FileNotFoundError:
+            raise ValueError(
+                _format_context(case_id, subset_id, output_dir / value, f"{label} names a missing path {value!r}")
+            ) from None
+        except ValueError as exc:
+            raise ValueError(
+                _format_context(case_id, subset_id, output_dir / value, f"{label} {value!r}: {exc}")
+            ) from exc
+
+    check_generation_output_tree(output_dir, case_id=case_id, subset_id=subset_id)
+    return response
 
 
 def validate_stage0_setup(

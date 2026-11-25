@@ -39,11 +39,16 @@ __all__ = [
     "DigestSpec",
     "DirectoryModel",
     "GenerationAgent",
+    "GenerationAgentRef",
+    "GenerationAttempt",
     "GenerationConfig",
     "GenerationExecution",
     "GenerationExperiment",
     "GenerationInputs",
     "GenerationLock",
+    "GenerationRequest",
+    "GenerationResponse",
+    "GenerationWorkspacePaths",
     "GlobDigest",
     "ImplementationRecord",
     "InputRef",
@@ -67,6 +72,7 @@ __all__ = [
     "Stage1ExecutionReceipt",
     "Stage1ExecutionRow",
     "Stage1Results",
+    "Stage3GenerationReceipt",
     "Subset",
     "Subsets",
     "SubsetsStageReceipt",
@@ -473,6 +479,103 @@ class SubsetsStageReceipt(SchemaModel):
     metric_setup_sha256: Digest | None = None
     settings_sha256: dict[Text, Digest] = Field(default_factory=dict)
     subset_receipts: dict[Text, Digest]
+
+
+def _output_relative_path(value: str | None) -> str | None:
+    if value is None:
+        return None
+    try:
+        return relative_path(value)
+    except ValueError:
+        raise ValueError(f"path must be relative to output/ without traversal: {value!r}") from None
+
+
+class GenerationWorkspacePaths(Model):
+    ethos: Text = "ETHOS.md"
+    agent: Text = "agent"
+    tasks: Text = "tasks"
+
+
+class GenerationAgentRef(Model):
+    agent_bundle_id: Text
+    revision: Text
+    harbor: dict[str, JsonValue]
+
+
+class GenerationRequest(SchemaModel):
+    """Generation command request for one subset: Bᵢ only, no held-out ids, no B-level scores."""
+
+    schema_id: Literal["nemo.eval_author.generation_request.v1"] = Field(
+        default="nemo.eval_author.generation_request.v1",
+        alias="schema",
+    )
+    case_id: Text
+    eval_subset_id: Text
+    tasks: list[Task] = Field(min_length=1)
+    workspace: GenerationWorkspacePaths = Field(default_factory=GenerationWorkspacePaths)
+    metric_output_dir: Text
+    agent: GenerationAgentRef
+    settings: dict[Text, JsonValue] = Field(default_factory=dict)
+    max_gaps: int | None = Field(default=None, ge=1)
+
+
+class GenerationAttempt(Model):
+    slug: Text
+    tool: Text | None = None
+    status: Text
+    task_path: Text | None = None
+    log_path: Text | None = None
+    reason: Text | None = None
+    pending_question: Text | None = None
+
+    @field_validator("task_path", "log_path")
+    @classmethod
+    def safe_paths(cls, value: str | None) -> str | None:
+        return _output_relative_path(value)
+
+
+class GenerationResponse(SchemaModel):
+    schema_id: Literal["nemo.eval_author.generation_response.v1"] = Field(
+        default="nemo.eval_author.generation_response.v1",
+        alias="schema",
+    )
+    attempts: list[GenerationAttempt] = Field(default_factory=list)
+    unattempted: list[Text] = Field(default_factory=list)
+    error: Text | None = None
+    baseline_report_path: Text | None = None
+
+    @field_validator("baseline_report_path")
+    @classmethod
+    def safe_report_path(cls, value: str | None) -> str | None:
+        return _output_relative_path(value)
+
+
+class Stage3GenerationReceipt(SchemaModel):
+    schema_id: Literal["nemo.eval_author.stage3_generation_receipt.v1"] = Field(
+        default="nemo.eval_author.stage3_generation_receipt.v1",
+        alias="schema",
+    )
+    case_id: Text
+    eval_subset_id: Text
+    status: Literal["complete", "partial", "unavailable", "zero_gap"]
+    unavailable_reason: Text | None = None
+    command: list[Text] = Field(min_length=1)
+    configuration_sha256: Digest
+    request_sha256: Digest | None = None
+    metric_full_receipt_sha256: Digest
+    metric_subset_receipt_sha256: Digest
+    case_lock_sha256: dict[Text, Digest]
+    returncode: int | None = None
+    timed_out: bool = False
+    generated_tasks: list[Text] = Field(default_factory=list)
+    attempt_summary: dict[Text, JsonValue] = Field(default_factory=dict)
+    output_files: dict[Text, Digest] = Field(default_factory=dict)
+
+    @model_validator(mode="after")
+    def reason_matches_status(self) -> Self:
+        if (self.status == "unavailable") != (self.unavailable_reason is not None):
+            raise ValueError("unavailable_reason is required exactly when status is unavailable")
+        return self
 
 
 @dataclass(frozen=True)

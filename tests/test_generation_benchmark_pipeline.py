@@ -274,13 +274,13 @@ def test_stages_0_to_2_receipts_reuse_generation_settings_and_setup_change(tmp_p
     assert res1["cases"]["smoke"]["subsets"]["s1"]["score"]["value"] == pytest.approx(0.5)
     assert res1["cases"]["smoke"]["subsets"]["s2"]["score"]["value"] == pytest.approx(0.25)
 
-    # Verify generation-inputs.json records run_id, implementation, and case/metric/execution keys only
+    # generation-inputs.json records run_id, implementation, and every lock entry the run read (stage 3 adds generation)
     gen_inputs = GenerationInputs.model_validate(read_json(work / "generation-inputs.json"))
     assert gen_inputs.run_id == "run-1"
     assert "execution" in gen_inputs.entries
     assert "metric" in gen_inputs.entries
-    assert "generation" not in gen_inputs.entries
-    assert "generation.settings.prompt" not in gen_inputs.entries
+    assert "generation" in gen_inputs.entries
+    assert "generation.settings.prompt" in gen_inputs.entries
 
     case_dir = work / "cases" / "case-0000"
     assert not (case_dir / "execution" / "agents" / "nop").exists()
@@ -359,20 +359,20 @@ def test_invalidation_and_case_selection_and_tamper_checks(
     c2_sub_mtime = (work / "cases" / "case-0001" / "metric-subsets" / "receipt.json").stat().st_mtime_ns
     run_experiment(exp, "run-1", work, invalidate_stages=["subsets"], case_filter="c1", runner=runner)
     captured = capsys.readouterr().err
-    assert "subsets will rerun" in captured
+    assert "subsets and generate will rerun" in captured
     assert counter["calls"] == 2
     assert (work / "cases" / "case-0001" / "metric-subsets" / "receipt.json").stat().st_mtime_ns == c2_sub_mtime
 
     # --invalidate-stage baseline with --case c1 removes execution & metric-full and warns
     run_experiment(exp, "run-1", work, invalidate_stages=["baseline"], case_filter="c1", runner=runner)
     captured = capsys.readouterr().err
-    assert "baseline and subsets will rerun" in captured
+    assert "baseline, subsets, and generate will rerun" in captured
     assert counter["calls"] == 3
 
     # --invalidate-stage setup with --case c1 removes metric-setup and warns
     run_experiment(exp, "run-1", work, invalidate_stages=["setup"], case_filter="c1", runner=runner)
     captured = capsys.readouterr().err
-    assert "setup, baseline, and subsets will rerun" in captured
+    assert "setup, baseline, subsets, and generate will rerun" in captured
     assert (
         counter["calls"] == 3
     )  # execution still valid if baseline wasn't invalidated, while metric-full/subsets rerun!

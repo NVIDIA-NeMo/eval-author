@@ -64,7 +64,7 @@
     "generation": {
       "path": "generation-experiment.yml",
       "selector": "generation",
-      "sha256": "sha256:5000206637f003ea5424cab9d17a303966abf2e7e6bac6034a60944d38bef3ec",
+      "sha256": "sha256:a916306c89bbe8c8ea6ab3fd4f74b30e3e359f7b206930dd1d4279e7f14eaf27",
       "type": "block"
     },
     "metric": {

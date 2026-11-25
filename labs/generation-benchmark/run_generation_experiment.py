@@ -2,7 +2,7 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Run generation benchmark stages 0-2."""
+"""Run generation benchmark stages 0-3."""
 
 from __future__ import annotations
 
@@ -36,10 +36,20 @@ for _path in (str(_GEN_ROOT), str(_GEN_ROOT.parent / "metric-benchmark")):
 from generation_benchmark.pipeline import INVALIDATE_STAGE_CHOICES, run_experiment  # noqa: E402
 
 
+def _positive_int(value: str) -> int:
+    try:
+        parsed = int(value)
+    except ValueError:
+        raise argparse.ArgumentTypeError(f"expected an integer, got {value!r}") from None
+    if parsed < 1:
+        raise argparse.ArgumentTypeError(f"must be at least 1, got {parsed}")
+    return parsed
+
+
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(
         prog="run_generation_experiment.py",
-        description="Run generation benchmark stages 0-2 on a signed generation-experiment.yml.",
+        description="Run generation benchmark stages 0-3 on a signed generation-experiment.yml.",
     )
     parser.add_argument("--benchmark", type=Path, required=True, help="Path to generation-experiment.yml")
     parser.add_argument("--run-id", required=True, help="Run identifier; must remain identical when reusing work root")
@@ -50,14 +60,19 @@ def main(argv: list[str] | None = None) -> None:
         choices=INVALIDATE_STAGE_CHOICES,
         default=[],
         help=(
-            "Invalidate stage directories so they rerun (setup, baseline, subsets); "
+            "Remove a stage's directories so that stage and every later stage rerun; "
             "deleting those directories by hand is the same operation."
         ),
     )
     parser.add_argument(
         "--case",
         dest="case_filter",
-        help="Run stages 0-2 only for CASE_ID and leave other cases untouched.",
+        help="Run stages 0-3 only for CASE_ID and leave other cases untouched.",
+    )
+    parser.add_argument(
+        "--max-gaps",
+        type=_positive_int,
+        help="Recorded on each generation request; the generation command decides how many gaps to attempt.",
     )
 
     args = parser.parse_args(argv)
@@ -68,6 +83,7 @@ def main(argv: list[str] | None = None) -> None:
             args.work_root,
             invalidate_stages=args.invalidate_stage,
             case_filter=args.case_filter,
+            max_gaps=args.max_gaps,
         )
         print(json.dumps(summary, indent=2, sort_keys=True))
     except (ValueError, RuntimeError, OSError) as exc:

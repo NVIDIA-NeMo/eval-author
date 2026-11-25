@@ -1,15 +1,13 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Stages 0-2 orchestrator for generation benchmarks."""
+"""Stages 0-3 orchestrator for generation benchmarks."""
 
 from __future__ import annotations
 
 import asyncio
-import os
 import shutil
 import sys
-import tempfile
 from collections.abc import Callable
 from importlib.metadata import version
 from pathlib import Path
@@ -19,7 +17,7 @@ from harbor.models.job.config import JobConfig
 from harbor.models.trial.config import EnvironmentConfig
 from metric_benchmark.io import digest_bytes, digest_file, json_bytes, read_json
 
-from generation_benchmark.digests import directory_manifest, implementation_info, is_skipped_path
+from generation_benchmark.digests import directory_manifest, implementation_digest, implementation_info
 from generation_benchmark.models import (
     GenerationInputs,
     ImplementationRecord,
@@ -39,6 +37,13 @@ from generation_benchmark.models import (
     Task,
 )
 from generation_benchmark.signing import ComputedLock, check_experiment, verify_lock_entries
+from generation_benchmark.staging import (
+    atomic_write_bytes,
+    copy_tree_filtered,
+    generate,
+    generation_lock_keys,
+    subset_dir_names,
+)
 from generation_benchmark.validation import (
     collect_stage1_job,
     invoke_workspace_command,
@@ -49,7 +54,7 @@ from generation_benchmark.validation import (
     validate_stage1_execution,
 )
 
-INVALIDATE_STAGE_CHOICES = ("setup", "baseline", "subsets")
+INVALIDATE_STAGE_CHOICES = ("setup", "baseline", "subsets", "generate")
 
 
 def run_harbor(config: JobConfig) -> None:
@@ -63,49 +68,9 @@ def run_harbor(config: JobConfig) -> None:
     asyncio.run(_run())
 
 
-def _atomic_write_bytes(path: Path, data: bytes) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with tempfile.NamedTemporaryFile(dir=path.parent, delete=False) as stream:
-        temporary = Path(stream.name)
-        try:
-            stream.write(data)
-            stream.flush()
-            os.fsync(stream.fileno())
-            os.replace(temporary, path)
-        finally:
-            temporary.unlink(missing_ok=True)
-
-
 def _dir_manifest_excluding(directory: Path, excluded_names: set[str]) -> dict[str, str]:
     full = directory_manifest(directory)
     return {rel: sha for rel, sha in full.items() if rel not in excluded_names}
-
-
-def _copy_tree_filtered(src: Path, dst: Path) -> None:
-    src = src.resolve()
-    dst.mkdir(parents=True, exist_ok=True)
-    for root, dirs, files in os.walk(src, followlinks=False):
-        root_path = Path(root)
-        rel_root = root_path.relative_to(src)
-        pruned: list[str] = []
-        for dirname in sorted(dirs):
-            rel = rel_root / dirname
-            if is_skipped_path(rel.parts):
-                continue
-            full_dir = root_path / dirname
-            if full_dir.is_symlink():
-                raise ValueError(f"symlinks are not allowed in staged tree: {full_dir}")
-            (dst / rel).mkdir(parents=True, exist_ok=True)
-            pruned.append(dirname)
-        dirs[:] = pruned
-        for filename in sorted(files):
-            rel = rel_root / filename
-            if is_skipped_path(rel.parts):
-                continue
-            full_file = root_path / filename
-            if full_file.is_symlink() or not full_file.is_file():
-                raise ValueError(f"non-regular file not allowed in staged tree: {full_file}")
-            shutil.copy2(full_file, dst / rel)
 
 
 def _case_settings_digests(
@@ -119,13 +84,16 @@ def _case_settings_digests(
 def _invalidate_case_stages(case_dir: Path, case_id: str, stage: str) -> None:
     if stage == "setup":
         targets = [case_dir / "metric-setup"]
-        warning_tail = "setup, baseline, and subsets will rerun"
+        warning_tail = "setup, baseline, subsets, and generate will rerun"
     elif stage == "baseline":
         targets = [case_dir / "execution", case_dir / "metric-full"]
-        warning_tail = "baseline and subsets will rerun"
+        warning_tail = "baseline, subsets, and generate will rerun"
     elif stage == "subsets":
         targets = [case_dir / "metric-subsets"]
-        warning_tail = "subsets will rerun"
+        warning_tail = "subsets and generate will rerun"
+    elif stage == "generate":
+        targets = [case_dir / "generation"]
+        warning_tail = "generate and every later stage will rerun"
     else:
         raise ValueError(f"unsupported stage for --invalidate-stage: {stage!r}")
 
@@ -161,7 +129,7 @@ def _update_generation_inputs(
         merged_entries.update(existing.entries)
     merged_entries.update(used_entries)
     record = GenerationInputs(run_id=run_id, implementation=impl, entries=merged_entries)
-    _atomic_write_bytes(inputs_path, json_bytes(record.to_payload()))
+    atomic_write_bytes(inputs_path, json_bytes(record.to_payload()))
 
 
 def _run_stage0_setup(
@@ -230,7 +198,7 @@ def _run_stage0_setup(
             return setup_dir, digest_file(receipt_path)
         # Input pins changed without invalidation: run setup in place so commands
         # like reference_metric.py can refuse with "metric-setup changed; use a new work root".
-        _atomic_write_bytes(setup_dir / "request.json", req_bytes)
+        atomic_write_bytes(setup_dir / "request.json", req_bytes)
     else:
         if setup_dir.exists():
             unexpected = [p.name for p in setup_dir.iterdir() if p.name != "request.json"]
@@ -239,7 +207,7 @@ def _run_stage0_setup(
                     f"case {case_id}, path {setup_dir}: incomplete metric-setup directory; use --invalidate-stage setup"
                 )
         setup_dir.mkdir(parents=True, exist_ok=True)
-        _atomic_write_bytes(setup_dir / "request.json", req_bytes)
+        atomic_write_bytes(setup_dir / "request.json", req_bytes)
 
     cmd = [*setup_cfg.command, "--request", "request.json", "--output-dir", "."]
     try:
@@ -274,7 +242,7 @@ def _run_stage0_setup(
         request_sha256=request_sha256,
         files=_dir_manifest_excluding(setup_dir, {"request.json", "receipt.json"}),
     )
-    _atomic_write_bytes(receipt_path, json_bytes(receipt.to_payload()))
+    atomic_write_bytes(receipt_path, json_bytes(receipt.to_payload()))
     return setup_dir, digest_file(receipt_path)
 
 
@@ -388,8 +356,8 @@ def _run_stage1_execution(
     job_config = _stage1_job_config(loaded=loaded, lc=lc, execution_dir=execution_dir, sorted_tasks=sorted_tasks)
     jobs_dir.mkdir(parents=True, exist_ok=True)
     native_req_path = jobs_dir / "native-request.json"
-    _atomic_write_bytes(jobs_dir / "request.json", job_request_bytes)
-    _atomic_write_bytes(native_req_path, json_bytes(job_config.model_dump(mode="json")))
+    atomic_write_bytes(jobs_dir / "request.json", job_request_bytes)
+    atomic_write_bytes(native_req_path, json_bytes(job_config.model_dump(mode="json")))
 
     runner(job_config)
     rows = collect_stage1_job(lc, execution_dir)
@@ -400,7 +368,7 @@ def _run_stage1_execution(
         execution_results=rows,
     )
     results_bytes = json_bytes(results.model_dump(mode="json", warnings="error"))
-    _atomic_write_bytes(results_path, results_bytes)
+    atomic_write_bytes(results_path, results_bytes)
     validated_results = validate_stage1_execution(execution_dir, lc)
 
     job_receipt_payload = {
@@ -408,8 +376,8 @@ def _run_stage1_execution(
         "native_request_sha256": digest_file(native_req_path),
         "files": directory_manifest(job_dir),
     }
-    _atomic_write_bytes(job_receipt_path, json_bytes(job_receipt_payload))
-    _atomic_write_bytes(
+    atomic_write_bytes(job_receipt_path, json_bytes(job_receipt_payload))
+    atomic_write_bytes(
         execution_dir / "execution.json",
         json_bytes(
             {
@@ -425,7 +393,7 @@ def _run_stage1_execution(
         job_receipt_sha256=digest_file(job_receipt_path),
         results_sha256=digest_file(results_path),
     )
-    _atomic_write_bytes(exec_receipt_path, json_bytes(exec_receipt.to_payload()))
+    atomic_write_bytes(exec_receipt_path, json_bytes(exec_receipt.to_payload()))
     return execution_dir, digest_file(exec_receipt_path), validated_results
 
 
@@ -526,9 +494,9 @@ def _run_or_reuse_metric_score(
     trials_dest = workspace_dir / "trials"
     trials_dest.mkdir(parents=True, exist_ok=True)
     for row in sorted_rows:
-        _copy_tree_filtered(execution_dir / row.native_results_path, trials_dest / row.task.task_id)
+        copy_tree_filtered(execution_dir / row.native_results_path, trials_dest / row.task.task_id)
     output_dir.mkdir(parents=True, exist_ok=True)
-    _atomic_write_bytes(inv_dir / "request.json", req_bytes)
+    atomic_write_bytes(inv_dir / "request.json", req_bytes)
 
     result = invoke_workspace_command(
         score_cfg.command,
@@ -600,7 +568,7 @@ def _run_or_reuse_metric_score(
         unavailable_reason=unavailable_reason,
         output_files=output_manifest,
     )
-    _atomic_write_bytes(receipt_path, json_bytes(receipt.to_payload()))
+    atomic_write_bytes(receipt_path, json_bytes(receipt.to_payload()))
     return receipt, digest_file(receipt_path)
 
 
@@ -625,7 +593,7 @@ def _run_stage2_subsets(
     settings_sha = _case_settings_digests(case_id, lc, verified)
 
     sorted_subsets = sorted(lc.subsets.eval_subsets, key=lambda s: s.eval_subset_id)
-    subset_dirs = {s.eval_subset_id: subsets_dir / f"subset-{idx:06d}" for idx, s in enumerate(sorted_subsets)}
+    subset_dirs = {sid: subsets_dir / name for sid, name in subset_dir_names(lc).items()}
 
     if stage_receipt_path.is_file():
         prev_stage = SubsetsStageReceipt.model_validate(read_json(stage_receipt_path))
@@ -708,7 +676,7 @@ def _run_stage2_subsets(
         settings_sha256=settings_sha,
         subset_receipts=subset_receipt_digests,
     )
-    _atomic_write_bytes(stage_receipt_path, json_bytes(stage_receipt.to_payload()))
+    atomic_write_bytes(stage_receipt_path, json_bytes(stage_receipt.to_payload()))
     return subset_results
 
 
@@ -721,10 +689,13 @@ def run_experiment(
     case_filter: str | None = None,
     runner: Callable[[JobConfig], None] = run_harbor,
     kill_grace_seconds: float = 60.0,
+    max_gaps: int | None = None,
 ) -> dict[str, Any]:
-    """Run stages 0-2 on a signed generation experiment."""
+    """Run stages 0-3 on a signed generation experiment."""
     if not run_id.strip():
         raise ValueError("run_id must be nonempty")
+    if max_gaps is not None and max_gaps < 1:
+        raise ValueError("--max-gaps must be at least 1")
 
     stages_to_invalidate = list(invalidate_stages or [])
     unknown_stages = [s for s in stages_to_invalidate if s not in INVALIDATE_STAGE_CHOICES]
@@ -744,7 +715,7 @@ def run_experiment(
 
     target_cases = [loaded.cases[case_filter]] if case_filter is not None else list(loaded.cases.values())
 
-    # Collect and verify ONLY stage 0-2 lock entries (do not record generation.* in stages 0-2 receipts).
+    # Stage 0-2 receipts record only these entries; stage 3 adds the generation entries below.
     read_keys: list[str] = ["cases", "execution", "metric"]
     if exp.metric.setup is not None:
         read_keys.append("metric.setup.output.type")
@@ -772,14 +743,19 @@ def run_experiment(
             read_keys.append(f"cases[{cid}].agent.digest")
 
     verified = verify_lock_entries(actual_lock, computed.lock, read_keys)
+    generation_verified = {
+        **verified,
+        **verify_lock_entries(actual_lock, computed.lock, generation_lock_keys(loaded)),
+    }
 
     work_root = work_root.resolve()
     work_root.mkdir(parents=True, exist_ok=True)
     _update_generation_inputs(
         work_root / "generation-inputs.json",
         run_id=run_id,
-        used_entries=verified,
+        used_entries=generation_verified,
     )
+    implementation_sha256 = implementation_digest()
 
     for stage in stages_to_invalidate:
         for lc in target_cases:
@@ -839,6 +815,16 @@ def run_experiment(
             kill_grace_seconds=kill_grace_seconds,
         )
 
+        generation_receipts = generate(
+            loaded,
+            generation_verified,
+            lc,
+            case_dir,
+            max_gaps=max_gaps,
+            kill_grace_seconds=kill_grace_seconds,
+            implementation_sha256=implementation_sha256,
+        )
+
         summary_cases[cid] = {
             "case_dir": str(case_dir),
             "metric_setup_sha256": metric_setup_sha256,
@@ -850,6 +836,14 @@ def run_experiment(
                     "unavailable_reason": rec.unavailable_reason,
                 }
                 for sid, rec in subset_receipts.items()
+            },
+            "generation": {
+                sid: {
+                    "status": rec.status,
+                    "generated_tasks": rec.generated_tasks,
+                    "unavailable_reason": rec.unavailable_reason,
+                }
+                for sid, rec in generation_receipts.items()
             },
         }
 

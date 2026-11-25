@@ -25,6 +25,6 @@ metric:
       python: python3
       type: generation_benchmark.reference_metric:ToolCallsScoreOutput
 generation:
-  command: [python3, -c, "raise SystemExit('stage 3 generation not run in stages 0-2 smoke')"]
+  command: [python3, -m, examples.smoke.stub_generator]
   timeout_seconds: 60
   settings: {}
