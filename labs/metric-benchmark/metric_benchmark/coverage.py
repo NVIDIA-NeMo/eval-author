@@ -103,7 +103,7 @@ def invoke_coverage(
                 or row.status not in selection.completed_statuses
             ]
             if unavailable and configuration.missing_baseline == "error":
-                raise ValueError(f"baseline evidence unavailable for {unavailable[0]}")
+                raise ValueError(f"{label}: baseline evidence unavailable for {unavailable[0]}")
             for index, task in enumerate(tasks if not unavailable else []):
                 row = selected[selection.baseline_bundle_id, task.task_id, task.revision, repetition]
                 source = resolve_evidence(record_root, row.native_results_path)

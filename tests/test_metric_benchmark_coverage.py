@@ -240,7 +240,7 @@ def test_mutable_coverage_inputs_fail_before_adapter_work(tmp_path, change):
 def test_missing_baseline_can_remain_unavailable_without_changing_subset(tmp_path, repetitions: int) -> None:
     args = coverage_example(tmp_path, repetitions=repetitions)
     args[0].execution_results[0].status = "error"
-    with pytest.raises(ValueError, match="baseline evidence unavailable"):
+    with pytest.raises(ValueError, match="subset subset-000001, repetition 1: baseline evidence unavailable"):
         invoke_coverage(*args)
     args[3].missing_baseline = "unavailable"
     result = invoke_coverage(*args)
