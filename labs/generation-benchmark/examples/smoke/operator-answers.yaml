@@ -1,0 +1,48 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+schema: nemo.eval_author.generation_operator_answers.v1
+ethos_confirmation:
+  source: smoke operator answers for the reference generator
+  validation: smoke ETHOS reviewed with the smoke benchmark
+journey_update:
+  prerequisites:
+    code_access: {status: confirmed, source: staged smoke workspace}
+    file_writes: {status: confirmed, source: container copy of the workspace}
+    command_execution: {status: confirmed, source: G container}
+    skills: {status: confirmed, source: skills copied into the G image}
+    ethos_skills: {status: confirmed, source: skills copied into the G image}
+    environment: {status: confirmed, source: Harbor sidecar on the host}
+    services: {status: confirmed, source: no services in the smoke tasks}
+    data: {status: confirmed, source: copied baseline trials}
+    agent_connection: {status: confirmed, source: smoke-agent through the Harbor sidecar}
+    model_credentials: {status: confirmed, source: the smoke agent calls no model}
+  scopes:
+    expand:
+      request: close the uncovered smoke tools
+      corpus: {source: .eval-author/audit-coverage-report.json}
+      priorities: uncovered tools in name order
+      cost_constraints: one smoke task per tool
+      examples_per_behavior: 1
+      variations_and_difficulty: one minimal task per tool
+      scenarios: {positive: the agent calls the tool and writes ready, negative: a wrong answer scores zero}
+      expected_outcomes: the verifier grades /app/answer, not the tool call
+      attempts_per_task: 2
+      pilot_or_expansion: pilot
+      authorizations:
+        docker: true
+        harbor: true
+        real_agent_runs: true
+        model_calls: false
+      decision_source: smoke operator answers
+      confirmed: true
+      needs_review: false
+  journey_status: {expand: in_progress}
+  blockers: []
+  pending_question: null
+  next_handoff: eval-author-task-create
+authorizations:
+  docker: true
+  harbor: true
+  real_agent_runs: true
+  model_calls: false

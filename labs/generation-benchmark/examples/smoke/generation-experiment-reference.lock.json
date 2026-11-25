@@ -1,0 +1,106 @@
+{
+  "entries": {
+    "cases": {
+      "path": "cases.yml",
+      "sha256": "sha256:6d9509d0ae29d2b70369d7776dddced11539e8567d265844c98543d3b9e3c5ac",
+      "type": "file"
+    },
+    "cases[smoke].agent": {
+      "path": "agents/smoke/agent.yml",
+      "sha256": "sha256:996d0cc3317672c23e412fe041d8d2ec977fd5fc03c996533e5094f07e8d686e",
+      "type": "file"
+    },
+    "cases[smoke].agent.inputs.source": {
+      "path": "agents/smoke/smoke_agent.py",
+      "sha256": "sha256:f10dffd361d009239970b47cb7c531c40ed04ff0e9ff2e494b324777e14f75af",
+      "type": "file"
+    },
+    "cases[smoke].ethos": {
+      "path": "agents/smoke/ethos.md",
+      "sha256": "sha256:fd8042ca11dbedf000acb16c1d9808377a363140e2285ff9e9e343af03d28597",
+      "type": "file"
+    },
+    "cases[smoke].settings.items": {
+      "path": "agents/smoke/items.yaml",
+      "sha256": "sha256:b9ffbc09f91ac9294e9dbf9a295e3bae5b7978b3f32d679028984fed802886a5",
+      "type": "file"
+    },
+    "cases[smoke].subsets": {
+      "path": "tasks/smoke/subsets.json",
+      "sha256": "sha256:3325bc96ee94e71231b8a9d0745368d0f40a02966c5997b0153b6e4d73f36e6b",
+      "type": "file"
+    },
+    "cases[smoke].tasks": {
+      "path": "tasks/smoke/tasks.yml",
+      "sha256": "sha256:a8278a613eecbcb1202bc4adced7d6cee863074d387c0f3de9a9d57fb1d88833",
+      "type": "file"
+    },
+    "cases[smoke].tasks.alpha": {
+      "path": "tasks/smoke/alpha",
+      "sha256": "sha256:f480335deba50e16530f39d3420159de88e8198450601c6f5bb9417dde2940b7",
+      "type": "directory"
+    },
+    "cases[smoke].tasks.beta": {
+      "path": "tasks/smoke/beta",
+      "sha256": "sha256:ecbc98514e44c196b044a1953fb6828734b21e186ab6b0116d9fe61a9a0da1e4",
+      "type": "directory"
+    },
+    "cases[smoke].tasks.delta": {
+      "path": "tasks/smoke/delta",
+      "sha256": "sha256:a1b6fcb2e4645b428369dd2d92e5f61f9ec9dd1c6e5e1d20d10c91aa791c923f",
+      "type": "directory"
+    },
+    "cases[smoke].tasks.gamma": {
+      "path": "tasks/smoke/gamma",
+      "sha256": "sha256:8f63da98ba1a145f3eed354e3d4554e678e630bc7fc97c8134ac12c2e26fa99b",
+      "type": "directory"
+    },
+    "execution": {
+      "path": "generation-experiment-reference.yml",
+      "selector": "execution",
+      "sha256": "sha256:021e6a8d49655792c87fa2e0037bd39f0f89dea94dbf84ed25af94ea8b7a16e1",
+      "type": "block"
+    },
+    "generation": {
+      "path": "generation-experiment-reference.yml",
+      "selector": "generation",
+      "sha256": "sha256:0025260ad278b655cb5123d58fb40679659b41e1de8f753c77c60ccccb98fc13",
+      "type": "block"
+    },
+    "generation.digest": {
+      "path": "generation-experiment-reference.yml",
+      "selector": "generation.digest",
+      "sha256": "sha256:09c9018026bc2dc97a6d5cf20f37bf6054bf6207f3f0dd188ace22eeddf7bd9f",
+      "type": "digest"
+    },
+    "generation.settings.operator_answers": {
+      "path": "operator-answers.yaml",
+      "sha256": "sha256:4d84f32a382615e50fe9cbc57f5b250f0197a2a161b40b3c3dd24d3771909935",
+      "type": "file"
+    },
+    "generation.settings.prompt": {
+      "path": "prompt.md",
+      "sha256": "sha256:b166337d1e55c6f9b5ec098cff9369bfabb035de0218a0106354bc642403a595",
+      "type": "file"
+    },
+    "metric": {
+      "path": "generation-experiment-reference.yml",
+      "selector": "metric",
+      "sha256": "sha256:315e3bd7e5f05b70ffb154c50eccad33e0dd1f360f4604299c945b91566ac987",
+      "type": "block"
+    },
+    "metric.score.output.type": {
+      "path": "../../generation_benchmark/reference_metric.py",
+      "selector": "ToolCallsScoreOutput",
+      "sha256": "sha256:f0b98a912e1e1dd7a60d08bddebeff7c2113a81642c9af920064a5b02f6131f6",
+      "type": "module"
+    },
+    "metric.setup.output.type": {
+      "path": "../../generation_benchmark/reference_metric.py",
+      "selector": "ToolCallsSetupOutput",
+      "sha256": "sha256:f0b98a912e1e1dd7a60d08bddebeff7c2113a81642c9af920064a5b02f6131f6",
+      "type": "module"
+    }
+  },
+  "schema": "nemo.eval_author.generation_lock.v1"
+}

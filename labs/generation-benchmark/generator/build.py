@@ -22,6 +22,7 @@ DEFAULT_BASE_IMAGE = "python:3.12-slim"
 GENERATION_FILES = {
     "entrypoint.py": GENERATOR_DIR / "entrypoint.py",
     "generation_controls.py": GENERATION_BENCHMARK_ROOT / "generation_controls.py",
+    "fake_agent.py": GENERATION_BENCHMARK_ROOT / "examples" / "smoke" / "fake_agent.py",
 }
 GENERATION_PACKAGES = {
     "generation_benchmark": GENERATION_BENCHMARK_ROOT / "generation_benchmark",
