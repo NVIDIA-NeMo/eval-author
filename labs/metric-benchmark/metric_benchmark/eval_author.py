@@ -10,8 +10,9 @@ from typing import Literal
 
 from pydantic import Field
 
+from metric_benchmark.atif_recovery import recover_embedded_children
 from metric_benchmark.config import file_manifest
-from metric_benchmark.io import digest_bytes, json_bytes, read_json
+from metric_benchmark.io import digest_bytes, json_bytes, read_json, write_json
 from metric_benchmark.models import Digest, Model, Score, Text, resolve_evidence
 
 
@@ -23,6 +24,7 @@ class EvalAuthorSettings(Model):
         default=["tool_calls", "capabilities", "failure_cases"],
         min_length=1,
     )
+    recover_embedded_children: bool = False
     invalid_traces: Literal["error", "unavailable"] = "error"
     score_scope: Literal["overall", "tool", "capability", "failure_case"] = "overall"
 
@@ -78,6 +80,18 @@ def compute_audit_coverage(request_path: Path) -> Score:
         raise ValueError("author command executable must be absolute")
     if len(set(settings.methods)) != len(settings.methods):
         raise ValueError("duplicate measurement methods")
+    if settings.recover_embedded_children:
+        # Atom can export empty embedded children alongside their complete recordings.
+        prepared: list[dict] = []
+        for index, item in enumerate(request["baseline_evidence"], start=1):
+            if item["format"] != "directory":
+                raise ValueError("child trace recovery requires native directories")
+            native = resolve_evidence(Path("."), item["path"])
+            recovered = recover_embedded_children(native, Path("recovered") / f"task-{index:06d}")
+            prepared.append({**item, "path": str(recovered), "files": file_manifest(recovered)} if recovered else item)
+        request = {**request, "baseline_evidence": prepared}
+        request_path = Path("recovered-request.json")
+        write_json(request_path, request)
     script_root = root / "skills/eval-author-audit/scripts/audit_spec"
     _run([*settings.author_command, "--request", str(request_path), "--output-dir", "authored"], "author.log")
     audit = resolve_evidence(Path("authored"), "audit.md").relative_to(Path.cwd())

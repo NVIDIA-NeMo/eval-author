@@ -18,6 +18,7 @@ Set `coverage.command` to absolute paths for the Python interpreter and
   system under evaluation's authoring procedure;
 - optional `methods` (default `tool_calls`, `capabilities`, `failure_cases`) and
   `score_scope` (`overall`, `tool`, `capability`, or `failure_case`);
+- optional `recover_embedded_children: true` (default false), described below;
 - optional `invalid_traces`: `error` (default) or `unavailable`.
 
 Obtain the source pin without opening Python:
@@ -47,7 +48,7 @@ Judgment availability is checked only for the selected `score_scope`; `overall`
 checks every measured kind. Unjudged capability evidence does not invalidate a
 tool-only score.
 Invalid/stale judgment sidecars fail native validation. The adapter measures
-native ATIF only; it does not reinterpret or repair traces. Native directories are required by this adapter.
+native ATIF only. Native directories are required by this adapter.
 With `invalid_traces: unavailable`, an explicit native trace rejection retains
 its diagnostic, continues measuring the other tasks, and makes the subset score
 unavailable. No aggregate report is produced for an incomplete subset. Other
@@ -61,3 +62,18 @@ scores, but native report bytes and their receipt hashes can differ between
 workspaces. Cached replay preserves the exact saved artifacts. The adapter gives
 each task a stable measurement run ID so multi-task subsets satisfy Eval Author's
 distinct-evidence validation.
+
+## Recover separately exported child traces
+
+Set `recover_embedded_children: true` for exports such as Atom's that retain
+complete children separately from empty embedded placeholders. Recovery requires
+`agent/trajectory-index.json`: a `sessions` list with boolean `root` markers and
+non-root `path` values relative to `agent/`. Replacements must have the exact child
+`trajectory_id` and matching stub metadata; missing or ambiguous evidence fails.
+Native ATIF validation still runs. Complete traces need no inventory.
+
+Originals remain unchanged. The adapter copies each affected trial to `recovered/`,
+replaces its trace, and passes `recovered-request.json` to authoring and measurement.
+Other trial files remain available. Each `recovery.json` binds input and output
+hashes; `source_root` is relative to that receipt's directory. Cached replay verifies
+the saved files. Recovery repairs trace assembly, not missing events or outcomes.
