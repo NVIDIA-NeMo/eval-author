@@ -45,6 +45,12 @@ def run_experiment(
     """
     loaded = load_benchmark(benchmark, allow_unsigned=allow_unsigned)
     analysis = loaded.analysis
+    for prepared_case in analysis.inputs.cases.values():
+        if not prepared_case.case.mutants:
+            raise ValueError(
+                f"case {prepared_case.case.case_id}: experiments require at least one mutant; "
+                "use run_evals.py for baseline-only execution"
+            )
     analysis_sha256 = analysis.identity
     if cached_only and results_root is None:
         raise ValueError("cached_only requires an existing results_root")

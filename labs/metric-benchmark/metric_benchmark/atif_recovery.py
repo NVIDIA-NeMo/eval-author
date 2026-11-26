@@ -6,11 +6,26 @@
 import copy
 import os
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from metric_benchmark.coverage import copy_evidence
 from metric_benchmark.io import digest_file, read_json, write_json
-from metric_benchmark.models import resolve_evidence
+from metric_benchmark.models import Digest, Model, Text, resolve_evidence
+
+
+class RecoveredChild(Model):
+    trajectory_id: Text
+    source: Text
+
+
+class RecoveryReceipt(Model):
+    operation: Literal["fill_empty_embedded_children_by_exact_trajectory_id_v1"] = (
+        "fill_empty_embedded_children_by_exact_trajectory_id_v1"
+    )
+    source_root: Text
+    inputs: dict[Text, Digest]
+    recovered: list[RecoveredChild]
+    output_sha256: Digest
 
 
 def _read_object(path: Path) -> dict[str, Any]:
@@ -62,7 +77,7 @@ def recover_embedded_children(native: Path, output: Path) -> Path | None:
         if not isinstance(identity, str) or not identity or identity in recorded:
             raise ValueError("child trace inventory has absent or ambiguous trajectory IDs")
         recorded[identity] = path, child
-    recovered = []
+    recovered: list[RecoveredChild] = []
 
     def restore(node: dict[str, Any], ancestors: set[str]) -> None:
         children = children_of(node)
@@ -85,7 +100,7 @@ def recover_embedded_children(native: Path, output: Path) -> Path | None:
                 child = copy.deepcopy(candidate)
                 children[position] = child
                 relative = path.relative_to(native).as_posix()
-                recovered.append({"trajectory_id": identity, "source": relative})
+                recovered.append(RecoveredChild(trajectory_id=identity, source=relative))
             restore(child, ancestors | {identity})
 
     restore(trajectory, {root_id})
@@ -95,12 +110,11 @@ def recover_embedded_children(native: Path, output: Path) -> Path | None:
     write_json(destination, trajectory)
     write_json(
         output / "recovery.json",
-        {
-            "operation": "fill_empty_embedded_children_by_exact_trajectory_id_v1",
-            "source_root": Path(os.path.relpath(native, output)).as_posix(),
-            "inputs": inputs,
-            "recovered": recovered,
-            "output_sha256": digest_file(destination),
-        },
+        RecoveryReceipt(
+            source_root=Path(os.path.relpath(native, output)).as_posix(),
+            inputs=inputs,
+            recovered=recovered,
+            output_sha256=digest_file(destination),
+        ),
     )
     return output

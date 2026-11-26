@@ -61,7 +61,19 @@ def generate(source, tmp_path, **kwargs):
     )
 
 
-def test_full_generation_needs_no_experiment_or_checkout_metadata(source, tmp_path, monkeypatch):
+def set_repetitions(source: Path, repetitions: int) -> None:
+    cases = read_yaml(source / "cases.yml")
+    assert isinstance(cases, list)
+    cases[0]["repetitions"] = repetitions
+    write_yaml(source / "cases.yml", cases)
+    sign_benchmark(source / "experiment.yml", resign=True)
+
+
+@pytest.mark.parametrize("repetitions, trials", [(1, 6), (5, 30)])
+def test_full_generation_needs_no_experiment_or_checkout_metadata(
+    source: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, repetitions: int, trials: int
+) -> None:
+    set_repetitions(source, repetitions)
     (source / "experiment.yml").unlink()
     original = file_manifest(source)
 
@@ -70,9 +82,10 @@ def test_full_generation_needs_no_experiment_or_checkout_metadata(source, tmp_pa
 
     monkeypatch.setattr(subprocess, "Popen", no_execution)
     result = generate(source, tmp_path)
-    assert (result.cases, result.agents, result.tasks, result.subsets, result.trials) == (1, 3, 2, 3, 6)
+    assert (result.cases, result.agents, result.tasks, result.subsets, result.trials) == (1, 3, 2, 3, trials)
     check_benchmark(Path(result.experiment))
     loaded = load_benchmark(Path(result.experiment))
+    assert loaded.execution.inputs.case("smoke-case").case.repetitions == repetitions
     assert loaded.analysis.settings.coverage == load_benchmark(EXAMPLE / "experiment.yml").analysis.settings.coverage
     assert loaded.analysis.load_subsets("smoke-case").model_dump() == json.loads(
         (source / "tasks/smoke-tasks/subsets.json").read_text()
@@ -81,12 +94,17 @@ def test_full_generation_needs_no_experiment_or_checkout_metadata(source, tmp_pa
     assert not (tmp_path / "generated/provenance.json").exists()
 
 
-def test_selected_inputs_are_copied_pinned_and_independent(source, tmp_path, selection):
+@pytest.mark.parametrize("repetitions, trials", [(1, 2), (5, 10)])
+def test_selected_inputs_are_copied_pinned_and_independent(
+    source: Path, tmp_path: Path, selection: Selection, repetitions: int, trials: int
+) -> None:
+    set_repetitions(source, repetitions)
     result = generate(source, tmp_path, selection=[selection])
-    assert (result.agents, result.tasks, result.subsets, result.trials) == (2, 1, 1, 2)
+    assert (result.agents, result.tasks, result.subsets, result.trials) == (2, 1, 1, trials)
     path = Path(result.experiment)
     loaded = load_benchmark(path)
     case = loaded.execution.inputs.case("reduced").case
+    assert case.repetitions == repetitions
     assert case.baseline.agent_bundle_id == "oracle"
     assert [agent.agent_bundle_id for agent in case.mutants] == ["nop"]
     assert list(case.task_sources) == ["answer"]
@@ -100,8 +118,9 @@ def test_selected_inputs_are_copied_pinned_and_independent(source, tmp_path, sel
 
 def test_multiple_cases_and_case_filter(source, tmp_path):
     add_second_case(source)
+    set_repetitions(source, 5)
     result = generate(source, tmp_path)
-    assert (result.cases, result.trials) == (2, 12)
+    assert (result.cases, result.trials) == (2, 36)
     result = generate_experiment(
         source, tmp_path / "one-case", execution=source / "execution.yml", benchmark_id="one", case_ids=["second"]
     )
@@ -109,12 +128,15 @@ def test_multiple_cases_and_case_filter(source, tmp_path):
     assert list(load_benchmark(Path(result.experiment)).execution.inputs.cases) == ["second"]
 
 
-def test_default_selection_preserves_source_case(source: Path, tmp_path: Path) -> None:
+@pytest.mark.parametrize("repetitions, trials", [(1, 6), (5, 30)])
+def test_default_selection_preserves_source_case(source: Path, tmp_path: Path, repetitions: int, trials: int) -> None:
+    set_repetitions(source, repetitions)
     result = generate(source, tmp_path, selection=[Selection(source_case_id="smoke-case")])
-    assert (result.cases, result.agents, result.tasks, result.subsets, result.trials) == (1, 3, 2, 3, 6)
+    assert (result.cases, result.agents, result.tasks, result.subsets, result.trials) == (1, 3, 2, 3, trials)
     generated = load_benchmark(Path(result.experiment))
     original = load_benchmark(source / "experiment.yml")
     assert list(generated.execution.inputs.cases) == ["smoke-case"]
+    assert generated.execution.inputs.case("smoke-case").case.repetitions == repetitions
     assert generated.analysis.load_subsets("smoke-case") == original.analysis.load_subsets("smoke-case")
     receipt = json.loads((Path(result.experiment).parent / "generation.json").read_text())
     assert receipt["selections"] == [

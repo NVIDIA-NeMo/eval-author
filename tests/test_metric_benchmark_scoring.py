@@ -274,3 +274,71 @@ def test_analysis_index_rejects_mismatched_or_unsafe_case_paths(tmp_path, change
     message = "execution case definitions differ from supplied cases" if change == "cases-sha" else None
     with pytest.raises(ValueError, match=message):
         load_score_inputs(path.parent / "cases.yml", path.parent / "analysis.yml", case.case_id, tmp_path)
+
+
+def repeated_example(repetitions=5):
+    raw, subsets, config = example()
+    originals = raw.execution_results
+    raw.execution_results = []
+    config.repetitions = repetitions
+    for repetition in range(1, repetitions + 1):
+        for original in originals:
+            row = original.model_copy(deep=True)
+            row.evaluation.repetition = repetition
+            row.evaluation.evaluation_id += f"/rep-{repetition}"
+            row.native_results_path += f"/rep-{repetition}"
+            raw.execution_results.append(row)
+    return raw, subsets, config
+
+
+def test_repetition_means_and_counts_preserve_fractional_rewards_and_negative_effects():
+    raw, subsets, config = repeated_example()
+    for row in raw.execution_results:
+        if row.evaluation.task.task_id != raw.task_inventory[0].task_id:
+            continue
+        rewards = [1, 1, 0, 1, 1] if row.agent_bundle_id == "baseline" else [0, 1, 0, 0, 1]
+        row.metrics["reward"].value = float(rewards[row.evaluation.repetition - 1])
+    result = compute_mutant_scores(raw, subsets, config)
+    assert [score.value for score in result.scores.values()] == pytest.approx([0.4, 0, -1])
+    baseline = result.task_scores["baseline"][raw.task_inventory[0].task_id]
+    assert (baseline.requested, baseline.valid, baseline.mean.value) == (5, 5, 0.8)
+    assert [s.value for s in baseline.rewards] == [1, 1, 0, 1, 1]
+    assert result.task_scores["baseline"][raw.task_inventory[1].task_id].mean.value == 0.5
+    raw.execution_results.reverse()
+    reordered = compute_mutant_scores(raw, subsets, config)
+    assert reordered.scores == result.scores
+    assert reordered.task_scores == result.task_scores
+
+
+def test_repetition_missing_and_retry_do_not_shrink_denominator_or_replace_other_repetitions():
+    raw, subsets, config = repeated_example()
+    raw.execution_results.pop(0)
+    result = compute_mutant_scores(raw, subsets, config)
+    summary = result.task_scores["baseline"][raw.task_inventory[0].task_id]
+    assert (summary.requested, summary.valid, summary.provisional_mean) == (5, 4, 1)
+    assert summary.mean.value is None
+    assert result.scores["subset-000001"].value is None
+    retry = raw.execution_results[0].model_copy(deep=True)
+    retry.evaluation.execution = 2
+    retry.status = "error"
+    raw.execution_results.append(retry)
+    with pytest.raises(ValueError, match="multiple attempts"):
+        compute_mutant_scores(raw, subsets, config)
+    config.attempt_policy = "latest"
+    summary = compute_mutant_scores(raw, subsets, config).task_scores["baseline"][retry.evaluation.task.task_id]
+    assert summary.valid == 4 and summary.mean.value is None
+    assert summary.rewards[0].missing_score_reason == "execution status error"
+
+
+def test_repetition_count_and_retry_identity_are_validated():
+    raw, subsets, config = repeated_example()
+    config.repetitions = 4
+    with pytest.raises(ValueError, match="repetition exceeds"):
+        compute_mutant_scores(raw, subsets, config)
+    config.repetitions = 5
+    retry = raw.execution_results[0].model_copy(deep=True)
+    retry.evaluation.execution = 2
+    retry.evaluation.repetition = 2
+    raw.execution_results.append(retry)
+    with pytest.raises(ValueError, match="same run, task and repetition"):
+        compute_mutant_scores(raw, subsets, config)

@@ -266,6 +266,13 @@ def test_execution_does_not_open_analysis_inputs_or_settings(tmp_path):
     assert load_execution(tmp_path / "cases.yml", tmp_path / "execution.yml").inputs.cases
 
 
+def test_agent_manifest_requires_explicit_mutants() -> None:
+    from metric_benchmark.config import AgentManifest
+
+    with pytest.raises(ValueError, match=r"mutants\n\s+Field required"):
+        AgentManifest.model_validate({"baseline": {"agent_bundle_id": "baseline", "revision": "1", "harbor": {}}})
+
+
 @pytest.mark.parametrize("field", ["subsets", "case_description"])
 @pytest.mark.parametrize("failure", ["missing", "invalid"])
 def test_case_artifact_errors_have_context(tmp_path, field, failure):
@@ -351,3 +358,15 @@ def test_manifest_references_stay_inside_package(tmp_path, level, failure):
         loaded = load_benchmark(path)
         loaded.analysis.load_subsets("rho-agent")
         loaded.analysis.load_description("rho-agent")
+
+
+@pytest.mark.parametrize("repetitions", [0, -1, True, 1.5, "5"])
+def test_case_repetitions_require_a_positive_integer(tmp_path, repetitions):
+    from metric_benchmark.config import load_cases
+
+    path, _ = prepared_benchmark(tmp_path)
+    cases = yaml.safe_load((path.parent / "cases.yml").read_text())
+    cases[0]["repetitions"] = repetitions
+    write_definition(path, "cases.yml", cases)
+    with pytest.raises(ValueError):
+        load_cases(path.parent / "cases.yml")

@@ -48,11 +48,11 @@ settings.
 basic local loop: baseline first, then the configured mutants, with one Harbor job per agent
 covering the full benchmark. Agent jobs run sequentially. Task concurrency within
 a Harbor job is an explicit execution setting; a fully sequential run uses one
-concurrent trial. The initial analysis supports one trial per agent/task within
-the selected run; repetition aggregation remains future work.
+concurrent trial. Each case specifies `repetitions` (default 1) for every agent/task within
+the selected run; analysis compares per-task mean rewards.
 
-This phase is expected to be expensive: with `M` mutants and `T` tasks, even a
-single execution per pair requires `(M + 1) × T` task executions before retries.
+This phase is expected to be expensive: with `M` mutants and `T` tasks,
+`n` repetitions per pair require `(M + 1) × T × n` task executions before retries.
 The baseline is included because mutant scoring compares its outcomes with each
 mutant's outcomes. The local Harbor loop produces the shared index and native evidence used by
 the analysis tools.
@@ -84,7 +84,7 @@ mutants, the fixed mutant cohort, and the scoring policy.
 
 **Operation:** the scoring function selects the configured runs and attempts,
 pairs baseline and mutant outcomes by task, and computes one score per subset
-for the configured measurement. It rejects ambiguous repetitions. The metric
+for the configured measurement. It rejects duplicate repetition identities. The metric
 name and higher-is-better or lower-is-better direction are configuration fields.
 
 For reward, the implemented score is mean signed reward loss:
@@ -103,7 +103,8 @@ from correlation. A negative value can reflect execution variability or a
 mutation that improves performance on those tasks. Missing required
 pairs make a subset unavailable; no tasks or mutants are silently dropped.
 One run per agent and an explicit attempt-selection rule are required.
-This analysis does not pool repetitions or apply alternative weighting.
+Rewards are averaged within each agent/task before task-level comparisons;
+see [repetition scoring](compute-mutant-scores.md#inputs-and-behavior).
 
 **Outputs:** Mutant Scores, keyed by subset ID, with the case, baseline, mutant
 cohort, aggregation, and scoring variation identified. The output also contains

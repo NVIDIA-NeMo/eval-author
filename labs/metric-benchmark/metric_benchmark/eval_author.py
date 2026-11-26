@@ -25,6 +25,7 @@ class EvalAuthorSettings(Model):
         min_length=1,
     )
     recover_embedded_children: bool = False
+    invalid_traces: Literal["error", "unavailable"] = "error"
     score_scope: Literal["overall", "tool", "capability", "failure_case"] = "overall"
 
 
@@ -39,6 +40,16 @@ def _run(command: list[str], log_name: str) -> None:
         result = subprocess.run(command, stdout=log, stderr=subprocess.STDOUT, check=False)
     if result.returncode:
         raise ValueError(f"Eval Author command failed ({result.returncode}); see {log_name}")
+
+
+def _trace_failure(log: Path) -> bool:
+    try:
+        diagnostic = read_json(log)
+    except (OSError, ValueError):
+        return False
+    return (
+        isinstance(diagnostic, dict) and diagnostic.get("error_type") == "trace" and diagnostic.get("written") is False
+    )
 
 
 def _unjudged(value: object) -> bool:
@@ -88,6 +99,7 @@ def compute_audit_coverage(request_path: Path) -> Score:
     task_ids = {item["task"]["task_id"] for item in request["baseline_evidence"]}
     if not isinstance(judgments, dict) or set(judgments) - task_ids:
         raise ValueError("judgments must be keyed by this subset's task IDs")
+    invalid_traces = []
     for index, item in enumerate(request["baseline_evidence"]):
         if item["format"] != "directory":
             raise ValueError("Eval Author adapter requires unpacked Harbor trial directories")
@@ -122,7 +134,17 @@ def compute_audit_coverage(request_path: Path) -> Score:
                 "--" + kind.replace("_", "-"),
                 str(resolve_evidence(Path("authored"), path).relative_to(Path.cwd())),
             ]
-        _run(command, f"measure-{index:06d}.log")
+        log_name = f"measure-{index:06d}.log"
+        try:
+            _run(command, log_name)
+        except ValueError:
+            if settings.invalid_traces != "unavailable" or not _trace_failure(Path(log_name)):
+                raise
+            invalid_traces.append(item["task"]["task_id"])
+    if invalid_traces:
+        return Score(
+            value=None, missing_score_reason="Eval Author rejected native traces: " + ", ".join(invalid_traces)
+        )
     reports = sorted(Path("measurements").glob("task=*/run=*/*/coverage.json"))
     if len(reports) != len(task_ids) * len(settings.methods):
         raise ValueError("measurement output count differs from requested tasks and methods")

@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 
 import pytest
-from metric_benchmark.atif_recovery import recover_embedded_children
+from metric_benchmark.atif_recovery import RecoveryReceipt, recover_embedded_children
 from metric_benchmark.io import digest_file, write_json
 
 
@@ -38,6 +38,10 @@ def test_recovery_preserves_originals_and_binds_exact_recorded_child(tmp_path):
         if p != source / "agent/trajectory.json"
     )
     proof = json.loads((output / "recovery.json").read_text())
+    receipt = RecoveryReceipt.model_validate(proof)
+    assert receipt.model_dump() == proof
+    assert receipt.recovered[0].trajectory_id == "child"
+    assert receipt.recovered[0].source == "agent/children/one.json"
     assert proof["inputs"] == {str(p.relative_to(source)): digest_file(p) for p in originals}
     assert proof["output_sha256"] == digest_file(output / "agent/trajectory.json")
     assert proof["source_root"] == "../source"

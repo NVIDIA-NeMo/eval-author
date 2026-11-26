@@ -2,16 +2,17 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import json
+import shutil
 import sys
 
 import pytest
 from metric_benchmark.coverage import CoverageConfig, invoke_coverage
 from metric_benchmark.io import json_bytes
-from test_metric_benchmark_scoring import example
+from test_metric_benchmark_scoring import example, repeated_example
 
 
-def coverage_example(tmp_path):
-    raw, subsets, selection = example()
+def coverage_example(tmp_path, *, repetitions=1):
+    raw, subsets, selection = example() if repetitions == 1 else repeated_example(repetitions)
     for row in raw.execution_results:
         folder = tmp_path / "record" / row.native_results_path
         folder.mkdir(parents=True)
@@ -47,7 +48,7 @@ def test_baseline_only_protocol_and_verified_resume(tmp_path):
     Path(adapter).write_text("raise RuntimeError('must not rerun')")
     assert json_bytes(invoke_coverage(*args)) == json_bytes(first)
     args[-1].joinpath("subset-000001/response.json").write_text('{"value": 99}')
-    with pytest.raises(ValueError, match="subset-000001: completed coverage evidence changed"):
+    with pytest.raises(ValueError, match="subset-000001, repetition 1: completed coverage evidence changed"):
         invoke_coverage(*args)
 
 
@@ -55,7 +56,7 @@ def test_changed_request_or_configuration_refuses_reuse(tmp_path):
     args = coverage_example(tmp_path)
     invoke_coverage(*args)
     args[4]["required"].append("search-workspace")
-    with pytest.raises(ValueError, match="subset-000001: completed coverage request differs"):
+    with pytest.raises(ValueError, match="subset-000001, repetition 1: completed coverage request differs"):
         invoke_coverage(*args)
 
 
@@ -100,7 +101,36 @@ def test_missing_or_escaping_baseline_evidence_fails(tmp_path):
 
 def test_cached_only_requires_completed_coverage(tmp_path):
     args = coverage_example(tmp_path)
-    with pytest.raises(ValueError, match="subset-000001: completed coverage request is missing"):
+    with pytest.raises(ValueError, match="subset-000001, repetition 1: completed coverage request is missing"):
+        invoke_coverage(*args, cached_only=True)
+
+
+@pytest.mark.parametrize(
+    "change, message",
+    [
+        ("request", "completed coverage request differs"),
+        ("evidence", "completed coverage evidence changed"),
+        ("receipt", "coverage receipt disagrees with saved response"),
+        ("missing", "completed coverage request is missing"),
+    ],
+)
+def test_repeated_coverage_resume_identifies_repetition(tmp_path, change: str, message: str) -> None:
+    args = coverage_example(tmp_path, repetitions=2)
+    args[1].eval_subsets = args[1].eval_subsets[:1]
+    invoke_coverage(*args)
+    directory = args[-1] / "subset-000002"
+    if change == "missing":
+        shutil.rmtree(directory)
+    elif change == "evidence":
+        (directory / "response.json").write_bytes(json_bytes({"value": 99.0}))
+    else:
+        receipt = json.loads((directory / "receipt.json").read_text())
+        if change == "request":
+            receipt["request_sha256"] = "sha256:" + "0" * 64
+        else:
+            receipt["score"]["value"] = 99.0
+        (directory / "receipt.json").write_bytes(json_bytes(receipt))
+    with pytest.raises(ValueError, match=f"subset subset-000001, repetition 2: {message}"):
         invoke_coverage(*args, cached_only=True)
 
 
@@ -204,3 +234,75 @@ def test_mutable_coverage_inputs_fail_before_adapter_work(tmp_path, change):
     with pytest.raises(ValueError):
         invoke_coverage(*args)
     assert not args[-1].exists()
+
+
+@pytest.mark.parametrize("repetitions", [1, 2])
+def test_missing_baseline_can_remain_unavailable_without_changing_subset(tmp_path, repetitions: int) -> None:
+    args = coverage_example(tmp_path, repetitions=repetitions)
+    args[0].execution_results[0].status = "error"
+    with pytest.raises(ValueError, match="subset subset-000001, repetition 1: baseline evidence unavailable"):
+        invoke_coverage(*args)
+    args[3].missing_baseline = "unavailable"
+    result = invoke_coverage(*args)
+    scores = list(result.scores.values())
+    assert scores[0].value is None
+    reason = scores[0].missing_score_reason
+    assert reason is not None
+    assert "baseline evidence unavailable" in reason
+    assert [score.value for score in result.repetition_scores["subset-000001"]] == [None] + [0.5] * (repetitions - 1)
+    assert [score.value for score in scores[1:]] == [0.5, 0.0]
+    request = json.loads((args[-1] / "subset-000001/request.json").read_text())
+    assert request["unavailable_baseline_tasks"] == [args[0].execution_results[0].evaluation.task.task_id]
+    assert len(request["tasks"]) == 1
+    assert request["baseline_evidence"] == []
+    assert not (args[-1] / "subset-000001/authored").exists()
+    assert invoke_coverage(*args, cached_only=True) == result
+
+
+def test_incomplete_subset_does_not_copy_any_native_evidence(tmp_path, monkeypatch):
+    import metric_benchmark.coverage as module
+    from metric_benchmark.models import Subset
+
+    args = coverage_example(tmp_path)
+    args[0].execution_results[0].status = "error"
+    args[1].eval_subsets = [Subset(eval_subset_id="all", task_ids=[t.task_id for t in args[0].task_inventory])]
+    args[3].missing_baseline = "unavailable"
+
+    def refuse_copy(*_args, **_kwargs):
+        raise AssertionError("incomplete subset must not stage native data")
+
+    monkeypatch.setattr(module, "copy_evidence", refuse_copy)
+    scores = invoke_coverage(*args)
+    assert scores.scores["all"].value is None
+    request = json.loads((args[-1] / "subset-000001/request.json").read_text())
+    assert len(request["tasks"]) == len(args[0].task_inventory)
+    assert request["baseline_evidence"] == []
+    assert invoke_coverage(*args, cached_only=True) == scores
+
+
+@pytest.mark.parametrize("unavailable", [False, True])
+def test_repeated_coverage_averages_separate_measurements_and_preserves_unavailable(tmp_path, unavailable):
+    from pathlib import Path
+
+    raw, subsets, selection, configuration, description, record, work = coverage_example(tmp_path, repetitions=5)
+    Path(configuration.command[1]).write_text(
+        "import json\nfrom pathlib import Path\n"
+        "r=json.loads(Path('request.json').read_text())\n"
+        "assert len(r['baseline_evidence']) == len(r['tasks'])\n"
+        "assert 'mutant' not in json.dumps(r)\n"
+        "score={'value': r['repetition']/5}\n"
+        + ("if r['repetition']==5: score={'value':None, 'missing_score_reason':'unjudged'}\n" if unavailable else "")
+        + "Path('response.json').write_text(json.dumps(score))\n"
+    )
+    result = invoke_coverage(raw, subsets, selection, configuration, description, record, work)
+    assert len(list(work.glob("subset-*/receipt.json"))) == 15
+    for subset, score in result.scores.items():
+        if unavailable:
+            assert score.value is None and score.missing_score_reason == "repetition 5: unjudged"
+        else:
+            assert score.value == pytest.approx(0.6)
+        assert [s.value for s in result.repetition_scores[subset]][:4] == [0.2, 0.4, 0.6, 0.8]
+    Path(configuration.command[1]).write_text("raise AssertionError('must reuse')")
+    assert (
+        invoke_coverage(raw, subsets, selection, configuration, description, record, work, cached_only=True) == result
+    )

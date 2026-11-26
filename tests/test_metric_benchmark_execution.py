@@ -17,10 +17,11 @@ def fake_harbor(config):
     directory.mkdir(parents=True)
     write_json(directory / "result.json", {"finished_at": "2026-01-01T00:00:00"})
     for task in config.tasks:
-        native = directory / (task.path.name + "__arbitrary")
-        native.mkdir()
-        result = native_trial(task.path, native, config.agents[0], float(config.agents[0].name == "oracle"))
-        write_json(native / "result.json", result)
+        for repetition in range(1, config.n_attempts + 1):
+            native = directory / (task.path.name + f"__arbitrary-{repetition:06d}")
+            native.mkdir()
+            result = native_trial(task.path, native, config.agents[0], float(config.agents[0].name == "oracle"))
+            write_json(native / "result.json", result)
 
 
 @pytest.mark.parametrize("installed_version", ["0.19.0", "0.23.0", "0.24.1"])
@@ -508,3 +509,91 @@ def test_signing_unsigned_execution_preserves_resume_and_validation(tmp_path, ch
         assert execute_benchmark(signed, "run", output, runner=forbidden) == first
         assert validate_experiment_results(signed.inputs, output) == report
     assert file_manifest(output) == before
+
+
+def test_baseline_only_preparation_execution_and_analysis_boundaries(tmp_path: Path) -> None:
+    from harbor.models.job.config import JobConfig
+    from metric_benchmark.pipeline import run_experiment
+    from metric_benchmark.preparation import download_harbor_tasks
+    from metric_benchmark.scoring import load_score_inputs
+    from metric_benchmark.validation import validate_experiment_results
+
+    path, _ = prepared_benchmark(tmp_path / "inputs")
+    case = case_definition(path)
+    case["mutants"] = []
+    write_case(path, case)
+    prepared = tmp_path / "prepared"
+    download_harbor_tasks(path, prepared, benchmark=True)
+    path = prepared / path.name
+    loaded = load_execution(path.parent / "cases.yml", path.parent / "execution.yml")
+    output = tmp_path / "out"
+    calls = []
+
+    def runner(config: JobConfig) -> None:
+        calls.append(config.agents[0].name)
+        fake_harbor(config)
+
+    first = execute_benchmark(loaded, "baseline", output, runner=runner)
+    assert calls == ["oracle"]
+    assert execute_benchmark(loaded, "baseline", output, runner=runner) == first
+    assert calls == ["oracle"]
+    raw = read_json(case_root(output, 0) / "results.json")
+    assert isinstance(raw, dict)
+    assert len(raw["execution_results"]) == 3
+    assert {row["agent_bundle_id"] for row in raw["execution_results"]} == {case["baseline"]["agent_bundle_id"]}
+    assert (case_root(output, 0) / "agents/agent-0000/receipt.json").is_file()
+    validate_experiment_results(loaded.inputs, output)
+    with pytest.raises(ValueError, match="experiments require at least one mutant; use run_evals.py"):
+        run_experiment(path, "baseline", tmp_path / "experiment", runner=runner)
+    assert calls == ["oracle"]
+    assert not (tmp_path / "experiment").exists()
+    with pytest.raises(ValueError, match="analysis requires at least one mutant"):
+        load_score_inputs(
+            path.parent / "cases.yml", path.parent / "analysis.yml", case["case_id"], tmp_path / "absent-results"
+        )
+
+
+@pytest.mark.parametrize(
+    "change, message",
+    [
+        ("missing", "results do not account for the complete agent x task x repetition matrix"),
+        ("out-of-range", "unexpected agent or task in results"),
+        ("duplicate", "ambiguous evaluations for agent/task repetition"),
+        ("reused-evidence", "native trial evidence reused by multiple observations"),
+    ],
+)
+def test_repetition_matrix_requires_distinct_complete_evidence(tmp_path: Path, change: str, message: str) -> None:
+    import yaml
+    from harbor.models.trial.result import TrialResult
+    from metric_benchmark.models import RawResults
+    from metric_benchmark.validation import validate_results
+
+    path, _ = prepared_benchmark(tmp_path / "inputs")
+    cases = yaml.safe_load((path.parent / "cases.yml").read_text())
+    cases[0]["repetitions"] = 2
+    write_definition(path, "cases.yml", cases)
+    loaded = load_execution(path.parent / "cases.yml", path.parent / "execution.yml")
+    output = tmp_path / "out"
+    execute_benchmark(loaded, "run", output, runner=fake_harbor)
+    root = case_root(output, 0)
+    raw = RawResults.model_validate(read_json(root / "results.json"))
+    if change == "missing":
+        raw.execution_results.pop()
+    elif change == "out-of-range":
+        raw.execution_results[0].evaluation.repetition = 3
+    elif change == "duplicate":
+        extra = raw.execution_results[0].model_copy(deep=True)
+        original = TrialResult.model_validate(read_json(root / extra.native_results_path / "result.json"))
+        extra.evaluation.evaluation_id += "/duplicate"
+        extra.native_results_path += "-duplicate"
+        directory = root / extra.native_results_path
+        directory.mkdir()
+        write_json(
+            directory / "result.json",
+            native_trial(original.config.task.path, directory, original.config.agent, 1.0),
+        )
+        raw.execution_results.append(extra)
+    else:
+        raw.execution_results[1].native_results_path = raw.execution_results[0].native_results_path
+    with pytest.raises(ValueError, match=message):
+        validate_results(raw, loaded.inputs.case("rho-agent").case, root, loaded.inputs.root)

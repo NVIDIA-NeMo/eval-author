@@ -40,12 +40,23 @@ invalidate execution reuse when only analysis changes.
 - case_id: rho-agent
   agent: {path: agents/rho-agent/agent.yml}
   tasks: {path: tasks/workspace/tasks.yml}
+  repetitions: 5
 ```
 
 The document is a nonempty list, with unique case IDs. Every case selects an agent
 manifest and a task manifest; there is no `inputs` wrapper and no analysis settings
 in this file. Pairing the same agent with a different task collection uses another
 case ID. Shared manifests need not be copied.
+
+`repetitions` is a positive integer, defaulting to `1`. It applies to every
+baseline/task and mutant/task combination in this case. Override the default by
+setting this field on the case; different cases can use different counts. Five
+repetitions with 20 mutants and 89 tasks requests `(20 + 1) × 89 × 5 = 9,345`
+trials, before infrastructure retries. Every trial contributes to the
+[per-task mean reward](compute-mutant-scores.md#inputs-and-behavior).
+Use a fresh output directory when changing this field; it participates in the
+prepared case and execution identities. Re-sign enclosing experiment references
+with [sha-sign](sha-sign.md) after editing a signed bundle.
 
 The directory containing `cases.yml` is the input bundle root. All references in
 cases, agent/task manifests, and analysis case settings resolve from that root,
@@ -71,7 +82,8 @@ Each version has a distinct nonempty `agent_bundle_id`, a string `revision`, nat
 `harbor` settings, and optional `inputs` references to files or directories. A real
 agent's Harbor integration can reference a named dependency using `{input:NAME}`
 in its settings. References describe prepared dependencies; they do not install them.
-The selected integration must support loading them. There must be at least one mutant.
+The selected integration must support loading them. An explicit `mutants: []`
+allows [baseline-only execution](run-evals.md#baseline-only-execution).
 The intended-behavior description belongs in analysis settings, not this manifest.
 
 ## Tasks: `tasks.yml`
@@ -161,8 +173,8 @@ supported. Install that version in the execution environment; the YAML does not
 install it, and execution rejects a different installed version. The environment
 mapping accepts native Harbor environment settings.
 Execution always runs each case's baseline then mutants against its complete task
-inventory, with one attempt per pair and no automatic retries. That matrix is
-already defined by the cases and is not configured a second time.
+inventory, with the case's `repetitions` trials per pair and no automatic retries.
+That matrix is already defined by the cases and is not configured a second time.
 
 When upgrading from Harbor 0.20.0, update any explicit `harbor_version` to `0.24.0`
 and choose a new execution output directory. The runtime version is part of the
@@ -194,6 +206,7 @@ The coverage command above is illustrative and must name an installed tool.
 Coverage requires `system_id`, `system_revision`, and a nonempty `command` argument
 list whose first argument is an absolute executable path. Optional `settings` is a
 JSON object and `timeout_seconds` defaults to 3600.
+`missing_baseline` defaults to `error`; see [coverage computation](compute-coverage.md) for `unavailable`.
 Scoring defaults to `metric: reward`, `direction: higher_is_better`,
 `completed_statuses: [succeeded]`, and `attempt_policy: only`. Alternatives include
 `lower_is_better` and `latest` (select the highest attempt, not the best reward).

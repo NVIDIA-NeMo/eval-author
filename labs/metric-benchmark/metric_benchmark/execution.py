@@ -63,7 +63,7 @@ def job_configuration(
         {
             "job_name": "run-0001",
             "jobs_dir": str(root / "agents" / f"agent-{agent_index:04d}"),
-            "n_attempts": 1,
+            "n_attempts": case.repetitions,
             "retry": {"max_retries": 0, "exclude_exceptions": []},
             "n_concurrent_trials": settings.n_concurrent_trials,
             "environment": settings.environment,
@@ -79,8 +79,8 @@ def job_configuration(
 
 
 def collect_job(case: Case, agent_index: int, root: Path, request: JobConfig) -> list[Execution]:
-    """Read a finished Harbor job into one Execution record per task, including status, score, and evidence path.
-    Use saved task paths to identify tasks; reject unfinished jobs and missing, duplicate, or unexpected tasks.
+    """Collect each task repetition, retaining status, reward and native evidence.
+    Reject unfinished jobs and missing, excess, or unexpected task repetitions.
     """
     agent = case.agents()[agent_index]
     directory = root / "agents" / f"agent-{agent_index:04d}" / "run-0001"
@@ -92,16 +92,17 @@ def collect_job(case: Case, agent_index: int, root: Path, request: JobConfig) ->
         for native, task in zip(request.tasks, sorted(case.task_inventory.tasks, key=lambda t: t.key()), strict=True)
     }
     rows = []
-    seen = set()
+    seen: dict[str, int] = {}
     for result_path in sorted(directory.glob("*/result.json")):
         native = TrialResult.model_validate(
             read_json(resolve_evidence(directory, result_path.relative_to(directory).as_posix()))
         )
         path = native.config.task.path
         task = task_paths.get(path) if path is not None else None
-        if task is None or task.task_id in seen:
+        if task is None or seen.get(task.task_id, 0) >= case.repetitions:
             raise ValueError("unexpected or repeated native task in Harbor job")
-        seen.add(task.task_id)
+        repetition = seen.get(task.task_id, 0) + 1
+        seen[task.task_id] = repetition
         status, metrics = native_measurements(native)
         rows.append(
             Execution.model_validate(
@@ -109,7 +110,8 @@ def collect_job(case: Case, agent_index: int, root: Path, request: JobConfig) ->
                     "agent_run_id": agent_run_id(agent_index),
                     "agent_bundle_id": agent.agent_bundle_id,
                     "evaluation": {
-                        "evaluation_id": f"agent-{agent_index:04d}/{task.task_id}",
+                        "evaluation_id": f"agent-{agent_index:04d}/{task.task_id}/repetition-{repetition:06d}",
+                        "repetition": repetition,
                         "execution": 1,
                         "task": task.model_dump(),
                     },
@@ -120,9 +122,9 @@ def collect_job(case: Case, agent_index: int, root: Path, request: JobConfig) ->
                 }
             )
         )
-    if seen != {t.task_id for t in case.task_inventory.tasks}:
-        raise ValueError("finished Harbor job does not account for every configured task")
-    return sorted(rows, key=lambda r: r.evaluation.task.key())
+    if seen != {t.task_id: case.repetitions for t in case.task_inventory.tasks}:
+        raise ValueError("finished Harbor job does not account for every configured task repetition")
+    return sorted(rows, key=lambda r: (*r.evaluation.task.key(), r.evaluation.repetition))
 
 
 def run_or_reuse_job(
