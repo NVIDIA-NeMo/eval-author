@@ -143,6 +143,8 @@ then continue without a pause. Use `expansion_continue` for an unresolved entry
 decision and `expansion_scope` for the existing authoring workflow's saved planning
 checkpoint. Use `expansion_progress` for creation and validation of that agreed
 task set. Use `expansion_review` for generated-task review and execution approval.
+Use `expansion_results` for post-run attempt evidence and the final user acceptance
+decision.
 
 [conversation_renderer.py](../scripts/conversation_renderer.py) dispatches through
 an explicit [journey/stage registry](../scripts/conversation_flows/__init__.py)

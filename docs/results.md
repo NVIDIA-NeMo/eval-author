@@ -109,6 +109,18 @@ or use the Harbor viewer, where available, for a closer look.
 
 **Proposed** tasks have not been created yet.
 
+When improving an existing suite, the post-run chat shows one row per authorized
+attempt, with its score or execution error and links to the available output and
+actions, full trace, and verifier explanation. Missing attempts and unavailable
+evidence remain visible. Execution blockers appear with retained results and must
+be resolved before acceptance or another run. Tasks with the same title include
+their draft paths so you can distinguish them. Review those outputs, request changes, or explicitly
+approve the tasks. Task-design approval, permission to run, and passing checks
+do not move new tasks out of **Draft**. Only your post-run approval together with
+the workflow's current technical checks makes them **Accepted**; approving a
+subset leaves the others in Draft. Changed tasks or acceptance evidence require
+review again.
+
 Standalone drafts use `.eval-author/tasks/<task-slug>/README.md`. Trace candidates use
 `<task-dir>/README.md`, and generated batches also have a collection-root guide.
 The guide is refreshed after runs and linked in the handoff, including when

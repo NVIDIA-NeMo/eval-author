@@ -373,8 +373,11 @@ validation claims rather than requiring new approval of unchanged tasks.
 Use the provider references for native authoring and execution, preserving main's
 Draft/Accepted lifecycle and finalized task documentation. Use the
 [task review and execution approval checkpoint](../eval-author/references/conversations/expansion.md#task-review-and-execution-approval), reusing applicable authorization. Update
-the suite README/report outside validated task trees, reconcile retained versus
-added work, and retain the existing expansion progress and handoff. Do not claim
+the suite README/report outside validated task trees. After execution, use
+[results review and task acceptance](../eval-author/references/conversations/expansion.md#results-review-and-task-acceptance)
+for the attempt table and explicit post-run user approval before changing Draft
+to Accepted; a valid low-scoring baseline remains eligible for that decision.
+Reconcile retained versus added work, and retain the existing expansion progress and handoff. Do not claim
 that the create-only renderer or record establishes expansion completion.
 
 ## Blocked work and resume

@@ -883,13 +883,16 @@ Use `record-task`, rather than an arbitrary state update or report metadata patc
 python3 <skill_dir>/scripts/journey_state.py --repo /absolute/repository record-task \
   --task .eval-author/tasks/<slug> --status draft --source "<authoring decision>"
 python3 <skill_dir>/scripts/journey_state.py --repo /absolute/repository record-task \
-  --task .eval-author/tasks/<slug> --status accepted --source "<completed workflow review>" \
+  --task .eval-author/tasks/<slug> --status accepted --source "<completed acceptance decision>" \
   --evidence .eval-author/<retained-validation-result> \
   --evidence .eval-author/<retained-agent-result>
 ```
 
 `accepted` records the calling flow's completed acceptance decision; it does not
-run or replace that flow's checks. Supply its retained evidence files with
+run or replace that flow's checks. For journey `expand`, require explicit user
+approval of the current results through [results review](conversations/expansion.md#results-review-and-task-acceptance)
+before recording acceptance. Task-design approval, run permission, and successful
+technical checks leave new tasks **Draft** until that post-run decision. Supply its retained evidence files with
 repeatable `--evidence` arguments. Paths are repository-relative. For first
 evaluations, retain the passed controls, validated configuration, and actual-agent
 baseline required by that flow; a low agent score can still be a valid baseline.

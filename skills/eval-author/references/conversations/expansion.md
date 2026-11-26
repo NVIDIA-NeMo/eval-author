@@ -7,7 +7,8 @@ Use the [shared rendering entry point](../../scripts/conversation_renderer.py)
 with `stage: expansion_continue` for an unresolved entry decision or
 `stage: expansion_scope` for the selected authoring flow's existing scope review,
 then `stage: expansion_progress` during agreed creation and validation and
-`stage: expansion_review` for task review and execution approval.
+`stage: expansion_review` for task review and execution approval, followed by
+`stage: expansion_results` for post-run review.
 Rendering does not construct tasks, validate verifiers, or authorize execution.
 For an unselected improvement path, use the core's
 [expansion entry](../../SKILL.md#expansion-handoff) before shared checks;
@@ -261,6 +262,89 @@ links, the run plan, and its actual pending question. Do not replace it with a
 hand-written recap or append configuration-check results after rendering. Follow
 the [shared delivery contract](../conversation-rendering.md) for every review and
 execution-settings response, including resume.
+
+## Results review and task acceptance
+
+After execution, inspect the current provider-native results, outputs, traces, and
+verifier explanations. Recheck their binding to the authorized task revisions,
+agent/model, settings, and exact native attempt identities using the owning
+workflow's evidence checks. Do not substitute controls, earlier runs, or another
+task's evidence. Preserve partial, failed, and superseded attempts in the suite
+guide; missing or stale evidence is unavailable, never a passing result.
+
+Use `expansion_results` with normal state, revision, and current
+`facts.expansion_observations`. Supply `facts.attempts` as a transient list of
+inspected results, not another saved lifecycle or report. Each row contains:
+
+| Field | Meaning |
+|---|---|
+| `task_id` | The selected `expansion_state.task_key(agreed_row)` |
+| `example_id` | Selected Gym example ID; `null` for Harbor's task-level attempts |
+| `attempt` | One-based attempt number within the authorized selection |
+| `status` | `completed`, `error` for execution failure, or `incomplete` |
+| `score` | Actual score as text, or `null` when unavailable; never infer a missing score |
+| `error` | Actual execution error, or `null` when none is recorded |
+| `output`, `trace`, `verification` | Verified absolute paths to this attempt's retained output/actions, full trace, and verifier explanation; `null` when unavailable |
+
+Resolve links to real files under this repository's `.eval-author/`; do not guess
+provider filenames. For Harbor, these can be `artifacts/output/interaction.json`,
+`agent/trajectory.json`, and `verifier/checks.json` when actually retained. For Gym,
+link the native rollout and explanation that contain the selected example and
+attempt, retaining its exact identity in the suite guide. The caller owns evidence
+inspection and freshness under the shared rendering contract. The renderer
+lists every authorized attempt, including missing results, and never accepts a
+task or treats a score as task validation. Retain unresolved execution blockers
+and show them with bound results; the derived `execution.results_inspectable`
+flag permits this read-only display while `execution.authorized` remains false. Do not accept tasks,
+record final results review, or execute another run until those blockers are
+resolved. Stale task, validation, configuration, input, or settings bindings still
+prevent results display. Duplicate task titles include their draft paths,
+including missing attempts.
+
+Save the actual post-run decision question in `execution.pending` and top-level
+`pending_question`. Use `RESULTS_QUESTION` from
+[the templates](../../scripts/conversation_flows/expansion_templates.py) for the
+standard question, then deliver the complete rendering unchanged and wait for
+the user's answer. Do not reuse task-design approval or run permission as final
+acceptance. Feedback that changes a draft follows the existing repair/revalidation
+procedure and reopens affected approvals; a pause preserves Draft and evidence.
+
+Only after explicit user approval of the current results for named tasks, and
+all of their owning workflow's technical acceptance checks, record those tasks
+as **Accepted** through [Task status](../shared-prerequisites.md#task-status).
+Use the user's actual post-run reply as `source`. Bind the inspected native
+results, required validation evidence, and the authorized selection's configuration
+and input files (`selection.config` and `selection.inputs`) with `--evidence`.
+Verify that the native result's agent/model and execution settings match that
+selection; a prior Accepted decision for other settings cannot approve this run. Passing checks or a technical
+verification JSON with `accepted: true` alone leaves new tasks **Draft**. Recheck
+changed or missing task/evidence before acceptance; new results require renewed
+user review. Accept only the approved subset, keeping other tasks and their
+unanswered review visible. Refresh the existing reports and suite guide after
+the decision without changing finalized task content.
+
+After the user accepts the results for the complete agreed set, save
+`execution.results_review` as `{digest, source}`: use the current derived
+`execution.selection_digest` and the actual post-run reply, clearing the answered
+`execution.pending` and top-level `pending_question` in the same save. This optional field
+binds the final review to the authorized tasks, agent, and settings; it does not
+replace individual task acceptance or the owning workflow's technical checks.
+Clear it when changing tasks, scope, settings, selection, or authorization; the
+same save may clear the obsolete review and its pending question during repair.
+Before asking permission for any rerun, clear both `results_review` and
+`selection.authorization`, then save the new permission question in
+`execution.pending`. Reuse the current settings display when unchanged; render
+`expansion_review`, wait for the actual permission reply, and bind the new
+authorization before execution. Retain earlier results as history; new results
+need a new user review. Do not reuse a pre-run
+decision's source or save this review together with initial run authorization.
+
+For generic onboarding resume, supply current `facts.expansion_observations`
+from the state helper so routing uses observed authorization. Without these
+observations, resume directs to `expansion_review`, which uses fresh observations
+to select the results checkpoint or show the required repair. Once results are
+reviewed and the question is cleared, `expansion_review` shows the reviewed-run
+status without repeating permission or acceptance questions.
 
 ## Shared checkpoint contract
 
