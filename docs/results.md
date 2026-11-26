@@ -15,6 +15,12 @@ Eval Author normally saves reports and evaluation artifacts in the repository yo
 
 The [rubric base simulation](determinism-checks.md#rubric-base-simulation) writes this table for the refund base and each mutation under `<case>/table/`. Its `summary.html` shows the base table, what each mutation lowered and every score side by side; `summary.md` and `summary.json` hold the same scores. Each case's `simulated-premises.json` lists its simulated inputs.
 
+## Recovery comparisons
+
+The experimental [recovery comparison runner](../labs/metric-benchmark/docs/run-evals.md#recovery-comparisons) compares the same agent on a baseline task and a task with one controlled obstacle. Its `difficulty-matrix.json` lists paired outcomes, scenario severity, and whether the intended failure occurred. Open the linked trial files to inspect tool responses and recovery behavior.
+
+Scripted controls establish that a scenario is reachable and recoverable. Model-backed trials measure the selected agent. Difficulty results remain separate from rubric quality scores. All bundled scenarios are synthetic.
+
 ## Case and run catalog
 
 Open `.eval-author/report.html` in a browser. It is a single offline file with

@@ -1,0 +1,74 @@
+[
+  {
+    "id": "timeout",
+    "category": "timeout",
+    "severity": 1,
+    "seed": 101,
+    "trigger": {"tool": "search_records"},
+    "schedule": [1],
+    "expected_behavior": "Retry the simulated transient timeout, then use authoritative records and submit the complete total.",
+    "failure_signature": "abandoned_after_tool_error",
+    "provenance": "synthetic",
+    "source_refs": []
+  },
+  {
+    "id": "rate-limit",
+    "category": "rate-limit",
+    "severity": 1,
+    "seed": 102,
+    "trigger": {"tool": "search_records"},
+    "schedule": [1],
+    "expected_behavior": "Advance logical time with wait using retry_after_ticks before retrying the simulated rate limit.",
+    "failure_signature": "abandoned_after_tool_error",
+    "provenance": "synthetic",
+    "source_refs": []
+  },
+  {
+    "id": "partial-result",
+    "category": "partial-result",
+    "severity": 1,
+    "seed": 103,
+    "trigger": {"tool": "search_records"},
+    "schedule": [1],
+    "expected_behavior": "Follow next_page until complete, read authoritative records, and submit all eligible exact-account values.",
+    "failure_signature": "submitted_without_continuation",
+    "provenance": "synthetic",
+    "source_refs": []
+  },
+  {
+    "id": "stale-result",
+    "category": "stale-result",
+    "severity": 1,
+    "seed": 104,
+    "trigger": {"tool": "search_records"},
+    "schedule": [1],
+    "expected_behavior": "Detect stale cache status and conflicting versions, then read current authoritative records before summing.",
+    "failure_signature": "submitted_without_authoritative_read",
+    "provenance": "synthetic",
+    "source_refs": []
+  },
+  {
+    "id": "prerequisite-dependency",
+    "category": "prerequisite-dependency",
+    "severity": 1,
+    "seed": 105,
+    "trigger": {"tool": "search_records"},
+    "schedule": [1],
+    "expected_behavior": "Discover the pending preparation dependency and call prepare until prepared is true before submit.",
+    "failure_signature": "submitted_before_prerequisites",
+    "provenance": "synthetic",
+    "source_refs": []
+  },
+  {
+    "id": "distinguishable-distractor",
+    "category": "distinguishable-distractor",
+    "severity": 1,
+    "seed": 106,
+    "trigger": {"tool": "search_records"},
+    "schedule": [1],
+    "expected_behavior": "Exclude similar but nonmatching accounts and ineligible rows using authoritative exact account and eligibility fields.",
+    "failure_signature": "submitted_distractor_records",
+    "provenance": "synthetic",
+    "source_refs": []
+  }
+]

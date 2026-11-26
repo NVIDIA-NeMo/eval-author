@@ -71,6 +71,7 @@ extra-paths = [
   "tools",
   "skills/eval-author/scripts",
   "skills/eval-author-rubric/scripts",
+  "skills/eval-author-environment/scripts",
   "skills/eval-author-task-create/scripts",
   "skills/eval-author-trace-environment/scripts",
 ]

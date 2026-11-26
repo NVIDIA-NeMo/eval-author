@@ -103,6 +103,68 @@ trials; its default resume behavior removes and reruns cancelled trials. Do not
 resume a completed job that this runner has already sealed with a receipt, since
 changing its evidence makes reuse fail.
 
+## Recovery comparisons
+
+Run the synthetic recovery control panel from the repository root:
+
+```bash
+uv run --locked python labs/metric-benchmark/recovery_trials.py \
+  --target naive --repetitions 3 --output .eval-author/recovery-controls
+uv run --locked python labs/metric-benchmark/recovery_trials.py \
+  --verify --output .eval-author/recovery-controls
+```
+
+The panel qualifies each baseline and perturbed environment with the reference
+strategy before executing the deliberately incomplete `naive` control. Select
+`--target reference` to repeat the recovery strategy. These are scripted
+controls, not model runs or Harbor-native evidence. Each comparison changes one
+scenario and preserves the objective and final-state verifier. The output keeps
+per-trial evidence and a `difficulty-matrix.json` with paired outcomes, exposure,
+and intended-failure observations. It does not change rubric scores.
+
+Use `--scenario ID` and `--task invoice-total` or `--task stock-total` to select
+the panel. `--catalog FILE` accepts a reviewed scenario catalog. Call schedules,
+severity, seed, expected behavior, and failure signatures are defined in the
+[shared scenario procedure](../../../skills/eval-author/references/recovery-perturbations.md).
+
+An authorized external decision adapter can be selected with `--target external`,
+`--target-identity NAME`, and `--command '["python", "/path/to/adapter.py"]'`.
+Each fresh adapter process receives one JSON object on stdin with the task
+instruction, tool schemas, full tool history, and remaining tool allowance.
+Return either `{"tool":"search_records","arguments":{"page":1}}` or
+`{"finish":true}`. The parent owns the environment and grading. The adapter must
+use only supplied information and must retain its own model identity and usage
+receipts. Host process separation is not a security sandbox.
+
+The runner enforces tool-call, decision-turn, response-byte, and wall-clock limits.
+One tool action or explicit finish consumes a decision turn for every strategy,
+including reference controls. Adapter output and stderr share the byte limit.
+Timeout cleanup terminates the process group, not intentionally detached processes.
+It does not enforce a provider-token cap. Set `--max-tool-calls`, `--max-turns`,
+and `--wall-seconds` explicitly for a study and use an approved adapter that
+enforces any additional inference budget. External provider errors remain
+execution errors, not intended task failures. Use a fresh output directory for
+every collection. Combinations are not supported.
+
+The NVIDIA adapter uses only `https://inference-api.nvidia.com/v1` with an
+explicit `NVIDIA_RECOVERY_API_KEY`. It retains model identity, usage receipts,
+and assistant responses beside the environment history. It supplies only the
+scenario tools. Models receive no shell or filesystem access.
+
+```bash
+PYTHONDONTWRITEBYTECODE=1 \
+uv run --locked python labs/metric-benchmark/recovery_trials.py \
+  --target external --target-identity nvidia-gpt-6.1-sol \
+  --command '["python", "labs/metric-benchmark/nvidia_recovery_adapter.py", "--model", "azure/openai/gpt-6.1-sol"]' \
+  --task invoice-total --repetitions 3 --max-tool-calls 24 \
+  --max-turns 25 --wall-seconds 300 --output .eval-author/recovery-nvidia
+```
+
+The adapter reports actual token usage and caps each completion at 2,048 tokens.
+It does not claim a total token cap. Its per-request deadline is 60 seconds within
+the parent trial deadline. Provider requests have no automatic retries and reject
+redirects. Authentication and provider failures remain execution errors.
+
 ## Python library
 
 `execute_benchmark(loaded_execution, run_id, output)` runs the same stage as the

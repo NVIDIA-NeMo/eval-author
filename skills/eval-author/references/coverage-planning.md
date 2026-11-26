@@ -169,6 +169,10 @@ Clear the saved choice when starting a different suite in the same scope.
 
 ## Plan breadth per behavior
 
+For controlled recovery and information-quality comparisons, use
+[Recovery perturbations](recovery-perturbations.md). Its difficulty rows retain
+scenario severity and paired observations separately from rubric quality scores.
+
 Explain the counting units before discussing scope:
 
 - A **distinct input example** is a different request, fixture, or starting

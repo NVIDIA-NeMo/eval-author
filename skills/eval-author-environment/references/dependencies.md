@@ -78,6 +78,10 @@ trials. If reset is impossible, keep trials serial and record the limitation.
 
 ### Stateful fakes
 
+For configurable, isolated recovery conditions, see
+[Recovery perturbations](../../eval-author/references/recovery-perturbations.md).
+Keep its synthetic service errors separate from trace-observed failures.
+
 Build a fake from the contract: an OpenAPI document, the client library's
 request and response types, or recorded traces.
 
