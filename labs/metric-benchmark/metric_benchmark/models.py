@@ -89,14 +89,21 @@ class Execution(Model):
     native_results_path: Text
     native_results_format: Literal["tar.gz", "directory"]
     unavailable_evidence: dict[Text, Text] = Field(default_factory=dict)
+    identity_proof_path: Text | None = None
+    identity_scheme: Literal["scaled-evals-atom-v1", "scaled-evals-atom-repair-v1"] | None = None
 
     @model_validator(mode="after")
     def safe_path(self) -> Self:
         relative_path(self.native_results_path)
+        if (self.identity_proof_path is None) != (self.identity_scheme is None):
+            raise ValueError("identity proof path and scheme must be supplied together")
+        if self.identity_proof_path is not None:
+            relative_path(self.identity_proof_path)
         return self
 
 
 class ExecutionManifest(Model):
+    backend: Literal["local", "scaled_evals"] = "local"
     cases_sha256: Digest
     execution_sha256: Digest
     run_id: Text
@@ -104,6 +111,7 @@ class ExecutionManifest(Model):
 
 
 class RawResults(Model):
+    backend: Literal["local", "scaled_evals"] = "local"
     run_id: Text
     task_inventory: list[Task] = Field(min_length=1)
     execution_results: list[Execution] = Field(min_length=1)
@@ -119,6 +127,9 @@ class RawResults(Model):
         runs: dict[str, tuple] = {}
         evaluations: dict[str, tuple] = {}
         for row in self.execution_results:
+            permitted = {None} if self.backend == "local" else {"scaled-evals-atom-v1", "scaled-evals-atom-repair-v1"}
+            if row.identity_scheme not in permitted:
+                raise ValueError("identity proof scheme differs from results backend")
             if row.evaluation.task.key() not in allowed:
                 raise ValueError("execution references an unknown task revision")
             identity = row.agent_bundle_id, row.framework_profile_id

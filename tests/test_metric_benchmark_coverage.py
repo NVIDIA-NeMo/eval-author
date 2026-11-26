@@ -281,3 +281,15 @@ def test_repeated_coverage_averages_separate_measurements_and_preserves_unavaila
     assert (
         invoke_coverage(raw, subsets, selection, configuration, description, record, work, cached_only=True) == result
     )
+
+
+def test_evidence_copy_remains_independent(tmp_path):
+    from metric_benchmark.coverage import copy_evidence
+
+    source = tmp_path / "original"
+    source.mkdir()
+    (source / "trace.json").write_text("original")
+    destination = tmp_path / "copy"
+    copy_evidence(source, destination, "directory")
+    (destination / "trace.json").write_text("modified")
+    assert (source / "trace.json").read_text() == "original"

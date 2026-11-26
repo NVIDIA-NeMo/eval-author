@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Literal
 
 from metric_benchmark.config import CoverageConfig, file_manifest
-from metric_benchmark.io import digest_bytes, digest_file, json_bytes, read_json, write_json
+from metric_benchmark.io import copy_file, digest_bytes, digest_file, json_bytes, read_json, write_json
 from metric_benchmark.models import Digest, Model, RawResults, Score, Subsets, Tasks, Text, resolve_evidence
 from metric_benchmark.scoring import Context, ScoringConfig, context, identity, select_executions
 
@@ -32,14 +32,14 @@ class CoverageScores(Model):
 def copy_evidence(source: Path, destination: Path, native_format: str) -> dict[str, str]:
     if native_format == "directory":
         before = file_manifest(source)
-        shutil.copytree(source, destination)
+        shutil.copytree(source, destination, copy_function=copy_file)
         after = file_manifest(destination)
     else:
         if source.is_symlink() or not source.is_file():
             raise ValueError("archive must be an ordinary file")
         before = {"archive": digest_file(source)}
         destination.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copyfile(source, destination)
+        copy_file(source, destination)
         after = {"archive": digest_file(destination)}
     if before != after:
         raise ValueError("evidence changed while copying")

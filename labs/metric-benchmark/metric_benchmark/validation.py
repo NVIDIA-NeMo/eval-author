@@ -138,6 +138,7 @@ def validate_results(
     groups: dict[tuple, list] = {}
     paths = set()
     unavailable = []
+    identity_cache = {}
     for row in raw.execution_results:
         try:
             key = (row.agent_bundle_id, *row.evaluation.task.key(), row.evaluation.repetition)
@@ -153,6 +154,12 @@ def validate_results(
                     raise ValueError("missing execution needs unavailable score and evidence reason")
                 if (root / row.native_results_path).exists():
                     raise ValueError("missing execution unexpectedly has native evidence")
+                if raw.backend == "scaled_evals":
+                    from metric_benchmark.scaled_import import verify_scaled_identity
+
+                    verify_scaled_identity(
+                        row, case, root, input_root, None, identity_cache, allow_unsigned=allow_unsigned
+                    )
             else:
                 if row.native_results_path in paths:
                     raise ValueError("native trial evidence reused by multiple observations")
@@ -163,22 +170,30 @@ def validate_results(
                 trial = TrialResult.model_validate(read_json(resolve_evidence(native, "result.json")))
                 task = row.evaluation.task.task_id
                 prepared_task = tasks[task]
-                if trial.task_name != prepared_task.name or trial.task_checksum != checksums[task]:
-                    raise ValueError("native task identity or checksum differs from prepared input")
                 if trial.trial_name != native.name:
                     raise ValueError("native trial identity differs from directory")
-                producer_root = recorded_input_root(trial.config.task.path, case.task_sources[task].path)
-                config_key = row.agent_bundle_id, producer_root
-                if config_key not in configs:
-                    configs[config_key] = agent_config(
-                        agents[row.agent_bundle_id],
-                        input_root,
-                        recorded_root=producer_root,
-                        allow_unsigned=allow_unsigned,
+                if raw.backend == "scaled_evals":
+                    from metric_benchmark.scaled_import import verified_scaled_measurements, verify_scaled_identity
+
+                    verify_scaled_identity(
+                        row, case, root, input_root, trial, identity_cache, allow_unsigned=allow_unsigned
                     )
-                if trial.config.agent != configs[config_key]:
-                    raise ValueError("native agent configuration differs from benchmark")
-                status, observed = native_measurements(trial)
+                    status, observed = verified_scaled_measurements(row, root, trial)
+                else:
+                    if trial.task_name != prepared_task.name or trial.task_checksum != checksums[task]:
+                        raise ValueError("native task identity or checksum differs from prepared input")
+                    producer_root = recorded_input_root(trial.config.task.path, case.task_sources[task].path)
+                    config_key = row.agent_bundle_id, producer_root
+                    if config_key not in configs:
+                        configs[config_key] = agent_config(
+                            agents[row.agent_bundle_id],
+                            input_root,
+                            recorded_root=producer_root,
+                            allow_unsigned=allow_unsigned,
+                        )
+                    if trial.config.agent != configs[config_key]:
+                        raise ValueError("native agent configuration differs from benchmark")
+                    status, observed = native_measurements(trial)
                 if status != row.status or row.metrics != observed:
                     raise ValueError("native status or measurement differs from index")
             for metric, score in row.metrics.items():
@@ -225,6 +240,8 @@ def read_case_index(root: Path, manifest: ExecutionManifest, case_id: str) -> tu
         if index.name != "results.json":
             raise ValueError("index must be named results.json")
         raw = RawResults.model_validate(read_json(index))
+        if raw.backend != manifest.backend:
+            raise ValueError("case backend differs from execution.json")
         if raw.run_id != manifest.run_id:
             raise ValueError("run_id differs from execution.json")
         return index, raw
