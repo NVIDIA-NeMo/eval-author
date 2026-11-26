@@ -64,7 +64,8 @@ class ScoringConfig(ScoringPolicy):
     case_id: Text
     repetitions: int = Field(default=1, ge=1)
     baseline_bundle_id: Text
-    mutant_bundle_ids: list[Text] = Field(min_length=1)
+    # Empty when a caller selects the baseline only. Agent manifests still require mutants.
+    mutant_bundle_ids: list[Text] = Field(default_factory=list)
     run_ids: dict[Text, Text]
 
     @model_validator(mode="after")

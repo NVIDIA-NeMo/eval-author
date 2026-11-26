@@ -1,0 +1,20 @@
+{
+  "artifact_type": "eval_subset_definitions",
+  "eval_subsets": [
+    {
+      "eval_subset_id": "subset-000001",
+      "task_ids": [
+        "gen-task-a"
+      ]
+    },
+    {
+      "eval_subset_id": "subset-000002",
+      "task_ids": [
+        "gen-task-b"
+      ]
+    }
+  ],
+  "sampling_parameters": {
+    "seed": 42
+  }
+}

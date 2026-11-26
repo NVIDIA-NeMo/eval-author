@@ -101,6 +101,11 @@ subset in `subsets.json`.
 
 Library: `run_generation_benchmark(benchmark, case_id, work_root, run_id, *, cached_only=False, subset_ids=None)`.
 
+The driver stops before the baseline when the case already contains
+`tasks.generated.yml` or `generated-runtime/`. Delete those artifacts first.
+They are output from an earlier run, and scoring them again would not measure
+this run's drafts. See [Tasks](benchmark-format.md#tasks).
+
 The work root receives `execution-results/`, `coverage-baseline/`,
 `subsets/<id>/`, `generation-results.json`, and `generation-analysis.json`.
 
@@ -109,7 +114,11 @@ Docker, and the credentials for the pinned generator are required for a live
 run. A subset that produces no draft is a result: the driver measures the
 subset again and continues. Optional `scripts/run_e2e.sh` runs a smoke or live
 check against a prepared experiment. It passes when the driver exits 0 and at
-least one subset adds a task that raises coverage. Smoke generation uses
+least one subset adds a task that raises coverage. Before starting, the script checks `GENERATION_WORK_ROOT` (default
+`/tmp/gen-bench-poc-e2e`) and the case artifacts `tasks.generated.yml` and
+`generated-runtime/`. If any of those are already present, it prints every
+path in one list and stops. Remove every path in that list before running
+again. Smoke generation uses
 `scripts/smoke_generation_adapter.py`, which copies checked-in Harbor drafts
 into the configured `draft_dir`. Set `GENERATION_CASE_ROOT` to the case
 directory that holds those drafts.

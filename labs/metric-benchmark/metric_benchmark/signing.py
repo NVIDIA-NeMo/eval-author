@@ -88,6 +88,14 @@ def _replace(path: Path, data: bytes) -> None:
             temporary.unlink(missing_ok=True)
 
 
+def yaml_bytes(path: Path, data: dict | list) -> bytes:
+    return _yaml_bytes(path, data)
+
+
+def replace_file(path: Path, data: bytes) -> None:
+    _replace(path, data)
+
+
 def _collect(path: Path) -> tuple[dict[Path, dict | list], dict[tuple[Path, str], tuple[dict, Path, bool]]]:
     root = path.parent
     documents: dict[Path, dict | list] = {}

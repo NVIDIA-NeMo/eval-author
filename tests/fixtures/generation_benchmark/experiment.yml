@@ -1,0 +1,15 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Prepared case contents stay fixed; prepared_generation_benchmark() patches adapter commands and signs.
+benchmark_id: gen-benchmark-ci
+revision: 1
+experiment_kind: generation
+cases:
+  path: cases.yml
+execution:
+  path: execution.yml
+analysis:
+  path: analysis.yml
+generation:
+  path: generation.yml
