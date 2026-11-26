@@ -14,6 +14,8 @@ Engineering notes on what we're building, testing, and learning in Eval Author.
 
 - **October 15, 2026:** [Introducing Eval Author](posts/2026-10-08-introducing-eval-author.md)
   — Helping developers build the evaluations that make agents work.
+- **November 23, 2026:** [Rubrics, Reward Hacking and Traces](posts/2026-11-23-rubrics-cheats-and-traces.md)
+  — Three ways we check that an evaluation tests what it claims to test.
 
 ## Notes
 
