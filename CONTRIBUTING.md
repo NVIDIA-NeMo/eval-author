@@ -3,15 +3,71 @@
 
 # Contributing
 
-Contributions are currently limited to the NVIDIA ASE team
-(`@NVIDIA-NeMo/ase_team`). This contribution policy does not configure repository
-access permissions.
+We welcome contributions from the NVIDIA ASE team (`@NVIDIA-NeMo/ase_team`)
+and anyone outside ASE, including people outside NVIDIA.
+The ASE team maintains the project and decides which contributions to accept.
+This policy does not change repository access permissions.
+
+## Human authorship and AI use
+
+All contributors must understand their changes and be able to explain them.
+Anyone may use AI tools to write code and tests. Review every change for
+correctness and licensing. Run the relevant checks and report their results
+accurately. AI output alone does not prove that a change works.
+
+These authorship requirements apply to contributors outside ASE:
+
+- Write issue reports, PR titles and descriptions, and discussion replies in
+  your own words. Do not use AI-generated text to explain your contribution.
+  You may quote code, logs, and command output as supporting evidence.
+- Understand the problem you report and every change you submit.
+  Be ready to explain your approach, tradeoffs, tests, and limitations in your
+  own words. Answer follow-up questions yourself.
+
+The ASE team reviews contributions and may use AI tools to help.
+AI feedback is advisory. Before merging, maintainers must confirm that an ASE
+team member other than the author approved the change. GitHub requires one
+approval on `main` and does not check whether the reviewer belongs to ASE.
+
+## Additional requirements for contributors outside ASE
+
+If you are outside the ASE team, including elsewhere at NVIDIA, you must also
+meet these requirements:
+
+- For small documentation or typo fixes, you may open a PR directly.
+  For behavior changes, new features, or refactors, first open or join an issue.
+  Get an ASE maintainer's agreement on the problem and proposed scope.
+  This agreement does not guarantee that the team will accept your PR.
+- For bug reports, give reproduction steps, expected and actual behavior,
+  and relevant environment details. For proposals, explain the use case and
+  why the change belongs in Eval Author.
+- Keep each PR focused on one concern and within any agreed scope.
+  If an issue is required, link to it and the maintainer's agreement.
+  Include the relevant commands you ran and their results.
+  Report any failed or skipped checks. For behavior changes, include a
+  reproducible example and tests that show the change.
+- Answer review questions and make requested revisions yourself.
+  Maintainers may close a submission if it lacks the required evidence or
+  exceeds the agreed scope. They may also close it if you cannot explain it.
 
 ## Development and review
 
-Create a branch in this repository and open a pull request against `main`.
+If you have repository write access, create a branch in this repository.
+Otherwise, fork the repository and create a branch in your fork.
+Open a pull request against this repository's `main` branch.
 Use a Git worktree when practical. Do not commit or push directly to `main`.
-Fork contributions are not supported during this restricted phase.
+
+For a fork PR, include the commands you ran and their results. The repository
+skips its CI tests, automated AI review, and PR-title check on forks.
+Maintainers must check the title against the rules below and validate the
+proposed commit in a disposable environment without privileged credentials.
+Record the commit SHA and results in the PR. The `main` ruleset requires named
+Python and platform test results that the fork workflow skips. Contributors
+can submit a fork PR for review, but should expect GitHub to block the merge
+while those results are missing. Local test results cannot satisfy that gate.
+Maintainers should identify the missing checks in the PR and leave it open
+until a supported CI path reports them. Do not bypass the rule or push the
+fork branch into this repository to run CI.
 
 Use Python 3.12 or 3.13 and uv (CI uses uv 0.12.3). Before handing off or
 committing changes, run the same checks as CI, plus Git's whitespace check:
@@ -34,10 +90,10 @@ see [DEVELOPMENT.md](DEVELOPMENT.md) for setup and dependency updates.
 `make commit-check` checks the current `HEAD` commit's message by default,
 including after a fresh clone or pull. Pass `COMMIT_MSG` to check a prepared
 message before committing. Report any failed or skipped checks and explain
-their impact in the pull request. Describe the
-problem, resulting behavior, and validation.
-Obtain approval from another ASE team member before merging; `.github/CODEOWNERS`
-assigns that team to every file, including workflows and CODEOWNERS itself.
+their impact in the pull request. Describe the problem, the change in behavior,
+and how you checked it.
+`.github/CODEOWNERS` assigns the ASE team to every file, including workflows
+and CODEOWNERS itself.
 
 The default tests use synthetic evidence and mocked providers. Some checks skip
 when a backend or optional plugin is unavailable. Live model execution outside
@@ -120,62 +176,3 @@ check applies to PR titles, while the commit hook checks sign-off.
 The PR-title workflow reads metadata with a read-only token and does not check
 out PR code. If squash-merging, retain the semantic PR title and the appropriate
 sign-off trailers in the resulting commit.
-
-## CI trust boundary
-
-The checked-in CI workflow tests same-repository pull requests targeting `main`
-and pushes to `main`, manual dispatches, and daily runs on GitHub-hosted Ubuntu
-runners. It uses a read-only
-`GITHUB_TOKEN`, disables persisted checkout credentials and shared dependency
-caching, pins actions to commit SHAs and uv to a version, and bounds job runtimes.
-New change-triggered runs cancel older runs for the same PR or branch; daily
-runs use a separate concurrency group and are not cancelled by pushes. See
-[advisory evaluation CI](docs/skill-evaluation-ci.md) for approval requirements
-and report details.
-
-Dependency installation and tests execute code from the proposed change.
-Repository writers must therefore be trusted to run code in CI. Review workflow,
-dependency, build, and test changes with that in mind. Unit-test dependencies,
-including the pinned public NeMo Compass package, install without repository
-credentials; see [setup](DEVELOPMENT.md#public-nemo-compass-dependency).
-Model-evaluation jobs use a dedicated CI inference credential in the protected
-`skill-evaluator` environment. That environment permits only `main`, requires
-approval from `NVIDIA-NeMo/ase_team`, prevents self-approval, and disables
-administrator bypass. PR checks do not receive this credential. These controls
-must be configured in GitHub settings, not only in workflow YAML. Fork PRs are
-excluded. Keep unrelated secrets, cloud credentials, self-hosted runners, and
-internal application access out of these jobs. Do not use
-`pull_request_target` or a privileged `workflow_run` to execute PR code, except
-in the omp review workflow below.
-
-The omp review workflow (`.github/workflows/omp-review.yml`) runs on
-`pull_request_target` for same-repository PRs when a PR is opened, reopened, or
-marked ready for review, and again when someone adds the `omp-review` label.
-It runs only when the person who triggered it has the maintain or admin role
-and the PR author has write access, both checked with GitHub's permission API.
-PR code runs only inside the `tools/omp-review/` sandbox: a non-root,
-read-only, CPU- and memory-limited gVisor container on a copy of the checkout, whose
-writable storage is a fixed-size filesystem and whose only network exits are a
-model proxy and a proxy that allows only PyPI and GitHub. The model proxy holds
-the inference key, forwards only Anthropic Messages calls for the configured
-model, and stops forwarding once a run's metered spend reaches its budget
-(currently $15). Only the review's `review.json` leaves the sandbox;
-transcripts and logs are discarded. A separate job without secrets posts one
-comment-only review, with the run's phase, exit code, duration, and model spend
-when the review did not complete. PR code can write `review.json` itself, so a
-posted review is advisory; it never approves or requests changes.
-
-The workflow needs the `omp-review` environment limited to `main`, the
-`OMP_REVIEW_INFERENCE_HUB_API_KEY` secret, and the `OMP_REVIEW_MODEL`,
-`OMP_REVIEW_CONTEXT_WINDOW`, `OMP_REVIEW_MAX_TOKENS`, and `OMP_REVIEW_PRICES`
-variables. `OMP_REVIEW_PRICES` gives the model's USD prices per million tokens,
-for example `input=4,output=20,cache_write_5m=5,cache_write_1h=8,cache_read=0.2`.
-GitHub blocks `pull_request_target` in public repositories from December 2,
-2026 unless an Actions event policy allows it, so the repository needs a policy
-that allows it for this workflow file. To debug a review, run
-`tools/omp-review/run.sh --keep-work` locally.
-
-The same-repository job condition is defense in depth, not an access control:
-a PR can modify workflow YAML. CODEOWNERS routes review requests to ASE; it
-does not restrict access or enforce approval. These repository files do not
-enforce ASE-only access or prevent every unwanted workflow run.

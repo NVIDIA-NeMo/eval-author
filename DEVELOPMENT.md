@@ -167,6 +167,33 @@ model execution is opt-in outside configured CI workflows; see
 [trace fixture checks](docs/trace-derived-fixtures.md#regression-checks) and
 [skill evaluation CI](docs/skill-evaluation-ci.md).
 
+### Configure OMP review
+
+The [OMP review workflow](.github/workflows/omp-review.yml) runs on PRs from a
+branch in this repository. The author must have write access, and the person
+triggering the review must have the maintain or admin role. Both must use human
+accounts. Opening, reopening, or marking a non-draft PR ready triggers review.
+To request another review, add the `omp-review` label. The label also works on drafts.
+
+Restrict the `omp-review` environment to the `main` branch.
+Set its `OMP_REVIEW_INFERENCE_HUB_API_KEY` secret and these environment variables:
+
+| Variable | Value |
+| --- | --- |
+| `OMP_REVIEW_MODEL` | Model ID on Inference Hub |
+| `OMP_REVIEW_CONTEXT_WINDOW` | Model context window in tokens |
+| `OMP_REVIEW_MAX_TOKENS` | Maximum output tokens per call |
+| `OMP_REVIEW_PRICES` | Model prices in USD per million tokens, for example `input=4,output=20,cache_write_5m=5,cache_write_1h=8,cache_read=0.2` |
+
+GitHub begins enforcing its default public-repository policy for
+`pull_request_target` on December 2, 2026 for affected repositories. Check
+Actions policy insights. If the default policy would block OMP review, scope
+any exception to this workflow. See [GitHub's event policy guidance](https://docs.github.com/en/actions/reference/security/securely-using-pull_request_target#default-policy-for-pull_request_target).
+
+For local debugging, add `--keep-work` to the
+[`run.sh`](tools/omp-review/run.sh) invocation to retain the scratch directory,
+including the review transcript and logs.
+
 ### Native APT retry controls
 
 The three native APT download controls in `tests/test_live_shard_apt.py` check
