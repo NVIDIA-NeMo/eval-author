@@ -345,3 +345,76 @@ def test_repair_groups_share_one_replacement_only_within_original_evaluation():
         validate_repair_groups({**state, "old/rep2": {"id": "another"}}, original_ids)
     with pytest.raises(ValueError, match="different original"):
         validate_repair_groups({**state, "other/rep1": {"id": "new"}}, original_ids)
+
+
+def native_job_witness():
+    from uuid import UUID
+
+    from harbor.models.trial.config import TrialConfig
+    from harbor.models.trial.result import TrialResult
+
+    job_id = UUID("11111111-1111-4111-8111-111111111111")
+    config = {"job_name": "ev_test-x2", "n_attempts": 1}
+    result = {"id": str(job_id), "n_total_trials": 1}
+    trial = TrialResult.model_construct(
+        trial_name="trial",
+        trial_uri="file:///var/lib/scaled-evals/harbor-jobs/astra/ev_test-x2/trial",
+        config=TrialConfig.model_construct(job_id=job_id, trials_dir=Path("jobs/astra/ev_test-x2")),
+    )
+    return config, result, trial
+
+
+def test_missing_runtime_handle_requires_explicit_native_job_witness():
+    row, task, agent, metadata, provenance = observation()
+    provenance["runtime"] = {}
+    with pytest.raises(ValueError, match="execution attempt"):
+        verify_observation(row, task, agent, metadata, provenance)
+    config, result, trial = native_job_witness()
+    verify_observation(row, task, agent, metadata, provenance, native_job=(config, result), trial=trial)
+    provenance["runtime"]["handle"] = "ev_test-x1"
+    with pytest.raises(ValueError, match="execution attempt"):
+        verify_observation(row, task, agent, metadata, provenance, native_job=(config, result), trial=trial)
+
+
+@pytest.mark.parametrize("mutation", ["job_name", "attempts", "job_id", "budget", "uri", "directory", "trial_name"])
+def test_native_job_witness_rejects_mixed_epochs(mutation):
+    from uuid import UUID
+
+    from metric_benchmark.scaled_import import verify_native_job_identity
+
+    _, _, _, metadata, _ = observation()
+    config, result, trial = native_job_witness()
+    if mutation == "job_name":
+        config["job_name"] = "ev_test-x1"
+    elif mutation == "attempts":
+        config["n_attempts"] = 5
+    elif mutation == "job_id":
+        trial.config.job_id = UUID("22222222-2222-4222-8222-222222222222")
+    elif mutation == "budget":
+        result["n_total_trials"] = 5
+    elif mutation == "uri":
+        trial.trial_uri = trial.trial_uri.replace("-x2/", "-x1/")
+    elif mutation == "directory":
+        trial.config.trials_dir = Path("jobs/astra/ev_test-x1")
+    else:
+        trial.trial_name = "different"
+    with pytest.raises(ValueError):
+        verify_native_job_identity(metadata, config, result, trial)
+
+
+def test_native_job_evidence_is_hash_pinned(tmp_path):
+    import json
+
+    from metric_benchmark.scaled_import import store_native_job_identity
+
+    config, result, _ = native_job_witness()
+    files = {
+        "job/scaled-evals-provenance.json": b"{}",
+        "job/config.json": json.dumps(config).encode(),
+        "job/result.json": json.dumps(result).encode(),
+    }
+    witness = store_native_job_identity(files, tmp_path, "ev_test")
+    path = witness.config.resolve(tmp_path)
+    path.write_text("{}")
+    with pytest.raises(ValueError):
+        witness.config.resolve(tmp_path)

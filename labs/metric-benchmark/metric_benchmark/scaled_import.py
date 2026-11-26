@@ -8,8 +8,10 @@ import json
 import shutil
 import tarfile
 import tempfile
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any, Literal
+from urllib.parse import unquote, urlparse
+from uuid import UUID
 
 from harbor.models.task.task import Task as HarborTask
 from harbor.models.trial.result import TrialResult
@@ -71,7 +73,13 @@ class RepairEvidence(Model):
     creation: PinnedInput
 
 
+class NativeJobIdentity(Model):
+    config: PinnedInput
+    result: PinnedInput
+
+
 class Proof(Model):
+    native_job_identity: NativeJobIdentity | None = None
     grader_policy: Literal["terminal-agent-v1", "terminal-agent-capacity-v2"] = "terminal-agent-v1"
     repair: RepairEvidence | None = None
     binding_path: Text
@@ -201,6 +209,61 @@ def verify_bindings(bindings: Bindings, case: Case, root: Path, input_root: Path
                 raise ValueError("Scaled agent context changes pinned source bytes")
 
 
+def store_native_job_identity(files: dict[str, bytes], root: Path, evaluation_id: str) -> NativeJobIdentity:
+    parents = [name.rsplit("/", 1)[0] for name in files if name.endswith("/scaled-evals-provenance.json")]
+    if len(parents) != 1:
+        raise ValueError("native job identity requires unique archive provenance")
+    pins = {}
+    for name in ("config", "result"):
+        source = f"{parents[0]}/{name}.json"
+        if source not in files:
+            raise ValueError("native job identity lacks root config/result")
+        target = root / "scaled/native-jobs" / evaluation_id / f"{name}.json"
+        value = json.loads(files[source])
+        if not isinstance(value, dict):
+            raise ValueError("native job identity must be an object")
+        write_json(target, value)
+        pins[name] = PinnedInput(path=str(target.relative_to(root)), sha256=digest_file(target))
+    return NativeJobIdentity(**pins)
+
+
+def verify_native_job_identity(
+    metadata: dict[str, Any], config: dict[str, Any], result: dict[str, Any], trial: TrialResult | None
+) -> None:
+    expected = f"{metadata['id']}-x{metadata['current_execution']}"
+    attempts = metadata.get("n_attempts", 1)
+    if (
+        config.get("job_name") != expected
+        or type(config.get("n_attempts")) is not int
+        or config["n_attempts"] != attempts
+    ):
+        raise ValueError("native job name or repetition count differs from current execution")
+    try:
+        job_id = UUID(str(result["id"]))
+    except (KeyError, ValueError) as exc:
+        raise ValueError("native job result lacks a valid job id") from exc
+    if type(result.get("n_total_trials")) is not int or result["n_total_trials"] != attempts:
+        raise ValueError("native job trial budget differs from current execution")
+    if trial is None:
+        return
+    uri = urlparse(trial.trial_uri)
+    path = PurePosixPath(unquote(uri.path))
+    trials_dir = PurePosixPath(str(trial.config.trials_dir))
+    if (
+        trial.config.job_id != job_id
+        or uri.scheme != "file"
+        or uri.netloc
+        or uri.query
+        or uri.fragment
+        or ".." in path.parts
+        or ".." in trials_dir.parts
+        or path.parent.name != expected
+        or trials_dir.name != expected
+        or path.name != trial.trial_name
+    ):
+        raise ValueError("native trial job id or execution directory differs")
+
+
 def verify_observation(
     row: Execution,
     binding: TaskBinding,
@@ -209,6 +272,8 @@ def verify_observation(
     provenance: dict[str, Any] | None,
     *,
     source_run_id: str | None = "",
+    native_job: tuple[dict[str, Any], dict[str, Any]] | None = None,
+    trial: TrialResult | None = None,
 ) -> None:
     if (
         f"{metadata['id']}/repetition-{row.evaluation.repetition:06d}" != row.evaluation.evaluation_id
@@ -262,7 +327,9 @@ def verify_observation(
         if bundle[key] != expected:
             raise ValueError(f"Scaled bundle {key} differs")
     handle = provenance["runtime"].get("handle")
-    if handle != f"{metadata['id']}-x{metadata['current_execution']}":
+    if handle is None and native_job is not None:
+        verify_native_job_identity(metadata, *native_job, trial)
+    elif handle != f"{metadata['id']}-x{metadata['current_execution']}":
         raise ValueError("Scaled archive belongs to another execution attempt")
 
 
@@ -299,7 +366,17 @@ def verify_scaled_identity(
         source_run_id = verify_repair_selection(row, proof, bindings, root, metadata, cache)
     elif bindings.repair_source is not None or agent.original_run_id is not None or proof.repair is not None:
         raise ValueError("repair evidence requires its explicit identity scheme")
-    verify_observation(row, binding, agent, metadata, provenance, source_run_id=source_run_id)
+    native_job = None
+    if proof.native_job_identity is not None:
+        native_job = (
+            read_object(proof.native_job_identity.config.resolve(root)),
+            read_object(proof.native_job_identity.result.resolve(root)),
+        )
+        if provenance is None or provenance["runtime"].get("handle") is not None:
+            raise ValueError("native job identity recovery is only for absent runtime handles")
+    verify_observation(
+        row, binding, agent, metadata, provenance, source_run_id=source_run_id, native_job=native_job, trial=trial
+    )
     if trial is None:
         return
     native = resolve_evidence(root, row.native_results_path)
@@ -460,7 +537,13 @@ def verified_scaled_measurements(row: Execution, root: Path, trial: TrialResult)
 
 
 def import_results(
-    loaded: LoadedCases, campaign: Path, collection: Path, output: Path, *, include_verified_grader_reward: bool = False
+    loaded: LoadedCases,
+    campaign: Path,
+    collection: Path,
+    output: Path,
+    *,
+    include_verified_grader_reward: bool = False,
+    recover_native_job_identity: bool = False,
 ) -> None:
     if output.exists():
         raise ValueError("use a new import output directory; historical imports are immutable")
@@ -468,13 +551,24 @@ def import_results(
     with tempfile.TemporaryDirectory(prefix=".scaled-import-", dir=output.parent) as temporary:
         staged = Path(temporary) / "results"
         _import_results(
-            loaded, campaign, collection, staged, include_verified_grader_reward=include_verified_grader_reward
+            loaded,
+            campaign,
+            collection,
+            staged,
+            include_verified_grader_reward=include_verified_grader_reward,
+            recover_native_job_identity=recover_native_job_identity,
         )
         staged.rename(output)
 
 
 def _import_results(
-    loaded: LoadedCases, campaign: Path, collection: Path, output: Path, *, include_verified_grader_reward: bool = False
+    loaded: LoadedCases,
+    campaign: Path,
+    collection: Path,
+    output: Path,
+    *,
+    include_verified_grader_reward: bool = False,
+    recover_native_job_identity: bool = False,
 ) -> None:
     if output.exists():
         raise ValueError("use a new import output directory; historical imports are immutable")
@@ -525,6 +619,7 @@ def _import_results(
                 metrics = {"reward": Score(value=None, missing_score_reason=reason)}
                 native_files = {}
                 provenance_path = None
+                native_job_identity = None
                 if record["status"] == "downloaded":
                     extracted = extract_native_trial(
                         files, root / "native" / name / eid, repetition=repetition, repetitions=case.repetitions
@@ -550,6 +645,8 @@ def _import_results(
                         provenance = archive_provenance(files)
                         assert provenance is not None
                         write_json(root / provenance_path, provenance)
+                        if recover_native_job_identity and provenance["runtime"].get("handle") is None:
+                            native_job_identity = store_native_job_identity(files, root, eid)
                     else:
                         reason = "archive lacks a unique native trial and provenance"
                         metrics = {"reward": Score(value=None, missing_score_reason=reason)}
@@ -559,6 +656,7 @@ def _import_results(
                 write_json(
                     root / proof_path,
                     Proof(
+                        native_job_identity=native_job_identity,
                         binding_path="scaled/bindings.json",
                         metadata_path=metadata_path,
                         metadata_sha256=digest_file(root / metadata_path),
@@ -614,6 +712,7 @@ def main() -> None:
     for name in ("cases", "campaign", "collection", "output"):
         parser.add_argument("--" + name, type=Path, required=True)
     parser.add_argument("--include-verified-grader-reward", action="store_true")
+    parser.add_argument("--recover-native-job-identity", action="store_true")
     args = parser.parse_args()
     import_results(
         load_cases(args.cases),
@@ -621,6 +720,7 @@ def main() -> None:
         args.collection,
         args.output,
         include_verified_grader_reward=args.include_verified_grader_reward,
+        recover_native_job_identity=args.recover_native_job_identity,
     )
 
 

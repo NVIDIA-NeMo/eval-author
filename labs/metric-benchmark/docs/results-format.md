@@ -295,3 +295,10 @@ execution, original inputs, native files, and source provenance. These results
 must not be relabeled as local execution. See
 [the Scaled Evals import workflow](run-evals.md#import-pinned-atom-runs-from-scaled-evals)
 for repetition handling and the optional verified grader metric.
+
+With explicit native job identity recovery, the proof also contains
+`native_job_identity.config` and `.result`: relative file paths and SHA-256
+pins for the archived root job configuration and result. They provide an
+alternative witness only when the provenance runtime handle is absent. The
+validator rechecks the current execution name, repetition budget, job UUID,
+and each native trial's directory and UUID; contradictory handles still fail.

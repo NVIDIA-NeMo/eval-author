@@ -152,6 +152,16 @@ PYTHONPATH=labs/metric-benchmark uv run --locked python -m metric_benchmark.scal
   --include-verified-grader-reward
 ```
 
+If terminal persistence drops the provenance runtime handle, both
+`scaled_import` and `scaled_repair` accept the opt-in
+`--recover-native-job-identity` flag. This requires the archived root job
+configuration to name the exact current execution and repetition count, the
+root job result to identify its UUID and trial budget, and each native trial
+to match that UUID and execution directory. A conflicting runtime handle is
+still rejected. The importer pins the additional job evidence in each proof;
+it does not edit the service provenance or infer a reward from parent status.
+All task, agent, source, model, grader, and trace checks still apply.
+
 The output directory must be new. Import validates pinned task and agent bytes,
 published identities, model settings, native task checksums, and execution
 provenance before publishing the results. Full benchmark imports require a

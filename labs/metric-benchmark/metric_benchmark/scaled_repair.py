@@ -23,6 +23,7 @@ from metric_benchmark.scaled_import import (
     extract_native_trial,
     missing_success_evidence,
     observation_measurements,
+    store_native_job_identity,
 )
 
 
@@ -121,7 +122,9 @@ def validate_repair_groups(state: dict[str, dict[str, Any]], original_ids: dict[
             raise ValueError("replacement evaluation cannot serve different original evaluations")
 
 
-def assemble(loaded: LoadedCases, original: Path, repairs: Path, output: Path) -> None:
+def assemble(
+    loaded: LoadedCases, original: Path, repairs: Path, output: Path, *, recover_native_job_identity: bool = False
+) -> None:
     from metric_benchmark.validation import validate_experiment_results
 
     if output.exists():
@@ -194,6 +197,7 @@ def assemble(loaded: LoadedCases, original: Path, repairs: Path, output: Path) -
                 }
                 proof.native_files = {}
                 proof.provenance_path = None
+                proof.native_job_identity = None
                 extracted = extract_native_trial(
                     files,
                     root / "native" / row.agent_bundle_id / eid,
@@ -224,6 +228,8 @@ def assemble(loaded: LoadedCases, original: Path, repairs: Path, output: Path) -
                     provenance = archive_provenance(files)
                     assert provenance is not None
                     write_json(root / proof.provenance_path, provenance)
+                    if recover_native_job_identity and provenance["runtime"].get("handle") is None:
+                        proof.native_job_identity = store_native_job_identity(files, root, eid)
                 proof.metadata_path = f"scaled/metadata/{eid}.json"
                 write_json(root / proof.metadata_path, metadata)
                 proof.metadata_sha256 = digest_file(root / proof.metadata_path)
@@ -282,8 +288,15 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     for name in ("cases", "original", "repairs", "output"):
         parser.add_argument(f"--{name}", required=True, type=Path)
+    parser.add_argument("--recover-native-job-identity", action="store_true")
     args = parser.parse_args()
-    assemble(load_cases(args.cases), args.original, args.repairs, args.output)
+    assemble(
+        load_cases(args.cases),
+        args.original,
+        args.repairs,
+        args.output,
+        recover_native_job_identity=args.recover_native_job_identity,
+    )
 
 
 if __name__ == "__main__":
